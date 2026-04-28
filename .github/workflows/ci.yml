@@ -1,0 +1,12 @@
+# CI workflow — placeholder.
+#
+# This file is intentionally empty for now. CI pipelines will be added once
+# at least one service has tests/lints worth running. Likely jobs:
+#
+#   - backend:  ruff + black --check + pytest
+#   - frontend: eslint + tsc --noEmit + vitest/jest
+#   - listener: same as backend (Python) or `go vet` + `go test` (Go)
+#   - specs:    markdown lint, broken-link check
+#
+# When adding workflow logic, prefer reusable workflows under .github/workflows/
+# and pin third-party actions to a SHA.
