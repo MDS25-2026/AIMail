@@ -28,9 +28,9 @@ A small HTTP service that receives the n8n webhook on new email and forwards it 
 Python + FastAPI. **The brain.** Responsibilities:
 
 - PII masking (and un-masking on the way back).
-- Multi-agent reply pipeline orchestrated through Claude.
+- Multi-layer agent pipeline (classifier → reasoner(s) → drafter) with self-evaluation and user-feedback loops. Detailed in [`agent-pipeline.md`](agent-pipeline.md).
 - Style-learning over the user's historical replies (pgvector embeddings).
-- Postgres reads/writes — emails, threads, drafts, style profiles.
+- Postgres reads/writes — emails, threads, chats, drafts, style profiles.
 - REST API for the frontend.
 - Outbound calls to n8n to send approved replies.
 
@@ -39,10 +39,12 @@ Next.js + TypeScript + Tailwind dashboard. Lists incoming threads, shows generat
 
 ## Governing principle
 
-> **The backend governs everything. The frontend only knows REST contracts.**
+> **The backend is the manager. It knows everything, controls everything. The frontend is a visualisation layer.**
 
-- Frontend has no direct DB access, no Claude API key, no Gmail OAuth.
-- All authorisation, masking, AI calls, and persistence happen server-side.
+- Frontend has no direct DB access, no Claude API key, no Gmail OAuth, no n8n awareness.
+- Frontend talks to the backend via REST endpoints **only**. The endpoint signature is the contract; backend can change anything internally as long as the contract holds.
+- **All LLM logic lives in the Python backend** — classification, routing, drafting, self-evaluation. Not in n8n. Not in the frontend.
+- n8n's job is narrow: Gmail in (webhook on new mail), Gmail out (send approved replies). No conditional logic, no model calls.
 - Contract changes are made in [`context/api-contracts.md`](context/api-contracts.md) **first**, then implemented on both sides.
 
 ## Data flow — happy path

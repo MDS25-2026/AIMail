@@ -26,7 +26,12 @@
 
 ## Acceptance criteria
 
-<!-- Observable, testable conditions. "When X, then Y." -->
+<!--
+Each AC must be observable, binary, and runnable as a check.
+Pattern: "Given <state>, when <action>, then <observable outcome>."
+If you can't imagine writing a test or manual check for it, sharpen it.
+See specs/README.md → "Acceptance criteria must be testable".
+-->
 
 - [ ] Given …, when …, then …
 - [ ] Given …, when …, then …
@@ -62,3 +67,27 @@
 ## Implementation notes
 
 <!-- Non-binding hints for whoever picks this up. Tradeoffs considered, libraries suggested, files likely to change. -->
+
+## Decisions
+
+<!--
+Record architectural choices made while implementing this feature.
+For decisions that affect more than this feature, open an ADR in
+docs/adr/ instead and link it here.
+
+Format:
+  - YYYY-MM-DD: <decision>. Rationale: <one line>. Alternatives: <one line>.
+-->
+
+## Protected decisions
+
+<!--
+For non-negotiable choices that future agents must not silently change.
+Wrap the rule in the markers below — do not remove without explicit approval.
+
+<!-- BEGIN PROTECTED -->
+[Critical decision with rationale]
+DO NOT change this without [approval condition].
+<!-- END PROTECTED -->
+-->
+

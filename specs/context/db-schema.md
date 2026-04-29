@@ -24,6 +24,11 @@ This file is the **source of truth** for the AImail Postgres schema. The actual 
 - [ ] `user` — connected Gmail account, style profile pointer.
 - [ ] `thread` — Gmail thread metadata.
 - [ ] `email` — individual messages within a thread (masked + raw, with the raw stored encrypted).
-- [ ] `draft` — generated reply drafts, status, audit trail.
+- [ ] `chat` — one row per email thread treated as an LLM conversation. Holds the running context the agent pipeline reads on each new message in the thread. FK → `thread`.
+- [ ] `conversation` — one row per LLM generation event (subtable of `chat`). Stores: prompt sent, context window included, model used, raw AI response, rubric score, version label. Multiple rows per `chat` allow self-evaluation loop (2–3 revisions before user sees output) and multi-version offerings (showing the user 2–3 drafts to pick from). FK → `chat`.
+- [ ] `draft` — generated reply drafts surfaced to the user, status, audit trail. FK → `chat` and the chosen `conversation` row.
+- [ ] `draft_feedback` — user thumbs up/down + which version they picked + their final edited text. Drives model-selection learning. FK → `draft`.
 - [ ] `style_profile` — per-user writing-style features and embeddings.
 - [ ] `email_embedding` — pgvector index over historical replies for retrieval.
+
+> The `chat` → `conversation` parent/child shape is the memory backbone: each new email in a thread reuses the prior `conversation` rows as context, which is what gives the agent its "attention span" across replies. See [`../agent-pipeline.md`](../agent-pipeline.md) for how these tables are read and written during a generation.

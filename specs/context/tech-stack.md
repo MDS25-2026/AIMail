@@ -52,6 +52,20 @@ Pinned versions and authoritative documentation links. Update this file when a v
 
 ## AI
 
-| Tech         | Version          | Docs                            |
-|--------------|------------------|---------------------------------|
-| Claude API   | claude-opus-4-7  | https://docs.claude.com/        |
+| Tech            | Version          | Docs                                |
+|-----------------|------------------|-------------------------------------|
+| Claude API      | claude-opus-4-7  | https://docs.claude.com/            |
+
+> **Orchestration framework:** undecided — direct Anthropic SDK calls vs. LangChain / LangGraph is an open question, to be resolved at the next team meeting. Both options documented in [`../../docs/adr/0002-orchestration-framework.md`](../../docs/adr/0002-orchestration-framework.md).
+
+### Model tiers
+
+The agent pipeline uses three tiers. Final picks decided by R&D + user-feedback signal (see [`../agent-pipeline.md`](../agent-pipeline.md)).
+
+| Tier        | Job                                              | Candidates (shortlist)                                                |
+|-------------|--------------------------------------------------|-----------------------------------------------------------------------|
+| Classifier  | Read incoming email, classify task, emit JSON routing plan. Cheap, fast, must reason well over short text. | Gemma 3B / 7B (self-host), GPT-5 Nano, DeepSeek small                |
+| Reasoner    | Sub-tasks: summary, action items, intent extraction. Run **in parallel** — independent. | DeepSeek (strong reasoning), Claude Sonnet, GPT-5                    |
+| Drafter     | Generate the reply. Multiple options shown to user; user pick + edit feeds back into selection. | Claude Opus 4.7, Claude Sonnet, DeepSeek, GPT-5                      |
+
+Pin to **3 candidates per tier** during sprint 1; narrow to 1 per tier as thumbs-up/down data accumulates.
