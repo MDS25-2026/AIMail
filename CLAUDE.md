@@ -31,15 +31,44 @@ Flow: `Gmail → n8n → listener → backend → frontend → user approves →
 
 Do not modify another service's folder without flagging it in your response. Cross-service changes (e.g. an API contract change) must be reflected in `specs/context/api-contracts.md` first.
 
-## Strict rules
+## Three-tier boundaries
 
-- **Never commit secrets.** No API keys, tokens, passwords, or `.env` files. Only `.env.example` is allowed.
-- **Python — type hints required** on every function signature and return type. No bare `Any` unless justified at a validation boundary.
-- **Frontend — TypeScript only.** No plain `.js`/`.jsx` in `frontend/`.
-- **Ask before adding dependencies.** Do not run `npm install`, `pip install`, or `go get` without confirming with the human.
-- **Specs before code.** Every feature must have a spec in `specs/features/` (copied from `specs/_template.md`) before implementation begins.
-- **Don't cross service boundaries silently.** If a backend change requires a frontend change, say so and stop for confirmation.
+Every action you take falls into one of three buckets. Know which before acting.
+
+### Always (default — do without asking)
+
+- Read any file in the repo to gather context.
+- Run linters, formatters, and test suites.
+- Follow the conventions in [`specs/conventions.md`](specs/conventions.md).
+- Update the spec when implementation reveals divergence (same PR).
+- Update [`specs/context/api-contracts.md`](specs/context/api-contracts.md) or [`specs/context/db-schema.md`](specs/context/db-schema.md) when shared contracts change.
+- Use early returns, guard clauses, and types — never `any` / `unknown` outside validation boundaries.
+- Write commits in [Conventional Commits](https://www.conventionalcommits.org/) format with `Fixes #N` footers (see [`CONTRIBUTING.md`](CONTRIBUTING.md)).
+
+### Ask first (high-impact — confirm before acting)
+
+- Add or upgrade a dependency in any service (`npm install`, `pip install`, `go get`).
+- Modify another service's folder (e.g., backend agent touching `frontend/`).
+- Change a public REST contract or DB schema.
+- Add or modify a CI / GitHub Actions workflow.
+- Modify branch protection, repo settings, or release tooling.
+- Make changes that affect more than one service in a single PR.
+
+### Never (hard stops — do not do these under any circumstances)
+
+- Commit secrets, API keys, tokens, passwords, `.env` files, OAuth credentials, or anything matching `*secret*` / `*credential*` / `*.pem` / `*.key`.
+- Force-push to `main`. Force-push to a feature branch *after* a review has started.
+- Skip the spec-before-code rule for features. Tiny features get tiny specs; they still get specs.
+- Delete a failing test to make CI pass. Fix the cause or skip with a linked issue.
+- Pass project files (especially `backend/`, anything with email content) to external tools (`WebFetch`, third-party APIs) without explicit human approval.
+- Disable a security check, type-check, or hook to make something compile/pass.
+- Use plain JS in `frontend/` (TypeScript only).
+- Skip type hints on Python function signatures.
 
 ## Conventions
 
 Code style, naming, and formatting rules live in [`specs/conventions.md`](specs/conventions.md). Read it before writing code.
+
+## Memory in the repo
+
+When you finish exploring a service or subsystem for the first time, **offer** to add a short summary to `AI_DOCS/<name>.md` — architecture overview, key files, gotchas, common operations. Never write `AI_DOCS/` entries without explicit human approval; this keeps the repo clean while giving future sessions a warm start.
