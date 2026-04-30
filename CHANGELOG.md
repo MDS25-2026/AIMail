@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/MDS25-2026/AIMail/compare/v1.0.0...v1.0.1) (2026-04-30)
+
+
+### Bug Fixes
+
+* missed idea status ([0592021](https://github.com/MDS25-2026/AIMail/commit/05920214f7a52727325c041375ea9ca914c3b786))
+
 ## 1.0.0 (2026-04-30)
 
 
