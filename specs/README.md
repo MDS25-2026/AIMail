@@ -6,7 +6,7 @@ This folder is the **source of truth** for what AImail does and how. Code follow
 
 1. One feature = one file in [`features/`](features/).
 2. Copy [`_template.md`](_template.md) when starting a new feature spec. Name it `kebab-case.md` (e.g. `pii-masking.md`).
-3. Keep the **Status** field current: `draft` → `approved` → `in-progress` → `shipped` → `archived`.
+3. Keep the **Status** field current: `idea` → `draft` → `approved` → `in-progress` → `shipped` → `archived`. (`idea` is Phase 0 only — see Phase 0 callout below.)
 4. AI agents (Claude Code, etc.) read the relevant spec **before** writing feature code. Humans do the same.
 5. If reality diverges from the spec mid-implementation, update the spec in the same PR.
 

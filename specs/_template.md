@@ -2,7 +2,7 @@
 
 <!-- Copy this file into specs/features/<kebab-case-name>.md and fill in. Delete this comment when done. -->
 
-- **Status:** draft <!-- draft | approved | in-progress | shipped | archived -->
+- **Status:** draft <!-- idea | draft | approved | in-progress | shipped | archived -->
 - **Owner:** <github handle>
 - **Related issue:** #
 - **Last updated:** YYYY-MM-DD
