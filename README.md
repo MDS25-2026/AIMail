@@ -56,6 +56,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for branch naming, commit conventions, 
 
 Specs live in [`specs/`](specs/). Every feature gets a spec file before code is written.
 
-## License
+ ## Copyright
 
-TBD.
+© 2026 Group MDS25, Monash University Malaysia.
+All rights reserved.
