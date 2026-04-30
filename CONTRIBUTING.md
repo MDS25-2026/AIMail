@@ -135,6 +135,31 @@ Commit small and often — one logical change per commit. `git log` on a branch 
 
 ## 4 · Pull request
 
+### Before you open the PR — rebase onto `main`
+
+Always sync your branch with `main` before pushing for review. Stops drift, reduces merge conflicts, lets CI test against current `main`.
+
+```bash
+git checkout main
+git pull
+git checkout <your-branch>          # e.g. feat/pdf-email-attach
+git rebase main
+```
+
+If the rebase hits conflicts, resolve them locally, then `git rebase --continue`. Don't `git rebase --abort` and merge instead — keeps history clean.
+
+After a successful rebase, force-push your branch (this is fine **before** review starts):
+
+```bash
+git push --force-with-lease
+```
+
+`--force-with-lease` is safer than `--force` — it refuses to overwrite the remote if someone else pushed to your branch in the meantime.
+
+> **Once a reviewer has started commenting, stop rebasing.** Force-pushing after review breaks comment threads. Add new commits on top instead; they all squash at merge anyway. (Same rule as §5.)
+
+### Push and open
+
 ```bash
 git push -u origin <branch>
 ```
