@@ -9,7 +9,7 @@ This is how we ship work on AImail. Read it once; refer back when stuck. Sprint 
 ```
 1. Idea  →  2. Issue  →  3. Spec (features only)  →  4. Branch + commits  →  5. PR + review  →  6. Merge
 ```
-Ideas can be pushed here first and discussed during meetings. When all groupmates agree on an idea, then becomes an issue.
+##### Ideas can be pushed here first and discussed during meetings. When all groupmates agree on an idea, then becomes an issue.
 ---
 
 ## 1 · Issue
