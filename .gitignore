@@ -61,8 +61,17 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Secret JSON files anywhere in the project
+# Local environment variables
+.env
+*.env
+
+# OAuth & Google credentials / tokens
 **/credentials.json
 **/token.json
 credentials.json
 token.json
+
+# Go binaries
+*.exe
+/listener
+listener.exe
