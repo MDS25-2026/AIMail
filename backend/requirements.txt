@@ -1,7 +1,7 @@
 # Backend runtime + dev deps. Python 3.11+. See specs/context/tech-stack.md.
 
 # --- runtime ---
-pydantic>=2.10
+pydantic>=2.13.4
 pydantic-settings>=2.7
 SQLAlchemy[asyncio]>=2.0
 asyncpg>=0.30
