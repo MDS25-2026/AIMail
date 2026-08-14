@@ -1,0 +1,29 @@
+type ApproveSendButtonProps = {
+  emailId: string | null;
+  onApproveSend: (emailId: string) => void;
+  isSending?: boolean;
+  isSent?: boolean;
+};
+
+/**
+ * The ONLY path that sends a reply. Deliberately the single near-black action
+ * so it is never confused with Regenerate / Refine. Turns green + disabled once sent.
+ */
+export default function ApproveSendButton({
+  emailId,
+  onApproveSend,
+  isSending = false,
+  isSent = false,
+}: ApproveSendButtonProps) {
+  const disabled = emailId === null || isSending || isSent;
+  const label = isSent ? "Sent" : isSending ? "Sending…" : "Approve & Send";
+  const className = isSent
+    ? "rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-default"
+    : "rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300";
+
+  return (
+    <button type="button" disabled={disabled} onClick={() => emailId && onApproveSend(emailId)} className={className}>
+      {label}
+    </button>
+  );
+}

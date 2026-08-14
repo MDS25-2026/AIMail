@@ -47,7 +47,7 @@ Each ADR follows the structure used by ADRs 0001 onward:
 | #    | Title                                                                          | Status                              |
 |------|--------------------------------------------------------------------------------|-------------------------------------|
 | 0001 | [No Chrome extension for AImail v1](0001-no-chrome-extension.md)               | Accepted                            |
-| 0002 | [Orchestration framework choice (LangChain vs. direct SDK)](0002-orchestration-framework.md) | Proposed — pending team meeting |
+| 0002 | [Orchestration framework choice (LangChain vs. direct SDK)](0002-orchestration-framework.md) | Accepted                            |
 
 ## Numbering
 
