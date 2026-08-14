@@ -1,0 +1,18 @@
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /backend
+    schedule:
+      interval: monthly
+  - package-ecosystem: npm
+    directory: /frontend/frontend/mail-clarity-dash-main
+    schedule:
+      interval: monthly
+  - package-ecosystem: gomod
+    directory: /listener
+    schedule:
+      interval: monthly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

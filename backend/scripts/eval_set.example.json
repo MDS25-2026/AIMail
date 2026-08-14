@@ -1,0 +1,13 @@
+{
+  "k": 5,
+  "queries": [
+    {
+      "query": "How many days do I have to submit a travel reimbursement?",
+      "relevant": ["reimbursement", "30 days"]
+    },
+    {
+      "query": "What is the policy on working from home?",
+      "relevant": ["remote work", "work from home"]
+    }
+  ]
+}

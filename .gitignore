@@ -10,6 +10,9 @@ env/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+
+# generated metrics (train_baseline.py etc.)
+results/
 .coverage
 htmlcov/
 *.egg-info/
@@ -60,3 +63,22 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+# Local environment variables
+.env
+*.env
+
+# OAuth & Google credentials / tokens
+**/credentials.json
+**/token.json
+credentials.json
+token.json
+
+# Go binaries (built output only — NOT the listener/ source dir)
+*.exe
+listener.exe
+listener/listener
+
+# Trained ML artifacts (regenerate with make baseline)
+backend/models/
+listener/bin/

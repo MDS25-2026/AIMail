@@ -52,11 +52,14 @@ Pinned versions and authoritative documentation links. Update this file when a v
 
 ## AI
 
-| Tech            | Version          | Docs                                |
-|-----------------|------------------|-------------------------------------|
-| Claude API      | claude-opus-4-7  | https://docs.claude.com/            |
+| Tech            | Version              | Docs                                   |
+|-----------------|----------------------|----------------------------------------|
+| Claude API      | claude-opus-4-7      | https://docs.claude.com/               |
+| Gemini API      | gemini-embedding-001 | https://ai.google.dev/gemini-api/docs  |
 
-> **Orchestration framework:** undecided — direct Anthropic SDK calls vs. LangChain / LangGraph is an open question, to be resolved at the next team meeting. Both options documented in [`../../docs/adr/0002-orchestration-framework.md`](../../docs/adr/0002-orchestration-framework.md).
+**Gemini usage (Lane B):** `gemini-embedding-001` at `output_dimensionality=1536` (L2-normalized) for RAG embeddings; Gemini Flash is the default candidate for query reformulation (R03.1). New provider vs the Claude-only AI table above — the SDK add is "ask first" per CLAUDE.md. See [`../../docs/decisions/lane-b-ml.md`](../../docs/decisions/lane-b-ml.md).
+
+**Orchestration:** direct HTTP calls to the model provider with `asyncio`-based fan-out. No LangChain or LangGraph. See [ADR 0002](../../docs/adr/0002-orchestration-framework.md).
 
 ### Model tiers
 
@@ -69,3 +72,12 @@ The agent pipeline uses three tiers. Final picks decided by R&D + user-feedback 
 | Drafter     | Generate the reply. Multiple options shown to user; user pick + edit feeds back into selection. | Claude Opus 4.7, Claude Sonnet, DeepSeek, GPT-5                      |
 
 Pin to **3 candidates per tier** during sprint 1; narrow to 1 per tier as thumbs-up/down data accumulates.
+
+**Current implementation:** all tiers run on **Gemini** (`gemini-3.5-flash-lite`) via direct HTTP in
+`email_agent.py` — chosen for reliability and speed after HuggingFace-hosted models proved
+rate-limited/flaky. The table above stays as the design space to narrow from.
+
+### Anthropic API features in use
+
+- **Prompt caching (mandatory).** The same email-thread context is replayed across the classifier, the three reasoners, and the drafter on every inbound mail. Cache the thread block and the user's `style_profile` block to cut input-token cost by an estimated 70-90%. The 5-minute cache TTL is sufficient for a single pipeline run; no warming strategy is needed for sprint 1.
+- **Extended thinking.** Enabled on the drafter tier (Opus 4.7 / Sonnet 4.6) where reply quality justifies the latency. Disabled on the classifier and reasoners where latency dominates and the tasks are short.

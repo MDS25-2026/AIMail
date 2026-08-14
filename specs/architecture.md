@@ -1,65 +1,78 @@
-# AImail — Architecture
+# AImail — Architecture & Cross-lane Sync
 
-## Overview
+Living reference for how the lanes fit together and where their contracts meet. Updated at
+integration sync (2026-08-06) from the actual branch state. Items marked **(to confirm)** are
+team decisions, not settled facts.
 
-AImail is split into four cooperating components. Each lives in its own top-level folder and is owned by a clear contract.
+## Lane ownership
+
+| Lane | Owner | Branch | Builds |
+|------|-------|--------|--------|
+| A · Spine + privacy | JiaJun | `JiaJun` | Go listener: Gmail + Pub/Sub, PII masking, Supabase persistence + audit log |
+| B · ML + retrieval | Elyesa | `feat/setup` | RAG (embed/store/retrieve), priority classifier, eval |
+| C · Generation | hanif | `hanif` | `backend/email_agent.py` — reply generation |
+| D · Surfaces | Han | `Han` | `frontend/mail-clarity-dash-main/` — Vite/React dashboard |
+
+## Flow (as actually built)
 
 ```mermaid
 flowchart LR
-    Gmail((Gmail)) -->|new email| n8n
-    n8n -->|webhook| listener
-    listener -->|forward| backend
-    backend <--> db[(Postgres + pgvector)]
-    backend -->|REST| frontend
+    Gmail((Gmail)) -->|Pub/Sub push| listener[Go listener - Lane A]
+    listener -->|mask PII, persist| db[(Supabase Postgres + pgvector)]
+    backend[Python backend - Lanes B + C] <--> db
+    backend -->|REST| frontend[Dashboard - Lane D]
     frontend -->|approve / edit| backend
-    backend -->|send| n8n
-    n8n -->|reply| Gmail
+    backend -->|send approved reply| Gmail
 ```
+
+n8n is not in the pipeline. Lane A ingests straight from the Gmail API + Pub/Sub, and outbound
+send is the backend calling the Gmail API directly (reusing the listener's send-scoped token).
+The `n8n/` folder is unused scaffolding.
 
 ## Components
 
-### 1. n8n — `n8n/`
-Watches Gmail (inbound workflow) and sends approved replies (outbound workflow). Workflows are exported as JSON and version-controlled. n8n holds Gmail OAuth credentials; the repo never does.
+- **listener/** (Lane A, Go): receives Gmail Pub/Sub notifications, pulls the message, **masks
+  PII in the listener** (not the backend), and writes the masked row + an audit entry to Supabase
+  via the PostgREST API (`SUPABASE_URL` + `SUPABASE_SERVICE_KEY`). Stateless.
+- **backend/** (Lanes B + C, Python/FastAPI): reads masked email from Supabase (via `DATABASE_URL`
+  / asyncpg), runs retrieval (B), the classifier (B), and generation (C, `email_agent.py`, on
+  Gemini), caches + pre-generates drafts, exposes REST for the dashboard, and sends approved
+  replies via the Gmail API.
+- **frontend/** (Lane D): the dashboard that lists emails/drafts and takes approve/edit. Talks to
+  the backend via REST only.
 
-### 2. listener — `listener/`
-A small HTTP service that receives the n8n webhook on new email and forwards it to the backend with a shared-secret header. Python initially; planned Go rewrite for performance comparison. Stateless. Does not call Claude or touch the DB.
+## Cross-lane seams & sync status
 
-### 3. backend — `backend/`
-Python + FastAPI. **The brain.** Responsibilities:
+The contract lives in `backend/app/contracts.py` + `specs/context/{api-contracts,db-schema}.md`.
+Change a shape there **first**, log it in `docs/decisions/shared.md`, then both sides implement.
 
-- PII masking (and un-masking on the way back).
-- Multi-layer agent pipeline (classifier → reasoner(s) → drafter) with self-evaluation and user-feedback loops. Detailed in [`agent-pipeline.md`](agent-pipeline.md).
-- Style-learning over the user's historical replies (pgvector embeddings).
-- Postgres reads/writes — emails, threads, chats, drafts, style profiles.
-- REST API for the frontend.
-- Outbound calls to n8n to send approved replies.
+| Seam | Producer → Consumer | Shape | Status |
+|------|--------------------|-------|--------|
+| **1 · masked email** | A → B, C | the persisted email row | **MISMATCH — fix first (below)** |
+| **2 · retrieval context** | B → C | `ContextChunk` | defined (Lane B); confirm `email_agent` consumes it |
+| **3 · priority** | B → D | `EmailPriority` | defined (Lane B); confirm dashboard type matches |
+| **4 · drafts/emails REST** | C, B → D | REST responses | Han's dashboard has its own email types + mock data — must be reconciled with `api-contracts.md` |
 
-### 4. frontend — `frontend/`
-Next.js + TypeScript + Tailwind dashboard. Lists incoming threads, shows generated drafts, lets the user approve / edit / reject. Talks to the backend via REST only.
+## Reconciliation TODO (integration)
+
+1. **Seam 1 field-name mismatch (blocking).** Lane A writes `body_masked`; Lane B expects
+   `masked_body`. Pick one name (Lane A owns the email table, so likely **`body_masked`**) and
+   align both sides. Lane A's row also has `from_addr, subject, snippet_masked, emails_masked,
+   phones_masked, received_at, gmail_message_id` — fold these into one `email` table in `db-schema.md`.
+2. **One DB schema.** Lane A writes via Supabase PostgREST; Lane B reads via asyncpg — same
+   Postgres, so the table/column names must be a single agreed contract in `db-schema.md` (A's
+   email + audit tables, B's document/chunk/embedding + priority columns).
+3. **One frontend (to confirm).** Han's Vite dashboard vs the Next.js scaffold in `frontend/`.
+   Han's is the real one — retire the scaffold.
+4. **One listener (to confirm).** JiaJun's Go listener vs the Python stub in `listener/`. Keep the
+   Go one; retire the stub.
+5. **Consolidate `.env.example`** with every lane's vars: `DATABASE_URL`, `GEMINI_API_KEY`,
+   `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `ANTHROPIC_API_KEY`, listener/Gmail vars.
 
 ## Governing principle
 
-> **The backend is the manager. It knows everything, controls everything. The frontend is a visualisation layer.**
+> The backend is the manager; the frontend is a visualisation layer.
 
-- Frontend has no direct DB access, no Claude API key, no Gmail OAuth, no n8n awareness.
-- Frontend talks to the backend via REST endpoints **only**. The endpoint signature is the contract; backend can change anything internally as long as the contract holds.
-- **All LLM logic lives in the Python backend** — classification, routing, drafting, self-evaluation. Not in n8n. Not in the frontend.
-- n8n's job is narrow: Gmail in (webhook on new mail), Gmail out (send approved replies). No conditional logic, no model calls.
-- Contract changes are made in [`context/api-contracts.md`](context/api-contracts.md) **first**, then implemented on both sides.
-
-## Data flow — happy path
-
-1. New email arrives in Gmail.
-2. n8n inbound workflow fires → POSTs to listener.
-3. Listener authenticates the call and forwards to backend.
-4. Backend persists the email, masks PII, runs the agent pipeline against Claude, stores the draft.
-5. Frontend polls / subscribes to new drafts and renders them.
-6. User approves (with optional edits).
-7. Frontend POSTs approval to backend.
-8. Backend un-masks PII, calls n8n outbound workflow to send via Gmail.
-
-## Cross-cutting concerns
-
-- **PII masking** is mandatory on every path that touches Claude. No raw email content leaves the backend without masking.
-- **Secrets** never leave their owning service. The shared-secret between listener and backend is the only inter-service credential in the repo's surface area.
-- **Observability** — structured logging in every service; correlation ID propagated from listener through to backend (TODO).
+- Frontend has no direct DB access, no model keys — REST to the backend only.
+- Contract changes go into `api-contracts.md` / `db-schema.md` / `contracts.py` **first**, then
+  both sides implement. Adding a field is safe; renaming/removing one is a breaking change — flag it.
