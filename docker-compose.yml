@@ -1,0 +1,16 @@
+services:
+  presidio-analyzer:
+    image: mcr.microsoft.com/presidio-analyzer:latest
+    container_name: presidio-analyzer
+    ports:
+      - "127.0.0.1:5001:5001"
+    environment:
+      - PORT=5001
+
+  presidio-anonymizer:
+    image: mcr.microsoft.com/presidio-anonymizer:latest
+    container_name: presidio-anonymizer
+    ports:
+      - "127.0.0.1:5002:5002"
+    environment:
+      - PORT=5002

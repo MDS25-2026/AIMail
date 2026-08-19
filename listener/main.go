@@ -9,7 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"regexp"
+	"strings"
 	"time"
 
 	"cloud.google.com/go/pubsub"
@@ -19,54 +19,197 @@ import (
 	"google.golang.org/api/option"
 )
 
-// Configuration for GCP Pub/Sub
-const (
-	ProjectID      = "fyp-mds25"
-	TopicName      = "projects/fyp-mds25/topics/gmail-notifications"
-	SubscriptionID = "gmail-notifications-sub"
+// GCP Pub/Sub Config for project aimail-505405
+var (
+	projectID      = getEnvOrDefault("GCP_PROJECT_ID", "aimail-505405")
+	topicName      = getEnvOrDefault("GCP_PUBSUB_TOPIC", "projects/aimail-505405/topics/aimail-notifications")
+	subscriptionID = getEnvOrDefault("GCP_PUBSUB_SUBSCRIPTION", "aimail-notifications-sub")
 )
 
-// Supabase config — read from env, never hardcode keys.
-// Expects SUPABASE_URL (e.g. https://xxxx.supabase.co) and
-// SUPABASE_SERVICE_KEY (service_role key, kept server-side only).
+// Supabase config
 var (
 	supabaseURL = os.Getenv("SUPABASE_URL")
 	supabaseKey = os.Getenv("SUPABASE_SERVICE_KEY")
 )
 
-// --- PII masking -----------------------------------------------------------
-//
-// Lane A floor is 80% masking accuracy. Regex-based email/phone masking is
-// the v1 pass — good enough for the thin slice, not meant to be the final
-// word. Lane B's classifier work can replace/augment this later if a
-// smarter (e.g. NER-based) approach is needed to push accuracy up.
+func getEnvOrDefault(key, fallback string) string {
+	if val := os.Getenv(key); val != "" {
+		return val
+	}
+	return fallback
+}
 
-var (
-	emailRegex = regexp.MustCompile(`[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}`)
-	// Matches common phone formats: (123) 456-7890, 123-456-7890,
-	// +60 12-345 6789, 0123456789, etc. Deliberately a bit loose —
-	// prefers over-masking to under-masking given the audit-log context.
-	phoneRegex = regexp.MustCompile(`(\+?\d{1,3}[\s.-]?)?(\(?\d{2,4}\)?[\s.-]?)\d{3,4}[\s.-]?\d{3,4}`)
-)
+// --- Presidio PII Masking Structs & Functions -------------------------------
 
-// maskPII redacts emails and phone numbers from text, returning the masked
-// text plus counts of how many of each were found (useful for the audit log
-// and for tracking masking accuracy against the 80% floor).
-func maskPII(text string) (masked string, emailsMasked, phonesMasked int) {
-	masked = emailRegex.ReplaceAllStringFunc(text, func(s string) string {
-		emailsMasked++
-		return "[EMAIL_REDACTED]"
+type PresidioPattern struct {
+	Name  string  `json:"name"`
+	Regex string  `json:"regex"`
+	Score float64 `json:"score"`
+}
+
+type PresidioAdHocRecognizer struct {
+	Name              string            `json:"name"`
+	SupportedLanguage string            `json:"supported_language"`
+	SupportedEntity   string            `json:"supported_entity"`
+	Patterns          []PresidioPattern `json:"patterns"`
+	Context           []string          `json:"context,omitempty"`
+}
+
+type PresidioAnalyzeRequest struct {
+	Text             string                    `json:"text"`
+	Language         string                    `json:"language"`
+	ScoreThreshold   float64                   `json:"score_threshold"`
+	Entities         []string                  `json:"entities,omitempty"`
+	AdHocRecognizers []PresidioAdHocRecognizer `json:"ad_hoc_recognizers,omitempty"`
+}
+
+type PresidioRecognizerResult struct {
+	EntityType string  `json:"entity_type"`
+	Start      int     `json:"start"`
+	End        int     `json:"end"`
+	Score      float64 `json:"score"`
+}
+
+type PresidioAnonymizeRequest struct {
+	Text           string                     `json:"text"`
+	AnalyzeResults []PresidioRecognizerResult `json:"analyzer_results"`
+	Anonymizers    map[string]interface{}     `json:"anonymizers,omitempty"`
+}
+
+type PresidioAnonymizeResponse struct {
+	Text string `json:"text"`
+}
+
+// maskWithPresidio calls local Presidio containers and replaces PII with [Redacted]
+func maskWithPresidio(ctx context.Context, text string) (string, int, error) {
+	if strings.TrimSpace(text) == "" {
+		return "", 0, nil
+	}
+
+	analyzerURL := getEnvOrDefault("PRESIDIO_ANALYZER_URL", "http://localhost:5001/analyze")
+	anonymizerURL := getEnvOrDefault("PRESIDIO_ANONYMIZER_URL", "http://localhost:5002/anonymize")
+
+	customRecognizers := []PresidioAdHocRecognizer{
+		{
+			Name:              "MY_IC_RECOGNIZER",
+			SupportedLanguage: "en",
+			SupportedEntity:   "MY_IC",
+			Patterns: []PresidioPattern{
+				{
+					Name:  "my_ic_pattern",
+					Regex: `\b\d{6}-\d{2}-\d{4,7}\b|\b\d{12}\b`,
+					Score: 1.0,
+				},
+			},
+		},
+		{
+			Name:              "MY_PHONE_RECOGNIZER",
+			SupportedLanguage: "en",
+			SupportedEntity:   "PHONE_NUMBER",
+			Patterns: []PresidioPattern{
+				{
+					Name:  "my_phone_pattern",
+					Regex: `\b(\+?60|0)[1-9]\d{7,8}\b|\b(\+?60\s?|0)\d{1,2}[\s.-]?\d{3,4}[\s.-]?\d{3,4}\b`,
+					Score: 0.95,
+				},
+			},
+		},
+		{
+			Name:              "FLEXIBLE_ACCOUNT_RECOGNIZER",
+			SupportedLanguage: "en",
+			SupportedEntity:   "ACCOUNT_NUMBER",
+			Patterns: []PresidioPattern{
+				{
+					Name:  "arbitrary_digit_pattern",
+					Regex: `\b\d{6,16}\b`,
+					Score: 0.4,
+				},
+			},
+			Context: []string{
+				"account", "acc", "bank", "maybank", "cimb", "rhb", "public bank",
+				"transfer", "reference", "ref", "passport", "policy", "member",
+			},
+		},
+	}
+
+	analyzePayload, err := json.Marshal(PresidioAnalyzeRequest{
+		Text:           text,
+		Language:       "en",
+		ScoreThreshold: 0.6,
+		Entities: []string{
+			"PERSON",
+			"PHONE_NUMBER",
+			"EMAIL_ADDRESS",
+			"LOCATION",
+			"ORGANIZATION",
+			"MY_IC",
+			"ACCOUNT_NUMBER",
+		},
+		AdHocRecognizers: customRecognizers,
 	})
-	masked = phoneRegex.ReplaceAllStringFunc(masked, func(s string) string {
-		phonesMasked++
-		return "[PHONE_REDACTED]"
+	if err != nil {
+		return text, 0, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, analyzerURL, bytes.NewReader(analyzePayload))
+	if err != nil {
+		return text, 0, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return text, 0, fmt.Errorf("presidio analyzer error: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var analyzeResults []PresidioRecognizerResult
+	if err := json.NewDecoder(resp.Body).Decode(&analyzeResults); err != nil {
+		return text, 0, err
+	}
+
+	if len(analyzeResults) == 0 {
+		return text, 0, nil
+	}
+
+	anonymizersConfig := map[string]interface{}{
+		"DEFAULT": map[string]interface{}{
+			"type":      "replace",
+			"new_value": "[Redacted]",
+		},
+	}
+
+	anonymizePayload, err := json.Marshal(PresidioAnonymizeRequest{
+		Text:           text,
+		AnalyzeResults: analyzeResults,
+		Anonymizers:    anonymizersConfig,
 	})
-	return masked, emailsMasked, phonesMasked
+	if err != nil {
+		return text, len(analyzeResults), err
+	}
+
+	req2, err := http.NewRequestWithContext(ctx, http.MethodPost, anonymizerURL, bytes.NewReader(anonymizePayload))
+	if err != nil {
+		return text, len(analyzeResults), err
+	}
+	req2.Header.Set("Content-Type", "application/json")
+
+	resp2, err := http.DefaultClient.Do(req2)
+	if err != nil {
+		return text, len(analyzeResults), fmt.Errorf("presidio anonymizer error: %w", err)
+	}
+	defer resp2.Body.Close()
+
+	var anonymizeResp PresidioAnonymizeResponse
+	if err := json.NewDecoder(resp2.Body).Decode(&anonymizeResp); err != nil {
+		return text, len(analyzeResults), err
+	}
+
+	return anonymizeResp.Text, len(analyzeResults), nil
 }
 
 // --- Supabase storage + audit log -------------------------------------------
 
-// StoredMessage is what we persist for each processed email, post-masking.
 type StoredMessage struct {
 	GmailMessageID string    `json:"gmail_message_id"`
 	FromAddr       string    `json:"from_addr"`
@@ -78,8 +221,6 @@ type StoredMessage struct {
 	ReceivedAt     time.Time `json:"received_at"`
 }
 
-// AuditLogEntry records every pipeline action for traceability — required
-// for Lane A's "storage + audit log" scope.
 type AuditLogEntry struct {
 	Action    string    `json:"action"`
 	Detail    string    `json:"detail"`
@@ -87,7 +228,6 @@ type AuditLogEntry struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-// supabaseInsert POSTs a row to a Supabase table via the PostgREST API.
 func supabaseInsert(ctx context.Context, table string, row interface{}) error {
 	if supabaseURL == "" || supabaseKey == "" {
 		return fmt.Errorf("SUPABASE_URL / SUPABASE_SERVICE_KEY not set")
@@ -120,8 +260,6 @@ func supabaseInsert(ctx context.Context, table string, row interface{}) error {
 	return nil
 }
 
-// writeAuditLog is a best-effort log write — failures here are logged
-// locally but never block the main pipeline.
 func writeAuditLog(ctx context.Context, action, detail string, success bool) {
 	entry := AuditLogEntry{
 		Action:    action,
@@ -134,14 +272,25 @@ func writeAuditLog(ctx context.Context, action, detail string, success bool) {
 	}
 }
 
-func getClient(config *oauth2.Config) *http.Client {
-	tokFile := "token.json"
-	tok, err := tokenFromFile(tokFile)
-	if err != nil {
-		tok = getTokenFromWeb(config)
-		saveToken(tokFile, tok)
+func loadSecret(filePath, envVar string) ([]byte, error) {
+	data, err := os.ReadFile(filePath)
+	if err == nil {
+		return data, nil
 	}
-	return config.Client(context.Background(), tok)
+	if envVal := os.Getenv(envVar); envVal != "" {
+		return []byte(envVal), nil
+	}
+	return nil, fmt.Errorf("neither file %s nor env var %s found", filePath, envVar)
+}
+
+func tokenFromFile(file string) (*oauth2.Token, error) {
+	tokData, err := loadSecret(file, "GMAIL_TOKEN_JSON")
+	if err != nil {
+		return nil, err
+	}
+	tok := &oauth2.Token{}
+	err = json.Unmarshal(tokData, tok)
+	return tok, err
 }
 
 func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
@@ -160,17 +309,6 @@ func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
 	return tok
 }
 
-func tokenFromFile(file string) (*oauth2.Token, error) {
-	f, err := os.Open(file)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	tok := &oauth2.Token{}
-	err = json.NewDecoder(f).Decode(tok)
-	return tok, err
-}
-
 func saveToken(path string, token *oauth2.Token) {
 	fmt.Printf("Saving credential file to: %s\n", path)
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
@@ -181,10 +319,9 @@ func saveToken(path string, token *oauth2.Token) {
 	json.NewEncoder(f).Encode(token)
 }
 
-// Registers Gmail Watch request to route mailbox changes to GCP Pub/Sub
 func setupWatch(ctx context.Context, srv *gmail.Service) {
 	req := &gmail.WatchRequest{
-		TopicName: TopicName,
+		TopicName: topicName,
 		LabelIds:  []string{"INBOX"},
 	}
 	res, err := srv.Users.Watch("me", req).Do()
@@ -196,15 +333,14 @@ func setupWatch(ctx context.Context, srv *gmail.Service) {
 	writeAuditLog(ctx, "setup_watch", fmt.Sprintf("watch established, expiration %d, historyId %d", res.Expiration, res.HistoryId), true)
 }
 
-// Listens to GCP Pub/Sub subscription using your OAuth token source
 func listenToPubSub(ctx context.Context, ts oauth2.TokenSource, srv *gmail.Service) {
-	client, err := pubsub.NewClient(ctx, ProjectID, option.WithTokenSource(ts))
+	client, err := pubsub.NewClient(ctx, projectID, option.WithTokenSource(ts))
 	if err != nil {
 		log.Fatalf("Failed to create Pub/Sub client: %v", err)
 	}
 	defer client.Close()
 
-	sub := client.Subscription(SubscriptionID)
+	sub := client.Subscription(subscriptionID)
 	fmt.Println("Listening for incoming emails on Pub/Sub...")
 
 	err = sub.Receive(ctx, func(ctx context.Context, msg *pubsub.Message) {
@@ -228,8 +364,6 @@ func listenToPubSub(ctx context.Context, ts oauth2.TokenSource, srv *gmail.Servi
 	}
 }
 
-// Fetches the most recent message, masks PII, and persists it + an audit
-// log entry to Supabase.
 func fetchLatestMessage(ctx context.Context, srv *gmail.Service) {
 	list, err := srv.Users.Messages.List("me").MaxResults(1).Do()
 	if err != nil || len(list.Messages) == 0 {
@@ -258,28 +392,31 @@ func fetchLatestMessage(ctx context.Context, srv *gmail.Service) {
 
 	body := getBody(msg.Payload)
 
-	// Mask PII before anything touches storage or logs.
-	maskedBody, bodyEmails, bodyPhones := maskPII(body)
-	maskedSnippet, snipEmails, snipPhones := maskPII(msg.Snippet)
-	maskedSubject, subEmails, subPhones := maskPII(subject)
-	totalEmails := bodyEmails + snipEmails + subEmails
-	totalPhones := bodyPhones + snipPhones + subPhones
+	maskedBody, bodyPIICount, err := maskWithPresidio(ctx, body)
+	if err != nil {
+		log.Printf("Presidio body masking error: %v", err)
+	}
+
+	maskedSnippet, snipPIICount, _ := maskWithPresidio(ctx, msg.Snippet)
+	maskedSubject, subPIICount, _ := maskWithPresidio(ctx, subject)
+
+	totalPIIMasked := bodyPIICount + snipPIICount + subPIICount
 
 	fmt.Println("-------------------------------------------")
 	fmt.Printf("FROM: %s\n", from)
 	fmt.Printf("SUBJECT (masked): %s\n", maskedSubject)
 	fmt.Printf("BODY SNIPPET (masked): %s\n", maskedSnippet)
-	fmt.Printf("FULL BODY LENGTH: %d bytes | masked %d emails, %d phones\n", len(body), totalEmails, totalPhones)
+	fmt.Printf("FULL BODY LENGTH: %d bytes | Presidio Redact Count: %d\n", len(body), totalPIIMasked)
 	fmt.Println("-------------------------------------------")
 
 	stored := StoredMessage{
 		GmailMessageID: msgID,
-		FromAddr:       from, // sender address kept as-is for reply threading; masking here is a policy call for the team to confirm
+		FromAddr:       from,
 		Subject:        maskedSubject,
 		BodyMasked:     maskedBody,
 		SnippetMasked:  maskedSnippet,
-		EmailsMasked:   totalEmails,
-		PhonesMasked:   totalPhones,
+		EmailsMasked:   totalPIIMasked,
+		PhonesMasked:   0,
 		ReceivedAt:     time.Now().UTC(),
 	}
 
@@ -289,7 +426,7 @@ func fetchLatestMessage(ctx context.Context, srv *gmail.Service) {
 		return
 	}
 
-	writeAuditLog(ctx, "store_message", fmt.Sprintf("msg %s stored, %d emails / %d phones masked", msgID, totalEmails, totalPhones), true)
+	writeAuditLog(ctx, "store_message", fmt.Sprintf("msg %s stored, %d PII entities masked by Presidio", msgID, totalPIIMasked), true)
 }
 
 func getBody(part *gmail.MessagePart) string {
@@ -311,9 +448,9 @@ func getBody(part *gmail.MessagePart) string {
 func main() {
 	ctx := context.Background()
 
-	b, err := os.ReadFile("credentials.json")
+	b, err := loadSecret("credentials.json", "GMAIL_CREDENTIALS_JSON")
 	if err != nil {
-		log.Fatalf("Unable to read client secret file: %v", err)
+		log.Fatalf("Unable to read client secret: %v", err)
 	}
 
 	config, err := google.ConfigFromJSON(b,
@@ -341,12 +478,9 @@ func main() {
 	}
 
 	if supabaseURL == "" || supabaseKey == "" {
-		log.Println("WARNING: SUPABASE_URL / SUPABASE_SERVICE_KEY not set — storage and audit log writes will fail. Set these env vars before running.")
+		log.Println("WARNING: SUPABASE_URL / SUPABASE_SERVICE_KEY not set — storage and audit log writes will fail.")
 	}
 
-	// 1. Establish Watch hook on Gmail API
 	setupWatch(ctx, srv)
-
-	// 2. Start live Pub/Sub listener loop
 	listenToPubSub(ctx, tokenSource, srv)
 }
