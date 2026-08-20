@@ -4,15 +4,27 @@ updates:
     directory: /backend
     schedule:
       interval: monthly
+    groups:
+      backend: # bundle ALL pip updates into one PR instead of one-per-package
+        patterns: ["*"]
   - package-ecosystem: npm
     directory: /frontend/frontend/mail-clarity-dash-main
     schedule:
       interval: monthly
+    groups:
+      frontend:
+        patterns: ["*"]
   - package-ecosystem: gomod
     directory: /listener
     schedule:
       interval: monthly
+    groups:
+      listener:
+        patterns: ["*"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
