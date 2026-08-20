@@ -29,11 +29,17 @@ _MODEL = "gemini-3.5-flash-lite"
 _URL = f"https://generativelanguage.googleapis.com/v1beta/models/{_MODEL}:generateContent"
 
 _RUBRIC = (
-    "Label each email HIGH, MEDIUM, or LOW by how much it needs the recipient to ACT:\n"
-    "- HIGH: asks for a reply, decision, approval, or names a deadline.\n"
-    "- MEDIUM: relevant/informative but needs no direct action.\n"
-    "- LOW: FYI, newsletter, automated, or social chit-chat.\n"
-    "Judge the email's inherent importance, not any date it happens to mention."
+    "Label each email HIGH, MEDIUM, or LOW by how much it needs the recipient's attention.\n"
+    "HIGH - any of:\n"
+    "  - asks the recipient to reply, decide, approve, or do a task;\n"
+    "  - high-stakes content: money, contracts, legal, deals, outages, escalations, urgent problems;\n"
+    "  - reads like a directive or request from someone in authority.\n"
+    "LOW - any of:\n"
+    "  - automated or bulk: newsletters, notifications, system mail, marketing, auto-replies;\n"
+    "  - purely social or logistical: thank-yous, small talk, casual banter, personal notes.\n"
+    "MEDIUM - everything else: work-relevant and informative but needs no direct action from the\n"
+    "  recipient (FYI, status updates, discussion the recipient is not driving).\n"
+    "Judge from the email's content only. Ignore dates and deadlines - a separate layer handles timing."
 )
 
 _SCHEMA = {"type": "array", "items": {"type": "string", "enum": ["LOW", "MEDIUM", "HIGH"]}}
