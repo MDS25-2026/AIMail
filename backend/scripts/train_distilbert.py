@@ -19,6 +19,7 @@ from sklearn.metrics import f1_score
 from transformers import (
     AutoModelForSequenceClassification,
     AutoTokenizer,
+    DataCollatorWithPadding,
     Trainer,
     TrainingArguments,
 )
@@ -88,6 +89,8 @@ def main() -> None:
         train_dataset=train_ds,
         eval_dataset=test_ds,
         compute_metrics=_macro_f1,
+        # Pad each batch to its longest example, so variable-length emails stack into a tensor.
+        data_collator=DataCollatorWithPadding(tokenizer),
     )
 
     trainer.train()
