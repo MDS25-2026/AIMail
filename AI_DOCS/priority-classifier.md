@@ -54,9 +54,9 @@ class-weight-balanced logistic regression. Fast, interpretable, and the floor th
 beat. Graded on **macro-F1** (not accuracy) because it weights all three classes equally regardless
 of imbalance.
 
-**Result:** macro-F1 = **0.39** on the held-out split (per-class F1 ~0.38-0.42). Barely above the
-3-class chance level of 0.33 — expected, because importance is about *meaning* (a request vs. a
-confirmation share the same words), which bag-of-words cannot see.
+**Result:** macro-F1 = **0.39** on the Gemini-labeled test split, **0.50** against the human holdout
+(see Results below). Bag-of-words gets the easy cases but conflates a request with a confirmation
+when they share vocabulary — the gap the transformer closes.
 
 ### Fine-tuned — DistilBERT
 
@@ -66,9 +66,32 @@ TF-IDF it models meaning and context, so it distinguishes "can you approve this?
 approved doc." Trained/evaluated on the **same 80/20 split (seed 42)** as the baseline, so the
 macro-F1 numbers are directly comparable.
 
+Fine-tuning recipe (`WeightedTrainer`): inverse-frequency **class-weighted loss** (so the model
+can't win by favoring the majority class), learning rate 2e-5 with warmup and weight decay, 5
+epochs, keeping the best-macro-F1 checkpoint.
+
 Selection is config-driven: `PRIORITY_MODEL=baseline|distilbert` chooses which predictor
 `backfill_importance.py` uses; the DistilBERT predictor imports torch lazily so the API process
 never loads it unless selected.
+
+## Results (evaluated on the 120-email human-labeled holdout)
+
+The honest comparison — both models graded against **human** labels, not the Gemini labels they
+trained on:
+
+| Model | macro-F1 | accuracy | low F1 | medium F1 | high F1 |
+|-------|----------|----------|--------|-----------|---------|
+| TF-IDF + LogReg (baseline) | 0.50 | 50% | 0.59 | 0.48 | 0.43 |
+| DistilBERT (fine-tuned)    | **0.57** | **57%** | **0.73** | 0.48 | **0.50** |
+
+DistilBERT improves macro-F1 by +0.07, driven by the clearer classes (LOW: automated/social;
+HIGH: explicit requests). **MEDIUM is unchanged (0.48) for both** — the confusion matrices show
+persistent MEDIUM->HIGH bleed, i.e. the model (like a human labeler) cannot cleanly separate
+"informative" from "needs action." That ambiguous middle is the ceiling, not model capacity.
+
+Note: the baseline scored only 0.39 against the Gemini test split but 0.50 against human labels,
+suggesting the human labels are more internally consistent than the LLM's batch-to-batch labeling —
+which is itself a reason to grade on the human holdout.
 
 ## Composite priority (text + time)
 
