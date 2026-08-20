@@ -82,3 +82,7 @@ listener/listener
 # Trained ML artifacts (regenerate with make baseline)
 backend/models/
 listener/bin/
+
+# ML datasets (raw + labeled) — regenerate, don't commit
+backend/*.csv
+backend/data/
