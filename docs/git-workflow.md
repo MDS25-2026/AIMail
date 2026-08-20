@@ -168,6 +168,70 @@ staged, so a single commit captures the full diff. Only do this on your own bran
 moved, use `git reset --soft $(git merge-base main HEAD)` instead so you don't fold in others'
 commits.
 
+# Don't wait to be merged — keep working (branch off your own branch)
+
+You do **not** have to stop and wait for your PR to be reviewed and merged before starting the next
+piece of work. Your unmerged branch is a real starting point. Two ways to keep going:
+
+## Option A — keep committing on the same branch
+
+If the next work is *part of the same feature*, just keep committing on the branch you already
+opened. New commits show up on the open PR automatically when you push.
+
+```bash
+git switch feat/your-thing     # the branch that's already in review
+# ...make changes...
+git add -p
+git commit -m "feat: next piece"
+git push                       # updates the existing PR
+```
+
+## Option B — stack a new branch on top of your unmerged work
+
+If the next work is *separate* but **needs code from a branch that hasn't merged yet**, branch off
+your feature branch instead of `main`. This is called a *stacked branch*.
+
+```bash
+# Step 1 — from the branch whose work you need (NOT main):
+git switch feat/first-thing
+
+# Step 2 — create the new branch on top of it:
+git switch -c feat/second-thing
+
+# Step 3 — work, commit, push as normal:
+git add -p && git commit -m "feat: build on the first branch"
+git push -u origin feat/second-thing
+```
+
+Now `feat/second-thing` contains everything from `feat/first-thing` **plus** your new work, so you
+can keep moving while the first branch is still in review.
+
+## Step 4 — after the base branch merges, re-point the stack onto main
+
+Once `feat/first-thing` is merged into `main`, rebase the stacked branch **onto main** so it drops
+the now-merged commits and sits cleanly on top:
+
+```bash
+git switch main && git pull
+git switch feat/second-thing
+git rebase --onto main feat/first-thing
+git push --force-with-lease
+```
+
+`git rebase --onto main feat/first-thing` means: "replay `feat/second-thing`'s commits onto `main`,
+removing the commits that came from `feat/first-thing`" (they're already in `main` now, via the
+merge). If you skip this and just `rebase main`, you may replay the base commits again and hit
+needless conflicts.
+
+**Duplicating to experiment:** the same trick makes a safe copy — `git switch -c feat/experiment`
+from any branch gives you a throwaway line to try something without risking the original. Delete it
+if it doesn't pan out (`git branch -D feat/experiment`); nothing else is affected.
+
+**Rules for stacked branches:**
+- Only stack on **your own** branches, never on a shared branch.
+- The deeper the stack, the more rebasing when bases merge — keep stacks 1-2 deep.
+- Say so in the PR description ("stacked on #NN") so the reviewer knows the base isn't merged yet.
+
 ## Do / don't
 
 - **Do** `git pull` on `main` before branching, and rebase your branch whenever `main` moves.
@@ -190,6 +254,13 @@ gh pr create --base main --fill   # open the PR
 git switch main && git pull
 git switch feat/thing && git rebase main
 git push --force-with-lease       # after a rebase
+
+# keep working without waiting to merge (stacked branch):
+git switch feat/first-thing       # the unmerged branch you need
+git switch -c feat/second-thing   # new work on top of it
+# after feat/first-thing merges:
+git switch main && git pull
+git switch feat/second-thing && git rebase --onto main feat/first-thing
 
 git status                        # what's changed / where am I
 git log --oneline -10             # recent history
