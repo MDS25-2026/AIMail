@@ -1,6 +1,11 @@
 from datetime import date
 
-from app.ml.temporal import days_until, extract_deadline, priority_score
+from app.ml.temporal import (
+    days_until,
+    extract_deadline,
+    has_urgency_marker,
+    priority_score,
+)
 from app.ml.types import Importance
 
 _NOW = date(2026, 7, 30)
@@ -40,3 +45,16 @@ def test_priority_score_combines_importance_and_recency():
     assert priority_score(Importance.HIGH, 10) == 0.85      # 0.8 + 0.05
     assert priority_score(Importance.MEDIUM, None) == 0.5   # no date -> importance alone
     assert priority_score(Importance.LOW, 100) == 0.2       # far deadline -> no boost
+
+
+def test_detects_urgency_markers_but_not_when_negated():
+    assert has_urgency_marker("please send the report ASAP")
+    assert has_urgency_marker("this is time-sensitive, reply immediately")
+    assert not has_urgency_marker("just an FYI, review whenever")
+    assert not has_urgency_marker("this is not urgent, no rush")   # negation guard
+
+
+def test_urgency_boosts_priority_score():
+    assert priority_score(Importance.MEDIUM, None, is_urgent=True) == 0.65   # 0.5 + 0.15
+    assert priority_score(Importance.MEDIUM, None, is_urgent=False) == 0.5   # unchanged default
+    assert priority_score(Importance.HIGH, 0, is_urgent=True) == 1.0         # still capped at 1.0
