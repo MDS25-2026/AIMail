@@ -14,8 +14,10 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import torch
 from datasets import Dataset
 from sklearn.metrics import f1_score
+from sklearn.utils.class_weight import compute_class_weight
 from transformers import (
     AutoModelForSequenceClassification,
     AutoTokenizer,
@@ -43,17 +45,38 @@ def _macro_f1(eval_pred) -> dict:
     return {"macro_f1": f1_score(labels, preds, average="macro")}
 
 
+class WeightedTrainer(Trainer):
+    """Trainer with a class-weighted loss so the model can't win by favoring the majority class."""
+
+    def __init__(self, *args, class_weights: torch.Tensor, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._class_weights = class_weights
+
+    def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
+        labels = inputs.pop("labels")
+        outputs = model(**inputs)
+        weights = self._class_weights.to(outputs.logits.device)
+        loss = torch.nn.functional.cross_entropy(outputs.logits, labels, weight=weights)
+        return (loss, outputs) if return_outputs else loss
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("dataset")
-    parser.add_argument("--epochs", type=int, default=3)
+    parser.add_argument("--epochs", type=int, default=5)
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--max-length", type=int, default=256)
+    parser.add_argument("--lr", type=float, default=2e-5)
     args = parser.parse_args()
 
     texts, labels = load_dataset(Path(args.dataset))
     x_train, x_test, y_train, y_test = stratified_split(texts, labels)
     print(f"train={len(x_train)} test={len(x_test)} classes={_LABELS}")
+
+    # Inverse-frequency class weights so a balanced-ish but imperfect split doesn't bias the model.
+    y_train_ids = [_LABEL_TO_ID[y] for y in y_train]
+    weights = compute_class_weight("balanced", classes=np.arange(len(_LABELS)), y=y_train_ids)
+    class_weights = torch.tensor(weights, dtype=torch.float)
 
     tokenizer = AutoTokenizer.from_pretrained(_MODEL_NAME)
 
@@ -74,15 +97,22 @@ def main() -> None:
         label2id=_LABEL_TO_ID,
     )
 
-    trainer = Trainer(
+    trainer = WeightedTrainer(
         model=model,
         args=TrainingArguments(
             output_dir="models/distilbert-checkpoints",
             num_train_epochs=args.epochs,
+            learning_rate=args.lr,
+            warmup_steps=50,        # ramp LR up gently, then decay — stabler fine-tuning
+            weight_decay=0.01,      # light regularization against overfitting the small set
             per_device_train_batch_size=args.batch_size,
             per_device_eval_batch_size=args.batch_size,
             eval_strategy="epoch",
-            save_strategy="no",
+            save_strategy="epoch",
+            save_total_limit=1,
+            load_best_model_at_end=True,          # keep the epoch with the best macro-F1
+            metric_for_best_model="macro_f1",
+            greater_is_better=True,
             logging_steps=25,
             report_to=[],
         ),
@@ -91,6 +121,7 @@ def main() -> None:
         compute_metrics=_macro_f1,
         # Pad each batch to its longest example, so variable-length emails stack into a tensor.
         data_collator=DataCollatorWithPadding(tokenizer),
+        class_weights=class_weights,
     )
 
     trainer.train()
