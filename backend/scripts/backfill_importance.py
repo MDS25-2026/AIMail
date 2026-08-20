@@ -19,11 +19,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from sqlalchemy import select
 
+from app.core.config import get_settings
 from app.db.models import Message
 from app.db.session import get_sessionmaker
-from app.ml.predict import predict_importance
 
-_MODEL_VERSION = "baseline-tfidf-lr-v1"
+# Pick the predictor from config (PRIORITY_MODEL=baseline|distilbert). DistilBERT's predictor
+# imports torch lazily, so this stays cheap when the baseline is selected.
+if get_settings().priority_model == "distilbert":
+    from app.ml.predict_transformer import predict_importance
+
+    _MODEL_VERSION = "distilbert-v1"
+else:
+    from app.ml.predict import predict_importance
+
+    _MODEL_VERSION = "baseline-tfidf-lr-v1"
 
 
 async def main(rescore_all: bool) -> None:

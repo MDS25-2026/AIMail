@@ -4,7 +4,7 @@
 VENV := .venv/bin
 .DEFAULT_GOAL := help
 
-.PHONY: help check test lint typecheck hooks dev backend agent web migrate seed ingest eval eval-reform baseline backfill generate ml-deps distilbert
+.PHONY: help check test lint typecheck hooks dev backend agent web migrate seed ingest eval eval-reform baseline backfill generate ml-deps distilbert eval-classifier
 
 help:  ## list targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  make %-12s %s\n", $$1, $$2}'
@@ -65,6 +65,9 @@ baseline:  ## train classifier baseline: make baseline DATASET=path.csv [TEXT=co
 
 backfill:  ## predict + store importance for messages (needs a trained model from `make baseline`)
 	cd backend && ../$(VENV)/python scripts/backfill_importance.py
+
+eval-classifier:  ## grade the classifier on your hand-labeled holdout: make eval-classifier HOLDOUT=holdout_to_label.csv
+	cd backend && ../$(VENV)/python scripts/eval_classifier.py "$(HOLDOUT)"
 
 ml-deps:  ## install the heavy DistilBERT training deps (torch/transformers/datasets)
 	$(VENV)/pip install -r backend/requirements-ml.txt

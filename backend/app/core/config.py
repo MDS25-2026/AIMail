@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     gmail_token_path: str = str(_REPO_ROOT / "listener" / "token.json")
     auto_generate: bool = True  # background poller pre-generates drafts so opens are instant
     generate_poll_seconds: int = 60
+    priority_model: str = "baseline"  # "baseline" (TF-IDF) or "distilbert" — which classifier backfill uses
 
     @property
     def async_database_url(self) -> str:
