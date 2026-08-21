@@ -5,3 +5,5 @@ torch>=2.2
 transformers>=4.40
 datasets>=2.19
 accelerate>=0.30
+sentencepiece>=0.2   # DeBERTa-v3's tokenizer needs it
+tiktoken>=0.7        # some fast tokenizers need it too

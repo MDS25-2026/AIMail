@@ -8,6 +8,7 @@ unless DistilBERT is actually used.
 from functools import lru_cache
 from pathlib import Path
 
+from app.ml.clean import clean_email_text
 from app.ml.types import Importance
 
 _MODEL_DIR = Path(__file__).resolve().parents[2] / "models" / "distilbert"
@@ -28,6 +29,6 @@ def _pipeline():
 
 
 def predict_importance(text: str) -> tuple[Importance, float]:
-    result = _pipeline()(text)[0]  # {"label": "low"/"medium"/"high", "score": 0..1}
+    result = _pipeline()(clean_email_text(text))[0]  # {"label": "low"/"medium"/"high", "score": 0..1}
     label_id = {"low": 0, "medium": 1, "high": 2}[result["label"].lower()]
     return _ID_TO_IMPORTANCE[label_id], round(float(result["score"]), 4)

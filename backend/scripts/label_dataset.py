@@ -25,8 +25,9 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 _API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-_MODEL = "gemini-3.5-flash-lite"
-_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{_MODEL}:generateContent"
+# Pro gives cleaner labels than flash-lite (worth it for ground truth); override with --model.
+_DEFAULT_MODEL = "gemini-pro-latest"
+_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 _RUBRIC = (
     "Label each email HIGH, MEDIUM, or LOW by how much it needs the recipient's attention.\n"
@@ -86,7 +87,7 @@ def _sample(source: Path, limit: int) -> list[str]:
     return out
 
 
-def _label_batch(client: httpx.Client, emails: list[str]) -> list[str] | None:
+def _label_batch(client: httpx.Client, emails: list[str], url: str) -> list[str] | None:
     """Label one batch; None if it can't be labeled after retries (caller skips it, keeps going)."""
     numbered = "\n\n".join(f"--- Email {i} ---\n{e}" for i, e in enumerate(emails))
     prompt = f"{_RUBRIC}\n\nReturn a JSON array of {len(emails)} labels, in order.\n\n{numbered}"
@@ -95,7 +96,7 @@ def _label_batch(client: httpx.Client, emails: list[str]) -> list[str] | None:
         "generationConfig": {"responseMimeType": "application/json", "responseSchema": _SCHEMA},
     }
     for attempt in range(6):
-        resp = client.post(_URL, headers={"x-goog-api-key": _API_KEY}, json=payload)
+        resp = client.post(url, headers={"x-goog-api-key": _API_KEY}, json=payload)
         if resp.status_code == 429:
             time.sleep(min(5 * (attempt + 1), 30))  # ramp up to 30s for sustained limits
             continue
@@ -112,10 +113,13 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=1500)
     parser.add_argument("--batch-size", type=int, default=20)  # fewer calls -> less rate-limit pressure
     parser.add_argument("--out", default="labeled.csv")
+    parser.add_argument("--model", default=_DEFAULT_MODEL, help="Gemini model for labeling")
     args = parser.parse_args()
 
     if not _API_KEY:
         raise SystemExit("no GEMINI_API_KEY / GOOGLE_API_KEY in ../.env")
+    url = _URL_TEMPLATE.format(model=args.model)
+    print(f"labeling with {args.model}", flush=True)
 
     print(f"sampling up to {args.limit} emails from {args.source}...", flush=True)
     emails = _sample(Path(args.source), args.limit)
@@ -129,7 +133,7 @@ def main() -> None:
         writer.writerow(["text", "label"])
         for start in range(0, len(emails), args.batch_size):
             batch = emails[start : start + args.batch_size]
-            labels = _label_batch(client, batch)
+            labels = _label_batch(client, batch, url)
             if labels is None:
                 print(f"  skipped batch at {start} (rate-limited/error) — keeping progress", flush=True)
                 continue

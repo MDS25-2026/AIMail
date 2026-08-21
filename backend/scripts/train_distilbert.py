@@ -28,13 +28,17 @@ from transformers import (
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from app.ml.clean import clean_email_text
 from app.ml.dataset import (  # reuse the baseline's CSV loader/split
     load_dataset,
     stratified_split,
 )
 
-_MODEL_NAME = "distilbert-base-uncased"
-_OUT_DIR = Path("models/distilbert")
+# RoBERTa-base beats DistilBERT on text classification and loads cleanly on transformers 5.x
+# (DeBERTa-v3's SentencePiece tokenizer is broken there). Override with --base-model to compare
+# (e.g. distilbert-base-uncased, answerdotai/ModernBERT-base).
+_DEFAULT_MODEL = "roberta-base"
+_OUT_DIR = Path("models/distilbert")  # the transformer-model slot the predictor loads from
 _LABELS = ["low", "medium", "high"]  # index == the id stored on the model
 _LABEL_TO_ID = {label: i for i, label in enumerate(_LABELS)}
 
@@ -67,9 +71,12 @@ def main() -> None:
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--max-length", type=int, default=256)
     parser.add_argument("--lr", type=float, default=2e-5)
+    parser.add_argument("--base-model", default=_DEFAULT_MODEL)
     args = parser.parse_args()
+    print(f"base model: {args.base_model}")
 
     texts, labels = load_dataset(Path(args.dataset))
+    texts = [clean_email_text(t) for t in texts]  # match the cleaning done at inference
     x_train, x_test, y_train, y_test = stratified_split(texts, labels)
     print(f"train={len(x_train)} test={len(x_test)} classes={_LABELS}")
 
@@ -78,7 +85,7 @@ def main() -> None:
     weights = compute_class_weight("balanced", classes=np.arange(len(_LABELS)), y=y_train_ids)
     class_weights = torch.tensor(weights, dtype=torch.float)
 
-    tokenizer = AutoTokenizer.from_pretrained(_MODEL_NAME)
+    tokenizer = AutoTokenizer.from_pretrained(args.base_model)
 
     def tokenize(batch: dict) -> dict:
         return tokenizer(batch["text"], truncation=True, max_length=args.max_length)
@@ -91,7 +98,7 @@ def main() -> None:
     test_ds = to_dataset(x_test, y_test)
 
     model = AutoModelForSequenceClassification.from_pretrained(
-        _MODEL_NAME,
+        args.base_model,
         num_labels=len(_LABELS),
         id2label=dict(enumerate(_LABELS)),
         label2id=_LABEL_TO_ID,
