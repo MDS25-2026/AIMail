@@ -53,6 +53,25 @@ task. See [`../AI_DOCS/priority-classifier.md`](../AI_DOCS/priority-classifier.m
   latency / rate limits).
 - [ ] **Knowledge distillation:** Gemini soft labels (probabilities) distilled into DistilBERT.
 
+## Experiment results (vs the 120-row human holdout)
+
+| Model | preprocessing | macro-F1 | medium F1 | high F1 |
+|-------|---------------|----------|-----------|---------|
+| TF-IDF + LogReg | raw | 0.50 | 0.48 | 0.43 |
+| TF-IDF + LogReg | cleaned | 0.47 | - | - |
+| DistilBERT | raw | **0.57** | 0.48 | 0.50 |
+| DistilBERT | cleaned | 0.54 | 0.56 | 0.36 |
+| RoBERTa-base | cleaned | 0.49 | 0.33 | 0.45 |
+
+**Key finding:** every configuration lands in **0.47-0.57 — all inside the +/-9% confidence interval**
+of a 120-sample holdout, so they are statistically indistinguishable. **Model capacity and text
+preprocessing are not the bottleneck.** Cleaning shuffled errors (helped MEDIUM 0.48->0.56, hurt HIGH
+0.50->0.36) rather than lifting overall accuracy. This points the remaining effort at the **label
+signal and task subjectivity**, and at a **larger holdout** to shrink the confidence interval.
+
+Best model retained: DistilBERT. Cleaning kept (correct engineering for live email — decodes
+quoted-printable, strips quoted history — even though its accuracy effect is within noise).
+
 ## Recommended sequence
 
 1. Human ceiling (Step 0).
