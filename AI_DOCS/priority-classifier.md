@@ -26,6 +26,18 @@ Judged from **content only** — deadlines/dates are deliberately excluded (the 
 timing) and sender seniority is left to a future deterministic VIP layer, so the text model learns
 language, not org charts.
 
+**Boundary rules (elicited from the human annotator, to resolve the ambiguous cases consistently):**
+
+- Availability / scheduling ("I'm free Tuesday", "any morning 10-11:30") with no explicit
+  "please book/confirm" -> **MEDIUM** (only an explicit request to schedule is HIGH).
+- "FYI" / "attached please find" with no request -> **MEDIUM** (LOW is reserved for automated/social).
+- Email chains -> judge the **whole thread**, not just the newest message (a request anywhere in
+  the visible thread can make it HIGH).
+- Mostly-social email with one minor ask -> **MEDIUM** (only a significant/explicit request is HIGH).
+
+Net philosophy: **HIGH is high-precision** — reserved for genuine action-required / high-stakes /
+authority; borderline cases default to MEDIUM.
+
 ## Dataset & labeling
 
 - **Source:** the public Enron email corpus (~500k emails; Kaggle `emails.csv`).
