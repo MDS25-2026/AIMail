@@ -25,8 +25,9 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 _API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-# Pro gives cleaner labels than flash-lite (worth it for ground truth); override with --model.
-_DEFAULT_MODEL = "gemini-pro-latest"
+# gemini-3.5-flash is a step up from flash-lite with usable free quota (Pro is quota-locked on the
+# free tier). Override with --model. The label quality mostly comes from the rubric below anyway.
+_DEFAULT_MODEL = "gemini-3.5-flash"
 _URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 _RUBRIC = (
