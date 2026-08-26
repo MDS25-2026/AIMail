@@ -104,7 +104,11 @@ def _label_batch(client: httpx.Client, emails: list[str], url: str) -> list[str]
         "generationConfig": {"responseMimeType": "application/json", "responseSchema": _SCHEMA},
     }
     for attempt in range(6):
-        resp = client.post(url, headers={"x-goog-api-key": _API_KEY}, json=payload)
+        try:
+            resp = client.post(url, headers={"x-goog-api-key": _API_KEY}, json=payload)
+        except httpx.TransportError:  # timeout / disconnect — retryable, don't kill the run
+            time.sleep(5 * (attempt + 1))
+            continue
         if resp.status_code == 429:
             time.sleep(min(5 * (attempt + 1), 30))  # ramp up to 30s for sustained limits
             continue
@@ -112,14 +116,14 @@ def _label_batch(client: httpx.Client, emails: list[str], url: str) -> list[str]
             return None  # non-rate-limit error — skip this batch, don't kill the whole run
         labels = json.loads(resp.json()["candidates"][0]["content"]["parts"][0]["text"])
         return [str(x).lower() for x in labels]
-    return None  # still rate-limited after all retries
+    return None  # still failing after all retries
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("source", help="emails.csv or archive.zip")
     parser.add_argument("--limit", type=int, default=1500)
-    parser.add_argument("--batch-size", type=int, default=20)  # fewer calls -> less rate-limit pressure
+    parser.add_argument("--batch-size", type=int, default=10)  # smaller prompts -> fewer timeouts
     parser.add_argument("--out", default="labeled.csv")
     parser.add_argument("--model", default=_DEFAULT_MODEL, help="Gemini model for labeling")
     args = parser.parse_args()
@@ -136,7 +140,7 @@ def main() -> None:
     # Append each batch as it's labeled so a crash / rate-limit stop keeps everything so far.
     out_path = Path(args.out)
     written = 0
-    with out_path.open("w", newline="", encoding="utf-8") as handle, httpx.Client(timeout=60) as client:
+    with out_path.open("w", newline="", encoding="utf-8") as handle, httpx.Client(timeout=120) as client:
         writer = csv.writer(handle)
         writer.writerow(["text", "label"])
         for start in range(0, len(emails), args.batch_size):
