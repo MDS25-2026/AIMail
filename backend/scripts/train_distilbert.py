@@ -69,7 +69,7 @@ def main() -> None:
     parser.add_argument("dataset")
     parser.add_argument("--epochs", type=int, default=5)
     parser.add_argument("--batch-size", type=int, default=8)
-    parser.add_argument("--max-length", type=int, default=256)
+    parser.add_argument("--max-length", type=int, default=512)  # keep whole-thread context
     parser.add_argument("--lr", type=float, default=2e-5)
     parser.add_argument("--base-model", default=_DEFAULT_MODEL)
     args = parser.parse_args()

@@ -40,6 +40,13 @@ _RUBRIC = (
     "  - purely social or logistical: thank-yous, small talk, casual banter, personal notes.\n"
     "MEDIUM - everything else: work-relevant and informative but needs no direct action from the\n"
     "  recipient (FYI, status updates, discussion the recipient is not driving).\n"
+    "\n"
+    "Boundary rules (apply consistently - HIGH is high-precision, borderline defaults to MEDIUM):\n"
+    "  - Stating availability with no explicit 'please book/confirm' -> MEDIUM.\n"
+    "  - 'FYI' / 'attached please find' with no request -> MEDIUM (LOW is only automated/social).\n"
+    "  - Judge the WHOLE thread, not just the newest message.\n"
+    "  - Mostly-social email with one minor ask -> MEDIUM (only a significant request is HIGH).\n"
+    "\n"
     "Judge from the email's content only. Ignore dates and deadlines - a separate layer handles timing."
 )
 
