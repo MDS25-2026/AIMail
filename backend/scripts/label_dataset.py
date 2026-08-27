@@ -82,6 +82,12 @@ def _parse(raw: str) -> str:
     return text if len(text) > 20 else ""  # skip near-empty stubs
 
 
+def _texts_from_csv(source: Path, limit: int) -> list[str]:
+    """Read texts straight from a CSV that already has a `text` column (fast — no zip re-parse)."""
+    with source.open(encoding="utf-8", errors="replace") as handle:
+        return [row["text"][:4000] for row in csv.DictReader(handle)][:limit]
+
+
 def _sample(source: Path, limit: int) -> list[str]:
     """Systematic sample (every Kth email) so labels span mailboxes, not just the first folder."""
     parsed = (t for t in (_parse(m) for m in _rows(source)) if t)
@@ -134,7 +140,11 @@ def main() -> None:
     print(f"labeling with {args.model}", flush=True)
 
     print(f"sampling up to {args.limit} emails from {args.source}...", flush=True)
-    emails = _sample(Path(args.source), args.limit)
+    src = Path(args.source)
+    # A CSV with a text column (e.g. a previous label file) is read directly — fast, and re-labels
+    # the SAME emails. Otherwise sample from the raw corpus (.zip / emails.csv).
+    header = src.suffix == ".csv" and "text" in (next(csv.reader(src.open(encoding="utf-8"))) or [])
+    emails = _texts_from_csv(src, args.limit) if header else _sample(src, args.limit)
     print(f"parsed {len(emails)} emails; labeling in batches of {args.batch_size}...", flush=True)
 
     # Append each batch as it's labeled so a crash / rate-limit stop keeps everything so far.
