@@ -83,3 +83,10 @@ quoted-printable, strips quoted history — even though its accuracy effect is w
 **Realistic target:** steps 2-4 plausibly reach ~0.65-0.70; beyond that is likely the human ceiling
 for a subjective task, which Step 0 confirms. Reporting *why* MEDIUM resists improvement is itself a
 valid research finding.
+
+## Outcome (final)
+
+**Rubric-consistent relabeling broke the plateau: 0.57 -> 0.69 macro-F1** (RoBERTa, full-thread,
+512 tokens, labels re-generated with the explicit boundary rubric). MEDIUM F1 rose 0.48 -> 0.68.
+This revised the intermediate "inherent ceiling" reading: the binding constraint was **label
+consistency**, and it was addressable. Live model is this RoBERTa checkpoint (`PRIORITY_MODEL=distilbert`).
