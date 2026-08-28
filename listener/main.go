@@ -6,10 +6,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
 	"regexp"
+	"strings"
 	"time"
 
 	"cloud.google.com/go/pubsub"
@@ -64,6 +66,178 @@ func maskPII(text string) (masked string, emailsMasked, phonesMasked int) {
 		return "[PHONE_REDACTED]"
 	})
 	return masked, emailsMasked, phonesMasked
+}
+
+// --- Presidio NER masking (layered on top of the regex floor) ---------------
+//
+// Presidio (two local containers: analyzer + anonymizer) catches unstructured PII the
+// regex can't — names, locations, Malaysian IC, bank-account numbers. It runs AFTER
+// maskPII on the already-floored text, so the email/phone floor holds even when the
+// containers are down: any Presidio error degrades to the regex result, and raw text is
+// never stored. Recognizers are tuned for the team's locale (MY IC, +60 phones, banks).
+
+// presidioClient bounds each call so a hung container can't block the webhook handler.
+// Package-level (not http.DefaultClient) to avoid mutating shared global client state.
+var presidioClient = &http.Client{Timeout: 5 * time.Second}
+
+type presidioPattern struct {
+	Name  string  `json:"name"`
+	Regex string  `json:"regex"`
+	Score float64 `json:"score"`
+}
+
+type presidioRecognizer struct {
+	Name              string            `json:"name"`
+	SupportedLanguage string            `json:"supported_language"`
+	SupportedEntity   string            `json:"supported_entity"`
+	Patterns          []presidioPattern `json:"patterns"`
+	Context           []string          `json:"context,omitempty"`
+}
+
+type presidioAnalyzeRequest struct {
+	Text             string               `json:"text"`
+	Language         string               `json:"language"`
+	ScoreThreshold   float64              `json:"score_threshold"`
+	Entities         []string             `json:"entities,omitempty"`
+	AdHocRecognizers []presidioRecognizer `json:"ad_hoc_recognizers,omitempty"`
+}
+
+type presidioResult struct {
+	EntityType string  `json:"entity_type"`
+	Start      int     `json:"start"`
+	End        int     `json:"end"`
+	Score      float64 `json:"score"`
+}
+
+// presidioReplacement is the typed anonymizer config (avoids a map[string]interface{}).
+type presidioReplacement struct {
+	Type     string `json:"type"`
+	NewValue string `json:"new_value"`
+}
+
+type presidioAnonymizeRequest struct {
+	Text           string                         `json:"text"`
+	AnalyzeResults []presidioResult               `json:"analyzer_results"`
+	Anonymizers    map[string]presidioReplacement `json:"anonymizers,omitempty"`
+}
+
+type presidioAnonymizeResponse struct {
+	Text string `json:"text"`
+}
+
+// localeRecognizers are the team's custom PII patterns (Malaysian IC, +60 phones, and
+// context-gated bank-account numbers) layered on Presidio's built-in recognizers.
+var localeRecognizers = []presidioRecognizer{
+	{
+		Name:              "MY_IC_RECOGNIZER",
+		SupportedLanguage: "en",
+		SupportedEntity:   "MY_IC",
+		Patterns:          []presidioPattern{{Name: "my_ic_pattern", Regex: `\b\d{6}-\d{2}-\d{4,7}\b|\b\d{12}\b`, Score: 1.0}},
+	},
+	{
+		Name:              "MY_PHONE_RECOGNIZER",
+		SupportedLanguage: "en",
+		SupportedEntity:   "PHONE_NUMBER",
+		Patterns:          []presidioPattern{{Name: "my_phone_pattern", Regex: `\b(\+?60|0)[1-9]\d{7,8}\b|\b(\+?60\s?|0)\d{1,2}[\s.-]?\d{3,4}[\s.-]?\d{3,4}\b`, Score: 0.95}},
+	},
+	{
+		Name:              "FLEXIBLE_ACCOUNT_RECOGNIZER",
+		SupportedLanguage: "en",
+		SupportedEntity:   "ACCOUNT_NUMBER",
+		Patterns:          []presidioPattern{{Name: "arbitrary_digit_pattern", Regex: `\b\d{6,16}\b`, Score: 0.4}},
+		Context:           []string{"account", "acc", "bank", "maybank", "cimb", "rhb", "public bank", "transfer", "reference", "ref", "passport", "policy", "member"},
+	},
+}
+
+// maskText applies the regex PII floor first (always, offline-proof), then layers Presidio
+// NER on the floored text. On any Presidio error it degrades to the regex result — raw text
+// is never returned. emails/phones counts come from the regex pass so they stay honest in
+// both modes; degraded reports whether Presidio ran, for the audit log.
+func maskText(ctx context.Context, text string) (masked string, emailsMasked, phonesMasked int, degraded bool) {
+	masked, emailsMasked, phonesMasked = maskPII(text)
+	presidioMasked, err := maskWithPresidio(ctx, masked)
+	if err != nil {
+		log.Printf("presidio degraded, regex-only for this field: %v", err)
+		return masked, emailsMasked, phonesMasked, true
+	}
+	return presidioMasked, emailsMasked, phonesMasked, false
+}
+
+// maskWithPresidio detects PII via the analyzer container and redacts it via the anonymizer
+// container. Any error is returned so the caller can degrade to the regex floor.
+func maskWithPresidio(ctx context.Context, text string) (string, error) {
+	if strings.TrimSpace(text) == "" {
+		return text, nil
+	}
+	analyzerURL := getEnvOrDefault("PRESIDIO_ANALYZER_URL", "http://localhost:5001/analyze")
+	anonymizerURL := getEnvOrDefault("PRESIDIO_ANONYMIZER_URL", "http://localhost:5002/anonymize")
+
+	analyzePayload, err := json.Marshal(presidioAnalyzeRequest{
+		Text:             text,
+		Language:         "en",
+		ScoreThreshold:   0.6,
+		Entities:         []string{"PERSON", "PHONE_NUMBER", "EMAIL_ADDRESS", "LOCATION", "ORGANIZATION", "MY_IC", "ACCOUNT_NUMBER"},
+		AdHocRecognizers: localeRecognizers,
+	})
+	if err != nil {
+		return "", fmt.Errorf("marshal analyze request: %w", err)
+	}
+
+	raw, err := presidioPost(ctx, analyzerURL, analyzePayload)
+	if err != nil {
+		return "", fmt.Errorf("presidio analyzer: %w", err)
+	}
+	var results []presidioResult
+	if err := json.Unmarshal(raw, &results); err != nil {
+		return "", fmt.Errorf("decode analyze results: %w", err)
+	}
+	if len(results) == 0 {
+		return text, nil // no PII beyond the regex floor
+	}
+
+	anonymizePayload, err := json.Marshal(presidioAnonymizeRequest{
+		Text:           text,
+		AnalyzeResults: results,
+		Anonymizers:    map[string]presidioReplacement{"DEFAULT": {Type: "replace", NewValue: "[Redacted]"}},
+	})
+	if err != nil {
+		return "", fmt.Errorf("marshal anonymize request: %w", err)
+	}
+
+	raw, err = presidioPost(ctx, anonymizerURL, anonymizePayload)
+	if err != nil {
+		return "", fmt.Errorf("presidio anonymizer: %w", err)
+	}
+	var out presidioAnonymizeResponse
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return "", fmt.Errorf("decode anonymize response: %w", err)
+	}
+	return out.Text, nil
+}
+
+// presidioPost POSTs a JSON payload to a Presidio endpoint and returns the raw response body.
+func presidioPost(ctx context.Context, url string, payload []byte) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := presidioClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("status %d", resp.StatusCode)
+	}
+	return io.ReadAll(resp.Body)
+}
+
+func getEnvOrDefault(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
 }
 
 // --- Supabase storage + audit log -------------------------------------------
@@ -267,12 +441,13 @@ func fetchLatestMessage(ctx context.Context, srv *gmail.Service) {
 
 	body := getBody(msg.Payload)
 
-	// Mask PII before anything touches storage or logs.
-	maskedBody, bodyEmails, bodyPhones := maskPII(body)
-	maskedSnippet, snipEmails, snipPhones := maskPII(msg.Snippet)
-	maskedSubject, subEmails, subPhones := maskPII(subject)
+	// Mask PII before anything touches storage or logs: regex floor first, then Presidio NER.
+	maskedBody, bodyEmails, bodyPhones, degradedBody := maskText(ctx, body)
+	maskedSnippet, snipEmails, snipPhones, degradedSnip := maskText(ctx, msg.Snippet)
+	maskedSubject, subEmails, subPhones, degradedSubj := maskText(ctx, subject)
 	totalEmails := bodyEmails + snipEmails + subEmails
 	totalPhones := bodyPhones + snipPhones + subPhones
+	presidioDegraded := degradedBody || degradedSnip || degradedSubj
 
 	fmt.Println("-------------------------------------------")
 	fmt.Printf("FROM: %s\n", from)
@@ -298,7 +473,11 @@ func fetchLatestMessage(ctx context.Context, srv *gmail.Service) {
 		return
 	}
 
-	writeAuditLog(ctx, "store_message", fmt.Sprintf("msg %s stored, %d emails / %d phones masked", msgID, totalEmails, totalPhones), true)
+	detail := fmt.Sprintf("msg %s stored, %d emails / %d phones masked", msgID, totalEmails, totalPhones)
+	if presidioDegraded {
+		detail += " (presidio degraded: regex-only)"
+	}
+	writeAuditLog(ctx, "store_message", detail, true)
 }
 
 // getBody prefers the text/html part so the dashboard can render the email like a normal inbox;
