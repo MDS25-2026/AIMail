@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -40,41 +41,71 @@ var (
 
 // --- PII masking -----------------------------------------------------------
 //
-// Lane A floor is 80% masking accuracy. Regex-based email/phone masking is
-// the v1 pass — good enough for the thin slice, not meant to be the final
-// word. Lane B's classifier work can replace/augment this later if a
-// smarter (e.g. NER-based) approach is needed to push accuracy up.
+// Format-clear PII (email, phone, Malaysian IC) is redacted here by deterministic, ordered
+// regex — most-specific first, so an IC is masked before the phone pattern can see its
+// digits. Context-dependent PII (names, locations, orgs, account numbers) is left to
+// Presidio's NER below. Splitting by PII *nature* rather than by tool is what removes the
+// "different-length numbers, wrong type" mis-tagging: no two patterns fight over one span.
+
+const (
+	emailToken = "[EMAIL_REDACTED]"
+	phoneToken = "[PHONE_REDACTED]"
+	icToken    = "[IC_REDACTED]"
+)
 
 var (
 	emailRegex = regexp.MustCompile(`[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}`)
-	// Matches common phone formats: (123) 456-7890, 123-456-7890,
-	// +60 12-345 6789, 0123456789, etc. Deliberately a bit loose —
-	// prefers over-masking to under-masking given the audit-log context.
-	phoneRegex = regexp.MustCompile(`(\+?\d{1,3}[\s.-]?)?(\(?\d{2,4}\)?[\s.-]?)\d{3,4}[\s.-]?\d{3,4}`)
+	// Malaysian IC: dashed YYMMDD-PB-###G is unambiguous; a bare 12-digit run counts as an IC
+	// only if its YYMMDD prefix is a plausible date (isICDate) — that separates it from a
+	// 12-digit account/order number by structure, not just length.
+	icDashedRegex = regexp.MustCompile(`\b\d{6}-\d{2}-\d{4}\b`)
+	icBareRegex   = regexp.MustCompile(`\b\d{12}\b`)
+	// Three branches: Malaysian (+60/0 prefix), US parenthesized "(713) 853-6161", and US
+	// separated "713-853-6161". Runs AFTER the IC pass, so a 12-digit IC is already redacted.
+	// The US branches require parens or separators, so they can't swallow a bare account digit-run.
+	phoneRegex = regexp.MustCompile(`\b(?:\+?60|0)\d{1,2}[\s.-]?\d{3,4}[\s.-]?\d{3,4}\b|\(\d{3}\)[\s.-]?\d{3}[\s.-]?\d{4}|\b\d{3}[\s.-]\d{3}[\s.-]\d{4}\b`)
 )
 
-// maskPII redacts emails and phone numbers from text, returning the masked
-// text plus counts of how many of each were found (useful for the audit log
-// and for tracking masking accuracy against the 80% floor).
+// isICDate reports whether the YYMMDD prefix of a bare 12-digit string is a plausible date,
+// i.e. the run really looks like a Malaysian IC and not an arbitrary 12-digit number.
+func isICDate(twelveDigits string) bool {
+	if len(twelveDigits) != 12 { // invariant: only called on a \d{12} match, but never index blindly
+		return false
+	}
+	month, _ := strconv.Atoi(twelveDigits[2:4])
+	day, _ := strconv.Atoi(twelveDigits[4:6])
+	return month >= 1 && month <= 12 && day >= 1 && day <= 31
+}
+
+// maskPII redacts format-clear PII by ordered regex (email -> IC -> phone) and returns the
+// masked text plus email/phone counts for the audit log. IC is redacted too (over-masking is
+// preferred) but not separately counted — the persisted metric tracks the 80% email/phone floor.
 func maskPII(text string) (masked string, emailsMasked, phonesMasked int) {
-	masked = emailRegex.ReplaceAllStringFunc(text, func(s string) string {
+	masked = emailRegex.ReplaceAllStringFunc(text, func(string) string {
 		emailsMasked++
-		return "[EMAIL_REDACTED]"
+		return emailToken
 	})
-	masked = phoneRegex.ReplaceAllStringFunc(masked, func(s string) string {
+	masked = icDashedRegex.ReplaceAllString(masked, icToken)
+	masked = icBareRegex.ReplaceAllStringFunc(masked, func(s string) string {
+		if isICDate(s) {
+			return icToken
+		}
+		return s
+	})
+	masked = phoneRegex.ReplaceAllStringFunc(masked, func(string) string {
 		phonesMasked++
-		return "[PHONE_REDACTED]"
+		return phoneToken
 	})
 	return masked, emailsMasked, phonesMasked
 }
 
 // --- Presidio NER masking (layered on top of the regex floor) ---------------
 //
-// Presidio (two local containers: analyzer + anonymizer) catches unstructured PII the
-// regex can't — names, locations, Malaysian IC, bank-account numbers. It runs AFTER
-// maskPII on the already-floored text, so the email/phone floor holds even when the
-// containers are down: any Presidio error degrades to the regex result, and raw text is
-// never stored. Recognizers are tuned for the team's locale (MY IC, +60 phones, banks).
+// Presidio (two local containers: analyzer + anonymizer) catches context-dependent PII the
+// regex can't — names, locations, organizations, and account numbers (identifiable only by
+// nearby words). It runs AFTER maskPII on the already-floored text, so the email/phone/IC
+// floor holds even when the containers are down: any Presidio error degrades to the regex
+// result, and raw text is never stored.
 
 // presidioClient bounds each call so a hung container can't block the webhook handler.
 // Package-level (not http.DefaultClient) to avoid mutating shared global client state.
@@ -125,21 +156,11 @@ type presidioAnonymizeResponse struct {
 	Text string `json:"text"`
 }
 
-// localeRecognizers are the team's custom PII patterns (Malaysian IC, +60 phones, and
-// context-gated bank-account numbers) layered on Presidio's built-in recognizers.
+// localeRecognizers holds only the context-gated account recogniser. IC and phone moved to the
+// regex floor (their formats are fixed) — leaving them here made Presidio score-fight the built-in
+// PHONE_NUMBER recogniser and mis-type numbers by length. Account numbers stay because a bare
+// digit-run is identifiable only by nearby words, which is exactly Presidio's context feature.
 var localeRecognizers = []presidioRecognizer{
-	{
-		Name:              "MY_IC_RECOGNIZER",
-		SupportedLanguage: "en",
-		SupportedEntity:   "MY_IC",
-		Patterns:          []presidioPattern{{Name: "my_ic_pattern", Regex: `\b\d{6}-\d{2}-\d{4,7}\b|\b\d{12}\b`, Score: 1.0}},
-	},
-	{
-		Name:              "MY_PHONE_RECOGNIZER",
-		SupportedLanguage: "en",
-		SupportedEntity:   "PHONE_NUMBER",
-		Patterns:          []presidioPattern{{Name: "my_phone_pattern", Regex: `\b(\+?60|0)[1-9]\d{7,8}\b|\b(\+?60\s?|0)\d{1,2}[\s.-]?\d{3,4}[\s.-]?\d{3,4}\b`, Score: 0.95}},
-	},
 	{
 		Name:              "FLEXIBLE_ACCOUNT_RECOGNIZER",
 		SupportedLanguage: "en",
@@ -176,7 +197,7 @@ func maskWithPresidio(ctx context.Context, text string) (string, error) {
 		Text:             text,
 		Language:         "en",
 		ScoreThreshold:   0.6,
-		Entities:         []string{"PERSON", "PHONE_NUMBER", "EMAIL_ADDRESS", "LOCATION", "ORGANIZATION", "MY_IC", "ACCOUNT_NUMBER"},
+		Entities:         []string{"PERSON", "LOCATION", "ORGANIZATION", "ACCOUNT_NUMBER"},
 		AdHocRecognizers: localeRecognizers,
 	})
 	if err != nil {

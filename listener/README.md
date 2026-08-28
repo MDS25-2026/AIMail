@@ -4,9 +4,11 @@ Go service that watches a Gmail inbox, masks PII, and persists each message to S
 a Gmail `watch` that pushes to a Pub/Sub topic, pulls each new message, masks PII, and writes the
 masked row plus an audit entry via Supabase's PostgREST API.
 
-Masking is layered: a regex floor always redacts email addresses and phone numbers (offline-proof),
-then Microsoft Presidio (two local containers) adds NER for names, locations, Malaysian IC, and
-bank-account numbers. If Presidio is unreachable the service degrades to regex-only — raw text is
+Masking is split by PII nature. Format-clear PII (email, phone, Malaysian IC) is redacted by an
+ordered, offline regex floor — most-specific first, and a bare 12-digit run is only typed as an IC
+when its `YYMMDD` prefix is a plausible date, so numbers aren't mis-typed by length. Context-dependent
+PII (names, locations, organizations, account numbers) is then handled by Microsoft Presidio NER (two
+local containers). If Presidio is unreachable the service degrades to the regex floor — raw text is
 never stored — and notes `presidio degraded` on the audit row.
 
 ## Run locally
