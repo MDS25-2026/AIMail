@@ -175,7 +175,7 @@ first; (4) which Gmail account the demo extension is sideloaded on.
 
 Staged breakdown (D1-D6) in the Lane D worklist, section 4.
 
-### Item 5 — Backend audit logging — Lane B, Elyesa — S/M
+### Item 5 — Backend audit logging — Lane B, Elyesa — S/M — DONE 2026-09-01
 
 `audit_log` exists (`0002_messages.sql`) and only the Go listener writes it; no `AuditLog` model in
 Python. Log from **Lane B only** — `dashboard.py` is the choke point every generate/refine/send flows
@@ -209,7 +209,7 @@ number yields `[PHONE_REDACTED]` in stored text; RAG retrieval on the OCR text r
 Decision points: (1) Tesseract CLI vs gosseract vs Cloud Vision; (2) append-to-body (no migration) vs
 dedicated column; (3) also OCR PDFs, or images only for MVP.
 
-### Item 7 — `/documents/upload` hardening — Lane B, Elyesa — S
+### Item 7 — `/documents/upload` hardening — Lane B, Elyesa — S — MOSTLY DONE 2026-09-01 (size cap, magic bytes, paste cap; per-IP rate limit still open)
 
 Currently extension-only check, unbounded `await file.read()`, no rate limit. Add: (1) size cap
 (chunked read up to `MAX_UPLOAD_BYTES`, e.g. 10 MB, 413 beyond); (2) magic-bytes check `%PDF-` before

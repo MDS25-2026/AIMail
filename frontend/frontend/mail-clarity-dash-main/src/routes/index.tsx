@@ -1,9 +1,9 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 
 import InboxList from "../components/InboxList";
 import EmailDetailPanel from "../components/EmailDetailPanel";
-import SideNav from "../components/SideNav";
+import AppShell from "../components/AppShell";
 import { fetchEmail, fetchEmails, refineEmail, regenerateEmail, sendEmail } from "../lib/api";
 import type { Email, Tone } from "../types/email";
 
@@ -136,20 +136,8 @@ function DashboardPage() {
   // -----------------------------------------------------------------------
 
   return (
-    <div className="flex h-screen flex-col bg-slate-100">
-      <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3">
-        <div className="flex items-baseline gap-2">
-          <span className="text-lg font-semibold tracking-tight text-navy-900">AIMail</span>
-          <span className="text-xs text-slate-400">AI inbox assistant</span>
-        </div>
-        <Link to="/extension" className="text-sm font-medium text-blue-600 hover:text-blue-700">
-          Extension panel preview
-        </Link>
-      </header>
-
-      <main className="flex min-h-0 flex-1">
-        <SideNav active="Inbox" />
-
+    <AppShell>
+      <>
         <aside className="w-80 shrink-0 border-r border-slate-200 bg-white">
           <InboxList
             emails={emails}
@@ -173,7 +161,7 @@ function DashboardPage() {
             isSending={isSending}
           />
         </section>
-      </main>
-    </div>
+      </>
+    </AppShell>
   );
 }

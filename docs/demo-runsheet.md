@@ -76,6 +76,14 @@ refine (R04.2) - most likely beat to hang on a live API call, proves nothing the
   names degrades draft quality. Genuine limitations: person names that are also common words
   ("April will handle it"), and Malaysian street types the English NER model does not know
   ("Persiaran Gurney" masks, "Jalan" forms mask, but coverage is uneven).
+- **"How would you prove no unauthorized send happened?"** The `audit_log` table now carries the
+  whole pipeline, not just ingestion: Lane A writes `setup_watch` / `fetch_message` /
+  `store_message`, and Lane B writes `generate_draft`, `refine_draft`, and `approve_and_send`
+  (including a `success=false` row when Gmail rejects the send). Rows hold message IDs only,
+  never email content. Query for the tab if asked:
+  `select created_at, action, success, detail from audit_log order by created_at desc limit 20;`
+  Honest limitation: rows record the action, not *which human* did it - one shared token means
+  there is no per-user actor yet. That arrives with per-user auth.
 - **"What if Presidio dies?"** Degrades to the regex floor, never stores raw text. Proven by
   test with the analyzer unreachable, and the audit row records "presidio degraded".
 - **"Why a trained classifier instead of asking the LLM?"** Cost, latency, reproducibility,
