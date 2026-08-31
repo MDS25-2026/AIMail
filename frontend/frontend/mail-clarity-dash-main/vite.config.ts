@@ -7,6 +7,10 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
+  // Read the repo-root .env instead of this folder's, so the dashboard and backend share one
+  // file (VITE_BACKEND_API_TOKEN must match the backend's BACKEND_API_TOKEN). Only VITE_*
+  // vars reach the browser bundle; the rest of that file stays server-side.
+  vite: { envDir: "../../.." },
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
