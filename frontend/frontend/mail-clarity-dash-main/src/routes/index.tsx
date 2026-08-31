@@ -139,7 +139,7 @@ function DashboardPage() {
     <div className="flex h-screen flex-col bg-slate-100">
       <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3">
         <div className="flex items-baseline gap-2">
-          <span className="text-lg font-semibold tracking-tight text-slate-900">AIMail</span>
+          <span className="text-lg font-semibold tracking-tight text-navy-900">AIMail</span>
           <span className="text-xs text-slate-400">AI inbox assistant</span>
         </div>
         <Link to="/extension" className="text-sm font-medium text-blue-600 hover:text-blue-700">

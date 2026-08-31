@@ -68,7 +68,7 @@ A real email flows Gmail -> mask -> shared Supabase -> retrieval -> draft -> das
 ```bash
 make backend    # :8000  API + background pre-generation
 make agent      # :8001  Lane C generation
-make web        # :8080  dashboard
+make web        # :8090  dashboard
 cd listener && go run .   # Lane A (needs credentials.json + token.json + shared .env)
 ```
 

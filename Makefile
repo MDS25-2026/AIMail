@@ -35,9 +35,9 @@ agent:  ## run the Lane C email agent on :8001 (frees the port first)
 	-fuser -k 8001/tcp 2>/dev/null
 	cd backend && ../$(VENV)/uvicorn email_agent:app --reload --port 8001
 
-web:  ## run the dashboard on :8080 (frees stale vite ports first so orphans never pile up)
-	-fuser -k 8080/tcp 8081/tcp 8082/tcp 8083/tcp 2>/dev/null
-	cd frontend/frontend/mail-clarity-dash-main && npm run dev
+web:  ## run the dashboard on :8090 (8080 is left to other local projects)
+	-fuser -k 8090/tcp 2>/dev/null
+	cd frontend/frontend/mail-clarity-dash-main && npm run dev -- --port 8090 --strictPort
 
 migrate:  ## create all tables (RAG + messages + audit_log) — first run
 	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0001_rag_tables.sql

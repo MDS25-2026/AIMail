@@ -45,10 +45,11 @@ the watched inbox to see it masked and stored. Re-auth by deleting `token.json` 
 
 ```
 listener/
-├── main.go            # the whole service: watch, Pub/Sub loop, layered PII masking, Supabase writes
-├── main_test.go       # verifies the regex floor holds when Presidio is down
-├── credentials.json   # OAuth client (gitignored)
-└── token.json         # OAuth token (gitignored, regenerated on re-auth)
+├── main.go                 # the whole service: watch, Pub/Sub loop, layered PII masking, Supabase writes
+├── main_test.go            # offline regex-floor tests: typing, ordering, IC date gate, false-positive guards
+├── presidio_live_test.go   # live NER tests against the containers; self-skip when Presidio is down
+├── credentials.json        # OAuth client (gitignored)
+└── token.json              # OAuth token (gitignored, regenerated on re-auth)
 ```
 
 Presidio containers are defined in the repo-root `docker-compose.yml`.
