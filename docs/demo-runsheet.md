@@ -48,11 +48,23 @@ refine (R04.2) - most likely beat to hang on a live API call, proves nothing the
 
 - **"Can anyone hit your send endpoint right now?"** Yes. Owner Elyesa, this sprint, done.
   Do not soften it.
-- **"How do you know the masking works?"** 11 tests in `listener/` (8 offline regex-floor,
-  3 live NER, self-skipping when Presidio is down). Covered: email, MY and US phone formats,
-  IC dashed and bare (date-gated), PERSON, LOCATION, context-gated ACCOUNT_NUMBER (live-verified
-  score 0.75 vs 0.6 threshold). Known misses, by design or limitation: ORGANIZATION names
-  (deliberate - masking company names degrades drafts), street numbers in addresses.
+- **"How do you know the masking works?"** 13 tests in `listener/`, plus a recall harness
+  (`recall_test.go`) scoring a labeled corpus of 29 cases / 35 PII spans: currently **35/35
+  against the 80% R02 target**, and it scores the regex layer alone when Presidio is down so an
+  offline run never reports the full number. Covered: email, MY and US phone formats, IC
+  (dashed, space-separated, and bare date-gated), PERSON, LOCATION, context-gated
+  ACCOUNT_NUMBER (live-verified 0.75 vs the 0.6 threshold).
+- **"Measured how, on what set?"** - the honest follow-up, and the answer must include this:
+  the corpus is team-authored, so 100% means "no known failure mode is unhandled", not "no PII
+  escapes". It was hardened by adversarial probing (the space-separated IC and `+60 (12)`
+  phone forms were found that way and fixed), and the remaining known leaks are stated below.
+  Independent test data is the next step.
+- **Known leaks, stated before being asked.** By design: an account number with no nearby
+  context word ("send it to 512837465920") stays visible - the context gate is what stops every
+  invoice number being masked; ORGANIZATION names are off deliberately, since masking company
+  names degrades draft quality. Genuine limitations: person names that are also common words
+  ("April will handle it"), and Malaysian street types the English NER model does not know
+  ("Persiaran Gurney" masks, "Jalan" forms mask, but coverage is uneven).
 - **"What if Presidio dies?"** Degrades to the regex floor, never stores raw text. Proven by
   test with the analyzer unreachable, and the audit row records "presidio degraded".
 - **"Why a trained classifier instead of asking the LLM?"** Cost, latency, reproducibility,

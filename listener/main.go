@@ -58,12 +58,14 @@ var (
 	// Malaysian IC: dashed YYMMDD-PB-###G is unambiguous; a bare 12-digit run counts as an IC
 	// only if its YYMMDD prefix is a plausible date (isICDate) — that separates it from a
 	// 12-digit account/order number by structure, not just length.
-	icDashedRegex = regexp.MustCompile(`\b\d{6}-\d{2}-\d{4}\b`)
+	// Separator is dash or space: forms typed by hand carry "880101 14 5523" as often as dashes.
+	icDashedRegex = regexp.MustCompile(`\b\d{6}[-\s]\d{2}[-\s]\d{4}\b`)
 	icBareRegex   = regexp.MustCompile(`\b\d{12}\b`)
 	// Three branches: Malaysian (+60/0 prefix), US parenthesized "(713) 853-6161", and US
 	// separated "713-853-6161". Runs AFTER the IC pass, so a 12-digit IC is already redacted.
 	// The US branches require parens or separators, so they can't swallow a bare account digit-run.
-	phoneRegex = regexp.MustCompile(`\b(?:\+?60|0)\d{1,2}[\s.-]?\d{3,4}[\s.-]?\d{3,4}\b|\(\d{3}\)[\s.-]?\d{3}[\s.-]?\d{4}|\b\d{3}[\s.-]\d{3}[\s.-]\d{4}\b`)
+	// MY branch allows a separator and parens after the country code ("+60 (12) 345 6789").
+	phoneRegex = regexp.MustCompile(`(?:\+?60|\b0)[\s.-]?\(?\d{1,2}\)?[\s.-]?\d{3,4}[\s.-]?\d{3,4}\b|\(\d{3}\)[\s.-]?\d{3}[\s.-]?\d{4}|\b\d{3}[\s.-]\d{3}[\s.-]\d{4}\b`)
 )
 
 // isICDate reports whether the YYMMDD prefix of a bare 12-digit string is a plausible date,
