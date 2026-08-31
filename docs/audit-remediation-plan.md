@@ -55,7 +55,7 @@ Hard orderings: **3 before 6** (both edit `listener/main.go`); **ADR 0003 + 1 be
 
 ## 2. The nine items
 
-### Item 1 — API authentication (OWASP API1) — Lane B, Elyesa — M
+### Item 1 — API authentication (OWASP API1) — Lane B, Elyesa — M — DONE 2026-09-01
 
 `backend/app/main.py` has zero auth (no `Depends`, no middleware beyond a permissive localhost CORS
 regex). Anyone on :8000 can call `POST /emails/{id}/send` and dispatch real Gmail via `gmail_send.py`.

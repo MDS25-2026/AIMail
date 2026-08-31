@@ -27,7 +27,9 @@ for _ in $(seq 1 20); do
 done
 
 ( cd backend && ../.venv/bin/uvicorn app.main:app --reload 2>&1 | sed 's/^/[backend]  /' ) &
-( cd backend && ../.venv/bin/uvicorn email_agent:app --reload --port 8001 2>&1 | sed 's/^/[agent]    /' ) &
+# Agent is bound to 127.0.0.1 explicitly: it has no auth of its own, so reachability off-host
+# would be an unauthenticated LLM endpoint. Do not change to 0.0.0.0 without adding a token.
+( cd backend && ../.venv/bin/uvicorn email_agent:app --reload --port 8001 --host 127.0.0.1 2>&1 | sed 's/^/[agent]    /' ) &
 ( cd frontend/frontend/mail-clarity-dash-main && npm run dev -- --port 8090 --strictPort 2>&1 | sed 's/^/[web]      /' ) &
 ( cd listener && go run . 2>&1 | sed 's/^/[listener] /' ) &
 

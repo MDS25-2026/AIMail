@@ -17,6 +17,10 @@ refine (R04.2) - most likely beat to hang on a live API call, proves nothing the
 
 ## Prep checklist (before rehearsal)
 
+0. **Set `BACKEND_API_TOKEN` and `VITE_BACKEND_API_TOKEN` to the same value in `.env`** or the
+   backend fails closed and every request returns 503. Generate:
+   `python -c "import secrets; print(secrets.token_urlsafe(32))"`. Restart the dashboard after
+   changing it - Vite bakes env vars in at build time.
 1. `make dev` (starts Presidio containers, backend :8000, agent :8001, dashboard :8090,
    listener). Wait for "Gmail Watch established!".
 2. **Backfill priorities or the Triage beat lies.** `priority_label(None)` renders MEDIUM for
@@ -46,8 +50,15 @@ refine (R04.2) - most likely beat to hang on a live API call, proves nothing the
 
 ## Q&A crib (verified against the repo, 2026-08-31)
 
-- **"Can anyone hit your send endpoint right now?"** Yes. Owner Elyesa, this sprint, done.
-  Do not soften it.
+- **"Can anyone hit your send endpoint right now?"** No - as of 2026-09-01 every route except
+  `GET /` requires `Authorization: Bearer <BACKEND_API_TOKEN>`; an unauthenticated POST to
+  `/emails/{id}/send` returns 401, and 6 tests in `backend/tests/test_auth.py` pin it. Read
+  routes are gated too, since they return masked email content. Volunteer the limitation before
+  it is asked: it is one shared token, and the frontend copy ships in the Vite bundle, so it
+  authenticates the client, not a user. Per-user Supabase JWTs replace one file
+  (`app/core/auth.py`) and are deferred because AImail serves a single shared mailbox.
+  Live proof, if asked to show it:
+  `curl -si -X POST localhost:8000/emails/x/send -H 'Content-Type: application/json' -d '{"draft":"hi"}' | head -1`
 - **"How do you know the masking works?"** 13 tests in `listener/`, plus a recall harness
   (`recall_test.go`) scoring a labeled corpus of 29 cases / 35 PII spans: currently **35/35
   against the 80% R02 target**, and it scores the regex layer alone when Presidio is down so an

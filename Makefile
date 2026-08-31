@@ -31,9 +31,9 @@ backend:  ## run the backend API on :8000 (frees the port first so restarts neve
 	-fuser -k 8000/tcp 2>/dev/null
 	cd backend && ../$(VENV)/uvicorn app.main:app --reload
 
-agent:  ## run the Lane C email agent on :8001 (frees the port first)
+agent:  ## run the Lane C email agent on :8001 (localhost-only; frees the port first)
 	-fuser -k 8001/tcp 2>/dev/null
-	cd backend && ../$(VENV)/uvicorn email_agent:app --reload --port 8001
+	cd backend && ../$(VENV)/uvicorn email_agent:app --reload --port 8001 --host 127.0.0.1
 
 web:  ## run the dashboard on :8090 (8080 is left to other local projects)
 	-fuser -k 8090/tcp 2>/dev/null

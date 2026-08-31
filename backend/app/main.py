@@ -11,13 +11,14 @@ import logging
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request, UploadFile, status
+from fastapi import Depends, FastAPI, HTTPException, Request, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import InterfaceError, OperationalError
 
 from app.contracts import DashboardEmail
+from app.core.auth import require_auth
 from app.core.config import get_settings
 from app.dashboard import (
     approve_and_send,
@@ -35,7 +36,7 @@ from app.rag.ingest import ingest_text
 from app.rag.library import DocumentSummary, list_documents
 from app.rag.retrieve import ContextChunk, retrieve
 
-app = FastAPI(title="AImail backend")
+app = FastAPI(title="AImail backend", dependencies=[Depends(require_auth)])
 
 # Dev CORS so the Next.js frontend can call this API cross-origin. The regex covers any
 # localhost/127.0.0.1 port (they are distinct origins to the browser); FRONTEND_ORIGIN adds

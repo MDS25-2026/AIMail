@@ -17,6 +17,9 @@ class Settings(BaseSettings):
 
     database_url: str
     gemini_api_key: str
+    # Shared bearer token every API caller must present (see app/core/auth.py). Empty means
+    # the API refuses all requests rather than silently running unauthenticated.
+    backend_api_token: str = ""
     embedding_model: str = EMBEDDING_MODEL
     embedding_dim: int = EMBEDDING_DIM
     gemini_chat_model: str = CHAT_MODEL
