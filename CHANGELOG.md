@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.1.0](https://github.com/MDS25-2026/AIMail/compare/v1.0.0...v1.1.0) (2026-08-20)
+
+
+### Features
+
+* **Go backend:** added draft Go webhook. Fixes [#3](https://github.com/MDS25-2026/AIMail/issues/3) ([d51ea14](https://github.com/MDS25-2026/AIMail/commit/d51ea142942f47430b7eef704f811c9741fdc47b))
+* **ml:** Gemini-assisted labeling script for the Enron importance dataset ([74186b1](https://github.com/MDS25-2026/AIMail/commit/74186b1ae4465a2c27a0b4eaf5de3fec1db9cd0f))
+* **ml:** pull disjoint holdout sample for human labeling (honest test set) ([9fc2d14](https://github.com/MDS25-2026/AIMail/commit/9fc2d1487f0f752974afc0265de186d2cdaa9f16))
+* **ml:** refine importance rubric (action/stakes/authority; automated+social=LOW; dates to temporal layer) ([a12def3](https://github.com/MDS25-2026/AIMail/commit/a12def3a054dc4ae112edcaa407eb067b778a26b))
+* wire the full pipeline end to end (Lanes A-D on one shared account) ([#28](https://github.com/MDS25-2026/AIMail/issues/28)) ([614bae1](https://github.com/MDS25-2026/AIMail/commit/614bae1d7865a5a4b8dc2c701fc6b5fa66f3896a))
+
+
+### Bug Fixes
+
+* missed idea status ([0592021](https://github.com/MDS25-2026/AIMail/commit/05920214f7a52727325c041375ea9ca914c3b786))
+* **ml:** make labeling resilient — save incrementally, skip dead batches, bigger batches ([d18af42](https://github.com/MDS25-2026/AIMail/commit/d18af4267787cdf0725438f5c2ac9ab2bedcb1ac))
+
+
+### Documentation
+
+* **git:** add stacked-branch workflow (keep working before merge, step by step) ([23fa82a](https://github.com/MDS25-2026/AIMail/commit/23fa82aeab113efa754e976e6232be3a32e64fd9))
+* **repo:** post-scaffold tweaks (rebase rule, copyright notice) ([#22](https://github.com/MDS25-2026/AIMail/issues/22)) ([8826237](https://github.com/MDS25-2026/AIMail/commit/88262378c371971c377196e2096c15dcaeff69d2))
+
 ## 1.0.0 (2026-04-30)
 
 
