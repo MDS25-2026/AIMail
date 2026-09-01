@@ -149,3 +149,24 @@ func TestMaskPIILeavesBusinessNumbersUntouched(t *testing.T) {
 		t.Fatalf("phantom counts on clean text: emails=%d phones=%d", emails, phones)
 	}
 }
+
+// Storing raw HTML silently degraded NER: a name immediately after a tag scores below the
+// confidence threshold and survives masking, while the same name in prose is caught. This pins
+// the stripping that keeps the masker seeing sentences.
+func TestHTMLToTextProducesProse(t *testing.T) {
+	markup := `<div dir="ltr"><style>.x{color:red}</style><p dir="ltr">Hi,</p>` +
+		`<p dir="ltr">That&#39;s the invoice.<br>Regards,</p></div>`
+	got := htmlToText(markup)
+
+	for _, unwanted := range []string{"<p", "<div", "&#39;", "color:red"} {
+		if strings.Contains(got, unwanted) {
+			t.Errorf("markup survived stripping (%q): %q", unwanted, got)
+		}
+	}
+	if !strings.Contains(got, "That's the invoice.") {
+		t.Errorf("entity not unescaped: %q", got)
+	}
+	if !strings.Contains(got, "Hi,\n") {
+		t.Errorf("block tags should become line breaks so sentences don't run together: %q", got)
+	}
+}
