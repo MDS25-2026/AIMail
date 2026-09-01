@@ -5,23 +5,16 @@ the .pdf extension, so an oversized or mislabeled file reached the parser.
 """
 
 import pytest
-from fastapi.testclient import TestClient
 
-from app.core.config import get_settings
 from app.core.constants import MAX_PASTE_CHARS, MAX_UPLOAD_BYTES, PDF_MAGIC
-from app.main import app
+from tests.conftest import AUTH_HEADERS as AUTH
 
-TOKEN = "test-token-not-a-real-secret"
-AUTH = {"Authorization": f"Bearer {TOKEN}"}
 UPLOAD_PATH = "/documents/upload"
 
 
 @pytest.fixture
-def client(monkeypatch):
-    monkeypatch.setenv("BACKEND_API_TOKEN", TOKEN)
-    get_settings.cache_clear()
-    yield TestClient(app)
-    get_settings.cache_clear()
+def client(api_client):
+    return api_client
 
 
 def test_oversized_upload_is_refused(client):

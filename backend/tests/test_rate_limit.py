@@ -9,29 +9,22 @@ The window is process-local state, so each test clears it to stay order-independ
 """
 
 import pytest
-from fastapi.testclient import TestClient
 
 from app.core import ratelimit
-from app.core.config import get_settings
 from app.core.constants import INGEST_RATE_LIMIT, INGEST_RATE_WINDOW_SECONDS
 from app.core.ratelimit import _hits
-from app.main import app
+from tests.conftest import AUTH_HEADERS as AUTH
 
-TOKEN = "test-token-not-a-real-secret"
-AUTH = {"Authorization": f"Bearer {TOKEN}"}
 UPLOAD_PATH = "/documents/upload"
 # Not a PDF: rejected at the magic-bytes check, so no request reaches the database.
 NOT_A_PDF = {"file": ("notes.pdf", b"plain text, not a pdf", "application/pdf")}
 
 
 @pytest.fixture
-def client(monkeypatch):
-    monkeypatch.setenv("BACKEND_API_TOKEN", TOKEN)
-    get_settings.cache_clear()
+def client(api_client):
     _hits.clear()
-    yield TestClient(app)
+    yield api_client
     _hits.clear()
-    get_settings.cache_clear()
 
 
 def test_requests_within_the_quota_are_not_throttled(client):
