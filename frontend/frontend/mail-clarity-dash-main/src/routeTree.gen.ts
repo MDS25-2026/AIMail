@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as DraftsRouteImport } from './routes/drafts'
 import { Route as ExtensionRouteImport } from './routes/extension'
 import { Route as KnowledgeRouteImport } from './routes/knowledge'
+import { Route as SentRouteImport } from './routes/sent'
 import { Route as SettingsRouteImport } from './routes/settings'
 
 const IndexRoute = IndexRouteImport.update({
@@ -35,6 +36,11 @@ const KnowledgeRoute = KnowledgeRouteImport.update({
   path: '/knowledge',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SentRoute = SentRouteImport.update({
+  id: '/sent',
+  path: '/sent',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -46,6 +52,7 @@ export interface FileRoutesByFullPath {
   '/drafts': typeof DraftsRoute
   '/extension': typeof ExtensionRoute
   '/knowledge': typeof KnowledgeRoute
+  '/sent': typeof SentRoute
   '/settings': typeof SettingsRoute
 }
 export interface FileRoutesByTo {
@@ -53,6 +60,7 @@ export interface FileRoutesByTo {
   '/drafts': typeof DraftsRoute
   '/extension': typeof ExtensionRoute
   '/knowledge': typeof KnowledgeRoute
+  '/sent': typeof SentRoute
   '/settings': typeof SettingsRoute
 }
 export interface FileRoutesById {
@@ -61,14 +69,23 @@ export interface FileRoutesById {
   '/drafts': typeof DraftsRoute
   '/extension': typeof ExtensionRoute
   '/knowledge': typeof KnowledgeRoute
+  '/sent': typeof SentRoute
   '/settings': typeof SettingsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/drafts' | '/extension' | '/knowledge' | '/settings'
+  fullPaths:
+    '/' | '/drafts' | '/extension' | '/knowledge' | '/sent' | '/settings'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/drafts' | '/extension' | '/knowledge' | '/settings'
-  id: '__root__' | '/' | '/drafts' | '/extension' | '/knowledge' | '/settings'
+  to: '/' | '/drafts' | '/extension' | '/knowledge' | '/sent' | '/settings'
+  id:
+    | '__root__'
+    | '/'
+    | '/drafts'
+    | '/extension'
+    | '/knowledge'
+    | '/sent'
+    | '/settings'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -76,6 +93,7 @@ export interface RootRouteChildren {
   DraftsRoute: typeof DraftsRoute
   ExtensionRoute: typeof ExtensionRoute
   KnowledgeRoute: typeof KnowledgeRoute
+  SentRoute: typeof SentRoute
   SettingsRoute: typeof SettingsRoute
 }
 
@@ -109,6 +127,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof KnowledgeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sent': {
+      id: '/sent'
+      path: '/sent'
+      fullPath: '/sent'
+      preLoaderRoute: typeof SentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -124,6 +149,7 @@ const rootRouteChildren: RootRouteChildren = {
   DraftsRoute: DraftsRoute,
   ExtensionRoute: ExtensionRoute,
   KnowledgeRoute: KnowledgeRoute,
+  SentRoute: SentRoute,
   SettingsRoute: SettingsRoute,
 }
 export const routeTree = rootRouteImport

@@ -19,6 +19,9 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   never silently disabled. Implementation: `backend/app/core/auth.py`. Per-user Supabase JWTs
   are the planned upgrade and replace only that file; AImail serves one shared mailbox, so
   per-user identity is deferred, not forgotten.
+- `GET /system/info` returns non-secret runtime configuration (model names, feature flags,
+  corpus counts) for the dashboard's Settings view. Never add keys, URLs or credentials to
+  it — the browser reads it.
 - Ingestion routes (`POST /documents`, `POST /documents/upload`) are rate limited to 20
   requests per 60s per client IP; over that returns `429` with `Retry-After`. Uploads are
   capped at 10 MB (`413`) and must carry a real `%PDF-` header (`400`).

@@ -230,6 +230,41 @@ async def send_email_route(message_id: str, body: SendRequest) -> DashboardEmail
     return email
 
 
+class SystemInfo(BaseModel):
+    """Non-secret runtime configuration for the dashboard's Settings view.
+
+    Model names and feature flags only — never keys, URLs, or credentials, since this is
+    served to the browser.
+    """
+
+    chat_model: str
+    embedding_model: str
+    embedding_dim: int
+    priority_model: str
+    auth_enabled: bool
+    auto_generate: bool
+    generate_poll_seconds: int
+    document_count: int
+    chunk_count: int
+
+
+@app.get("/system/info")
+async def system_info() -> SystemInfo:
+    settings = get_settings()
+    documents = await list_documents()
+    return SystemInfo(
+        chat_model=settings.gemini_chat_model,
+        embedding_model=settings.embedding_model,
+        embedding_dim=settings.embedding_dim,
+        priority_model=settings.priority_model,
+        auth_enabled=bool(settings.backend_api_token),
+        auto_generate=settings.auto_generate,
+        generate_poll_seconds=settings.generate_poll_seconds,
+        document_count=len(documents),
+        chunk_count=sum(d["chunk_count"] for d in documents),
+    )
+
+
 @app.get("/documents")
 async def get_documents() -> list[DocumentSummary]:
     return await list_documents()
