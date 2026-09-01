@@ -11,18 +11,15 @@ from fastapi.testclient import TestClient
 
 from app.core.config import get_settings
 from app.main import app
+from tests.conftest import API_TOKEN as TOKEN
 
-TOKEN = "test-token-not-a-real-secret"
 SEND_PATH = "/emails/abc123/send"
 SEND_BODY = {"draft": "hello"}
 
 
 @pytest.fixture
-def client(monkeypatch):
-    monkeypatch.setenv("BACKEND_API_TOKEN", TOKEN)
-    get_settings.cache_clear()
-    yield TestClient(app)
-    get_settings.cache_clear()
+def client(api_client):
+    return api_client
 
 
 def test_send_without_a_token_is_rejected(client):
@@ -48,7 +45,7 @@ def test_demo_page_stays_open_as_the_liveness_check(client):
     assert client.get("/").status_code != 401
 
 
-def test_unset_token_fails_closed_rather_than_disabling_auth(monkeypatch):
+def test_unset_token_fails_closed_rather_than_disabling_auth(api_client, monkeypatch):
     monkeypatch.setenv("BACKEND_API_TOKEN", "")
     get_settings.cache_clear()
     try:

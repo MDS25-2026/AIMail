@@ -209,7 +209,7 @@ number yields `[PHONE_REDACTED]` in stored text; RAG retrieval on the OCR text r
 Decision points: (1) Tesseract CLI vs gosseract vs Cloud Vision; (2) append-to-body (no migration) vs
 dedicated column; (3) also OCR PDFs, or images only for MVP.
 
-### Item 7 — `/documents/upload` hardening — Lane B, Elyesa — S — MOSTLY DONE 2026-09-01 (size cap, magic bytes, paste cap; per-IP rate limit still open)
+### Item 7 — `/documents/upload` hardening — Lane B, Elyesa — S — DONE 2026-09-01
 
 Currently extension-only check, unbounded `await file.read()`, no rate limit. Add: (1) size cap
 (chunked read up to `MAX_UPLOAD_BYTES`, e.g. 10 MB, 413 beyond); (2) magic-bytes check `%PDF-` before

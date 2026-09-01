@@ -19,6 +19,9 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   never silently disabled. Implementation: `backend/app/core/auth.py`. Per-user Supabase JWTs
   are the planned upgrade and replace only that file; AImail serves one shared mailbox, so
   per-user identity is deferred, not forgotten.
+- Ingestion routes (`POST /documents`, `POST /documents/upload`) are rate limited to 20
+  requests per 60s per client IP; over that returns `429` with `Retry-After`. Uploads are
+  capped at 10 MB (`413`) and must carry a real `%PDF-` header (`400`).
 - The Lane C agent (`:8001`) carries no token of its own and is bound to `127.0.0.1`; it is
   reachable only by the backend on the same host.
 - Errors follow this shape:

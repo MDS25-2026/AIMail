@@ -26,6 +26,7 @@ from app.core.constants import (
     PDF_MAGIC,
     UPLOAD_CHUNK_BYTES,
 )
+from app.core.ratelimit import rate_limit_ingest
 from app.dashboard import (
     approve_and_send,
     email_detail,
@@ -234,7 +235,7 @@ async def get_documents() -> list[DocumentSummary]:
     return await list_documents()
 
 
-@app.post("/documents")
+@app.post("/documents", dependencies=[Depends(rate_limit_ingest)])
 async def add_document(request: DocumentRequest) -> dict[str, int]:
     # Interim persist path: paste text -> chunk/embed/store.
     count = await ingest_text(f"paste://{request.title}", request.title, request.text)
@@ -256,7 +257,7 @@ async def _read_capped(file: UploadFile) -> bytes:
     return b"".join(chunks)
 
 
-@app.post("/documents/upload")
+@app.post("/documents/upload", dependencies=[Depends(rate_limit_ingest)])
 async def upload_document(file: UploadFile) -> dict[str, int]:
     filename = file.filename or ""
     if not filename.lower().endswith(".pdf"):
