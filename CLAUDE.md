@@ -4,32 +4,40 @@ Instructions for Claude Code agents working in this repository.
 
 ## Project overview
 
-AImail is an AI-powered corporate email assistant. It reads full email threads, learns the user's writing style, generates context-aware reply drafts, and routes everything through PII masking before reaching the Claude API. Drafts surface in a dashboard for human approval before being sent.
+AImail is an AI-powered corporate email assistant. It ingests email threads, masks PII **before any content leaves the machine**, retrieves grounding context, generates reply drafts with Gemini, and surfaces them in a dashboard for human approval before anything is sent.
 
 ## Architecture summary
 
-Four components, one per top-level folder:
+Three services, split into four ownership lanes. `specs/architecture.md` is the authoritative version of this section — if the two disagree, that file wins.
 
-1. **`n8n/`** — n8n workflows (exported JSON). Watches Gmail; fires a webhook on new mail; sends approved replies.
-2. **`listener/`** — small HTTP service that receives the n8n webhook and forwards to the backend. Python first, Go later.
-3. **`backend/`** — Python FastAPI. PII masking, Claude API calls, multi-agent pipeline, Postgres + pgvector reads/writes, REST endpoints.
-4. **`frontend/`** — Next.js + TypeScript + Tailwind dashboard. Talks to backend via REST only.
+1. **`listener/`** (Lane A, **Go**) — receives Gmail Pub/Sub push notifications, pulls the message, **masks PII here** (ordered regex floor for email/phone/Malaysian IC, then Presidio NER for names, locations, and context-gated account numbers; degrades to regex-only if Presidio is down), and writes the masked row plus an audit entry to Supabase via PostgREST. Stateless.
+2. **`backend/`** (Lanes B + C, Python/FastAPI) — reads masked rows via asyncpg. Lane B (`app/`) does retrieval, the priority classifier, and the REST surface; Lane C (`email_agent.py`, served separately on :8001) does router/generator/critic/refine generation on Gemini. Also sends approved replies via the Gmail API.
+3. **`frontend/frontend/mail-clarity-dash-main/`** (Lane D) — **Vite + React + TypeScript + Tailwind** dashboard (not Next.js). Talks to the backend via REST only.
 
-Flow: `Gmail → n8n → listener → backend → frontend → user approves → backend → n8n → Gmail`.
+Flow: `Gmail → (Pub/Sub) → Go listener → mask → Supabase → backend → dashboard → human approves → backend → Gmail`.
+
+**n8n is retired.** The `n8n/` folder is unused scaffolding kept as evidence of the architecture pivot; nothing calls it. `backend/main.go` is a dead n8n-era webhook receiver, and `frontend/.next` + `frontend/README.md` are an abandoned Next.js scaffold. Do not extend any of them.
+
+Generation runs on **Google Gemini**, not Claude or Qwen.
+
+## Auth
+
+Every backend route except `GET /` requires `Authorization: Bearer <BACKEND_API_TOKEN>` (see `backend/app/core/auth.py`). The token lives in the repo-root `.env`; the dashboard reads the same value as `VITE_BACKEND_API_TOKEN` via `envDir` in its `vite.config.ts`. An unset token makes the backend refuse **all** requests rather than silently run open. The Lane C agent on :8001 has no token of its own and must stay bound to `127.0.0.1`.
 
 ## Folder ownership
 
-| Folder       | Service   |
-|--------------|-----------|
-| `n8n/`       | n8n       |
-| `listener/`  | listener  |
-| `backend/`   | backend   |
-| `frontend/`  | frontend  |
-| `infra/`     | infra/devops |
-| `specs/`     | shared — specs are the contract |
-| `docs/adr/`  | architecture decision records |
+| Folder | Lane / owner |
+|--------|--------------|
+| `listener/` | Lane A — JiaJun |
+| `backend/app/` | Lane B — Elyesa |
+| `backend/email_agent.py` | Lane C — Hanif |
+| `frontend/` | Lane D — Han |
+| `infra/` | infra / devops |
+| `specs/` | shared — specs are the contract |
+| `docs/adr/` | architecture decision records |
+| `docs/decisions/` | per-lane decision logs; `shared.md` for cross-lane |
 
-Do not modify another service's folder without flagging it in your response. Cross-service changes (e.g. an API contract change) must be reflected in `specs/context/api-contracts.md` first.
+Do not modify another lane's folder without flagging it in your response. Cross-lane changes (e.g. an API contract change) must be reflected in `specs/context/api-contracts.md` first, and the decision logged in `docs/decisions/shared.md`.
 
 ## Three-tier boundaries
 
@@ -71,4 +79,8 @@ Code style, naming, and formatting rules live in [`specs/conventions.md`](specs/
 
 ## Memory in the repo
 
-When you finish exploring a service or subsystem for the first time, **offer** to add a short summary to `AI_DOCS/<name>.md` — architecture overview, key files, gotchas, common operations. Never write `AI_DOCS/` entries without explicit human approval; this keeps the repo clean while giving future sessions a warm start.
+When you finish exploring a service or subsystem for the first time, **offer** to add a short summary to `AI_DOCS/<name>.md` — architecture overview, key files, gotchas, common operations. Never write `AI_DOCS/` entries without explicit human approval; this keeps the repo clean while giving future sessions a warm start. Existing entries: `lane-b.md`, `priority-classifier.md`.
+
+## Running it
+
+`make dev` starts everything: Presidio containers, backend (:8000), Lane C agent (:8001), dashboard (:8090), and the listener. Ports 8000/8001/8090 are freed first; **:8080 is deliberately left alone** for other local projects. `make check` runs backend tests, ruff, and the dashboard typecheck. Stop the stack with Ctrl+C, never Ctrl+Z — a suspended run keeps holding the ports and the next start fails to bind.

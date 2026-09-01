@@ -232,7 +232,7 @@ Acceptance: `grep -rn masked_body` returns only historical ADR/changelog text or
 
 Decision point: shared.md sign-off from JiaJun as table owner.
 
-### Item 9 — Documentation and repo hygiene — all lanes, Elyesa coordinates — S/M
+### Item 9 — Documentation and repo hygiene — all lanes, Elyesa coordinates — S/M — CLAUDE.md rewritten 2026-09-01; legacy archive + dashboard flatten still open
 
 Root `CLAUDE.md` describes the retired world (n8n, "Python first Go later", Next.js, Qwen, old flow —
 the audit names n8n/Next.js/Qwen explicitly, section 4.1). Dead
