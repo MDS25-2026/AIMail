@@ -17,6 +17,9 @@ class Settings(BaseSettings):
 
     database_url: str
     gemini_api_key: str
+    # Shared bearer token every API caller must present (see app/core/auth.py). Empty means
+    # the API refuses all requests rather than silently running unauthenticated.
+    backend_api_token: str = ""
     embedding_model: str = EMBEDDING_MODEL
     embedding_dim: int = EMBEDDING_DIM
     gemini_chat_model: str = CHAT_MODEL
@@ -27,6 +30,7 @@ class Settings(BaseSettings):
     gmail_token_path: str = str(_REPO_ROOT / "listener" / "token.json")
     auto_generate: bool = True  # background poller pre-generates drafts so opens are instant
     generate_poll_seconds: int = 60
+    priority_model: str = "baseline"  # "baseline" (TF-IDF) or "distilbert" — which classifier backfill uses
 
     @property
     def async_database_url(self) -> str:

@@ -1,0 +1,24 @@
+# Presidio PII-detection services for the listener (Lane A). The listener layers these
+# on top of its regex floor; if they are down it degrades to regex-only (see listener/main.go).
+# Bound to 127.0.0.1 so the analyzer/anonymizer are never exposed off the host.
+#
+#   docker compose up -d        # start analyzer :5001 + anonymizer :5002
+#   docker compose down
+services:
+  presidio-analyzer:
+    image: mcr.microsoft.com/presidio-analyzer:latest
+    container_name: presidio-analyzer
+    ports:
+      - "127.0.0.1:5001:5001"
+    environment:
+      - PORT=5001
+    restart: unless-stopped
+
+  presidio-anonymizer:
+    image: mcr.microsoft.com/presidio-anonymizer:latest
+    container_name: presidio-anonymizer
+    ports:
+      - "127.0.0.1:5002:5002"
+    environment:
+      - PORT=5002
+    restart: unless-stopped

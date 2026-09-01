@@ -6,6 +6,20 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-08-31 — Seam 1 resolved: canonical column is `messages.body_masked`
+- Decision: the masked-email column is `messages.body_masked`; `masked_body` is retired.
+  Closes finding 1 of the 2026-08-06 integration-sync entry.
+- Why: the code is already unified — the Go struct, migration `0002_messages.sql`, ORM model
+  `app/db/models.py`, and every consumer use `body_masked`; `grep -rn masked_body backend
+  --include='*.py'` returns nothing. Only docs still carried the old name (audit item 8).
+- Why not rename to `masked_body`: Lane A owns the `messages` table and its writer already
+  ships `body_masked`; renaming a live column costs a migration plus every consumer, for nothing.
+- Affects: Lanes A + B; `specs/context/db-schema.md` (already declared canonical),
+  `specs/architecture.md` (Seam-1 row + reconciliation TODO cleared),
+  `docs/decisions/lane-a-spine.md` (seam name corrected). Older dated entries naming
+  `masked_body` stay verbatim as history.
+- Status: accepted — JiaJun co-sign pending as table owner.
+
 ### 2026-07-07 — Schema authority order for reconciliation
 - Decision: when the pasted research, the repo design specs, and the proposal report
   disagree, resolve as: **proposal R-IDs = fixed contract > repo design specs (in flux) >

@@ -68,6 +68,21 @@ class Embedding(Base):
     chunk: Mapped["Chunk"] = relationship(back_populates="embeddings")
 
 
+class AuditLog(Base):
+    """Pipeline action trail. Lane A's Go listener writes ingestion rows (setup_watch,
+    fetch_message, store_message); Lane B writes generation, refinement and send rows so the
+    half of the pipeline after ingestion is auditable too. Columns mirror the listener's
+    AuditLogEntry struct exactly — see 0002_messages.sql."""
+
+    __tablename__ = "audit_log"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    action: Mapped[str | None] = mapped_column(Text)
+    detail: Mapped[str | None] = mapped_column(Text)
+    success: Mapped[bool | None]
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Message(Base):
     """Ingested email. Lane A writes the top block via PostgREST; Lane B writes the priority block."""
 

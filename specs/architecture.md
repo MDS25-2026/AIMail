@@ -48,17 +48,16 @@ Change a shape there **first**, log it in `docs/decisions/shared.md`, then both 
 
 | Seam | Producer → Consumer | Shape | Status |
 |------|--------------------|-------|--------|
-| **1 · masked email** | A → B, C | the persisted email row | **MISMATCH — fix first (below)** |
+| **1 · masked email** | A → B, C | the persisted email row | resolved — `messages.body_masked` canonical (shared.md 2026-08-31) |
 | **2 · retrieval context** | B → C | `ContextChunk` | defined (Lane B); confirm `email_agent` consumes it |
 | **3 · priority** | B → D | `EmailPriority` | defined (Lane B); confirm dashboard type matches |
 | **4 · drafts/emails REST** | C, B → D | REST responses | Han's dashboard has its own email types + mock data — must be reconciled with `api-contracts.md` |
 
 ## Reconciliation TODO (integration)
 
-1. **Seam 1 field-name mismatch (blocking).** Lane A writes `body_masked`; Lane B expects
-   `masked_body`. Pick one name (Lane A owns the email table, so likely **`body_masked`**) and
-   align both sides. Lane A's row also has `from_addr, subject, snippet_masked, emails_masked,
-   phones_masked, received_at, gmail_message_id` — fold these into one `email` table in `db-schema.md`.
+1. **Seam 1 field-name mismatch — resolved 2026-08-31.** `messages.body_masked` is canonical
+   (`masked_body` retired); code was already unified and `db-schema.md` declares it. Decision
+   recorded in `docs/decisions/shared.md`.
 2. **One DB schema.** Lane A writes via Supabase PostgREST; Lane B reads via asyncpg — same
    Postgres, so the table/column names must be a single agreed contract in `db-schema.md` (A's
    email + audit tables, B's document/chunk/embedding + priority columns).

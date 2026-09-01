@@ -18,6 +18,7 @@ import joblib
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.ml.baseline import build_baseline, evaluate
+from app.ml.clean import clean_email_text
 from app.ml.dataset import load_dataset, stratified_split
 
 
@@ -29,6 +30,7 @@ def main() -> None:
     args = parser.parse_args()
 
     texts, labels = load_dataset(Path(args.dataset), args.text_col, args.label_col)
+    texts = [clean_email_text(t) for t in texts]  # match the cleaning done at inference
     print(f"loaded {len(texts)} rows; classes: {sorted(set(labels))}")
 
     x_train, x_test, y_train, y_test = stratified_split(texts, labels)

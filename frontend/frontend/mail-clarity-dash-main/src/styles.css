@@ -5,6 +5,23 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
+ * Navy Rail theme (team pick, 2026-08-31). Two mechanisms:
+ * - navy-* is the sidebar rail scale (SideNav).
+ * - blue-* overrides retheme every hardcoded blue accent (selection, links,
+ *   rings, primary actions) without touching component markup.
+ */
+@theme {
+  --color-navy-950: #0f1f3d;
+  --color-navy-900: #16294d;
+  --color-navy-800: #1d3157;
+  --color-navy-200: #b9c6e2;
+  --color-blue-50: #e9f0fb;
+  --color-blue-200: #c9d8ef;
+  --color-blue-600: #1e3a6e;
+  --color-blue-700: #16294d;
+}
+
+/*
  * Design system definition.
  *
  * The @theme inline block maps CSS custom properties to Tailwind utility

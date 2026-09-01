@@ -12,7 +12,15 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
 
 - Base URL: `${NEXT_PUBLIC_BACKEND_URL}` (configurable per environment).
 - All requests/responses are JSON.
-- Auth: TBD (probably session cookie + CSRF).
+- Auth: **shared bearer token, required on every endpoint except `GET /`.** Send
+  `Authorization: Bearer <BACKEND_API_TOKEN>`; the value lives in the repo-root `.env`
+  (frontend reads the same value as `VITE_BACKEND_API_TOKEN`). Missing or wrong token returns
+  `401`; if the server has no token configured it returns `503` and serves nothing — auth is
+  never silently disabled. Implementation: `backend/app/core/auth.py`. Per-user Supabase JWTs
+  are the planned upgrade and replace only that file; AImail serves one shared mailbox, so
+  per-user identity is deferred, not forgotten.
+- The Lane C agent (`:8001`) carries no token of its own and is bound to `127.0.0.1`; it is
+  reachable only by the backend on the same host.
 - Errors follow this shape:
 
 ```json

@@ -14,11 +14,12 @@ from uuid import UUID
 import httpx
 from sqlalchemy import select
 
+from app.audit import audit
 from app.contracts import DashboardEmail, priority_label
 from app.core.config import get_settings
 from app.db.models import Message
 from app.db.session import get_sessionmaker
-from app.gmail_send import send_reply
+from app.gmail_send import SendError, send_reply
 from app.rag.embed import EmbeddingError
 from app.rag.retrieve import retrieve
 from app.rag.utils import format_rag_context
@@ -118,6 +119,10 @@ async def _generate_and_store(message: Message, tone: str = "professional") -> b
     message.action_items = generated.get("action_items") or []
     message.critic_confidence = float(generated.get("confidence") or 0.0)
     message.generated_at = datetime.now(timezone.utc)
+    await audit(
+        "generate_draft",
+        f"message={message.id} tone={tone} confidence={message.critic_confidence:.2f}",
+    )
     return bool(draft)
 
 
@@ -168,9 +173,15 @@ async def approve_and_send(message_id: str, draft: str) -> DashboardEmail | None
         if message is None:
             return None
         if message.sent_at is None:
-            await send_reply(message.from_addr or "", message.subject or "", draft)
+            try:
+                await send_reply(message.from_addr or "", message.subject or "", draft)
+            except SendError:
+                # The failed attempt is the row an auditor most wants; log before unwinding.
+                await audit("approve_and_send", f"message={message_id}", success=False)
+                raise
             message.draft_reply = draft
             message.sent_at = datetime.now(timezone.utc)
+            await audit("approve_and_send", f"message={message_id}")
         email = _to_email(message)
         await session.commit()
         return email
@@ -203,6 +214,7 @@ async def refine_email(message_id: str, instruction: str, draft: str) -> Dashboa
         refined = await _refine(message, draft, instruction)
         if refined:
             message.draft_reply = refined
+        await audit("refine_draft", f"message={message_id}", success=bool(refined))
         email = _to_email(message)
         await session.commit()
         return email

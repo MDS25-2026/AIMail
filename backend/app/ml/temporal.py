@@ -33,6 +33,28 @@ _IMPORTANCE_BASE: dict[Importance, float] = {
 # (within_days, boost) ascending; a nearer deadline lifts the score more, first match wins.
 _RECENCY_BOOST: list[tuple[int, float]] = [(1, 0.20), (3, 0.15), (7, 0.10), (14, 0.05)]
 
+# Explicit urgency markers in the text (distinct from a dated deadline). A curated lexicon rather
+# than raw regex, so the signal is explainable ("priority raised because of an urgency marker").
+_URGENCY_PHRASES = [
+    "as soon as possible", "asap", "urgent", "urgently", "immediately",
+    "right away", "time-sensitive", "time sensitive", "by eod", "by cob",
+    "end of day", "quick turnaround", "expedite", "high priority",
+    "top priority", "cannot wait", "can't wait", "act now", "pressing",
+]
+_URGENCY = re.compile(r"\b(" + "|".join(re.escape(p) for p in _URGENCY_PHRASES) + r")\b", re.IGNORECASE)
+_NEGATION = re.compile(r"\b(not|no|never|isn't|aren't|won't|don't)\b", re.IGNORECASE)
+_URGENCY_BOOST = 0.15
+_NEGATION_WINDOW = 25  # chars before a marker to scan for a negation ("not urgent")
+
+
+def has_urgency_marker(text: str) -> bool:
+    """True if the text contains an urgency phrase not immediately negated (e.g. skip 'not urgent')."""
+    for match in _URGENCY.finditer(text):
+        before = text[max(0, match.start() - _NEGATION_WINDOW) : match.start()]
+        if not _NEGATION.search(before):
+            return True
+    return False
+
 _ISO = re.compile(r"\b(\d{4})-(\d{1,2})-(\d{1,2})\b")
 _SLASH = re.compile(r"\b(\d{1,2})/(\d{1,2})/(\d{2,4})\b")
 _MONTH_DAY = re.compile(r"\b([A-Za-z]{3,9})\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?!\d)(?:,?\s+(\d{4}))?\b")
@@ -80,9 +102,11 @@ def days_until(deadline: date, now: date) -> int:
     return (deadline - now).days
 
 
-def priority_score(importance: Importance, days: int | None) -> float:
-    """Combine learned importance with days-until-deadline into a 0..1 priority score."""
+def priority_score(importance: Importance, days: int | None, is_urgent: bool = False) -> float:
+    """Combine learned importance, days-until-deadline, and an urgency marker into a 0..1 score."""
     score = _IMPORTANCE_BASE[importance]
     if days is not None and days >= 0:
         score += next((boost for within, boost in _RECENCY_BOOST if days <= within), 0.0)
+    if is_urgent:
+        score += _URGENCY_BOOST
     return round(min(1.0, score), 2)

@@ -11,6 +11,7 @@ from pathlib import Path
 import joblib
 from sklearn.pipeline import Pipeline
 
+from app.ml.clean import clean_email_text
 from app.ml.types import Importance
 
 _MODEL_PATH = Path(__file__).resolve().parents[2] / "models" / "priority-baseline.joblib"
@@ -39,6 +40,7 @@ def _load_model() -> Pipeline:
 
 def predict_importance(text: str) -> tuple[Importance, float]:
     model = _load_model()
+    text = clean_email_text(text)  # same cleaning as training, so inference matches
     label = str(model.predict([text])[0]).strip().lower()
     importance = _LABEL_TO_IMPORTANCE.get(label)
     if importance is None:

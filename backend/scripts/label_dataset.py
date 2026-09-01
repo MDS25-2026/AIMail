@@ -25,8 +25,10 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 _API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-_MODEL = "gemini-3.5-flash-lite"
-_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{_MODEL}:generateContent"
+# gemini-3.5-flash is a step up from flash-lite with usable free quota (Pro is quota-locked on the
+# free tier). Override with --model. The label quality mostly comes from the rubric below anyway.
+_DEFAULT_MODEL = "gemini-3.5-flash"
+_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 _RUBRIC = (
     "Label each email HIGH, MEDIUM, or LOW by how much it needs the recipient's attention.\n"
@@ -39,6 +41,13 @@ _RUBRIC = (
     "  - purely social or logistical: thank-yous, small talk, casual banter, personal notes.\n"
     "MEDIUM - everything else: work-relevant and informative but needs no direct action from the\n"
     "  recipient (FYI, status updates, discussion the recipient is not driving).\n"
+    "\n"
+    "Boundary rules (apply consistently - HIGH is high-precision, borderline defaults to MEDIUM):\n"
+    "  - Stating availability with no explicit 'please book/confirm' -> MEDIUM.\n"
+    "  - 'FYI' / 'attached please find' with no request -> MEDIUM (LOW is only automated/social).\n"
+    "  - Judge the WHOLE thread, not just the newest message.\n"
+    "  - Mostly-social email with one minor ask -> MEDIUM (only a significant request is HIGH).\n"
+    "\n"
     "Judge from the email's content only. Ignore dates and deadlines - a separate layer handles timing."
 )
 
@@ -73,6 +82,12 @@ def _parse(raw: str) -> str:
     return text if len(text) > 20 else ""  # skip near-empty stubs
 
 
+def _texts_from_csv(source: Path, limit: int) -> list[str]:
+    """Read texts straight from a CSV that already has a `text` column (fast — no zip re-parse)."""
+    with source.open(encoding="utf-8", errors="replace") as handle:
+        return [row["text"][:4000] for row in csv.DictReader(handle)][:limit]
+
+
 def _sample(source: Path, limit: int) -> list[str]:
     """Systematic sample (every Kth email) so labels span mailboxes, not just the first folder."""
     parsed = (t for t in (_parse(m) for m in _rows(source)) if t)
@@ -86,7 +101,7 @@ def _sample(source: Path, limit: int) -> list[str]:
     return out
 
 
-def _label_batch(client: httpx.Client, emails: list[str]) -> list[str] | None:
+def _label_batch(client: httpx.Client, emails: list[str], url: str) -> list[str] | None:
     """Label one batch; None if it can't be labeled after retries (caller skips it, keeps going)."""
     numbered = "\n\n".join(f"--- Email {i} ---\n{e}" for i, e in enumerate(emails))
     prompt = f"{_RUBRIC}\n\nReturn a JSON array of {len(emails)} labels, in order.\n\n{numbered}"
@@ -95,7 +110,11 @@ def _label_batch(client: httpx.Client, emails: list[str]) -> list[str] | None:
         "generationConfig": {"responseMimeType": "application/json", "responseSchema": _SCHEMA},
     }
     for attempt in range(6):
-        resp = client.post(_URL, headers={"x-goog-api-key": _API_KEY}, json=payload)
+        try:
+            resp = client.post(url, headers={"x-goog-api-key": _API_KEY}, json=payload)
+        except httpx.TransportError:  # timeout / disconnect — retryable, don't kill the run
+            time.sleep(5 * (attempt + 1))
+            continue
         if resp.status_code == 429:
             time.sleep(min(5 * (attempt + 1), 30))  # ramp up to 30s for sustained limits
             continue
@@ -103,33 +122,40 @@ def _label_batch(client: httpx.Client, emails: list[str]) -> list[str] | None:
             return None  # non-rate-limit error — skip this batch, don't kill the whole run
         labels = json.loads(resp.json()["candidates"][0]["content"]["parts"][0]["text"])
         return [str(x).lower() for x in labels]
-    return None  # still rate-limited after all retries
+    return None  # still failing after all retries
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("source", help="emails.csv or archive.zip")
     parser.add_argument("--limit", type=int, default=1500)
-    parser.add_argument("--batch-size", type=int, default=20)  # fewer calls -> less rate-limit pressure
+    parser.add_argument("--batch-size", type=int, default=10)  # smaller prompts -> fewer timeouts
     parser.add_argument("--out", default="labeled.csv")
+    parser.add_argument("--model", default=_DEFAULT_MODEL, help="Gemini model for labeling")
     args = parser.parse_args()
 
     if not _API_KEY:
         raise SystemExit("no GEMINI_API_KEY / GOOGLE_API_KEY in ../.env")
+    url = _URL_TEMPLATE.format(model=args.model)
+    print(f"labeling with {args.model}", flush=True)
 
     print(f"sampling up to {args.limit} emails from {args.source}...", flush=True)
-    emails = _sample(Path(args.source), args.limit)
+    src = Path(args.source)
+    # A CSV with a text column (e.g. a previous label file) is read directly — fast, and re-labels
+    # the SAME emails. Otherwise sample from the raw corpus (.zip / emails.csv).
+    header = src.suffix == ".csv" and "text" in (next(csv.reader(src.open(encoding="utf-8"))) or [])
+    emails = _texts_from_csv(src, args.limit) if header else _sample(src, args.limit)
     print(f"parsed {len(emails)} emails; labeling in batches of {args.batch_size}...", flush=True)
 
     # Append each batch as it's labeled so a crash / rate-limit stop keeps everything so far.
     out_path = Path(args.out)
     written = 0
-    with out_path.open("w", newline="", encoding="utf-8") as handle, httpx.Client(timeout=60) as client:
+    with out_path.open("w", newline="", encoding="utf-8") as handle, httpx.Client(timeout=120) as client:
         writer = csv.writer(handle)
         writer.writerow(["text", "label"])
         for start in range(0, len(emails), args.batch_size):
             batch = emails[start : start + args.batch_size]
-            labels = _label_batch(client, batch)
+            labels = _label_batch(client, batch, url)
             if labels is None:
                 print(f"  skipped batch at {start} (rate-limited/error) — keeping progress", flush=True)
                 continue

@@ -1,26 +1,29 @@
-/**
- * Static chrome for now — only Inbox is functional. Wire the rest up when the
- * Drafts / Knowledge / Settings surfaces exist.
- */
-const NAV_ITEMS = ["Inbox", "Drafts", "Knowledge", "Settings"] as const;
+import { Link } from "@tanstack/react-router";
 
-export default function SideNav({ active = "Inbox" }: { active?: string }) {
+const NAV_ITEMS = [
+  { label: "Inbox", to: "/" },
+  { label: "Drafts", to: "/drafts" },
+  { label: "Knowledge", to: "/knowledge" },
+  { label: "Settings", to: "/settings" },
+] as const;
+
+const BASE_ITEM = "block w-full rounded-md px-3 py-2 text-left text-sm";
+
+export default function SideNav() {
   return (
-    <nav aria-label="Main" className="w-44 shrink-0 border-r border-slate-200 bg-white p-3">
+    <nav aria-label="Main" className="w-44 shrink-0 bg-navy-950 p-3">
       <ul className="space-y-1">
         {NAV_ITEMS.map((item) => (
-          <li key={item}>
-            <button
-              type="button"
-              aria-current={item === active ? "page" : undefined}
-              className={`w-full rounded-md px-3 py-2 text-left text-sm ${
-                item === active
-                  ? "bg-slate-100 font-semibold text-slate-900"
-                  : "text-slate-600 hover:bg-slate-50"
-              }`}
+          <li key={item.to}>
+            <Link
+              to={item.to}
+              // Without exact, "/" would match every route and light up permanently.
+              activeOptions={{ exact: item.to === "/" }}
+              className={`${BASE_ITEM} text-navy-200 hover:bg-navy-900 hover:text-white`}
+              activeProps={{ className: `${BASE_ITEM} bg-navy-800 font-semibold text-white` }}
             >
-              {item}
-            </button>
+              {item.label}
+            </Link>
           </li>
         ))}
       </ul>

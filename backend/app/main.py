@@ -11,14 +11,21 @@ import logging
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request, UploadFile, status
+from fastapi import Depends, FastAPI, HTTPException, Request, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import InterfaceError, OperationalError
 
 from app.contracts import DashboardEmail
+from app.core.auth import require_auth
 from app.core.config import get_settings
+from app.core.constants import (
+    MAX_PASTE_CHARS,
+    MAX_UPLOAD_BYTES,
+    PDF_MAGIC,
+    UPLOAD_CHUNK_BYTES,
+)
 from app.dashboard import (
     approve_and_send,
     email_detail,
@@ -35,7 +42,7 @@ from app.rag.ingest import ingest_text
 from app.rag.library import DocumentSummary, list_documents
 from app.rag.retrieve import ContextChunk, retrieve
 
-app = FastAPI(title="AImail backend")
+app = FastAPI(title="AImail backend", dependencies=[Depends(require_auth)])
 
 # Dev CORS so the Next.js frontend can call this API cross-origin. The regex covers any
 # localhost/127.0.0.1 port (they are distinct origins to the browser); FRONTEND_ORIGIN adds
@@ -129,8 +136,9 @@ class SearchRequest(BaseModel):
 
 
 class DocumentRequest(BaseModel):
-    title: str = Field(min_length=1)
-    text: str = Field(min_length=1)
+    title: str = Field(min_length=1, max_length=500)
+    # Capped for the same reason as the upload path: this is the other unbounded ingestion input.
+    text: str = Field(min_length=1, max_length=MAX_PASTE_CHARS)
 
 
 class AskRequest(BaseModel):
@@ -233,13 +241,34 @@ async def add_document(request: DocumentRequest) -> dict[str, int]:
     return {"chunks": count}
 
 
+async def _read_capped(file: UploadFile) -> bytes:
+    """Stream the upload, aborting past MAX_UPLOAD_BYTES so a huge file is never buffered whole."""
+    chunks: list[bytes] = []
+    total = 0
+    while chunk := await file.read(UPLOAD_CHUNK_BYTES):
+        total += len(chunk)
+        if total > MAX_UPLOAD_BYTES:
+            raise HTTPException(
+                status.HTTP_413_CONTENT_TOO_LARGE,
+                f"file exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)} MB limit",
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 @app.post("/documents/upload")
 async def upload_document(file: UploadFile) -> dict[str, int]:
     filename = file.filename or ""
     if not filename.lower().endswith(".pdf"):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "only .pdf files are supported")
+    data = await _read_capped(file)
+    if not data.startswith(PDF_MAGIC):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "file is not a PDF (the .pdf extension does not match its contents)",
+        )
     try:
-        text = extract_pdf_bytes(await file.read())
+        text = extract_pdf_bytes(data)
     except Exception as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "could not read the PDF") from exc
     count = await ingest_text(f"upload://{filename}", filename, text)
