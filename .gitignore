@@ -85,5 +85,9 @@ listener/bin/
 
 # ML datasets (raw + labeled) — regenerate, don't commit
 backend/*.csv
-backend/data/
+# Corpus data stays out (third-party copyright); the provenance note is tracked.
+backend/data/*
+!backend/data/policies/
+backend/data/policies/*
+!backend/data/policies/README.md
 backend/models/distilbert-checkpoints/
