@@ -14,3 +14,8 @@ MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB — comfortably above a real policy
 UPLOAD_CHUNK_BYTES = 64 * 1024  # streamed so an oversized file is rejected before it is buffered
 MAX_PASTE_CHARS = 200_000  # ~50k tokens; the paste path has no file size to bound it
 PDF_MAGIC = b"%PDF-"  # a .pdf extension is a claim; the header is evidence
+
+# Size caps stop one huge upload; this stops many small ones. Generous enough that a human
+# uploading a folder of policy PDFs never trips it.
+INGEST_RATE_LIMIT = 20
+INGEST_RATE_WINDOW_SECONDS = 60
