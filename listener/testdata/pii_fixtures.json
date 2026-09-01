@@ -1,43 +1,304 @@
 {
-  "_comment": "Labeled corpus for the R02 masking-recall harness (audit Goal 3: 80% identification accuracy). Each case lists the raw values that MUST disappear from the masked output. 'layer' records which mechanism is expected to catch it: regex holds offline, ner needs the Presidio containers. Extend this file rather than the harness — the harness just loops.",
+  "_comment": "Labeled corpus for the R02 masking-recall harness (audit Goal 3: 80% identification accuracy). Each case lists the raw values that MUST disappear from the masked output. 'layer' records which mechanism is expected to catch it: regex holds offline, ner needs the Presidio containers. Extend this file rather than the harness \u2014 the harness just loops.",
   "cases": [
-    {"name": "plain email", "text": "Send the invoice to ahmad.faiz@corp.com.my when ready.", "must_mask": ["ahmad.faiz@corp.com.my"], "layer": "regex"},
-    {"name": "email with plus tag", "text": "Use billing+q3@vendor.example for the statement.", "must_mask": ["billing+q3@vendor.example"], "layer": "regex"},
-    {"name": "two emails one line", "text": "cc sarah@corp.my and lim.wt@corp.my on the reply.", "must_mask": ["sarah@corp.my", "lim.wt@corp.my"], "layer": "regex"},
-    {"name": "MY mobile dashed", "text": "Call me on 012-345 6789 after lunch.", "must_mask": ["012-345 6789"], "layer": "regex"},
-    {"name": "MY mobile solid", "text": "My number is 0123456789 if urgent.", "must_mask": ["0123456789"], "layer": "regex"},
-    {"name": "MY mobile +60", "text": "Reach me at +60123456789 tonight.", "must_mask": ["+60123456789"], "layer": "regex"},
-    {"name": "MY landline", "text": "Office line 03-7958 1234 rings through to reception.", "must_mask": ["03-7958 1234"], "layer": "regex"},
-    {"name": "US parenthesized", "text": "Dial (713) 853-6161 for the Houston desk.", "must_mask": ["(713) 853-6161"], "layer": "regex"},
-    {"name": "US dashed", "text": "Backup number 713-853-6161 goes to voicemail.", "must_mask": ["713-853-6161"], "layer": "regex"},
-    {"name": "IC dashed", "text": "IC 880101-14-5523 is on the form already.", "must_mask": ["880101-14-5523"], "layer": "regex"},
-    {"name": "IC bare 12 digit", "text": "Registered under 880101145523 last year.", "must_mask": ["880101145523"], "layer": "regex"},
-    {"name": "IC in signature block", "text": "Regards,\nTan Wei Ming\nIC: 900215-08-5431", "must_mask": ["900215-08-5431"], "layer": "regex"},
-    {"name": "email and phone together", "text": "Contact lim@corp.my or 012-999 8888, whichever is faster.", "must_mask": ["lim@corp.my", "012-999 8888"], "layer": "regex"},
-    {"name": "person single name", "text": "Please ask Sarah to approve the purchase order.", "must_mask": ["Sarah"], "layer": "ner"},
-    {"name": "person full name", "text": "Sarah Tan signed off on the revised terms yesterday.", "must_mask": ["Sarah Tan"], "layer": "ner"},
-    {"name": "two people", "text": "Ahmad Faiz and Michelle Wong will attend the review.", "must_mask": ["Ahmad Faiz", "Michelle Wong"], "layer": "ner"},
-    {"name": "person in signoff", "text": "Thanks for your help on this.\n\nBest regards,\nDaniel Lim", "must_mask": ["Daniel Lim"], "layer": "ner"},
-    {"name": "city", "text": "The workshop moved to Kuala Lumpur next Tuesday.", "must_mask": ["Kuala Lumpur"], "layer": "ner"},
-    {"name": "state", "text": "Our Selangor branch handles that account.", "must_mask": ["Selangor"], "layer": "ner"},
-    {"name": "street address", "text": "Deliver the documents to 12 Jalan Ampang, 50450.", "must_mask": ["Jalan Ampang"], "layer": "ner"},
-    {"name": "account with bank context", "text": "Wire the deposit to my Maybank account 512837465920 by Friday.", "must_mask": ["512837465920"], "layer": "ner"},
-    {"name": "account with reference context", "text": "Quote reference number 88213904 on the transfer.", "must_mask": ["88213904"], "layer": "ner"},
-    {"name": "passport with context", "text": "His passport 4471203988 expires in March.", "must_mask": ["4471203988"], "layer": "ner"},
-    {"name": "mixed real email", "text": "Hi Sarah Tan, please confirm the renewal. Any questions, mail me at wt.lim@corp.com.my or call 012-345 6789. Payment goes to Maybank account 512837465920.", "must_mask": ["Sarah Tan", "wt.lim@corp.com.my", "012-345 6789", "512837465920"], "layer": "ner"},
-
-    {"_adversarial": "Cases below were found by probing for failures rather than written from the implementation. Keep them: they are what stops this corpus from flattering itself.", "name": "IC space separated", "text": "ic 880101 14 5523 on file", "must_mask": ["880101 14 5523"], "layer": "regex"},
-    {"name": "phone country code with parens", "text": "call +60 (12) 345 6789 now", "must_mask": ["+60 (12) 345 6789"], "layer": "regex"},
-    {"name": "email subdomain", "text": "mail hr@mail.corp.com.my today", "must_mask": ["hr@mail.corp.com.my"], "layer": "regex"},
-    {"name": "email uppercase", "text": "MAIL ME AT AHMAD@CORP.MY OK", "must_mask": ["AHMAD@CORP.MY"], "layer": "regex"},
-    {"name": "uncommon MY name", "text": "please ask Nurul Izzati binti Rahman to sign", "must_mask": ["Nurul Izzati"], "layer": "ner"}
+    {
+      "name": "plain email",
+      "text": "Send the invoice to ahmad.faiz@corp.com.my when ready.",
+      "must_mask": [
+        "ahmad.faiz@corp.com.my"
+      ],
+      "layer": "regex"
+    },
+    {
+      "name": "email with plus tag",
+      "text": "Use billing+q3@vendor.example for the statement.",
+      "must_mask": [
+        "billing+q3@vendor.example"
+      ],
+      "layer": "regex"
+    },
+    {
+      "name": "two emails one line",
+      "text": "cc sarah@corp.my and lim.wt@corp.my on the reply.",
+      "must_mask": [
+        "sarah@corp.my",
+        "lim.wt@corp.my"
+      ],
+      "layer": "regex"
+    },
+    {
+      "name": "MY mobile dashed",
+      "text": "Call me on 012-345 6789 after lunch.",
+      "must_mask": [
+        "012-345 6789"
+      ],
+      "layer": "regex"
+    },
+    {
+      "name": "MY mobile solid",
+      "text": "My number is 0123456789 if urgent.",
+      "must_mask": [
+        "0123456789"
+      ],
+      "layer": "regex"
+    },
+    {
+      "name": "MY mobile +60",
+      "text": "Reach me at +60123456789 tonight.",
+      "must_mask": [
+        "+60123456789"
+      ],
+      "layer": "regex"
+    },
+    {
+      "name": "MY landline",
+      "text": "Office line 03-7958 1234 rings through to reception.",
+      "must_mask": [
+        "03-7958 1234"
+      ],
+      "layer": "regex"
+    },
+    {
+      "name": "US parenthesized",
+      "text": "Dial (713) 853-6161 for the Houston desk.",
+      "must_mask": [
+        "(713) 853-6161"
+      ],
+      "layer": "regex"
+    },
+    {
+      "name": "US dashed",
+      "text": "Backup number 713-853-6161 goes to voicemail.",
+      "must_mask": [
+        "713-853-6161"
+      ],
+      "layer": "regex"
+    },
+    {
+      "name": "IC dashed",
+      "text": "IC 880101-14-5523 is on the form already.",
+      "must_mask": [
+        "880101-14-5523"
+      ],
+      "layer": "regex"
+    },
+    {
+      "name": "IC bare 12 digit",
+      "text": "Registered under 880101145523 last year.",
+      "must_mask": [
+        "880101145523"
+      ],
+      "layer": "regex"
+    },
+    {
+      "name": "IC in signature block",
+      "text": "Regards,\nTan Wei Ming\nIC: 900215-08-5431",
+      "must_mask": [
+        "900215-08-5431"
+      ],
+      "layer": "regex"
+    },
+    {
+      "name": "email and phone together",
+      "text": "Contact lim@corp.my or 012-999 8888, whichever is faster.",
+      "must_mask": [
+        "lim@corp.my",
+        "012-999 8888"
+      ],
+      "layer": "regex"
+    },
+    {
+      "name": "person single name",
+      "text": "Please ask Sarah to approve the purchase order.",
+      "must_mask": [
+        "Sarah"
+      ],
+      "layer": "ner"
+    },
+    {
+      "name": "person full name",
+      "text": "Sarah Tan signed off on the revised terms yesterday.",
+      "must_mask": [
+        "Sarah Tan"
+      ],
+      "layer": "ner"
+    },
+    {
+      "name": "two people",
+      "text": "Ahmad Faiz and Michelle Wong will attend the review.",
+      "must_mask": [
+        "Ahmad Faiz",
+        "Michelle Wong"
+      ],
+      "layer": "ner"
+    },
+    {
+      "name": "person in signoff",
+      "text": "Thanks for your help on this.\n\nBest regards,\nDaniel Lim",
+      "must_mask": [
+        "Daniel Lim"
+      ],
+      "layer": "ner"
+    },
+    {
+      "name": "city",
+      "text": "The workshop moved to Kuala Lumpur next Tuesday.",
+      "must_mask": [
+        "Kuala Lumpur"
+      ],
+      "layer": "ner"
+    },
+    {
+      "name": "state",
+      "text": "Our Selangor branch handles that account.",
+      "must_mask": [
+        "Selangor"
+      ],
+      "layer": "ner"
+    },
+    {
+      "name": "street address",
+      "text": "Deliver the documents to 12 Jalan Ampang, 50450.",
+      "must_mask": [
+        "Jalan Ampang"
+      ],
+      "layer": "ner"
+    },
+    {
+      "name": "account with bank context",
+      "text": "Wire the deposit to my Maybank account 512837465920 by Friday.",
+      "must_mask": [
+        "512837465920"
+      ],
+      "layer": "ner"
+    },
+    {
+      "name": "account with reference context",
+      "text": "Quote reference number 88213904 on the transfer.",
+      "must_mask": [
+        "88213904"
+      ],
+      "layer": "ner"
+    },
+    {
+      "name": "passport with context",
+      "text": "His passport 4471203988 expires in March.",
+      "must_mask": [
+        "4471203988"
+      ],
+      "layer": "ner"
+    },
+    {
+      "name": "mixed real email",
+      "text": "Hi Sarah Tan, please confirm the renewal. Any questions, mail me at wt.lim@corp.com.my or call 012-345 6789. Payment goes to Maybank account 512837465920.",
+      "must_mask": [
+        "Sarah Tan",
+        "wt.lim@corp.com.my",
+        "012-345 6789",
+        "512837465920"
+      ],
+      "layer": "ner"
+    },
+    {
+      "_adversarial": "Cases below were found by probing for failures rather than written from the implementation. Keep them: they are what stops this corpus from flattering itself.",
+      "name": "IC space separated",
+      "text": "ic 880101 14 5523 on file",
+      "must_mask": [
+        "880101 14 5523"
+      ],
+      "layer": "regex"
+    },
+    {
+      "name": "phone country code with parens",
+      "text": "call +60 (12) 345 6789 now",
+      "must_mask": [
+        "+60 (12) 345 6789"
+      ],
+      "layer": "regex"
+    },
+    {
+      "name": "email subdomain",
+      "text": "mail hr@mail.corp.com.my today",
+      "must_mask": [
+        "hr@mail.corp.com.my"
+      ],
+      "layer": "regex"
+    },
+    {
+      "name": "email uppercase",
+      "text": "MAIL ME AT AHMAD@CORP.MY OK",
+      "must_mask": [
+        "AHMAD@CORP.MY"
+      ],
+      "layer": "regex"
+    },
+    {
+      "name": "uncommon MY name",
+      "text": "please ask Nurul Izzati binti Rahman to sign",
+      "must_mask": [
+        "Nurul Izzati"
+      ],
+      "layer": "ner"
+    },
+    {
+      "name": "short local phone",
+      "text": "She can be reached on 555-0142 if you need the paperwork.",
+      "must_mask": [
+        "555-0142"
+      ],
+      "layer": "regex"
+    },
+    {
+      "name": "partial account with context",
+      "text": "Paid in full from the account ending 4471, please refund it.",
+      "must_mask": [
+        "4471"
+      ],
+      "layer": "ner"
+    }
   ],
   "negatives": [
-    {"name": "purchase order", "text": "PO 12345678 was approved on Monday.", "must_keep": ["12345678"]},
-    {"name": "invoice code", "text": "Invoice INV-2026-0831 is attached for review.", "must_keep": ["INV-2026-0831"]},
-    {"name": "money amount", "text": "The total came to 1,250.00 including tax.", "must_keep": ["1,250.00"]},
-    {"name": "iso date", "text": "The deadline is 2026-09-15, no extensions.", "must_keep": ["2026-09-15"]},
-    {"name": "quantity", "text": "We shipped 93842716 widgets last quarter.", "must_keep": ["93842716"]},
-    {"name": "version string", "text": "Please upgrade to release 4.11.2 before Friday.", "must_keep": ["4.11.2"]}
+    {
+      "name": "purchase order",
+      "text": "PO 12345678 was approved on Monday.",
+      "must_keep": [
+        "12345678"
+      ]
+    },
+    {
+      "name": "invoice code",
+      "text": "Invoice INV-2026-0831 is attached for review.",
+      "must_keep": [
+        "INV-2026-0831"
+      ]
+    },
+    {
+      "name": "money amount",
+      "text": "The total came to 1,250.00 including tax.",
+      "must_keep": [
+        "1,250.00"
+      ]
+    },
+    {
+      "name": "iso date",
+      "text": "The deadline is 2026-09-15, no extensions.",
+      "must_keep": [
+        "2026-09-15"
+      ]
+    },
+    {
+      "name": "quantity",
+      "text": "We shipped 93842716 widgets last quarter.",
+      "must_keep": [
+        "93842716"
+      ]
+    },
+    {
+      "name": "version string",
+      "text": "Please upgrade to release 4.11.2 before Friday.",
+      "must_keep": [
+        "4.11.2"
+      ]
+    }
   ]
 }
