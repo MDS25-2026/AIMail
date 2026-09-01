@@ -11,6 +11,36 @@
 
 ## Log
 
+### 2026-09-01 — Retrieval eval was measuring an empty corpus, not the retriever
+- Finding: `eval_retrieval.py` scored hit_rate 0.125 / p@5 0.025 / MRR 0.125 against the
+  R03.2 target of 0.90. The cause was not retrieval quality: the corpus held 7 chunks of HR
+  operations content (leave, travel claims, remote work) while the eval set asks about gifts,
+  bribery, conflicts of interest, hospitality, customer treatment and directors' duties. Seven
+  of eight queries had no correct answer present, and k=5 over 7 chunks returned most of the
+  corpus regardless. A perfect retriever would have scored the same.
+- Decision: ingest real corporate codes of conduct rather than tune retrieval. Added HLIB
+  (39 chunks) and Genting Malaysia (7 chunks) — public Malaysian listed-company documents,
+  chosen over the GitLab handbook because the project context is Malaysian corporate email.
+- Result on the same 8 queries, same k, no retrieval code changed:
+
+  | metric | before (7 chunks) | after (53 chunks) | target |
+  |--------|------------------|-------------------|--------|
+  | hit_rate | 0.125 | **1.000** | >= 0.90 |
+  | precision@5 | 0.025 | **0.600** | - |
+  | MRR | 0.125 | **0.900** | - |
+
+  8/8 queries hit, 7 of them at rank 1. R03.2 met.
+- Why not tune chunking/reranking first: with 7 chunks any measured gain would have been noise.
+  Corpus coverage dominated every other variable.
+- Caveat: the eval set is 8 queries and the corpus 53 chunks — enough to show the retriever
+  works, not enough to claim a tuned system. Both should grow together; a metric that improves
+  while the eval set stays fixed is not evidence of much.
+- Outstanding: the S3-vs-S5 reformulation comparison (`--reformulate`) is unrun — it needs one
+  LLM call per query and hit the Gemini free-tier limit of 5 requests/minute.
+- Source PDFs are gitignored under `backend/data/policies/`; provenance in that folder's README.
+- Status: accepted.
+
+
 ### 2026-07-07 — Embedding model = gemini-embedding-001 @ 1536 dims
 - Decision: embed with `gemini-embedding-001`, `output_dimensionality=1536`, L2-normalized.
   Column pins to `embedding vector(1536)`.
