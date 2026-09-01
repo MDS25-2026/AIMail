@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 const NAV_ITEMS = [
   { label: "Inbox", to: "/" },
   { label: "Drafts", to: "/drafts" },
+  { label: "Sent", to: "/sent" },
   { label: "Knowledge", to: "/knowledge" },
   { label: "Settings", to: "/settings" },
 ] as const;
