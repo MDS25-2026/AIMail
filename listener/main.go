@@ -174,8 +174,42 @@ var localeRecognizers = []presidioRecognizer{
 		// 0.4 base still sits below the 0.6 threshold, so a bare 4-digit run like a year is only
 		// masked when a context word below sits near it.
 		Patterns: []presidioPattern{{Name: "arbitrary_digit_pattern", Regex: `\b\d{4,16}\b`, Score: 0.4}},
-		Context:  []string{"account", "acc", "bank", "maybank", "cimb", "rhb", "public bank", "transfer", "reference", "ref", "passport", "policy", "member"},
+		Context:  []string{"account", "acc", "bank", "maybank", "cimb", "rhb", "public bank", "transfer", "reference", "ref", "passport", "policy", "member", "employee", "emp", "staff", "badge", "payroll"},
 	},
+}
+
+// allowedLocations are place names kept in the text rather than redacted. A country or state in
+// business mail is organisational context, not personal data: masking "the US desk" or "our
+// Selangor branch" strips meaning from the draft the model then writes, without protecting
+// anyone. The boundary is country and state only — cities, districts and streets stay masked, so
+// anything ambiguous errs toward redaction. Keep this list short; extending it to cities would
+// punch holes in the privacy claim. Recorded in docs/decisions/lane-a-spine.md.
+var allowedLocations = map[string]bool{
+	"us": true, "u.s.": true, "u.s.a.": true, "usa": true, "america": true,
+	"uk": true, "u.k.": true, "britain": true, "eu": true, "apac": true, "asean": true,
+	"malaysia": true, "singapore": true, "indonesia": true, "thailand": true,
+	"australia": true, "india": true, "china": true, "japan": true,
+	// Malaysian states — "our Selangor branch" is a business unit, not a person's address.
+	"selangor": true, "penang": true, "johor": true, "sabah": true, "sarawak": true,
+	"melaka": true, "malacca": true, "perak": true, "pahang": true, "kedah": true,
+	"kelantan": true, "terengganu": true, "perlis": true, "negeri sembilan": true,
+}
+
+// filterAllowedLocations drops LOCATION hits naming a country or state, leaving every other
+// entity untouched. Offsets from Presidio are Python character indices, so the text is sliced as
+// runes — byte slicing would misalign the moment an email contains a non-ASCII character.
+func filterAllowedLocations(text string, results []presidioResult) []presidioResult {
+	runes := []rune(text)
+	kept := make([]presidioResult, 0, len(results))
+	for _, r := range results {
+		if r.EntityType == "LOCATION" && r.Start >= 0 && r.End <= len(runes) && r.Start < r.End {
+			if allowedLocations[strings.ToLower(strings.TrimSpace(string(runes[r.Start:r.End])))] {
+				continue
+			}
+		}
+		kept = append(kept, r)
+	}
+	return kept
 }
 
 // maskText applies the regex PII floor first (always, offline-proof), then layers Presidio
@@ -202,10 +236,12 @@ func maskWithPresidio(ctx context.Context, text string) (string, error) {
 	anonymizerURL := getEnvOrDefault("PRESIDIO_ANONYMIZER_URL", "http://localhost:5002/anonymize")
 
 	analyzePayload, err := json.Marshal(presidioAnalyzeRequest{
-		Text:             text,
-		Language:         "en",
-		ScoreThreshold:   0.6,
-		Entities:         []string{"PERSON", "LOCATION", "ORGANIZATION", "ACCOUNT_NUMBER"},
+		Text:           text,
+		Language:       "en",
+		ScoreThreshold: 0.6,
+		// CREDIT_CARD is Presidio's built-in recogniser and validates the Luhn checksum, so it
+		// cannot fire on an invoice or order number that merely looks card-shaped.
+		Entities:         []string{"PERSON", "LOCATION", "ORGANIZATION", "ACCOUNT_NUMBER", "CREDIT_CARD"},
 		AdHocRecognizers: localeRecognizers,
 	})
 	if err != nil {
@@ -220,6 +256,7 @@ func maskWithPresidio(ctx context.Context, text string) (string, error) {
 	if err := json.Unmarshal(raw, &results); err != nil {
 		return "", fmt.Errorf("decode analyze results: %w", err)
 	}
+	results = filterAllowedLocations(text, results)
 	if len(results) == 0 {
 		return text, nil // no PII beyond the regex floor
 	}
