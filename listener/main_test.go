@@ -170,3 +170,52 @@ func TestHTMLToTextProducesProse(t *testing.T) {
 		t.Errorf("block tags should become line breaks so sentences don't run together: %q", got)
 	}
 }
+
+// Country and state names are business context, not personal data — masking "the US desk" strips
+// meaning from the draft without protecting anyone. Cities stay masked, so the boundary holds.
+func TestFilterAllowedLocationsKeepsCountriesAndStates(t *testing.T) {
+	text := "The US desk and the Selangor branch both report to Kuala Lumpur."
+	span := func(s string) (int, int) { i := strings.Index(text, s); return i, i + len(s) }
+	usStart, usEnd := span("US")
+	selStart, selEnd := span("Selangor")
+	klStart, klEnd := span("Kuala Lumpur")
+
+	results := []presidioResult{
+		{EntityType: "LOCATION", Start: usStart, End: usEnd},
+		{EntityType: "LOCATION", Start: selStart, End: selEnd},
+		{EntityType: "LOCATION", Start: klStart, End: klEnd},
+		{EntityType: "PERSON", Start: usStart, End: usEnd}, // a PERSON hit is never filtered
+	}
+	kept := filterAllowedLocations(text, results)
+
+	if len(kept) != 2 {
+		t.Fatalf("expected the city and the PERSON hit to survive, got %d: %+v", len(kept), kept)
+	}
+	if kept[0].EntityType != "LOCATION" || text[kept[0].Start:kept[0].End] != "Kuala Lumpur" {
+		t.Errorf("the city should still be masked, got %+v", kept[0])
+	}
+	if kept[1].EntityType != "PERSON" {
+		t.Errorf("non-LOCATION entities must pass through untouched, got %+v", kept[1])
+	}
+}
+
+// Offsets from Presidio are Python character indices; slicing bytes would misalign on any
+// non-ASCII character and could panic or filter the wrong span.
+func TestFilterAllowedLocationsHandlesNonASCII(t *testing.T) {
+	text := "Café notes: the US desk replied."
+	usStart := len([]rune("Café notes: the "))
+	results := []presidioResult{{EntityType: "LOCATION", Start: usStart, End: usStart + 2}}
+
+	if kept := filterAllowedLocations(text, results); len(kept) != 0 {
+		t.Fatalf("expected US to be filtered despite the non-ASCII prefix, got %+v", kept)
+	}
+}
+
+// A span outside the text must not panic — Presidio is a separate service and its offsets are
+// only as trustworthy as the payload we got back.
+func TestFilterAllowedLocationsIgnoresOutOfRangeSpans(t *testing.T) {
+	results := []presidioResult{{EntityType: "LOCATION", Start: 0, End: 999}}
+	if kept := filterAllowedLocations("short", results); len(kept) != 1 {
+		t.Fatalf("an unusable span should be kept, not dropped or fatal: %+v", kept)
+	}
+}
