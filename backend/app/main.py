@@ -15,7 +15,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
-from sqlalchemy.exc import InterfaceError, OperationalError
+from sqlalchemy.exc import DBAPIError, InterfaceError, OperationalError
 
 from app.contracts import DashboardEmail
 from app.core.auth import require_auth
@@ -110,8 +110,28 @@ async def _database_unreachable(request: Request, exc: Exception) -> JSONRespons
     )
 
 
+async def _database_error(request: Request, exc: Exception) -> JSONResponse:
+    """Catch-all for DBAPI failures, split by whether the connection survived.
+
+    A connection dropped mid-query by the Supabase pooler surfaces as a bare `DBAPIError`, not
+    `OperationalError`, so the handler above never fired and the caller got a raw 500. Deciding on
+    `connection_invalidated` keeps that distinction honest: a lost connection is a 503 worth
+    retrying, while a genuine SQL fault is our bug and must not masquerade as an outage.
+    """
+    if getattr(exc, "connection_invalidated", False):
+        return await _database_unreachable(request, exc)
+    logger.exception("database error on %s", request.url.path)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"error": {"code": "DATABASE_ERROR", "message": "The database rejected a query."}},
+    )
+
+
 for _db_exc in (OSError, OperationalError, InterfaceError):
     app.add_exception_handler(_db_exc, _database_unreachable)
+
+# Registered after the specific handlers so those still win for their own types.
+app.add_exception_handler(DBAPIError, _database_error)
 
 
 async def _ai_service_unreachable(request: Request, exc: Exception) -> JSONResponse:
