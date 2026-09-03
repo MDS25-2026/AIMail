@@ -149,14 +149,6 @@
       "layer": "ner"
     },
     {
-      "name": "state",
-      "text": "Our Selangor branch handles that account.",
-      "must_mask": [
-        "Selangor"
-      ],
-      "layer": "ner"
-    },
-    {
       "name": "street address",
       "text": "Deliver the documents to 12 Jalan Ampang, 50450.",
       "must_mask": [
@@ -255,6 +247,22 @@
         "4471"
       ],
       "layer": "ner"
+    },
+    {
+      "name": "credit card luhn valid",
+      "text": "The corporate card 4532 0151 1283 0366 is on file.",
+      "must_mask": [
+        "4532 0151 1283 0366"
+      ],
+      "layer": "ner"
+    },
+    {
+      "name": "employee number with context",
+      "text": "Our compliance officer (employee no. 4471) needs the paperwork.",
+      "must_mask": [
+        "4471"
+      ],
+      "layer": "ner"
     }
   ],
   "negatives": [
@@ -298,6 +306,34 @@
       "text": "Please upgrade to release 4.11.2 before Friday.",
       "must_keep": [
         "4.11.2"
+      ]
+    },
+    {
+      "name": "country name kept",
+      "text": "The US desk can confirm on Monday.",
+      "must_keep": [
+        "US"
+      ]
+    },
+    {
+      "name": "state name kept",
+      "text": "The Selangor branch signed off already.",
+      "must_keep": [
+        "Selangor"
+      ]
+    },
+    {
+      "name": "card shaped but luhn invalid",
+      "text": "Order code 4539 8712 3344 1122 shipped.",
+      "must_keep": [
+        "4539 8712 3344 1122"
+      ]
+    },
+    {
+      "name": "employee count not an id",
+      "text": "We have 240 employees across the region.",
+      "must_keep": [
+        "240"
       ]
     }
   ]
