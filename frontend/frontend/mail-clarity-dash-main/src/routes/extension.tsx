@@ -2,7 +2,14 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 
 import ExtensionPanel from "../components/ExtensionPanel";
-import { mockEmails } from "../mockData/emails";
+import { PageEmpty, PageError, PageLoading } from "../components/PageState";
+import {
+  useEmail,
+  useEmails,
+  useRefineEmail,
+  useRegenerateEmail,
+  useSendEmail,
+} from "../lib/queries";
 import type { Tone } from "../types/email";
 
 export const Route = createFileRoute("/extension")({
@@ -26,32 +33,47 @@ export const Route = createFileRoute("/extension")({
   component: ExtensionPage,
 });
 
+/**
+ * Preview of the condensed panel the Chrome extension renders inside Gmail.
+ *
+ * Runs on a real email rather than a fixture: the panel is the surface that will be wired to
+ * this API, so previewing it against fabricated content proved nothing and put a fake sender
+ * on screen during demos. Same page, same layout — the data and the buttons are now real.
+ */
 function ExtensionPage() {
-  const email = mockEmails[0];
-  const [draft, setDraft] = useState(email.draftReply);
-  const [tone, setTone] = useState<Tone>(email.tone);
-  const [isRegenerating, setIsRegenerating] = useState(false);
-  const [isRefining, setIsRefining] = useState(false);
+  const emails = useEmails();
+  // Prefer an email that already has a draft, so the panel previews a filled-in state rather
+  // than an empty one; fall back to the newest email when nothing has been generated yet.
+  const candidate = emails.data?.find((item) => item.draftReply) ?? emails.data?.[0] ?? null;
+  const selected = useEmail(candidate?.id ?? null);
+  const email = selected.data ?? candidate;
+
+  const [draftOverride, setDraftOverride] = useState<string | null>(null);
+  const [toneOverride, setToneOverride] = useState<Tone | null>(null);
+  const draft = draftOverride ?? email?.draftReply ?? "";
+  const tone = toneOverride ?? email?.tone ?? "professional";
+
+  const regenerate = useRegenerateEmail();
+  const refine = useRefineEmail();
+  const send = useSendEmail();
+
+  const clearOverrideOnSuccess = { onSuccess: () => setDraftOverride(null) };
 
   const onRegenerate = (emailId: string) => {
-    console.log("onRegenerate", { emailId, tone });
-    setIsRegenerating(true);
-    setTimeout(() => setIsRegenerating(false), 600);
+    regenerate.mutate({ emailId, tone }, clearOverrideOnSuccess);
   };
 
   const onRefine = (emailId: string, instruction: string) => {
-    console.log("onRefine", { emailId, instruction, tone });
-    setIsRefining(true);
-    setTimeout(() => setIsRefining(false), 600);
+    refine.mutate({ emailId, instruction, draft }, clearOverrideOnSuccess);
   };
 
   const onToneChange = (emailId: string, nextTone: Tone) => {
-    console.log("onToneChange", { emailId, tone: nextTone });
-    setTone(nextTone);
+    setToneOverride(nextTone);
+    regenerate.mutate({ emailId, tone: nextTone }, clearOverrideOnSuccess);
   };
 
   const onApproveSend = (emailId: string) => {
-    console.log("onApproveSend", { emailId, draft, tone });
+    send.mutate({ emailId, draft }, clearOverrideOnSuccess);
   };
 
   return (
@@ -63,18 +85,28 @@ function ExtensionPage() {
         </Link>
       </div>
       <div className="h-[720px]">
-        <ExtensionPanel
-          email={email}
-          draft={draft}
-          tone={tone}
-          onDraftChange={setDraft}
-          onToneChange={onToneChange}
-          onRegenerate={onRegenerate}
-          onRefine={onRefine}
-          onApproveSend={onApproveSend}
-          isRegenerating={isRegenerating}
-          isRefining={isRefining}
-        />
+        {emails.isPending ? <PageLoading label="the panel preview" /> : null}
+        {emails.isError ? <PageError label="the panel preview" error={emails.error} /> : null}
+        {emails.data && !email ? (
+          <PageEmpty
+            title="No emails to preview"
+            hint="Send a message to the connected mailbox and it will appear here."
+          />
+        ) : null}
+        {email ? (
+          <ExtensionPanel
+            email={email}
+            draft={draft}
+            tone={tone}
+            onDraftChange={setDraftOverride}
+            onToneChange={onToneChange}
+            onRegenerate={onRegenerate}
+            onRefine={onRefine}
+            onApproveSend={onApproveSend}
+            isRegenerating={regenerate.isPending}
+            isRefining={refine.isPending}
+          />
+        ) : null}
       </div>
     </div>
   );
