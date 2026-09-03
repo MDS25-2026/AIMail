@@ -83,12 +83,13 @@ export default function EmailDetailPanel({
             tone={tone}
             onDraftChange={onDraftChange}
             onToneChange={onToneChange}
-            disabled={isRegenerating || isRefining}
+            // A tone change regenerates the draft, so it is blocked mid-send like the rest.
+            disabled={isRegenerating || isRefining || isSending}
           />
 
           <SourcesChips sources={email.sources} />
 
-          <RefineInput emailId={email.id} onRefine={onRefine} disabled={isRefining} />
+          <RefineInput emailId={email.id} onRefine={onRefine} disabled={isRefining || isRegenerating || isSending} />
 
           <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
             <p className="text-xs text-slate-400">
@@ -101,6 +102,7 @@ export default function EmailDetailPanel({
               onRegenerate={onRegenerate}
               onApproveSend={onApproveSend}
               isRegenerating={isRegenerating}
+          isRefining={isRefining}
               isSending={isSending}
               isSent={Boolean(email.sentAt)}
             />
