@@ -8,6 +8,7 @@ the backend authenticates as itself instead of borrowing the listener's token.
 import base64
 import json
 import re
+import time
 from email.message import EmailMessage
 from html import escape
 from pathlib import Path
@@ -31,7 +32,20 @@ def _load_creds() -> tuple[dict, dict]:
     return installed, token
 
 
+# Access tokens last about an hour, so refreshing on every send added a second round trip to
+# Google before the mail could go out — the whole of the delay between clicking Approve & Send and
+# the reply appearing. Cached until shortly before expiry. A concurrent send may refresh twice,
+# which is harmless and cheaper than serialising every send behind a lock.
+_cached_token: tuple[str, float] | None = None
+_EXPIRY_MARGIN_SECONDS = 60
+
+
 async def _access_token(client: httpx.AsyncClient) -> str:
+    global _cached_token
+    now = time.monotonic()
+    if _cached_token is not None and _cached_token[1] > now:
+        return _cached_token[0]
+
     installed, token = _load_creds()
     resp = await client.post(
         _TOKEN_URL,
@@ -43,7 +57,11 @@ async def _access_token(client: httpx.AsyncClient) -> str:
         },
     )
     resp.raise_for_status()
-    return resp.json()["access_token"]
+    payload = resp.json()
+    access_token = payload["access_token"]
+    lifetime = float(payload.get("expires_in", 3600))
+    _cached_token = (access_token, now + lifetime - _EXPIRY_MARGIN_SECONDS)
+    return access_token
 
 
 _SUBJECT_LINE = re.compile(r"^\s*subject\s*:.*(?:\r?\n)+", re.IGNORECASE)
@@ -85,16 +103,26 @@ def _build_raw(to_addr: str, subject: str, body: str) -> str:
     return base64.urlsafe_b64encode(message.as_bytes()).decode()
 
 
+async def _post_message(client: httpx.AsyncClient, raw: str) -> httpx.Response:
+    access_token = await _access_token(client)
+    return await client.post(
+        _SEND_URL,
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={"raw": raw},
+    )
+
+
 async def send_reply(to_addr: str, subject: str, body: str) -> None:
+    global _cached_token
     raw = _build_raw(to_addr, subject, body)
     try:
         async with httpx.AsyncClient(timeout=30) as client:
-            access_token = await _access_token(client)
-            resp = await client.post(
-                _SEND_URL,
-                headers={"Authorization": f"Bearer {access_token}"},
-                json={"raw": raw},
-            )
+            resp = await _post_message(client, raw)
+            if resp.status_code == httpx.codes.UNAUTHORIZED:
+                # A cached token can be revoked before it expires. Drop it and try once with a
+                # fresh one, so a revocation costs one retry rather than every send until restart.
+                _cached_token = None
+                resp = await _post_message(client, raw)
             resp.raise_for_status()
     except (httpx.HTTPError, KeyError, OSError, json.JSONDecodeError) as exc:
         raise SendError(str(exc)) from exc
