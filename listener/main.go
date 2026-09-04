@@ -480,7 +480,11 @@ func listenToPubSub(ctx context.Context, ts oauth2.TokenSource, srv *gmail.Servi
 // Fetches the most recent message, masks PII, and persists it + an audit
 // log entry to Supabase.
 func fetchLatestMessage(ctx context.Context, srv *gmail.Service) {
-	list, err := srv.Users.Messages.List("me").MaxResults(1).Do()
+	// INBOX only, matching the label the watch is registered against (setupWatch). Without it
+	// this fetches the newest message anywhere in the mailbox — including a reply the system
+	// just sent, which Gmail files in the same mailbox. That made AImail ingest its own outgoing
+	// mail and generate replies to itself.
+	list, err := srv.Users.Messages.List("me").LabelIds("INBOX").MaxResults(1).Do()
 	if err != nil || len(list.Messages) == 0 {
 		log.Printf("Could not fetch messages: %v", err)
 		writeAuditLog(ctx, "fetch_message", fmt.Sprintf("list error: %v", err), false)

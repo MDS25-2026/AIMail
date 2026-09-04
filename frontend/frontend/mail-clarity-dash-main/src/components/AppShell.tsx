@@ -6,7 +6,7 @@ import SideNav from "./SideNav";
 /** App chrome shared by every dashboard route: brand header plus the nav rail. */
 export default function AppShell({ children }: { children: ReactNode }) {
   return (
-    <div className="flex h-screen flex-col bg-slate-100">
+    <div className="flex h-dvh flex-col overflow-hidden bg-slate-100">
       <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3">
         <div className="flex items-baseline gap-2">
           <span className="text-lg font-semibold tracking-tight text-navy-900">AIMail</span>

@@ -264,6 +264,13 @@ Run sheet and quick wins live in [`demo-runsheet.md`](demo-runsheet.md). Larger 
   Han's lane) once a letter is chosen. Cosmetic - cut first if time is short.
 - **Fallback video:** record after the first clean rehearsal, not before.
 
+## 2c. Issues found after the audit
+
+Defects and limitations discovered while testing, outside the audit's nine items, are tracked in
+[`known-issues.md`](known-issues.md) — including the unresolved dashboard scroll overflow, the
+Gmail watch never renewing, ingestion fetching "the latest message" rather than what changed, and
+uploaded documents bypassing masking.
+
 ## 3. Risks
 
 Could sink the demo:
