@@ -70,6 +70,7 @@ class DashboardEmail(BaseModel):
     piiMasked: bool
     criticConfidence: float
     sentAt: str | None = None  # ISO 8601 when the approved reply was sent, else null
+    isRead: bool = False  # opened at least once; unread is the default for anything new
 
 
 _PRIORITY_LABELS: dict[int, Literal["low", "medium", "high"]] = {0: "low", 1: "medium", 2: "high"}

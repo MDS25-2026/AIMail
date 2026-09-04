@@ -20,12 +20,31 @@ export default function EmailListItem({ email, selected, onSelect }: EmailListIt
         }`}
       >
         <div className="flex items-baseline justify-between gap-2">
-          <span className="truncate text-sm font-semibold text-slate-800">{email.sender}</span>
+          <span
+            aria-hidden="true"
+            className={`mt-1.5 size-2 shrink-0 rounded-full ${
+              email.isRead ? "bg-transparent" : "bg-blue-600"
+            }`}
+          />
+          <span
+            className={`flex-1 truncate text-sm text-slate-800 ${
+              email.isRead ? "font-normal" : "font-bold"
+            }`}
+          >
+            {email.sender}
+            {email.isRead ? null : <span className="sr-only"> (unread)</span>}
+          </span>
           <span className="shrink-0 text-xs text-slate-400">
             {formatTimestamp(email.timestamp)}
           </span>
         </div>
-        <div className="mt-0.5 truncate text-sm text-slate-700">{email.subject}</div>
+        <div
+          className={`mt-0.5 truncate text-sm text-slate-700 ${
+            email.isRead ? "font-normal" : "font-semibold"
+          }`}
+        >
+          {email.subject}
+        </div>
         <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">{email.preview}</p>
         <div className="mt-2">
           <PriorityBadge priority={email.priority} />

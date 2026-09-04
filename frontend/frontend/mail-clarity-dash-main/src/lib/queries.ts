@@ -42,9 +42,18 @@ export function useEmails() {
  * email lands in that email's cache entry, never in the one on screen.
  */
 export function useEmail(emailId: string | null) {
+  const queryClient = useQueryClient();
   return useQuery({
     queryKey: queryKeys.email(emailId ?? ""),
-    queryFn: () => fetchEmail(emailId as string),
+    queryFn: async () => {
+      const email = await fetchEmail(emailId as string);
+      // Fetching the detail is what marks it read server-side. Patch the cached list so the
+      // unread marker clears immediately rather than waiting for the next refetch.
+      queryClient.setQueryData<Email[]>(queryKeys.emails, (list) =>
+        list?.map((item) => (item.id === email.id ? { ...item, isRead: true } : item)),
+      );
+      return email;
+    },
     enabled: emailId !== null,
   });
 }
