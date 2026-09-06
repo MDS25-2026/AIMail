@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     # upgrade: a service account + domain-wide delegation so the backend has its own credentials.
     gmail_credentials_path: str = str(_REPO_ROOT / "listener" / "credentials.json")
     gmail_token_path: str = str(_REPO_ROOT / "listener" / "token.json")
+    # Keys the per-user policy. One mailbox today; the lookup is per-user so multi-user
+    # becomes configuration rather than a rewrite.
+    mailbox_owner_email: str = ""
     auto_generate: bool = True  # background poller pre-generates drafts so opens are instant
     generate_poll_seconds: int = 60
     priority_model: str = "baseline"  # "baseline" (TF-IDF) or "distilbert" — which classifier backfill uses

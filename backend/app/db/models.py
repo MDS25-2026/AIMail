@@ -109,3 +109,51 @@ class Message(Base):
     generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class UserProfile(Base):
+    """The mailbox owner. Keyed by email because that is the identifier every lane already shares."""
+
+    __tablename__ = "user_profile"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    email: Mapped[str] = mapped_column(Text, unique=True)
+    display_name: Mapped[str | None] = mapped_column(Text)
+    role: Mapped[str | None] = mapped_column(Text)
+    responsibilities: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class UserPreferences(Base):
+    """Defaults reproduce today's behaviour, so an unconfigured user sees no change."""
+
+    __tablename__ = "user_preferences"
+
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("user_profile.id"), primary_key=True)
+    priority_bias: Mapped[int]
+    default_sort: Mapped[str] = mapped_column(Text)
+    default_tone: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class SenderRule(Base):
+    """Exact-sender override. A lookup — never prompt input."""
+
+    __tablename__ = "sender_rule"
+
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("user_profile.id"), primary_key=True)
+    from_addr: Mapped[str] = mapped_column(Text, primary_key=True)
+    priority: Mapped[int]
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class KeywordRule(Base):
+    """Topic override, same shape as SenderRule."""
+
+    __tablename__ = "keyword_rule"
+
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("user_profile.id"), primary_key=True)
+    keyword: Mapped[str] = mapped_column(Text, primary_key=True)
+    priority: Mapped[int]
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
