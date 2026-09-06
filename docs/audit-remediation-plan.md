@@ -271,6 +271,13 @@ Defects and limitations discovered while testing, outside the audit's nine items
 Gmail watch never renewing, ingestion fetching "the latest message" rather than what changed, and
 uploaded documents bypassing masking.
 
+## 2d. Feature backlog
+
+Work proposed outside the audit's nine items — the priority-labelling user study, indexing sent
+mail for tone, the masking transparency panel, live Gmail body fetch, inbox sort, settings, and two
+deferred items — is scoped and sequenced in [`backlog.md`](backlog.md), including which lane owns
+each and what must not be displaced.
+
 ## 3. Risks
 
 Could sink the demo:
