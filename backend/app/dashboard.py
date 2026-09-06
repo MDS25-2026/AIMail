@@ -15,11 +15,12 @@ import httpx
 from sqlalchemy import select
 
 from app.audit import audit
-from app.contracts import DashboardEmail, priority_label
+from app.contracts import DashboardEmail
 from app.core.config import get_settings
 from app.db.models import Message
 from app.db.session import get_sessionmaker
 from app.gmail_send import SendError, send_reply
+from app.personalisation import DEFAULT_POLICY, Policy, apply_policy, load_policy
 from app.rag.embed import EmbeddingError
 from app.rag.retrieve import retrieve
 from app.rag.utils import format_rag_context
@@ -27,7 +28,7 @@ from app.rag.utils import format_rag_context
 logger = logging.getLogger(__name__)
 
 
-def _to_email(message: Message) -> DashboardEmail:
+def _to_email(message: Message, policy: Policy = DEFAULT_POLICY) -> DashboardEmail:
     return DashboardEmail(
         id=str(message.id),
         sender=message.from_addr or "",
@@ -35,7 +36,8 @@ def _to_email(message: Message) -> DashboardEmail:
         preview=message.snippet_masked or "",
         body=message.body_masked or "",
         timestamp=(message.received_at or message.created_at).isoformat(),
-        priority=priority_label(message.importance),
+        # The classifier's prediction, then the user's policy on top of it.
+        priority=apply_policy(message, policy),
         threadContext=[],
         aiSummary=message.ai_summary or "",
         actionItems=message.action_items or [],
@@ -52,7 +54,8 @@ async def list_dashboard_emails(limit: int = 50) -> list[DashboardEmail]:
     stmt = select(Message).order_by(Message.created_at.desc()).limit(limit)
     async with get_sessionmaker()() as session:
         rows = (await session.scalars(stmt)).all()
-    return [_to_email(message) for message in rows]
+        policy = await load_policy(session, get_settings().mailbox_owner_email)
+    return [_to_email(message, policy) for message in rows]
 
 
 async def generate_pending(limit: int | None = None) -> int:
