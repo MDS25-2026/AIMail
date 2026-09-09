@@ -6,6 +6,27 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-09-09 — Thread identity is captured at ingestion, not fetched at send
+- Decision: `messages` gains `thread_id`, `rfc822_message_id`, `thread_refs` (Lane A, from the
+  message the listener already fetches) and `sent_message_id` (backend, for its own replies).
+  Migration 0008 — independent of 0006 and 0007, so no ordering constraint between them.
+- Why: approved replies send as standalone mail because nothing stores what threading needs. Four
+  planned items need that identity in the database, not just at send time — sent-mail indexing
+  (backlog 2), the thread view (backlog 4), the Chrome extension (Gmail's URL fragment names the
+  *thread*, not the message), and the history-ID ingestion fix.
+- Why not fetch at send time: cheaper this week — no migration, no cross-lane change — but it
+  serves one caller, makes the other three pay their own round trip, and fails if the original is
+  deleted. Kept as the fallback if the schedule forces it; the header-construction code is the same
+  either way, so it is not throwaway work.
+- Naming and shape: `thread_refs` because `references` is a reserved SQL keyword; it holds the whole
+  chain, not just the parent's ID, so ancestry survives past depth one (RFC 5322 §3.6.4). Column
+  semantics are documented in `specs/context/db-schema.md`.
+- Open: confirm Gmail preserves a client-supplied `Message-ID` on `messages.send` before relying on
+  `sent_message_id`. Store only these four fields, not the full header block.
+- Affects: Lane A (`listener/main.go`, `StoredMessage`), Lane B (`app/gmail_send.py`, `dashboard.py`),
+  `specs/context/db-schema.md` (this PR), migration 0008.
+- Status: proposed — needs JiaJun's co-sign as owner of the `messages` table and the listener.
+
 ### 2026-08-31 — Seam 1 resolved: canonical column is `messages.body_masked`
 - Decision: the masked-email column is `messages.body_masked`; `masked_body` is retired.
   Closes finding 1 of the 2026-08-06 integration-sync entry.
