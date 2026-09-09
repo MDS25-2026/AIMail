@@ -4,7 +4,7 @@
 VENV := .venv/bin
 .DEFAULT_GOAL := help
 
-.PHONY: help check test lint typecheck hooks dev backend agent web migrate seed ingest eval eval-reform baseline backfill generate ml-deps distilbert eval-classifier label
+.PHONY: help check test lint typecheck hooks dev backend agent web migrate seed ingest eval eval-reform baseline backfill generate ml-deps distilbert eval-classifier label eval-critic
 
 help:  ## list targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  make %-12s %s\n", $$1, $$2}'
@@ -71,6 +71,9 @@ label:  ## hand-label the holdout interactively (one keypress per email): make l
 
 eval-classifier:  ## grade the classifier on your hand-labeled holdout: make eval-classifier HOLDOUT=holdout_to_label.csv
 	cd backend && ../$(VENV)/python scripts/eval_classifier.py "$(HOLDOUT)"
+
+eval-critic:  ## characterise critic confidence over real emails: make eval-critic [N=20] (needs `make agent` running)
+	cd backend && ../$(VENV)/python scripts/eval_critic.py $(or $(HOLDOUT),holdout_to_label.csv) --limit $(or $(N),20)
 
 ml-deps:  ## install the heavy DistilBERT training deps (torch/transformers/datasets)
 	$(VENV)/pip install -r backend/requirements-ml.txt

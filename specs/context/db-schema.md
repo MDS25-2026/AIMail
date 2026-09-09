@@ -88,6 +88,7 @@ listener — a migration must create `messages` + `audit_log` in Supabase before
 | `draft_reply` | `TEXT NULL` | Lane C | cached generation |
 | `action_items` | `JSONB NULL` | Lane C | cached generation |
 | `critic_confidence` | `REAL NULL` | Lane C | cached generation |
+| `critic_attempts` | `SMALLINT NULL` | Lane C | how many refine rounds the critic forced before the draft passed. The only observable evidence the review gate ever engages — a draft rescued by refinement is indistinguishable from a first-pass success without it (migration 0008) |
 | `generated_at` | `TIMESTAMPTZ NULL` | Lane C | when cached; NULL = not generated yet |
 | `sent_at` | `TIMESTAMPTZ NULL` | backend | when the approved reply was sent (migration 0005) |
 | `sent_message_id` | `TEXT NULL` | backend | the `Message-ID` the backend generated for its own outgoing reply. Without it the thread graph breaks at every AImail hop — an incoming reply's `In-Reply-To` points here and matches nothing (migration 0008) |
