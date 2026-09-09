@@ -1,0 +1,166 @@
+# Priority calibration and critic validation user study
+
+- **Status:** draft
+- **Owner:** @veyroxie
+- **Related issue:** #
+- **Last updated:** 2026-09-09
+
+## Goal
+
+Put measured numbers behind the project's two weakest claims in one participant session: give the
+classifier's 0.69 macro-F1 a human ceiling to be read against, and test whether the critic's
+self-reported confidence tracks human judgement of draft quality.
+
+## User story
+
+As the team defending this system in a report and viva, I want the priority rubric and the critic
+threshold checked against real people, so that "0.69" and "below 0.8 is flagged" stop being
+unanchored numbers.
+
+## Scope
+
+**In scope**
+- A single instrument with a consent screen, a job-role question, and two rating parts.
+- **Part 1 — priority sorting.** 9 unmasked emails drawn from the existing 120-email human-labelled
+  holdout (`backend/holdout_to_label.csv`), sorted into low / medium / high, with a free-text reason
+  requested on 2-3 of them.
+- Two closing questions: did any email fail to fit the three tiers, and would a list of important
+  senders have changed the sorting (this one gates backlog item 6b).
+- **Part 2 — critic validation.** ~20 already-generated drafts rated good / bad, sampled to span the
+  `critic_confidence` range on both sides of 0.8.
+- An analysis plan fixed **before** collection, and a results write-up.
+
+**Out of scope**
+- Any change to the classifier, its training data, or its evaluation. The model is the thing being
+  measured; touching it invalidates the measurement.
+- Building the sender-priority list (backlog 6b). This study decides whether to build it.
+- Changing the 0.8 review threshold. The study measures the threshold; moving it is a later call.
+- Generating new drafts for Part 2. It rates what already exists.
+
+## Acceptance criteria
+
+- [ ] Given the instrument, when a participant opens it, then a consent screen precedes any study
+      content, and no study item is visible until consent is recorded.
+- [ ] Given the 9 Part-1 items, when the selection is reviewed against the rubric, then each of the
+      four boundary rules (availability-with-no-ask, FYI-with-no-request, request-in-an-older-thread-message,
+      social-with-a-minor-ask) is exercised by at least one item, and at least two items are
+      unambiguous anchors.
+- [ ] Given the 9 Part-1 items, when their source is checked, then every one is a row of
+      `holdout_to_label.csv` with its existing gold label recorded, so participant labels are
+      comparable to both the gold labels and the model's predictions on the same text.
+- [ ] Given N completed responses, when the analysis runs, then it reports (a) per-participant
+      macro-F1 against the holdout gold on those 9 items, (b) inter-participant agreement across all
+      participants, and (c) the model's macro-F1 on the same 9 items — all three from the same items.
+- [ ] Given the ~20 Part-2 drafts, when the sample is checked, then at least 5 sit below
+      `critic_confidence` 0.8 and at least 5 at or above it, so the threshold is testable rather than
+      assumed.
+- [ ] Given N completed responses, when the Part-2 analysis runs, then it reports how often the 0.8
+      threshold agreed with the human good/bad verdict, as a 2x2 with all four cells populated.
+- [ ] Given any stored response, when it is inspected, then it carries a sequential participant ID
+      and a job role, and no name, email address, or other participant identifier.
+- [ ] Given the reported numbers, when they appear in the report, then each is stated with its
+      participant count and item count alongside it.
+
+## API surface
+
+None. No endpoint, no service change. The deliverable is an instrument, a response set, and an
+analysis script under `backend/scripts/`.
+
+## Data model
+
+No migration. Reads `holdout_to_label.csv` (already on disk, gitignored) and, for Part 2, existing
+`messages.draft_reply` + `messages.critic_confidence` (migration `0004_message_generation.sql`).
+
+Responses are stored as an anonymised CSV outside version control, consistent with the existing
+data policy that keeps `backend/*.csv` gitignored.
+
+## Dependencies
+
+- `backend/holdout_to_label.csv` — 120 rows, all labelled, distribution 46 low / 46 medium / 28 high.
+  Verified present 2026-09-09.
+- **Unverified precondition:** at least ~20 messages carrying both a `draft_reply` and a
+  `critic_confidence`, spanning both sides of 0.8. `known-issues.md` records only 32 messages total,
+  so this is not guaranteed. Must be confirmed with a query before Part 2 is written.
+- Ethics: the unit's position on human-participant research in FIT3164 is not recorded anywhere in
+  this repo. A consent screen is in scope regardless; whether institutional clearance is also
+  required is an open question below.
+- Cross-lane: Part 2 measures Lane C's critic. No Lane C code changes, but the finding lands on
+  Hanif's lane and belongs in `docs/decisions/shared.md` once results exist.
+
+## Edge cases & failure modes
+
+- **Too few participants.** 9 items times a handful of people is a small sample. Mitigation is
+  honesty, not more statistics: report N with every figure. Below 4 participants, report agreement
+  descriptively and drop the macro-F1 comparison rather than publish a number built on ~27 judgements.
+- **All Part-2 drafts score above 0.8.** Then the threshold cannot be tested at all. Detect this at
+  sampling time, before recruiting; if it holds, Part 2 becomes "does confidence correlate with
+  quality at all" and the threshold question is deferred with the reason recorded.
+- **A participant abandons midway.** Part 1 is complete on its own; keep partial responses that
+  finished Part 1 and record them as Part-1-only.
+- **Participants disagree with the gold labels as a group.** That is a finding, not a failure — it
+  says the rubric does not match how people sort, which is one of the four questions being asked.
+
+## Security & privacy notes
+
+- Participants see **unmasked** Enron email text. Accepted deliberately: the corpus is public, and
+  masked text would no longer be the text the 0.69 was measured on, breaking the comparison that is
+  the point of the study. Already noted for ethics in
+  [`priority-classifier.md`](priority-classifier.md).
+- Part 2 shows generated drafts, which are written from **masked** email content, so no unmasked
+  project mailbox content is exposed.
+- No participant PII is collected beyond a free-text job role. No names, no email addresses.
+- Response data is gitignored like the rest of `backend/*.csv`. Aggregate figures go in the report;
+  raw responses do not go in the repo.
+
+## Open questions
+
+- Does FIT3164 require ethics clearance beyond an in-instrument consent screen, or is coursework
+  covered by a blanket low-risk approval? Ask Dr. Asad. This gates recruitment, not the instrument,
+  so drafting proceeds in parallel.
+- Which agreement statistic: Fleiss' kappa (matches the Cohen's kappa already used in
+  `label_agreement.py`, so the report stays internally consistent) or Krippendorff's alpha (handles
+  the ordinal low/medium/high ordering and partial responses better). Recommend Fleiss for
+  consistency, and state the ordinal caveat.
+- Delivery: Google Form, or a page on the dashboard? A form is faster and needs no Lane D time,
+  which is the reason this item was placed first.
+- Target participant count. 5-8 is realistic for the timeframe; below 4 the macro-F1 comparison
+  should be dropped per the edge case above.
+
+## Out-of-scope future extensions
+
+- Enlarging the 120-email holdout for a tighter confidence interval on the 0.69 itself
+  (`known-issues.md`). Related, but a labelling job, not a study.
+- Repeating Part 1 on masked text to measure what masking costs a human sorter. Interesting, and a
+  second session's worth of work.
+
+## Implementation notes
+
+Item selection for Part 1 is the real work and should be done by reading candidates, not sampling
+randomly: the boundary rules are the point, and a random draw of 9 from a 46/46/28 distribution will
+mostly return easy cases. Record the chosen row indices so the model's predictions on exactly those
+9 can be recomputed.
+
+Likely files: a selection script and an analysis script under `backend/scripts/`, alongside the
+existing `label_agreement.py` and `eval_classifier.py`, whose conventions they should follow.
+
+## Decisions
+
+- 2026-09-09: Part-1 items are drawn from the existing labelled holdout rather than a fresh sample.
+  Rationale: only shared items let human agreement, gold labels, and the model's 0.69 be compared on
+  the same text. Alternatives: a fresh sample, which yields a second unanchored number.
+- 2026-09-09: participants see unmasked text. Rationale: the corpus is public and the 0.69 was
+  measured on unmasked text. Alternatives: masked text, which matches production input but breaks
+  comparability with every reported figure.
+- 2026-09-09: critic validation is bundled into the same session rather than run separately.
+  Rationale: both need participants, and recruiting once is the whole saving; the team minutes of
+  2026-09-04 already pair urgency labelling with critique criteria. Alternatives: two studies, which
+  doubles recruitment for the project's scarcest resource.
+
+## Protected decisions
+
+<!-- BEGIN PROTECTED -->
+The classifier, its training data, and its evaluation set must not be modified while this study is
+open. The study's entire value is that it measures the 0.69 as it currently stands; retraining or
+relabelling mid-study makes the human ceiling incomparable to the model number it exists to anchor.
+DO NOT change this without explicit approval from the Lane B owner.
+<!-- END PROTECTED -->
