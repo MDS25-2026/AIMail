@@ -118,6 +118,9 @@ async def _generate_and_store(message: Message, tone: str = "professional") -> b
     message.draft_reply = draft
     message.action_items = generated.get("action_items") or []
     message.critic_confidence = float(generated.get("confidence") or 0.0)
+    # The agent already reports this; storing it is what makes a rescued draft
+    # distinguishable from a first-pass success.
+    message.critic_attempts = int(generated.get("attempts") or 0)
     message.generated_at = datetime.now(timezone.utc)
     await audit(
         "generate_draft",

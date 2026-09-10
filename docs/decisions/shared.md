@@ -9,7 +9,9 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 ### 2026-09-09 — Thread identity is captured at ingestion, not fetched at send
 - Decision: `messages` gains `thread_id`, `rfc822_message_id`, `thread_refs` (Lane A, from the
   message the listener already fetches) and `sent_message_id` (backend, for its own replies).
-  Migration 0008 — independent of 0006 and 0007, so no ordering constraint between them.
+  Migration 0009 — independent of 0006, 0007 and 0008, so no ordering constraint between them.
+  (0008 went to `critic_attempts`, which needs no co-sign and could land immediately; these
+  columns wait on Lane A.)
 - Why: approved replies send as standalone mail because nothing stores what threading needs. Four
   planned items need that identity in the database, not just at send time — sent-mail indexing
   (backlog 2), the thread view (backlog 4), the Chrome extension (Gmail's URL fragment names the
@@ -24,7 +26,7 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 - Open: confirm Gmail preserves a client-supplied `Message-ID` on `messages.send` before relying on
   `sent_message_id`. Store only these four fields, not the full header block.
 - Affects: Lane A (`listener/main.go`, `StoredMessage`), Lane B (`app/gmail_send.py`, `dashboard.py`),
-  `specs/context/db-schema.md` (this PR), migration 0008.
+  `specs/context/db-schema.md` (this PR), migration 0009.
 - Status: proposed — needs JiaJun's co-sign as owner of the `messages` table and the listener.
 
 ### 2026-08-31 — Seam 1 resolved: canonical column is `messages.body_masked`

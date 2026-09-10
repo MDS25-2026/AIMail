@@ -45,6 +45,7 @@ migrate:  ## create all tables (RAG + messages + audit_log) — first run
 	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0003_messages_unique.sql
 	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0004_message_generation.sql
 	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0005_message_sent.sql
+	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0008_critic_attempts.sql
 
 seed:  ## load sample policy chunks
 	cd backend && ../$(VENV)/python scripts/seed_demo.py
