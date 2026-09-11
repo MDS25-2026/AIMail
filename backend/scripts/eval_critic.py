@@ -30,7 +30,7 @@ from app.rag.utils import format_rag_context
 
 FIELDS = [
     "row", "gold_label", "category", "confidence",
-    "needs_human_review", "attempts", "n_issues", "issues", "error",
+    "needs_human_review", "attempts", "n_issues", "issues", "action_items", "error",
 ]
 
 # A single /process-email can chain six Gemini calls plus three refine rounds; the agent's own
@@ -47,6 +47,12 @@ def load_done(out_path: Path) -> set[int]:
         rows = csv.DictReader(handle)
         return {int(r["row"]) for r in rows if r.get("row") and not r.get("error")}
 
+def columns_match(out_path: Path) -> bool:
+    """A file written under a different FIELDS layout is silently misparsed, not rejected."""
+    if not out_path.exists():
+        return True
+    with out_path.open(newline="", encoding="utf-8") as handle:
+        return next(csv.reader(handle), []) == FIELDS
 
 def read_rows(source: Path, limit: int, offset: int, done: set[int]) -> list[tuple[int, str, str]]:
     with source.open(newline="", encoding="utf-8") as handle:
@@ -84,6 +90,7 @@ async def evaluate_one(client: httpx.AsyncClient, url: str, body: str, with_rag:
         "attempts": payload.get("attempts"),
         "n_issues": len(issues),
         "issues": " | ".join(issues),
+        "action_items": " | ".join(payload.get("action_items") or []),
         "error": "",
     }
 
@@ -142,6 +149,9 @@ def append_row(out_path: Path, row: dict[str, object]) -> None:
 
 async def run(args: argparse.Namespace) -> None:
     out_path = Path(args.out)
+    if not columns_match(out_path):
+        print(f"{out_path} has different columns — use a new --out")
+        return
     done = load_done(out_path)
     rows = read_rows(Path(args.source), args.limit, args.offset, done)
     if not rows:
