@@ -19,6 +19,10 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   never silently disabled. Implementation: `backend/app/core/auth.py`. Per-user Supabase JWTs
   are the planned upgrade and replace only that file; AImail serves one shared mailbox, so
   per-user identity is deferred, not forgotten.
+- `DashboardEmail` carries `isRead` (opened at least once; anything new is unread) and a
+  `priority` that is the classifier's prediction **after** the per-user policy layer has been
+  applied — see the Personalisation section of `db-schema.md`. Consumers should treat `priority`
+  as "what this user should see", not as the raw model output.
 - `GET /system/info` returns non-secret runtime configuration (model names, feature flags,
   corpus counts) for the dashboard's Settings view. Never add keys, URLs or credentials to
   it — the browser reads it.
