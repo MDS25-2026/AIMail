@@ -47,6 +47,7 @@ def _to_email(message: Message, policy: Policy = DEFAULT_POLICY) -> DashboardEma
         piiMasked=bool((message.emails_masked or 0) + (message.phones_masked or 0)),
         criticConfidence=message.critic_confidence or 0.0,
         sentAt=message.sent_at.isoformat() if message.sent_at else None,
+        isRead=message.read_at is not None,
     )
 
 
@@ -140,6 +141,10 @@ async def email_detail(message_id: str) -> DashboardEmail | None:
             return None
         if message.generated_at is None:
             await _generate_and_store(message)
+        # Opening the detail view is the moment a person actually reads it. Set once so the
+        # first-open time is preserved rather than being bumped on every revisit.
+        if message.read_at is None:
+            message.read_at = datetime.now(timezone.utc)
         email = _to_email(message)
         await session.commit()
         return email
