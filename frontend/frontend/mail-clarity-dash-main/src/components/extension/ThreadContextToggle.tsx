@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import type { ThreadMessage } from "../types/email";
+import type { ThreadMessage } from "./types";
 
 type ThreadContextToggleProps = {
   messages: ThreadMessage[];
@@ -21,7 +21,7 @@ export default function ThreadContextToggle({
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-        className="flex w-full items-center justify-between px-4 py-3 text-left"
+        className="flex w-full items-center justify-between rounded-lg px-4 py-3 text-left transition-colors hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
       >
         <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
           Thread context ({messages.length})

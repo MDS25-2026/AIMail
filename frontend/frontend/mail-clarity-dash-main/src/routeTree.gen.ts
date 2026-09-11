@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ExtensionRouteImport } from './routes/extension'
+import { Route as ExtensionPreviewRouteImport } from './routes/extension-preview'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -22,31 +23,40 @@ const ExtensionRoute = ExtensionRouteImport.update({
   path: '/extension',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ExtensionPreviewRoute = ExtensionPreviewRouteImport.update({
+  id: '/extension-preview',
+  path: '/extension-preview',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/extension': typeof ExtensionRoute
+  '/extension-preview': typeof ExtensionPreviewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/extension': typeof ExtensionRoute
+  '/extension-preview': typeof ExtensionPreviewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/extension': typeof ExtensionRoute
+  '/extension-preview': typeof ExtensionPreviewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/extension'
+  fullPaths: '/' | '/extension' | '/extension-preview'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/extension'
-  id: '__root__' | '/' | '/extension'
+  to: '/' | '/extension' | '/extension-preview'
+  id: '__root__' | '/' | '/extension' | '/extension-preview'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ExtensionRoute: typeof ExtensionRoute
+  ExtensionPreviewRoute: typeof ExtensionPreviewRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -65,13 +75,31 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ExtensionRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/extension-preview': {
+      id: '/extension-preview'
+      path: '/extension-preview'
+      fullPath: '/extension-preview'
+      preLoaderRoute: typeof ExtensionPreviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ExtensionRoute: ExtensionRoute,
+  ExtensionPreviewRoute: ExtensionPreviewRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

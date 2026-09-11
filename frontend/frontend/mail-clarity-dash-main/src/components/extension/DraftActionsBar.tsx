@@ -19,7 +19,7 @@ export default function DraftActionsBar({
         type="button"
         disabled={emailId === null || isRegenerating}
         onClick={() => emailId && onRegenerate(emailId)}
-        className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+        className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:text-slate-400"
       >
         {isRegenerating ? "Regenerating…" : "Regenerate"}
       </button>

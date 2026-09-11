@@ -1,23 +1,23 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 
-import ExtensionPanel from "../components/ExtensionPanel";
+import ExtensionPanel from "../components/extension/ExtensionPanel";
 import { mockEmails } from "../mockData/emails";
 import type { Tone } from "../types/email";
 
 export const Route = createFileRoute("/extension")({
   head: () => ({
     meta: [
-      { title: "iMail Chrome extension panel" },
+      { title: "AIMail Chrome extension panel" },
       {
         name: "description",
         content:
-          "Condensed iMail side panel: AI summary, action items, and an approve-to-send draft reply.",
+          "Condensed AIMail side panel: AI summary, action items, and an approve-to-send draft reply.",
       },
-      { property: "og:title", content: "iMail Chrome extension panel" },
+      { property: "og:title", content: "AIMail Chrome extension panel" },
       {
         property: "og:description",
-        content: "Condensed iMail side panel with AI summary, action items, and draft reply.",
+        content: "Condensed AIMail side panel with AI summary, action items, and draft reply.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -62,7 +62,7 @@ function ExtensionPage() {
           Back to dashboard
         </Link>
       </div>
-      <div className="h-[720px]">
+      <div className="h-[720px] w-[380px]">
         <ExtensionPanel
           email={email}
           draft={draft}

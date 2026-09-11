@@ -1,4 +1,4 @@
-import type { Tone } from "../types/email";
+import type { Tone } from "./types";
 
 type ToneToggleProps = {
   emailId: string;
@@ -17,9 +17,9 @@ export default function ToneToggle({ emailId, tone, onToneChange }: ToneTogglePr
           type="button"
           aria-pressed={tone === option}
           onClick={() => onToneChange(emailId, option)}
-          className={`rounded px-2.5 py-1 text-xs font-medium capitalize transition-colors ${
+          className={`rounded px-2.5 py-1 text-xs font-medium capitalize transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 ${
             tone === option
-              ? "bg-white text-slate-900 shadow-sm"
+              ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200"
               : "text-slate-500 hover:text-slate-700"
           }`}
         >

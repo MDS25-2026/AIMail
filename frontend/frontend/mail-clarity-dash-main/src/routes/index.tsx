@@ -1,22 +1,23 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import aimailLogoLight from "../assets/aimail-logo-light.png";
 import { useState } from "react";
 
 import InboxList from "../components/InboxList";
 import EmailDetailPanel from "../components/EmailDetailPanel";
 import SideNav from "../components/SideNav";
 import { mockEmails } from "../mockData/emails";
-import type { Tone } from "../types/email";
+import type { Tone, Priority } from "../types/email";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "iMail — AI inbox dashboard" },
+      { title: "AIMail — AI inbox dashboard" },
       {
         name: "description",
         content:
-          "iMail dashboard: prioritized inbox, AI summaries, action items, and approved-only draft replies.",
+          "AIMail dashboard: prioritized inbox, AI summaries, action items, and approved-only draft replies.",
       },
-      { property: "og:title", content: "iMail — AI inbox dashboard" },
+      { property: "og:title", content: "AIMail — AI inbox dashboard" },
       {
         property: "og:description",
         content:
@@ -38,6 +39,7 @@ function DashboardPage() {
   const [tone, setTone] = useState<Tone>(mockEmails[0].tone);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [isRefining, setIsRefining] = useState(false);
+  const [filterPriority, setFilterPriority] = useState<"all" | Priority>("all");
 
   const handleSelectEmail = (emailId: string) => {
     const email = mockEmails.find((item) => item.id === emailId);
@@ -73,8 +75,10 @@ function DashboardPage() {
   return (
     <div className="flex h-screen flex-col bg-slate-100">
       <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3">
-        <div className="flex items-baseline gap-2">
-          <span className="text-lg font-semibold tracking-tight text-slate-900">iMail</span>
+        <div className="flex items-center gap-3">
+          <span className="inline-flex items-center rounded-lg bg-slate-900 px-2.5 py-1.5">
+            <img src={aimailLogoLight} alt="AIMail" className="h-5 w-auto" />
+          </span>
           <span className="text-xs text-slate-400">AI inbox assistant</span>
         </div>
         <Link to="/extension" className="text-sm font-medium text-blue-600 hover:text-blue-700">
@@ -90,6 +94,8 @@ function DashboardPage() {
             emails={mockEmails}
             selectedEmailId={selectedEmailId}
             onSelectEmail={handleSelectEmail}
+            filterPriority={filterPriority}
+            onFilterChange={setFilterPriority}
           />
         </aside>
 

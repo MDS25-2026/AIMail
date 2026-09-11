@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "AIMail — AI email assistant",
+  "version": "1.0.0",
+  "description": "AI summary, action items, and an approve-to-send draft reply panel inside Gmail.",
+  "action": { "default_icon": "icon.png" },
+  "icons": { "48": "icon.png", "128": "icon.png" },
+  "content_scripts": [
+    {
+      "matches": ["https://mail.google.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

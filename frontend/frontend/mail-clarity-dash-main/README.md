@@ -1,6 +1,6 @@
 # Mail AI Assistant
 
-Build "iMail" dashboard and Chrome extension panel as plain React functional components 
+Build "AIMail" dashboard and Chrome extension panel as plain React functional components 
 
 with Tailwind CSS utility classes only (no shadcn, no component libraries) — this code is 
 

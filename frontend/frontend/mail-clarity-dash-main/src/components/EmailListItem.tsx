@@ -1,6 +1,6 @@
 import type { Email } from "../types/email";
 import { formatTimestamp } from "../lib/formatTimestamp";
-import PriorityBadge from "./PriorityBadge";
+import PriorityBadge from "./extension/PriorityBadge";
 
 type EmailListItemProps = {
   email: Email;

@@ -1,4 +1,4 @@
-import { CRITIC_CONFIDENCE_THRESHOLD } from "../types/email";
+import { CRITIC_CONFIDENCE_THRESHOLD } from "./types";
 
 /** The value drives the styling — 0.8 and above is the project goal. */
 export default function CriticConfidenceBadge({ value }: { value: number }) {

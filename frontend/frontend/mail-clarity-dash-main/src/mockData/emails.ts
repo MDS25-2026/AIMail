@@ -7,6 +7,8 @@ import type { Email } from "../types/email";
 export const mockEmails: Email[] = [
   {
     id: "eml_001",
+    originalBody:
+      "Hi Alex,\n\nGood news — legal signed off on the redlines this morning, so we're clear on all the outstanding terms.\n\nThe last thing we need is written confirmation of the final seat count. Our records show 120, but I want to be sure before we countersign. If you can confirm by Friday we'll have the executed MSA back to you the same day.\n\nThanks,\nDana Whitfield\nWhitfield Corp",
     sender: "Dana Whitfield",
     subject: "Q3 renewal terms — need confirmation by Friday",
     preview:
@@ -38,6 +40,8 @@ export const mockEmails: Email[] = [
   },
   {
     id: "eml_002",
+    originalBody:
+      "Morning all,\n\nStandup notes are in the doc, but flagging one blocker here: staging is still pinned to build 412 and we expected 418. Marco spotted a failed migration in the deploy log.\n\nCan someone with deploy access take a look this morning? QA can't start the regression pass until staging is current.\n\nThanks,\nPriya",
     sender: "Priya Raman",
     subject: "Standup notes + blocked on staging deploy",
     preview:
@@ -63,6 +67,8 @@ export const mockEmails: Email[] = [
   },
   {
     id: "eml_003",
+    originalBody:
+      "Hello,\n\nI'm Marcus from the Northwind security team. We're kicking off vendor review for the pilot next week.\n\nTo get started we'll need your current SOC 2 Type II report plus answers to the attached security questionnaire. Turnaround before Wednesday would keep us on schedule.\n\nBest regards,\nMarcus Oyelaran\nNorthwind Information Security",
     sender: "Marcus Oyelaran",
     subject: "Intro: security questionnaire for the Northwind pilot",
     preview:
@@ -85,6 +91,8 @@ export const mockEmails: Email[] = [
   },
   {
     id: "eml_004",
+    originalBody:
+      "Hi,\n\nFriendly reminder that we still need your speaker materials for the printed program: a 100-word bio and a high-resolution headshot.\n\nThe deadline is the end of the month — after that we lock the program with the printer.\n\nThanks!\nConference Ops",
     sender: "Conference Ops",
     subject: "Your speaker bio is due",
     preview: "We still need a 100-word bio and a headshot for the program. Deadline is end of month.",
@@ -105,6 +113,8 @@ export const mockEmails: Email[] = [
   },
   {
     id: "eml_005",
+    originalBody:
+      "Hey Alex!\n\nI land Monday night and I'm staying at the same hotel. Want to grab coffee Tuesday morning before things kick off? Anytime before 9 works for me — the lobby cafe opens at 7.\n\nLet me know,\nJen",
     sender: "Jen Alvarez",
     subject: "Coffee before the offsite?",
     preview: "I land Monday night — want to grab coffee Tuesday morning before things kick off?",

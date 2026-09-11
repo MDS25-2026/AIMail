@@ -1,13 +1,14 @@
 import type { Email, Tone } from "../types/email";
 import { formatTimestamp } from "../lib/formatTimestamp";
-import AISummaryCard from "./AISummaryCard";
-import ActionItemsList from "./ActionItemsList";
-import ThreadContextToggle from "./ThreadContextToggle";
-import DraftReplyEditor from "./DraftReplyEditor";
-import SourcesChips from "./SourcesChips";
-import RefineInput from "./RefineInput";
-import DraftActionsBar from "./DraftActionsBar";
-import PriorityBadge from "./PriorityBadge";
+import OriginalEmailToggle from "./extension/OriginalEmailToggle";
+import AISummaryCard from "./extension/AISummaryCard";
+import ActionItemsList from "./extension/ActionItemsList";
+import ThreadContextToggle from "./extension/ThreadContextToggle";
+import DraftReplyEditor from "./extension/DraftReplyEditor";
+import SourcesChips from "./extension/SourcesChips";
+import RefineInput from "./extension/RefineInput";
+import DraftActionsBar from "./extension/DraftActionsBar";
+import PriorityBadge from "./extension/PriorityBadge";
 
 type EmailDetailPanelProps = {
   email: Email | null;
@@ -55,6 +56,11 @@ export default function EmailDetailPanel({
       </header>
 
       <div className="space-y-4 p-6">
+        <OriginalEmailToggle
+          sender={email.sender}
+          subject={email.subject}
+          body={email.originalBody}
+        />
         <AISummaryCard summary={email.aiSummary} />
         <ActionItemsList items={email.actionItems} />
         <ThreadContextToggle messages={email.threadContext} />

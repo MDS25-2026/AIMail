@@ -1,4 +1,4 @@
-import type { Priority } from "../types/email";
+import type { Priority } from "./types";
 
 const STYLES: Record<Priority, string> = {
   high: "bg-slate-900 text-white",

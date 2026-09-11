@@ -1,0 +1,111 @@
+@import "tailwindcss";
+
+@source "../src/components/extension";
+@source "./content-entry.tsx";
+
+/**
+ * Design tokens for the AIMail panel. Centralised here so the extension has a
+ * single source of truth for its enterprise-SaaS palette. These are scoped to
+ * the shadow root, so they can never affect Gmail.
+ */
+:host,
+:root {
+  --aimail-app-bg: #f8fafc;
+  --aimail-surface: #ffffff;
+  --aimail-text: #0f172a;
+  --aimail-text-muted: #64748b;
+  --aimail-border: #e2e8f0;
+  --aimail-accent: #2563eb;
+  --aimail-success: #059669;
+  --aimail-warning: #b45309;
+  --aimail-danger: #b91c1c;
+  --aimail-radius: 0.5rem;
+  --aimail-shadow-panel:
+    0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px -8px rgb(15 23 42 / 0.18),
+    0 24px 48px -24px rgb(15 23 42 / 0.22);
+}
+
+@theme inline {
+  --color-app: var(--aimail-app-bg);
+  --color-surface: var(--aimail-surface);
+  --color-ink: var(--aimail-text);
+  --color-ink-muted: var(--aimail-text-muted);
+  --color-line: var(--aimail-border);
+  --color-accent: var(--aimail-accent);
+  --color-ok: var(--aimail-success);
+  --color-warn: var(--aimail-warning);
+  --color-danger: var(--aimail-danger);
+}
+
+/**
+ * Explicit baseline for the panel. Everything is scoped under .aimail-root so
+ * no bare element selector can escape into Gmail, and Gmail's own inherited
+ * typography/colour cannot bleed in (the shadow root already blocks its
+ * selectors; this pins the inherited properties Gmail could still pass down).
+ */
+.aimail-root,
+.aimail-root *,
+.aimail-root *::before,
+.aimail-root *::after {
+  box-sizing: border-box;
+}
+
+.aimail-root {
+  all: initial;
+  display: block;
+  box-sizing: border-box;
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-align: left;
+  color: var(--aimail-text);
+  background: transparent;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+}
+
+.aimail-root button,
+.aimail-root input,
+.aimail-root textarea,
+.aimail-root select {
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+/* Visible, consistent keyboard focus everywhere inside the panel. */
+.aimail-root :focus-visible {
+  outline: 2px solid var(--aimail-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Opaque, elevated application surface layered beside Gmail. */
+.aimail-panel {
+  background-color: var(--aimail-app-bg);
+  border: 1px solid var(--aimail-border);
+  border-radius: 12px;
+  box-shadow: var(--aimail-shadow-panel);
+  isolation: isolate;
+  overflow: hidden;
+}
+
+/* Slim accent rail on the Gmail-facing edge: a clear left boundary. */
+.aimail-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--aimail-accent);
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+/* Keeps the panel readable over dark Gmail themes too. */
+.aimail-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}

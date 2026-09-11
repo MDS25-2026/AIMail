@@ -1,4 +1,4 @@
-import type { Source } from "../types/email";
+import type { Source } from "./types";
 
 type SourcesChipsProps = {
   sources: Source[];

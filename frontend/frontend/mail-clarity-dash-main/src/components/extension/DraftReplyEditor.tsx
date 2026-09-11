@@ -1,4 +1,4 @@
-import type { Email, Tone } from "../types/email";
+import type { Email, Tone } from "./types";
 import CriticConfidenceBadge from "./CriticConfidenceBadge";
 import PiiMaskedBadge from "./PiiMaskedBadge";
 import ToneToggle from "./ToneToggle";
@@ -40,7 +40,7 @@ export default function DraftReplyEditor({
         disabled={disabled}
         aria-label="Draft reply"
         onChange={(event) => onDraftChange(event.target.value)}
-        className="mt-2 w-full resize-y rounded-md border border-slate-300 p-3 text-sm leading-relaxed text-slate-800 disabled:bg-slate-50 disabled:text-slate-400"
+        className="mt-2 w-full resize-y rounded-md border border-slate-300 bg-white p-3 text-sm leading-relaxed text-slate-800 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20 disabled:bg-slate-50 disabled:text-slate-400"
       />
     </div>
   );
