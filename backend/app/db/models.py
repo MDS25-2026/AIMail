@@ -107,6 +107,8 @@ class Message(Base):
     action_items: Mapped[list[str] | None] = mapped_column(JSONB)
     critic_confidence: Mapped[float | None]
     critic_attempts: Mapped[int | None]
+    critic_checks: Mapped[dict | None] = mapped_column(JSONB)
+    needs_human_review: Mapped[bool | None]
     generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

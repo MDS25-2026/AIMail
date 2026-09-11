@@ -1,6 +1,8 @@
-import os
-import json
 import asyncio
+import json
+import os
+import re
+
 import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -10,6 +12,11 @@ load_dotenv()
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent"
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+PRESIDIO_ANALYZER_URL = os.getenv("PRESIDIO_ANALYZER_URL", "http://localhost:5001/analyze")
+
+# Greedy decoding for reproducibility. Note this reduces sampling randomness but does not
+# guarantee determinism — batch-dependent reduction kernels vary run to run regardless.
+GENERATION_TEMPERATURE = 0.0
 
 app = FastAPI()
 
@@ -32,14 +39,25 @@ class ProcessEmailResponse(BaseModel):
     action_items: list[str] = Field(default_factory=list)
     attempts: int = 0
     needs_human_review: bool = False
+    # The critic already computes these; returning them is what lets the gate read something
+    # concrete instead of a self-reported scalar with no definition.
+    grounding_ok: bool | None = None
+    pii_clean: bool | None = None
+    tone_match: bool | None = None
+    completeness: bool | None = None
+    pii_findings: list[str] = Field(default_factory=list)
+    review_reasons: list[str] = Field(default_factory=list)
 
 
 # ---------- Gemini helper (async, reusable) ----------
 
 async def call_gemini(prompt: str, response_schema: dict | None = None) -> dict | str:
-    payload = {"contents": [{"parts": [{"text": prompt}]}]}
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": GENERATION_TEMPERATURE},
+    }
     if response_schema:
-        payload["generationConfig"] = {
+        payload["generationConfig"] |= {
             "responseMimeType": "application/json",
             "responseSchema": response_schema,
         }
@@ -212,6 +230,7 @@ async def extract_summary(email_body: str, thread_context: str, rag_context: str
 
 
 async def extract_actions(email_body: str) -> list[str]:
+    email_body = strip_quoted(email_body)
     prompt = f"""
 Extract action items from this email.
 
@@ -229,10 +248,134 @@ EMAIL:
         return []
 
 
+
+# ---------- Gate 1: deterministic PII scan over the generated draft ----------
+
+# Malaysia has no predefined Presidio recognizer, so these are supplied ad-hoc per request
+# rather than baked into the container image. Scores are deliberately low and lifted by the
+# context words, the same approach Presidio documents for weak patterns.
+_AD_HOC_RECOGNIZERS = [
+    {"name": "MY_NRIC", "supported_language": "en", "supported_entity": "MY_NRIC",
+     "patterns": [{"name": "nric", "regex": r"\b\d{6}[- ]?\d{2}[- ]?\d{4}\b", "score": 0.4}],
+     "context": ["ic", "nric", "mykad", "identity card"]},
+    {"name": "MY_PHONE", "supported_language": "en", "supported_entity": "MY_PHONE",
+     "patterns": [{"name": "my_mobile", "regex": r"\b(?:\+?60|0)1\d[- ]?\d{3,4}[- ]?\d{4}\b", "score": 0.6}],
+     "context": ["call", "phone", "mobile", "tel", "hp"]},
+]
+
+# Format-clear types only. PERSON and LOCATION are excluded deliberately: a draft legitimately
+# contains salutations and place names, so gating on them would block good replies.
+_PII_ENTITIES = ["EMAIL_ADDRESS", "CREDIT_CARD", "IBAN_CODE", "MY_NRIC", "MY_PHONE"]
+_PII_SCORE_THRESHOLD = 0.5
+
+# A redaction token reaching a sent reply is its own failure, and regex catches it for free.
+_PLACEHOLDER = re.compile(r"\[[A-Z_]+_REDACTED\]")
+
+
+async def scan_draft_pii(draft: str) -> list[str]:
+    """Entity types found in the draft. Empty means clean.
+
+    The model only ever sees masked text, so any format-clear PII here was invented or leaked.
+    Scanning the draft rather than the input is also what catches memorised PII the masking
+    layer never had the chance to remove.
+
+    Degrades like the listener does: if Presidio is unreachable the placeholder check still
+    runs, and the caller is told the scan was partial rather than being handed a false clean.
+    """
+    findings = ["REDACTION_PLACEHOLDER"] if _PLACEHOLDER.search(draft) else []
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.post(PRESIDIO_ANALYZER_URL, json={
+                "text": draft, "language": "en",
+                "score_threshold": _PII_SCORE_THRESHOLD,
+                "entities": _PII_ENTITIES,
+                "ad_hoc_recognizers": _AD_HOC_RECOGNIZERS,
+            })
+            resp.raise_for_status()
+            findings += sorted({hit["entity_type"] for hit in resp.json()})
+    except (httpx.HTTPError, KeyError, ValueError):
+        findings.append("PRESIDIO_UNAVAILABLE")
+    return findings
+
+
+# ---------- Quoted-history stripping, for action extraction only ----------
+
+# Zoning lifted request detection from 72.28% to 83.76% accuracy in Lampert, Dale and Paris
+# (NAACL-HLT 2010). Quoted history carries requests made to someone else, or already answered.
+_QUOTE_MARKER = re.compile(
+    r"^[ \t]*(?:-{2,}[ \t]*(?:Original Message|Forwarded by|Forwarded Message)\b.*"
+    r"|From:[ \t]\S.*"
+    r"|On\b.{0,80}\bwrote:[ \t]*"
+    r"|>.*)$",
+    re.IGNORECASE | re.MULTILINE,
+)
+# Low on purpose: "Please review the deck." is a real message body. This only catches the
+# forward-with-no-comment case, where stripping leaves nothing to extract from.
+_MIN_KEPT_CHARS = 15
+
+
+def strip_quoted(text: str) -> str:
+    """Keep only the new message body.
+
+    Falls back to the full text when stripping would leave almost nothing — a forward-only
+    email is all quoted history, and an empty body extracts nothing at all rather than
+    extracting the wrong thing.
+    """
+    match = _QUOTE_MARKER.search(text)
+    if not match:
+        return text.strip()
+    kept = text[:match.start()].strip()
+    return kept if len(kept) >= _MIN_KEPT_CHARS else text.strip()
+
+
 # ---------- Orchestrator endpoint ----------
 
 MAX_REFINE_ATTEMPTS = 3
-CONFIDENCE_THRESHOLD = 0.8
+
+# Split deliberately. One constant previously drove both the repair loop and the review flag, so
+# the loop resolved anything that would have tripped the flag and the gate never fired once in 43
+# measured drafts. The review bar sits above the repair bar.
+REFINE_THRESHOLD = 0.8
+REVIEW_THRESHOLD = 0.9
+
+
+def clamp_confidence(value: object) -> float | None:
+    """Untrusted email text reaches the critic's prompt, so its number is not trusted either."""
+    if value is None:
+        return None
+    try:
+        return min(max(float(value), 0.0), 1.0)
+    except (TypeError, ValueError):
+        return None
+
+
+def pii_verdict(findings: list[str]) -> bool | None:
+    """True clean, False leaking, None unknown — an unreachable scanner is not a clean bill."""
+    if [f for f in findings if f != "PRESIDIO_UNAVAILABLE"]:
+        return False
+    return None if "PRESIDIO_UNAVAILABLE" in findings else True
+
+
+def build_review_reasons(evaluation: dict, confidence: float | None,
+                         attempts: int, pii_findings: list[str]) -> list[str]:
+    """Why a human should look. Reads the checks the critic computes, not only its own score.
+
+    tone_match is excluded on purpose: style is advisory, and blocking a correct, PII-clean,
+    complete draft because a model dislikes its register is the wrong trade when a human
+    approves every send anyway.
+    """
+    reasons = []
+    if pii_findings:
+        reasons.append(f"pii: {', '.join(pii_findings)}")
+    if evaluation.get("grounding_ok") is False:
+        reasons.append("grounding check failed")
+    if evaluation.get("completeness") is False:
+        reasons.append("does not address everything asked")
+    if attempts:
+        reasons.append(f"needed {attempts} refine round(s)")
+    if confidence is None or confidence < REVIEW_THRESHOLD:
+        reasons.append(f"confidence {confidence} below {REVIEW_THRESHOLD}")
+    return reasons
 
 
 @app.post("/process-email", response_model=ProcessEmailResponse)
@@ -251,26 +394,38 @@ async def process_email(req: ProcessEmailRequest):
             action_items=action_items,
             attempts=0,
             needs_human_review=True,
+            review_reasons=["no reply drafted"],
         )
 
     draft = await generate_reply(category, req.thread_context, req.rag_context, req.email_body, req.tone)
     evaluation = await evaluate_reply(req.thread_context, req.rag_context, req.email_body, draft, req.tone)
 
     attempts = 0
-    while evaluation.get("confidence", 0.0) < CONFIDENCE_THRESHOLD and attempts < MAX_REFINE_ATTEMPTS:
+    confidence = clamp_confidence(evaluation.get("confidence"))
+    while (confidence or 0.0) < REFINE_THRESHOLD and attempts < MAX_REFINE_ATTEMPTS:
         draft = await refine_reply(req.thread_context, req.rag_context, req.email_body, draft, evaluation)
         evaluation = await evaluate_reply(req.thread_context, req.rag_context, req.email_body, draft, req.tone)
+        confidence = clamp_confidence(evaluation.get("confidence"))
         attempts += 1
+
+    pii_findings = await scan_draft_pii(draft)
+    reasons = build_review_reasons(evaluation, confidence, attempts, pii_findings)
 
     return ProcessEmailResponse(
         category=category,
         draft=draft,
-        confidence=evaluation.get("confidence"),
+        confidence=confidence,
         issues=evaluation.get("issues", []),
         summary=summary,
         action_items=action_items,
         attempts=attempts,
-        needs_human_review=evaluation.get("confidence", 0.0) < CONFIDENCE_THRESHOLD,
+        needs_human_review=bool(reasons),
+        grounding_ok=evaluation.get("grounding_ok"),
+        pii_clean=pii_verdict(pii_findings),
+        tone_match=evaluation.get("tone_match"),
+        completeness=evaluation.get("completeness"),
+        pii_findings=pii_findings,
+        review_reasons=reasons,
     )
 
 
