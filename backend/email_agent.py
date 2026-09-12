@@ -47,6 +47,7 @@ class ProcessEmailResponse(BaseModel):
     completeness: bool | None = None
     pii_findings: list[str] = Field(default_factory=list)
     unsupported_specifics: list[str] = Field(default_factory=list)
+    unaddressed_requests: list[str] = Field(default_factory=list)
     review_reasons: list[str] = Field(default_factory=list)
 
 
@@ -143,7 +144,10 @@ async def generate_reply(category: str, thread_context: str, rag_context: str,
 # ---------- Stage 3: Critic ----------
 
 async def evaluate_reply(thread_context: str, rag_context: str, email_body: str,
-                          generated_reply: str, tone: str) -> dict:
+                          generated_reply: str, tone: str,
+                          action_items: list[str] | None = None) -> dict:
+    items = action_items or []
+    numbered_items = "\n".join(f"{i}. {item}" for i, item in enumerate(items, 1)) or "(none extracted)"
     prompt = f"""You are a Critic Agent for an email assistant. Your job is to review a generated email reply BEFORE it is shown to the human user for approval.
 
 Evaluate the reply against these checks:
@@ -152,10 +156,16 @@ Evaluate the reply against these checks:
 2. pii_clean: Does the reply avoid leaking any personally identifiable information (emails, phone numbers, addresses, full names of third parties) that should have been masked?
 3. tone_match: Does the reply match the requested tone ({tone})?
 4. completeness: Does the reply address all questions/action items raised in the latest email and thread?
+   The requests already extracted from this email are numbered below. For each one, decide whether
+   the reply addresses it, and return the numbers of any it does NOT address in unaddressed_items.
+   If the list is empty, judge completeness from the email text alone and return an empty list.
 
 Then provide an overall confidence score between 0.0 and 1.0 representing how safe this reply is to auto-suggest for sending.
 
 List any specific issues found, in plain language. If there are no issues, return an empty list.
+
+Extracted requests:
+{numbered_items}
 
 Thread context:
 {thread_context}
@@ -175,13 +185,15 @@ Respond only with the evaluation."""
         "type": "object",
         "properties": {
             "confidence": {"type": "number"},
+            "unaddressed_items": {"type": "array", "items": {"type": "integer"}},
             "grounding_ok": {"type": "boolean"},
             "pii_clean": {"type": "boolean"},
             "tone_match": {"type": "boolean"},
             "completeness": {"type": "boolean"},
             "issues": {"type": "array", "items": {"type": "string"}},
         },
-        "required": ["confidence", "grounding_ok", "pii_clean", "tone_match", "completeness", "issues"],
+        "required": ["confidence", "grounding_ok", "pii_clean", "tone_match", "completeness",
+                     "issues", "unaddressed_items"],
     }
 
     return await call_gemini(prompt, response_schema=schema)
@@ -391,8 +403,20 @@ def pii_verdict(findings: list[str]) -> bool | None:
     return None if "PRESIDIO_UNAVAILABLE" in findings else True
 
 
+def unaddressed_requests(evaluation: dict, action_items: list[str]) -> list[str]:
+    """The extracted requests the reply did not answer, as text rather than a bare boolean.
+
+    The critic returns 1-based indices and can return ones that do not exist, so anything out
+    of range is dropped rather than trusted — a hostile email reaches this prompt too.
+    """
+    indices = evaluation.get("unaddressed_items") or []
+    return [action_items[i - 1] for i in indices
+            if isinstance(i, int) and 1 <= i <= len(action_items)]
+
+
 def build_review_reasons(evaluation: dict, confidence: float | None, attempts: int,
-                         pii_findings: list[str], specifics: list[str] | None = None) -> list[str]:
+                         pii_findings: list[str], specifics: list[str] | None = None,
+                         unaddressed: list[str] | None = None) -> list[str]:
     """Why a human should look. Reads the checks the critic computes, not only its own score.
 
     tone_match is excluded on purpose: style is advisory, and blocking a correct, PII-clean,
@@ -406,7 +430,10 @@ def build_review_reasons(evaluation: dict, confidence: float | None, attempts: i
         reasons.append(f"figures not in source: {', '.join(specifics)}")
     if evaluation.get("grounding_ok") is False:
         reasons.append("grounding check failed")
-    if evaluation.get("completeness") is False:
+    if unaddressed:
+        reasons.append(f"does not address: {'; '.join(unaddressed)}")
+    elif evaluation.get("completeness") is False:
+        # Fallback for emails where nothing was extracted to check per-item.
         reasons.append("does not address everything asked")
     if attempts:
         reasons.append(f"needed {attempts} refine round(s)")
@@ -435,19 +462,22 @@ async def process_email(req: ProcessEmailRequest):
         )
 
     draft = await generate_reply(category, req.thread_context, req.rag_context, req.email_body, req.tone)
-    evaluation = await evaluate_reply(req.thread_context, req.rag_context, req.email_body, draft, req.tone)
+    evaluation = await evaluate_reply(req.thread_context, req.rag_context, req.email_body, draft,
+                                      req.tone, action_items)
 
     attempts = 0
     confidence = clamp_confidence(evaluation.get("confidence"))
     while (confidence or 0.0) < REFINE_THRESHOLD and attempts < MAX_REFINE_ATTEMPTS:
         draft = await refine_reply(req.thread_context, req.rag_context, req.email_body, draft, evaluation)
-        evaluation = await evaluate_reply(req.thread_context, req.rag_context, req.email_body, draft, req.tone)
+        evaluation = await evaluate_reply(req.thread_context, req.rag_context, req.email_body, draft,
+                                          req.tone, action_items)
         confidence = clamp_confidence(evaluation.get("confidence"))
         attempts += 1
 
     pii_findings = await scan_draft_pii(draft)
     specifics = unsupported_specifics(draft, req.email_body, req.thread_context, req.rag_context)
-    reasons = build_review_reasons(evaluation, confidence, attempts, pii_findings, specifics)
+    unaddressed = unaddressed_requests(evaluation, action_items)
+    reasons = build_review_reasons(evaluation, confidence, attempts, pii_findings, specifics, unaddressed)
 
     return ProcessEmailResponse(
         category=category,
@@ -464,6 +494,7 @@ async def process_email(req: ProcessEmailRequest):
         completeness=evaluation.get("completeness"),
         pii_findings=pii_findings,
         unsupported_specifics=specifics,
+        unaddressed_requests=unaddressed,
         review_reasons=reasons,
     )
 

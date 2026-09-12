@@ -1,6 +1,6 @@
 # Critic redesign: four purpose-built evaluation gates
 
-- **Status:** draft — proposal for Lane C, not a decision
+- **Status:** implemented at the Lane B owner's direction — **pending Hanif's review**
 - **Owner:** @veyroxie drafted; **Lane C (Hanif) owns the file and the call**
 - **Related issue:** #9
 - **Last updated:** 2026-09-11
@@ -187,13 +187,17 @@ history and from already-resolved threads.
 This must not displace prompt-injection fencing. Both restructure `email_agent.py`, so they should
 land in one sequence rather than competing. Suggested order, cheapest first:
 
-1. `attempts > 0` in the review condition — one line, column already exists
-2. Split the refine and review thresholds — one line
-3. Persist per-gate results
-4. Gate 1 deterministic PII — highest value, backs the project's central privacy claim
-5. Gate 3 demoted to advisory — deletion
-6. Gate 4 per-item coverage — after the extraction recall number firms up
-7. Gate 2 — most work, most research value
+1. ~~`attempts > 0` in the review condition~~ — done
+2. ~~Split the refine and review thresholds~~ — done (refine 0.8, review 0.9)
+3. ~~Persist per-gate results~~ — done (migration 0010, `critic_checks` JSONB)
+4. ~~Gate 1 deterministic PII~~ — done, verified live against the running analyzer
+5. ~~Gate 3 demoted to advisory~~ — done
+6. ~~Gate 4 per-item coverage~~ — done, and it costs no extra API call: the extracted requests
+   are passed into the critic call that already runs. Its *trustworthiness* still depends on
+   `extract_actions()` recall, whose interval remains [0.39, 0.84].
+7. Gate 2 — **half done.** The deterministic specifics check is in. Claim decomposition plus
+   entailment is deferred; revisit on reproducibility grounds once the project is on paid API
+   access, since quota is no longer the deciding factor.
 
 ## Verification notes
 

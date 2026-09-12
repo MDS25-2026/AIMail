@@ -12,6 +12,7 @@ from email_agent import (
     clamp_confidence,
     pii_verdict,
     strip_quoted,
+    unaddressed_requests,
     unsupported_specifics,
 )
 
@@ -106,3 +107,33 @@ def test_single_digits_are_prose_not_facts():
 def test_unsupported_figures_reach_the_reviewer():
     reasons = build_review_reasons({"grounding_ok": True, "completeness": True}, 1.0, 0, [], ["60"])
     assert any("not in source" in r for r in reasons)
+
+
+ITEMS = ["Confirm the licence count", "Refund the difference", "Send the corrected paperwork"]
+
+
+def test_unaddressed_indices_map_back_to_request_text():
+    assert unaddressed_requests({"unaddressed_items": [2]}, ITEMS) == ["Refund the difference"]
+
+
+@pytest.mark.parametrize("indices", [[0], [4], [-1], ["2"], [None]])
+def test_out_of_range_indices_are_dropped_not_trusted(indices):
+    """A hostile email reaches the critic's prompt, so its indices are not trusted either."""
+    assert unaddressed_requests({"unaddressed_items": indices}, ITEMS) == []
+
+
+def test_no_unaddressed_items_is_clean():
+    assert unaddressed_requests({"unaddressed_items": []}, ITEMS) == []
+    assert unaddressed_requests({}, ITEMS) == []
+
+
+def test_unaddressed_requests_are_named_in_the_review_reason():
+    """'Incomplete' is not actionable; 'did not address X' is."""
+    reasons = build_review_reasons({"grounding_ok": True}, 1.0, 0, [], [],
+                                   ["Refund the difference"])
+    assert any("Refund the difference" in r for r in reasons)
+
+
+def test_boolean_completeness_still_used_when_nothing_was_extracted():
+    reasons = build_review_reasons({"grounding_ok": True, "completeness": False}, 1.0, 0, [], [], [])
+    assert any("everything asked" in r for r in reasons)
