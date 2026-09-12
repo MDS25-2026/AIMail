@@ -61,6 +61,45 @@ unanchored numbers.
 - [ ] Given the reported numbers, when they appear in the report, then each is stated with its
       participant count and item count alongside it.
 
+## Part 1 item selection (chosen 2026-09-12)
+
+Row indices into `backend/holdout_to_label.csv`. Recorded so the model's predictions on exactly
+these items can be recomputed; the corpus file is gitignored, the indices are not.
+
+| Row | Gold | Model | Conf | Why this item |
+|-----|------|-------|------|---------------|
+| 3 | high | high | 0.86 | **Anchor.** "I would like to have a copy of the appraisal." Unambiguous direct request. |
+| 8 | high | *medium* | 0.69 | **Anchor**, and the model under-escalates it. "Please forward this note... It must be sent by you." |
+| 17 | medium | medium | 0.69 | **Boundary: FYI / attached-please-find with no request.** Closes with "if you have any questions, please call". |
+| 53 | low | low | 0.84 | **Boundary: mostly-social with one minor ask.** "Happy B-day punk... if you are, shoot me a line." See the rubric tension below. |
+| 64 | low | low | 0.93 | **Anchor.** Pure marketing — "claim your gift", "click here now". |
+| 77 | medium | medium | 0.88 | **Boundary: soft review request.** "The draft for your review and comments, as promised." Is being asked to review a document a request or an FYI? |
+| 91 | high | high | 0.55 | **Boundary: request buried in quoted history.** New text is only "FYI - Lets talk about this today"; the substance sits in the forwarded RFP below. Lowest model confidence in the set. |
+| 110 | low | *high* | 0.83 | **Boundary: automated mail that genuinely requires action.** Subject is literally "Action Requested: Invoice Requires Coding/Issue Resolution/Approval", forwarded with "Ava, have you taken care of this?". Human said LOW on the automated signal; the model said HIGH, confidently. |
+| 2 | medium | medium | 0.75 | **Boundary: several soft requests.** "It would be useful to share this", "I'd like to see...", "Let's talk." A human read all three as MEDIUM rather than HIGH. |
+
+Gold spread 3 low / 3 medium / 3 high. Deliberately not representative of the holdout's
+46/46/28 — the instrument tests the boundary rules, and a proportional draw would return
+mostly easy cases.
+
+The model agrees with the human gold on 7 of 9. That is not a performance claim: these items
+were chosen to be hard or diagnostic, so the number is not comparable to the 0.69 macro-F1.
+
+### Two findings from the selection itself
+
+**No availability/scheduling email exists in the holdout.** The rubric's first boundary rule
+("I'm free Tuesday", with no explicit request to book, resolves to MEDIUM) has no instance in
+120 emails — a targeted search for first-person availability language returned nothing usable.
+That rule therefore cannot be tested with items comparable to the 0.69. Either drop it from the
+study, or add one non-holdout item explicitly marked as not comparable. Recommend dropping it
+and reporting the absence.
+
+**Row 53 contradicts the written rubric.** The rubric says mostly-social-with-one-minor-ask
+resolves to MEDIUM; the human labelled this one LOW. Both readings are defensible — the ask is
+very minor — but the gold set and the written rule disagree, which is worth putting to
+participants rather than quietly resolving. It is also a caution about the rubric's own
+consistency, the same issue that capped the classifier before the relabelling.
+
 ## API surface
 
 None. No endpoint, no service change. The deliverable is an instrument, a response set, and an
