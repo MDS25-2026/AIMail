@@ -46,6 +46,7 @@ class ProcessEmailResponse(BaseModel):
     tone_match: bool | None = None
     completeness: bool | None = None
     pii_findings: list[str] = Field(default_factory=list)
+    unsupported_specifics: list[str] = Field(default_factory=list)
     review_reasons: list[str] = Field(default_factory=list)
 
 
@@ -328,6 +329,40 @@ def strip_quoted(text: str) -> str:
     return kept if len(kept) >= _MIN_KEPT_CHARS else text.strip()
 
 
+
+# ---------- Gate 2 (partial): deterministic specifics check ----------
+
+# Value substitution is the hallucination class that matters in business email: RM500 becoming
+# RM5,000, "30 days" becoming "60 days", an invoice number off by a digit. Embeddings are
+# documented to miss it entirely because the wrong number is topically identical to the right
+# one, so this is string comparison rather than a model. It is an engineering augmentation,
+# not a published metric — do not cite it as one.
+# Digit-boundary rather than word-boundary: \b cannot match between a letter and a digit,
+# so "RM500" and "RM5,000" were invisible — the exact currency case this exists to catch.
+_NUMERIC = re.compile(r"(?<!\d)\d[\d,]*(?:\.\d+)?(?!\d)")
+
+
+def _normalise_number(token: str) -> str:
+    """So 18,400.00 and 18400 compare equal."""
+    cleaned = token.replace(",", "")
+    return cleaned.rstrip("0").rstrip(".") if "." in cleaned else cleaned
+
+
+def unsupported_specifics(draft: str, *sources: str) -> list[str]:
+    """Numbers asserted in the draft that appear nowhere in the source material.
+
+    Single digits are skipped: they are almost always prose counts ("your 2 questions")
+    rather than facts carried over, and flagging them buries the real findings.
+    """
+    known = {_normalise_number(t) for source in sources for t in _NUMERIC.findall(source)}
+    unsupported = {
+        token for token in _NUMERIC.findall(draft)
+        if len(_normalise_number(token).lstrip("0")) >= 2
+        and _normalise_number(token) not in known
+    }
+    return sorted(unsupported)
+
+
 # ---------- Orchestrator endpoint ----------
 
 MAX_REFINE_ATTEMPTS = 3
@@ -356,8 +391,8 @@ def pii_verdict(findings: list[str]) -> bool | None:
     return None if "PRESIDIO_UNAVAILABLE" in findings else True
 
 
-def build_review_reasons(evaluation: dict, confidence: float | None,
-                         attempts: int, pii_findings: list[str]) -> list[str]:
+def build_review_reasons(evaluation: dict, confidence: float | None, attempts: int,
+                         pii_findings: list[str], specifics: list[str] | None = None) -> list[str]:
     """Why a human should look. Reads the checks the critic computes, not only its own score.
 
     tone_match is excluded on purpose: style is advisory, and blocking a correct, PII-clean,
@@ -367,6 +402,8 @@ def build_review_reasons(evaluation: dict, confidence: float | None,
     reasons = []
     if pii_findings:
         reasons.append(f"pii: {', '.join(pii_findings)}")
+    if specifics:
+        reasons.append(f"figures not in source: {', '.join(specifics)}")
     if evaluation.get("grounding_ok") is False:
         reasons.append("grounding check failed")
     if evaluation.get("completeness") is False:
@@ -409,7 +446,8 @@ async def process_email(req: ProcessEmailRequest):
         attempts += 1
 
     pii_findings = await scan_draft_pii(draft)
-    reasons = build_review_reasons(evaluation, confidence, attempts, pii_findings)
+    specifics = unsupported_specifics(draft, req.email_body, req.thread_context, req.rag_context)
+    reasons = build_review_reasons(evaluation, confidence, attempts, pii_findings, specifics)
 
     return ProcessEmailResponse(
         category=category,
@@ -425,6 +463,7 @@ async def process_email(req: ProcessEmailRequest):
         tone_match=evaluation.get("tone_match"),
         completeness=evaluation.get("completeness"),
         pii_findings=pii_findings,
+        unsupported_specifics=specifics,
         review_reasons=reasons,
     )
 

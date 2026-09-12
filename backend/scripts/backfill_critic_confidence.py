@@ -21,7 +21,7 @@ from sqlalchemy import text
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.db.session import get_engine  # noqa: E402
+from app.db.session import get_engine
 
 _TARGET = "critic_confidence = 0 AND coalesce(draft_reply, '') = ''"
 

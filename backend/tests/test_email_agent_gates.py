@@ -12,6 +12,7 @@ from email_agent import (
     clamp_confidence,
     pii_verdict,
     strip_quoted,
+    unsupported_specifics,
 )
 
 
@@ -75,3 +76,33 @@ def test_failed_grounding_triggers_review_even_at_full_confidence():
     """The gate the old code could never reach: high self-reported score, failed real check."""
     reasons = build_review_reasons({"grounding_ok": False, "completeness": True}, 1.0, 0, [])
     assert any("grounding" in r for r in reasons)
+
+
+SOURCE = ("Please refund the 18,400.00 difference for invoice INV-2026-0831 within 30 days. "
+          "Gifts above RM500 must be declared.")
+
+
+@pytest.mark.parametrize("draft, expected", [
+    ("I will refund 18,400.00 for INV-2026-0831 within 30 days.", []),
+    ("I will refund 18,400.00 within 60 days.", ["60"]),
+    ("Gifts above RM5,000 must be declared.", ["5,000"]),
+    ("I will refund 18400 for invoice INV-2026-0831.", []),
+    ("Gifts above RM500 must be declared.", []),
+])
+def test_value_substitution_is_caught(draft, expected):
+    """The hallucination class embeddings miss: the wrong number is topically identical."""
+    assert unsupported_specifics(draft, SOURCE) == expected
+
+
+def test_currency_prefixed_amounts_are_seen():
+    """A word boundary cannot match between a letter and a digit, so RM500 was invisible."""
+    assert unsupported_specifics("Gifts above RM9,999 apply.", SOURCE) == ["9,999"]
+
+
+def test_single_digits_are_prose_not_facts():
+    assert unsupported_specifics("Thanks for your 2 questions and 3 points.", SOURCE) == []
+
+
+def test_unsupported_figures_reach_the_reviewer():
+    reasons = build_review_reasons({"grounding_ok": True, "completeness": True}, 1.0, 0, [], ["60"])
+    assert any("not in source" in r for r in reasons)
