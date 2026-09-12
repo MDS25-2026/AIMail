@@ -11,6 +11,28 @@
 
 ## Log
 
+### 2026-09-07 — Personalise the ranking, not the model
+- Decision: per-user preferences are applied **after** the classifier predicts, in a policy layer
+  (`backend/app/personalisation.py`), never by retraining or by adding user features to the model.
+  Precedence: sender rule, then keyword rule, then prediction shifted by a coarse bias, then medium.
+- Why: the classifier's macro-F1 against the 120-email human holdout is the one number that is
+  currently defensible. Retraining per user, or adding user context as a feature, would make every
+  reported figure incomparable. A policy layer leaves the measurement intact.
+- Why it also works today: a rule needs no training data. Per-user learning needs correction
+  history, and with one mailbox there is none — see the 2026-07-07 entry declining an
+  `interactions` table for the same reason.
+- Why the bias is three-valued (-1/0/+1): it is meant to be derived from ~9 calibration judgements
+  in the planned user study. Anything finer would be fitting noise. Recorded so it is not later
+  "improved" into per-class weights without the data to justify them.
+- Why an unscored message ignores the bias: a preference must not manufacture a priority the
+  classifier never produced. 15 of 32 messages are currently unscored.
+- Boundary: sender and keyword rules are lookups and never enter a prompt. `responsibilities` from
+  the profile is the sole prompt-bound field, and only for drafting.
+- Affects: `specs/context/db-schema.md` (Personalisation section), `api-contracts.md` (`priority`
+  is post-policy), Lane D settings UI, and the calibration questionnaire in `docs/backlog.md`.
+- Status: accepted.
+
+
 ### 2026-09-01 — Retrieval eval was measuring an empty corpus, not the retriever
 - Finding: `eval_retrieval.py` scored hit_rate 0.125 / p@5 0.025 / MRR 0.125 against the
   R03.2 target of 0.90. The cause was not retrieval quality: the corpus held 7 chunks of HR
