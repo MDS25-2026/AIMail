@@ -85,6 +85,8 @@ listener/bin/
 
 # ML datasets (raw + labeled) — regenerate, don't commit
 backend/*.csv
+# Generated labelling sheets: raw corpus text, reproducible from sample_actions.py
+backend/actions_to_read*.md
 # Corpus data stays out (third-party copyright); the provenance note is tracked.
 backend/data/*
 !backend/data/policies/

@@ -121,11 +121,27 @@ async def _generate_and_store(message: Message, tone: str = "professional") -> b
     message.ai_summary = generated.get("summary") or ""
     message.draft_reply = draft
     message.action_items = generated.get("action_items") or []
-    message.critic_confidence = float(generated.get("confidence") or 0.0)
+    # NULL, not 0.0: an NA message was never scored, and coercing that to zero made "not
+    # evaluated" indistinguishable from "the critic rejected this" in every stored statistic.
+    confidence = generated.get("confidence")
+    message.critic_confidence = None if confidence is None else float(confidence)
+    # The agent already reports this; storing it is what makes a rescued draft
+    # distinguishable from a first-pass success.
+    message.critic_attempts = int(generated.get("attempts") or 0)
+    message.critic_checks = {
+        "grounding_ok": generated.get("grounding_ok"),
+        "pii_clean": generated.get("pii_clean"),
+        "tone_match": generated.get("tone_match"),
+        "completeness": generated.get("completeness"),
+        "pii_findings": generated.get("pii_findings") or [],
+        "review_reasons": generated.get("review_reasons") or [],
+    }
+    message.needs_human_review = bool(generated.get("needs_human_review"))
     message.generated_at = datetime.now(timezone.utc)
     await audit(
         "generate_draft",
-        f"message={message.id} tone={tone} confidence={message.critic_confidence:.2f}",
+        f"message={message.id} tone={tone} confidence={message.critic_confidence} "
+        f"review={message.needs_human_review}",
     )
     return bool(draft)
 

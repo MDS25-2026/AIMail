@@ -70,6 +70,9 @@ listener — a migration must create `messages` + `audit_log` in Supabase before
 |--------|------|-----------|-------|
 | `id` | `UUID PK` | default | `gen_random_uuid()` |
 | `gmail_message_id` | `TEXT UNIQUE` | Lane A | dedupe key; listener upserts with `on_conflict` so repeat Gmail notifications don't duplicate (migration 0003) |
+| `thread_id` | `TEXT NULL` | Lane A | Gmail's `threadId` — the provider's conversation grouping key, **not** `gmail_message_id`. Required to send a reply into the thread, and the key the Chrome extension has from the Gmail URL (migration 0009) |
+| `rfc822_message_id` | `TEXT NULL` | Lane A | this message's RFC 5322 `Message-ID` header, angle brackets included. The portable thread identity; becomes the reply's `In-Reply-To` (migration 0009) |
+| `thread_refs` | `TEXT NULL` | Lane A | raw `References` header — the ancestry chain. A reply's `References` is this value plus `rfc822_message_id` (RFC 5322 §3.6.4). Named `thread_refs` because `references` is a reserved SQL keyword (migration 0009) |
 | `from_addr` | `TEXT` | Lane A | |
 | `subject` | `TEXT` | Lane A | |
 | `body_masked` | `TEXT` | Lane A | **the masked body — Seam 1, what Lane B reads.** Name is `body_masked`, NOT `masked_body`. |
@@ -85,11 +88,20 @@ listener — a migration must create `messages` + `audit_log` in Supabase before
 | `draft_reply` | `TEXT NULL` | Lane C | cached generation |
 | `action_items` | `JSONB NULL` | Lane C | cached generation |
 | `critic_confidence` | `REAL NULL` | Lane C | cached generation |
+| `critic_attempts` | `SMALLINT NULL` | Lane C | how many refine rounds the critic forced before the draft passed. The only observable evidence the review gate ever engages — a draft rescued by refinement is indistinguishable from a first-pass success without it (migration 0008) |
 | `generated_at` | `TIMESTAMPTZ NULL` | Lane C | when cached; NULL = not generated yet |
 | `sent_at` | `TIMESTAMPTZ NULL` | backend | when the approved reply was sent (migration 0005) |
 | `read_at` | `TIMESTAMPTZ NULL` | backend | first time the detail view was opened; NULL = unread. Set once, so it records first read rather than latest (migration 0006) |
 | `user_id` | `UUID NULL FK` | backend | mailbox owner. Nullable: one mailbox today, so multi-user is a backfill rather than schema surgery (migration 0007) |
+| `sent_message_id` | `TEXT NULL` | backend | the `Message-ID` the backend generated for its own outgoing reply. Without it the thread graph breaks at every AImail hop — an incoming reply's `In-Reply-To` points here and matches nothing (migration 0009) |
 | `created_at` | `TIMESTAMPTZ DEFAULT now()` | default | |
+
+Index `thread_id` — every planned consumer (thread view, sent-mail indexing, the extension's
+lookup from the Gmail URL) groups by it.
+
+Constructing a threaded reply needs all three Lane-A fields plus the Gmail API's `threadId`
+parameter: header-only threading leaves Gmail's own UI ungrouped, and `threadId`-only threading
+leaves the recipient's client ungrouped. Both mechanisms, or it is not threaded.
 
 **`audit_log`** — Lane A masking/handling audit (JiaJun's `AuditLogEntry`).
 
@@ -139,7 +151,9 @@ lowercased.
 ### TODO
 
 - [x] `user_profile` — shipped in migration 0007 (see Personalisation above). A connected-Gmail-account table is still needed for real multi-user.
-- [ ] `thread` — Gmail thread metadata.
+- [ ] `thread` — Gmail thread metadata. `messages.thread_id` (migration 0009) already holds Gmail's
+      `threadId` as a natural key, so normalising into this table is a backfill plus an FK, not a
+      migration against a column the listener writes. Same shape as `messages.user_id` in 0007.
 - [ ] `chat` — one row per email thread treated as an LLM conversation. Holds the running context the agent pipeline reads on each new message in the thread. FK → `thread`.
 - [ ] `conversation` — one row per LLM generation event (subtable of `chat`). Stores: prompt sent, context window included, model used, raw AI response, rubric score, version label. Multiple rows per `chat` allow self-evaluation loop (2–3 revisions before user sees output) and multi-version offerings (showing the user 2–3 drafts to pick from). FK → `chat`.
 - [ ] `draft` — generated reply drafts surfaced to the user, status, audit trail. FK → `chat` and the chosen `conversation` row.

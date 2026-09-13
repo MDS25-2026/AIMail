@@ -23,7 +23,7 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
-      - run: ruff check app tests scripts
+      - run: ruff check app tests scripts email_agent.py
       - run: pytest -q
 
   frontend:
