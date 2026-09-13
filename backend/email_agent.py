@@ -349,15 +349,21 @@ def strip_quoted(text: str) -> str:
 # documented to miss it entirely because the wrong number is topically identical to the right
 # one, so this is string comparison rather than a model. It is an engineering augmentation,
 # not a published metric — do not cite it as one.
-# Digit-boundary rather than word-boundary: \b cannot match between a letter and a digit,
-# so "RM500" and "RM5,000" were invisible — the exact currency case this exists to catch.
-_NUMERIC = re.compile(r"(?<!\d)\d[\d,]*(?:\.\d+)?(?!\d)")
+# Thousands separators are removed before matching, so 18,400.00 and 18400 compare equal and
+# the pattern never has to allow digits and commas in one repetition. That ambiguity is what
+# made the previous version a polynomial-backtracking risk (CodeQL, high) on text an outside
+# party controls. Both parts below are fixed-width or unambiguous.
+_THOUSANDS_SEPARATOR = re.compile(r"(?<=\d),(?=\d)")
+_NUMERIC = re.compile(r"\d+(?:\.\d+)?")
 
 
-def _normalise_number(token: str) -> str:
-    """So 18,400.00 and 18400 compare equal."""
-    cleaned = token.replace(",", "")
-    return cleaned.rstrip("0").rstrip(".") if "." in cleaned else cleaned
+def _trim_zeros(token: str) -> str:
+    return token.rstrip("0").rstrip(".") if "." in token else token
+
+
+def _numbers_in(text: str) -> set[str]:
+    """Comparable numeric values, separators removed and trailing decimal zeros trimmed."""
+    return {_trim_zeros(t) for t in _NUMERIC.findall(_THOUSANDS_SEPARATOR.sub("", text))}
 
 
 def unsupported_specifics(draft: str, *sources: str) -> list[str]:
@@ -366,13 +372,8 @@ def unsupported_specifics(draft: str, *sources: str) -> list[str]:
     Single digits are skipped: they are almost always prose counts ("your 2 questions")
     rather than facts carried over, and flagging them buries the real findings.
     """
-    known = {_normalise_number(t) for source in sources for t in _NUMERIC.findall(source)}
-    unsupported = {
-        token for token in _NUMERIC.findall(draft)
-        if len(_normalise_number(token).lstrip("0")) >= 2
-        and _normalise_number(token) not in known
-    }
-    return sorted(unsupported)
+    known = set().union(*(_numbers_in(source) for source in sources))
+    return sorted(v for v in _numbers_in(draft) if len(v.lstrip("0")) >= 2 and v not in known)
 
 
 # ---------- Orchestrator endpoint ----------

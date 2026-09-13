@@ -86,7 +86,7 @@ SOURCE = ("Please refund the 18,400.00 difference for invoice INV-2026-0831 with
 @pytest.mark.parametrize("draft, expected", [
     ("I will refund 18,400.00 for INV-2026-0831 within 30 days.", []),
     ("I will refund 18,400.00 within 60 days.", ["60"]),
-    ("Gifts above RM5,000 must be declared.", ["5,000"]),
+    ("Gifts above RM5,000 must be declared.", ["5000"]),
     ("I will refund 18400 for invoice INV-2026-0831.", []),
     ("Gifts above RM500 must be declared.", []),
 ])
@@ -97,7 +97,7 @@ def test_value_substitution_is_caught(draft, expected):
 
 def test_currency_prefixed_amounts_are_seen():
     """A word boundary cannot match between a letter and a digit, so RM500 was invisible."""
-    assert unsupported_specifics("Gifts above RM9,999 apply.", SOURCE) == ["9,999"]
+    assert unsupported_specifics("Gifts above RM9,999 apply.", SOURCE) == ["9999"]
 
 
 def test_single_digits_are_prose_not_facts():
@@ -137,3 +137,17 @@ def test_unaddressed_requests_are_named_in_the_review_reason():
 def test_boolean_completeness_still_used_when_nothing_was_extracted():
     reasons = build_review_reasons({"grounding_ok": True, "completeness": False}, 1.0, 0, [], [], [])
     assert any("everything asked" in r for r in reasons)
+
+
+def test_pathological_numeric_input_stays_linear():
+    """CodeQL flagged the earlier pattern as polynomial-backtracking on '9' then many '0's.
+
+    This text comes from an outside party, so a stall here is a denial of service on the
+    agent. The bound is ~250x the measured time, so it catches a reintroduced blowup
+    (minutes, at this length) without being timing-flaky.
+    """
+    import time
+    hostile = "9" + "0" * 50_000 + "!"
+    started = time.perf_counter()
+    unsupported_specifics(hostile, SOURCE)
+    assert time.perf_counter() - started < 1.0
