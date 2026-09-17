@@ -173,24 +173,34 @@ def render_closing(counter: list[int]) -> str:
 
 
 def render_part2(drafts: list[dict], counter: list[int]) -> str:
+    """Each draft and its six questions form one card.
+
+    Flat, the six drafts produce 36 questions in an undifferentiated run and a participant loses
+    track of which reply they are judging. The received email and the draft also need to look
+    different from each other, not merely be labelled differently.
+    """
     blocks = []
     for position, row in enumerate(drafts, 1):
-        parts = ['  <div class="draft">',
-                 f'    <h3>Reply {position} of {len(drafts)}</h3>',
-                 '    <p class="label">The email that was received</p>',
-                 email_block(readable_email(row["body_masked"])),
-                 '    <p class="label">The draft reply</p>',
-                 email_block(readable_email(row["draft_reply"])),
-                 '  </div>']
-        blocks.append("\n".join(parts))
+        questions = []
         for key, label, hint, options in GATES:
             counter[0] += 1
-            blocks.append(question(counter[0], label,
-                                   radio_group(f"{key}_{position}", options), hint=hint))
+            questions.append(question(counter[0], label,
+                                      radio_group(f"{key}_{position}", options), hint=hint))
         counter[0] += 1
-        blocks.append(question(
+        questions.append(question(
             counter[0], "If not as written, what would you change?",
             f'    <input type="text" name="comment_{position}" placeholder="Optional">'))
+
+        blocks.append("\n".join([
+            '<div class="block">',
+            f'  <h3 class="blockhead">Reply {position} of {len(drafts)}</h3>',
+            '  <p class="label">The email that was received</p>',
+            f'  <pre class="email received">{esc(readable_email(row["body_masked"]))}</pre>',
+            '  <p class="label">The reply our system drafted</p>',
+            f'  <pre class="email reply">{esc(readable_email(row["draft_reply"]))}</pre>',
+            "\n".join(questions),
+            '</div>',
+        ]))
     return "\n".join(blocks)
 
 
@@ -256,7 +266,12 @@ TEMPLATE = """<!doctype html>
   input[type=text] {{ width:100%; padding:10px 12px; border:1px solid var(--line);
                       border-radius:6px; font:inherit; margin-top:8px; }}
   input[type=text]:focus {{ outline:2px solid var(--accent); outline-offset:1px; }}
-  .draft h3 {{ margin:26px 0 6px; font-size:17px; }}
+  .block {{ border:1px solid var(--line); border-radius:10px; padding:20px; margin:22px 0;
+             background:#fcfcfd; }}
+  .block .q:first-of-type {{ border-top:1px solid var(--line); margin-top:18px; }}
+  .blockhead {{ margin:0 0 4px; font-size:17px; color:var(--accent); }}
+  pre.received {{ border-left-color:#c3c3c8; }}
+  pre.reply {{ border-left-color:var(--accent); background:#f4f8fd; }}
   .label {{ color:var(--muted); font-size:13px; text-transform:uppercase; letter-spacing:.04em;
             margin:14px 0 0; }}
   .note {{ color:var(--muted); font-size:14px; border-left:3px solid var(--line); padding-left:12px; }}
