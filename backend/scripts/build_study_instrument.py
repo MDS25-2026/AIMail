@@ -37,6 +37,8 @@ import asyncio
 import csv
 import re
 import sys
+from difflib import SequenceMatcher
+from html.parser import HTMLParser
 from pathlib import Path
 
 from sqlalchemy import text
@@ -260,6 +262,50 @@ A phone number, email address, ID number, or someone else's name.
 """
 
 
+# 11 of 15 stored messages hold raw HTML in body_masked, despite the listener stripping it before
+# masking (#57). Those rows either predate that fix or it is not holding — either way a participant
+# cannot rate a reply to a wall of <div> markup, so the text is stripped here as well. stdlib only:
+# adding an HTML library for this would be a dependency decision needing sign-off.
+_HTML_MARKERS = re.compile(r"<(!doctype|html|head|body|table|div|style|p|br|span)\b", re.IGNORECASE)
+_SKIP_TAGS = {"script", "style", "head", "title"}
+_BLOCK_TAGS = {"p", "div", "br", "tr", "li", "table", "blockquote", "h1", "h2", "h3", "h4", "hr"}
+
+
+class _TextExtractor(HTMLParser):
+    """Tags out, text kept, block elements become line breaks."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+        self._skipping = 0
+
+    def handle_starttag(self, tag: str, attrs: list) -> None:
+        if tag in _SKIP_TAGS:
+            self._skipping += 1
+        elif tag in _BLOCK_TAGS:
+            self.parts.append("\n")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in _SKIP_TAGS:
+            self._skipping = max(0, self._skipping - 1)
+        elif tag in _BLOCK_TAGS:
+            self.parts.append("\n")
+
+    def handle_data(self, data: str) -> None:
+        if not self._skipping:
+            self.parts.append(data)
+
+
+def strip_html(text: str) -> str:
+    """Plain text from an HTML body. Text that is not HTML is returned untouched."""
+    if not text or not _HTML_MARKERS.search(text):
+        return text or ""
+    parser = _TextExtractor()
+    parser.feed(text)
+    parser.close()
+    return "".join(parser.parts)
+
+
 # A line this long that does not end a sentence was almost certainly wrapped by the sender's mail
 # client, not broken deliberately. Shorter lines — headers, signatures, phone numbers — keep their
 # break because there the break carries meaning.
@@ -280,7 +326,7 @@ def readable_email(text: str) -> str:
     was measured on.
     """
     paragraphs = []
-    for block in re.split(r"\n\s*\n", (text or "").replace("\t", " ")):
+    for block in re.split(r"\n\s*\n", strip_html(text).replace("\t", " ")):
         lines = [re.sub(r" +", " ", line).strip() for line in block.split("\n")]
         lines = [line for line in lines if line]
         if not lines:
@@ -378,6 +424,49 @@ def _first_reason(draft: dict) -> str:
     return reasons[0].split(":")[0] if reasons else ""
 
 
+# Machine-generated notices: nothing about a reply to one tells us whether the critic's gates agree
+# with a human, and a participant asked to rate it has no basis to answer.
+_AUTOMATED = re.compile(
+    r"do not reply|no-?reply|you allowed .{0,40}access|unsubscribe|"
+    r"this is an automated|password|security alert",
+    re.IGNORECASE,
+)
+
+_REDACTION = re.compile(r"\[(?:[A-Z_]+_REDACTED|Redacted)\]")
+
+
+def redaction_count(draft: dict) -> int:
+    return len(_REDACTION.findall(draft.get("body_masked") or ""))
+
+
+def is_automated(draft: dict) -> bool:
+    return bool(_AUTOMATED.search(strip_html(draft.get("body_masked") or "")[:600]))
+
+
+# Near-duplicate bodies should mask to near-identical redaction counts. One that does not is a
+# message where masking degraded — the listener falls back to regex-only when Presidio is
+# unreachable, and NER is what catches names and places. Showing such a message to a participant
+# would put a real person's name in front of them.
+_SIMILAR_ENOUGH = 0.80
+_REDACTION_GAP = 3
+
+
+def masking_outliers(drafts: list[dict]) -> list[dict]:
+    """Drafts whose near-duplicates carry materially more redactions than they do."""
+    bodies = [strip_html(d.get("body_masked") or "")[:400] for d in drafts]
+    suspect = []
+    for index, draft in enumerate(drafts):
+        peers = [
+            other
+            for other_index, other in enumerate(drafts)
+            if other_index != index
+            and SequenceMatcher(None, bodies[index], bodies[other_index]).ratio() >= _SIMILAR_ENOUGH
+        ]
+        if peers and redaction_count(draft) + _REDACTION_GAP <= max(map(redaction_count, peers)):
+            suspect.append(draft)
+    return suspect
+
+
 def select_drafts(drafts: list[dict], limit: int) -> list[dict]:
     """Spread the sample across distinct flag reasons, with unflagged drafts as controls.
 
@@ -385,8 +474,10 @@ def select_drafts(drafts: list[dict], limit: int) -> list[dict]:
     near-identical passes teaches nothing. Every gate we want to test needs at least one draft the
     critic flagged on that ground, and at least one it did not, or a disagreement is unreadable.
     """
-    flagged = [d for d in drafts if d["needs_human_review"]]
-    clean = [d for d in drafts if not d["needs_human_review"]]
+    unsafe = {id(d) for d in masking_outliers(drafts)}
+    usable = [d for d in drafts if not is_automated(d) and id(d) not in unsafe]
+    flagged = [d for d in usable if d["needs_human_review"]]
+    clean = [d for d in usable if not d["needs_human_review"]]
 
     # Controls are reserved first, not added after. Filling on distinct flag reasons alone consumes
     # every slot, and a sample with no unflagged draft cannot distinguish a participant who says
