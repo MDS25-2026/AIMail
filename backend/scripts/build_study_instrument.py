@@ -35,6 +35,7 @@ Usage (from backend/):
 import argparse
 import asyncio
 import csv
+import re
 import sys
 from pathlib import Path
 
@@ -205,6 +206,48 @@ A phone number, email address, ID number, or someone else's name.
 """
 
 
+# A line this long that does not end a sentence was almost certainly wrapped by the sender's mail
+# client, not broken deliberately. Shorter lines — headers, signatures, phone numbers — keep their
+# break because there the break carries meaning.
+_WRAPPED_MIN_CHARS = 55
+_SENTENCE_END = (".", "?", "!", ":", ";", ",", "-")
+
+# A header line never continues into the next one, however long it is: "To: <many recipients>"
+# does not end in punctuation and would otherwise swallow the "cc:" and "Subject:" lines after it.
+_HEADER_LINE = re.compile(r"^(to|from|cc|bcc|subject|date|sent|reply-to)\s*:", re.IGNORECASE)
+
+
+def readable_email(text: str) -> str:
+    """Unwrap 2000-era hard wrapping, and make every real break a blank line.
+
+    Microsoft Forms discards single newlines on paste and keeps blank lines, so an email pasted
+    raw arrives as one run-on block — "Thanks in advance.Mick Walters3-4783". Re-flowing here is
+    presentational only: not a word changes, so the text stays comparable with what the classifier
+    was measured on.
+    """
+    paragraphs = []
+    for block in re.split(r"\n\s*\n", (text or "").replace("\t", " ")):
+        lines = [re.sub(r" +", " ", line).strip() for line in block.split("\n")]
+        lines = [line for line in lines if line]
+        if not lines:
+            continue
+        merged: list[str] = []
+        for line in lines:
+            wrapped = (
+                merged
+                and len(merged[-1]) >= _WRAPPED_MIN_CHARS
+                and not merged[-1].endswith(_SENTENCE_END)
+                and not _HEADER_LINE.match(merged[-1])
+                and not _HEADER_LINE.match(line)
+            )
+            if wrapped:
+                merged[-1] = f"{merged[-1]} {line}"
+            else:
+                merged.append(line)
+        paragraphs.extend(merged)
+    return "\n\n".join(paragraphs)
+
+
 def read_holdout(path: Path, rows: list[int]) -> dict[int, tuple[str, str]]:
     """(text, gold_label) per requested row index. Index is the position in the file."""
     with path.open(newline="", encoding="utf-8", errors="replace") as handle:
@@ -227,7 +270,7 @@ def render_part1(items: dict[int, tuple[str, str]]) -> str:
         body, _gold = items[row]
         block = (
             f"\n---\n\n### Email {position} of 9\n\n"
-            f"```\n{body.strip()}\n```\n\n"
+            f"```\n{readable_email(body)}\n```\n\n"
             f"**How urgent is this email?**\n\n"
             f"- [ ] High\n- [ ] Medium\n- [ ] Low\n"
         )
@@ -324,7 +367,7 @@ def render_part2(drafts: list[dict]) -> tuple[str, str]:
         blocks.append(
             f"\n---\n\n### Reply {position} of {len(drafts)}\n\n"
             f"**The email that was received:**\n\n```\n{source}\n```\n\n"
-            f"**The draft reply:**\n\n```\n{(row['draft_reply'] or '').strip()}\n```\n"
+            f"**The draft reply:**\n\n```\n{readable_email(row["draft_reply"])}\n```\n"
             f"{PART2_GATES}"
         )
         confidence = row["critic_confidence"]
@@ -440,6 +483,11 @@ Three of them also need a follow-up **Text** question, long answer, optional:
 These go after items 4, 7 and 8. CSV columns: `explain_4`, `explain_7`, `explain_8`.
 
 ### The nine email texts, in order
+
+**Paste these exactly as they appear, blank lines included.** Forms discards single line breaks and
+keeps blank ones, and the Enron corpus is hard-wrapped by a 2000-era mail client — so pasting the
+raw text arrives as a run-on block ("Thanks in advance.Mick Walters3-4783"). These have been
+re-flowed so they survive. Do not close the gaps up.
 """
 
 FORMS_CLOSING = """
@@ -540,7 +588,7 @@ def render_forms_guide(items: dict[int, tuple[str, str]], drafts: list[dict]) ->
     for position, (row, _) in enumerate(PART1_ROWS, 1):
         body, _gold = items[row]
         explain = "  **+ follow-up text question**" if position in EXPLAIN_POSITIONS else ""
-        blocks.append(f"\n**item_{position}**{explain}\n\n```\n{body.strip()}\n```\n")
+        blocks.append(f"\n**item_{position}**{explain}\n\n```\n{readable_email(body)}\n```\n")
     blocks.append(FORMS_CLOSING)
 
     if not drafts:
@@ -552,8 +600,8 @@ def render_forms_guide(items: dict[int, tuple[str, str]], drafts: list[dict]) ->
         blocks.append(
             f"\n#### Draft {position}  (CSV columns g1_{position}..g4_{position}, "
             f"send_{position}, comment_{position})\n\n"
-            f"**Email received:**\n\n```\n{(row['body_masked'] or '').strip()}\n```\n\n"
-            f"**Draft reply:**\n\n```\n{(row['draft_reply'] or '').strip()}\n```\n"
+            f"**Email received:**\n\n```\n{readable_email(row["body_masked"])}\n```\n\n"
+            f"**Draft reply:**\n\n```\n{readable_email(row["draft_reply"])}\n```\n"
         )
 
     mapping = ["\n---\n\n## Column mapping — check this after exporting\n",

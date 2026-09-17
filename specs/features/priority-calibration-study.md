@@ -208,6 +208,18 @@ follow-up: persist the initial evaluation alongside the final one.
 
 ## Instrument design decisions (2026-09-17)
 
+**Email text is re-flowed before display.** The corpus is hard-wrapped at roughly 70 characters by
+a 2000-era mail client. Microsoft Forms discards single line breaks on paste and keeps blank ones,
+so raw text arrives as a run-on block — "Thanks in advance.Mick Walters3-4783EB3299d" — with header
+lines and signatures fused into the body.
+
+`readable_email()` joins lines that were clearly wrapped (long, no terminal punctuation, not a mail
+header) and separates every remaining logical line with a blank line, which is what Forms preserves.
+
+**Not a comparability problem:** no word changes, only whitespace. The classifier's tokeniser
+normalises whitespace anyway, so participants read the same content the model was measured on. This
+is a different case from masking, which would change content.
+
 **Participants are given no definition of high, medium or low.** An earlier draft included a
 "rough guide" defining the three tiers. It was removed, for two reasons.
 
