@@ -30,6 +30,7 @@ from scripts.build_study_instrument import (
     read_holdout,
     readable_email,
     select_drafts,
+    strip_subject_line,
 )
 
 TITLE = "Sorting Work Emails by Urgency"
@@ -197,7 +198,7 @@ def render_part2(drafts: list[dict], counter: list[int]) -> str:
             '  <p class="label">The email that was received</p>',
             f'  <pre class="email received">{esc(readable_email(row["body_masked"]))}</pre>',
             '  <p class="label">The reply our system drafted</p>',
-            f'  <pre class="email reply">{esc(readable_email(row["draft_reply"]))}</pre>',
+            f'  <pre class="email reply">{esc(strip_subject_line(readable_email(row["draft_reply"])))}</pre>',
             "\n".join(questions),
             '</div>',
         ]))

@@ -348,6 +348,17 @@ def readable_email(text: str) -> str:
     return "\n\n".join(paragraphs)
 
 
+# Generated drafts open with a literal "Subject: Re: ..." line, which the send path then sets
+# separately (#77). Shown to a participant it reads as a rendering fault and pulls attention away
+# from the four gate questions, so it is dropped for display only. The stored draft is untouched —
+# the defect stays visible where it is being tracked.
+_LEADING_SUBJECT = re.compile(r"\A\s*subject\s*:.*(?:\n|$)", re.IGNORECASE)
+
+
+def strip_subject_line(text: str) -> str:
+    return _LEADING_SUBJECT.sub("", text or "", count=1).lstrip()
+
+
 def read_holdout(path: Path, rows: list[int]) -> dict[int, tuple[str, str]]:
     """(text, gold_label) per requested row index. Index is the position in the file."""
     with path.open(newline="", encoding="utf-8", errors="replace") as handle:
@@ -512,7 +523,7 @@ def render_part2(drafts: list[dict]) -> tuple[str, str]:
         blocks.append(
             f"\n---\n\n### Reply {position} of {len(drafts)}\n\n"
             f"**The email that was received:**\n\n```\n{source}\n```\n\n"
-            f"**The draft reply:**\n\n```\n{readable_email(row["draft_reply"])}\n```\n"
+            f"**The draft reply:**\n\n```\n{strip_subject_line(readable_email(row["draft_reply"]))}\n```\n"
             f"{PART2_GATES}"
         )
         confidence = row["critic_confidence"]
@@ -746,7 +757,7 @@ def render_forms_guide(items: dict[int, tuple[str, str]], drafts: list[dict]) ->
             f"\n#### Draft {position}  (CSV columns g1_{position}..g4_{position}, "
             f"send_{position}, comment_{position})\n\n"
             f"**Email received:**\n\n```\n{readable_email(row["body_masked"])}\n```\n\n"
-            f"**Draft reply:**\n\n```\n{readable_email(row["draft_reply"])}\n```\n"
+            f"**Draft reply:**\n\n```\n{strip_subject_line(readable_email(row["draft_reply"]))}\n```\n"
         )
 
     mapping = ["\n---\n\n## Column mapping — check this after exporting\n",
