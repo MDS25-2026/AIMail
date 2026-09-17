@@ -241,7 +241,7 @@ def read_key_rows(path: Path) -> list[dict[str, str]]:
 
 
 def write_template(n_items: int, n_drafts: int, path: Path) -> None:
-    header = (["participant", "role"]
+    header = (["participant", "consent", "role"]
               + [f"item_{i}" for i in range(1, n_items + 1)]
               + [f"explain_{i}" for i in (4, 7, 8)]
               + ["q1_not_fitting", "q2_sender_list"]

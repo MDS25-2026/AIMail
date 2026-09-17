@@ -21,6 +21,12 @@ join key for recomputing the model's predictions on exactly those items.
 
 Output contains unmasked Enron text and is gitignored, like every other corpus artefact here.
 
+Writes three files: the participant-facing instrument, the answer key, and a transcription guide
+for Microsoft Forms. Forms has no supported creation API — Graph's Forms API reads responses from
+forms that already exist — so the guide makes the manual build mechanical instead: paste-ready
+option blocks, the repeated Part 2 block printed once, and the mapping from Forms' exported column
+names to the ones analyse_study.py expects.
+
 Usage (from backend/):
     python scripts/build_study_instrument.py                    # Part 1 only
     python scripts/build_study_instrument.py --with-part2       # adds draft ratings from the DB
@@ -368,6 +374,242 @@ def report_threshold_coverage(drafts: list[dict]) -> None:
         print("  at all' and record the reason, per the spec's edge case.")
 
 
+FORMS_INTRO = """# Transcription guide — Microsoft Forms
+
+Microsoft Forms has no supported API for creating forms (Graph's Forms API reads responses from
+forms that already exist), so this is built by hand. This guide makes that mechanical.
+
+**Two tricks do most of the work:**
+
+1. **Duplicate, do not retype.** Part 1 is the same question nine times and Part 2 is the same six
+   questions repeated per draft. Build one, hit duplicate, swap the text.
+2. **Paste option blocks whole.** Forms splits a multi-line paste into separate options, so paste
+   all the choices at once instead of typing them one at a time.
+
+**Before you start, in Settings:** turn OFF "Record name" — the study collects no identity, and a
+form that records names contradicts the consent screen. Leave "One response per person" off too,
+since that also keys on identity.
+
+Realistically 20-30 minutes.
+
+---
+
+## Step 1 — Form title and description
+
+**Title:** Sorting work email by urgency
+
+**Description:** paste the consent text from `study_instrument.md` (everything above the first
+`---`). Forms descriptions accept long text.
+
+---
+
+## Step 2 — Two opening questions
+
+### Question: consent
+Type: **Choice**, required.
+
+> Do you consent to take part on this basis?
+
+Options — paste as one block:
+
+```
+Yes, I consent
+No
+```
+
+CSV column: `consent`
+
+### Question: experience
+Type: **Choice**, required.
+
+> How much experience do you have managing a work or professional email inbox?
+
+Options — paste as one block:
+
+```
+Little or none
+Some - an internship, part-time or casual work
+Regular - it is part of my current work
+Heavy - I deal with a large volume of work email daily
+```
+
+CSV column: `role`
+
+---
+
+## Step 3 — Part 1, nine questions
+
+Add a **section** first, titled "Part 1 - Sorting emails by urgency", and paste the Part 1 intro
+text into the section description.
+
+Build **question 1**, then duplicate it eight times and swap only the email text.
+
+Type: **Choice**, required. Put the email text in the question's **subtitle** (the "..." menu on the
+question gives you "Subtitle"), so the options stay readable.
+
+> How urgent is this email?
+
+Options — paste as one block:
+
+```
+High
+Medium
+Low
+```
+
+CSV columns: `item_1` through `item_9`, in the order below.
+
+Three of them also need a follow-up **Text** question, long answer, optional:
+
+> In one or two sentences: what made you choose that?
+
+These go after items 4, 7 and 8. CSV columns: `explain_4`, `explain_7`, `explain_8`.
+
+### The nine email texts, in order
+"""
+
+FORMS_CLOSING = """
+---
+
+## Step 4 — Two closing questions
+
+Both **Text**, long answer, optional.
+
+> Did any of those 9 emails not fit into high, medium or low? If yes, which one, and what was
+> missing?
+
+CSV column: `q1_not_fitting`
+
+> Imagine you could mark certain senders as important, so mail from them was always treated as
+> urgent. Would that have changed how you sorted any of the emails above? If yes, which ones,
+> and why?
+
+CSV column: `q2_sender_list`
+"""
+
+FORMS_PART2_INTRO = """
+---
+
+## Step 5 — Part 2, six drafts
+
+Add a **section** titled "Part 2 - Rating AI-written replies" and paste the Part 2 intro into its
+description.
+
+**Build these six questions once**, then duplicate the whole block for each remaining draft and
+swap the email and draft text in the subtitle.
+
+Put the email and the draft in the **subtitle of the first question** of each block, so a
+participant reads them once and answers six questions underneath.
+
+### Question A — Choice, required
+> Does the reply state anything that is not in the email above?
+
+```
+No, everything in it traces back to the email
+Yes, it invents something
+Not sure
+```
+CSV column: `g1_N`
+
+### Question B — Choice, required
+> Does the reply give away any personal details it should not?
+
+```
+No
+Yes
+Not sure
+```
+CSV column: `g2_N`
+
+### Question C — Choice, required
+> Is the tone right for a work reply?
+
+```
+Yes
+Too formal
+Too casual
+Something else is off
+```
+CSV column: `g3_N`
+
+### Question D — Choice, required
+> Does the reply answer everything the email asked?
+
+```
+Yes, all of it
+It misses part of it
+It misses most of it
+```
+CSV column: `g4_N`
+
+### Question E — Choice, required
+> Overall: would you send this as written?
+
+```
+Yes
+Only after editing
+No
+```
+CSV column: `send_N`
+
+### Question F — Text, long answer, optional
+> If not as written, what would you change?
+
+CSV column: `comment_N`
+
+### The six email and draft pairs
+"""
+
+
+def render_forms_guide(items: dict[int, tuple[str, str]], drafts: list[dict]) -> str:
+    blocks = [FORMS_INTRO]
+    for position, (row, _) in enumerate(PART1_ROWS, 1):
+        body, _gold = items[row]
+        explain = "  **+ follow-up text question**" if position in EXPLAIN_POSITIONS else ""
+        blocks.append(f"\n**item_{position}**{explain}\n\n```\n{body.strip()}\n```\n")
+    blocks.append(FORMS_CLOSING)
+
+    if not drafts:
+        blocks.append("\n*(Part 2 omitted — rerun with --with-part2 to include it.)*\n")
+        return "\n".join(blocks)
+
+    blocks.append(FORMS_PART2_INTRO)
+    for position, row in enumerate(drafts, 1):
+        blocks.append(
+            f"\n#### Draft {position}  (CSV columns g1_{position}..g4_{position}, "
+            f"send_{position}, comment_{position})\n\n"
+            f"**Email received:**\n\n```\n{(row['body_masked'] or '').strip()}\n```\n\n"
+            f"**Draft reply:**\n\n```\n{(row['draft_reply'] or '').strip()}\n```\n"
+        )
+
+    mapping = ["\n---\n\n## Column mapping — check this after exporting\n",
+               "Forms names its export columns after the question text, and `analyse_study.py`",
+               "expects the short names below. Rename the header row once after export and the",
+               "analysis runs without further editing.\n",
+               "| Question | CSV column |", "|----------|------------|",
+               "| *(add yourself: 1, 2, 3...)* | `participant` |",
+               "| Consent | `consent` |", "| Work-email experience | `role` |"]
+    for position in range(1, len(PART1_ROWS) + 1):
+        mapping.append(f"| Part 1 email {position} | `item_{position}` |")
+    for position in EXPLAIN_POSITIONS:
+        mapping.append(f"| Reasoning after email {position} | `explain_{position}` |")
+    mapping += ["| Did any not fit | `q1_not_fitting` |",
+                "| Would a sender list change it | `q2_sender_list` |"]
+    for position in range(1, len(drafts) + 1):
+        mapping.append(
+            f"| Draft {position}: invents / PII / tone / answers / overall / comment "
+            f"| `g1_{position}` `g2_{position}` `g3_{position}` `g4_{position}` "
+            f"`send_{position}` `comment_{position}` |"
+        )
+    mapping += ["", "`scripts/analyse_study.py --template` writes a blank CSV with exactly these",
+                "column names, so you can diff the two header rows rather than checking by eye.",
+                "",
+                "Forms does not export a `participant` column. Number the rows 1, 2, 3 yourself —",
+                "a sequential number, never anything derived from who they are."]
+    blocks.append("\n".join(mapping) + "\n")
+    return "\n".join(blocks)
+
+
 async def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--holdout", default="holdout_to_label.csv")
@@ -377,11 +619,14 @@ async def main() -> None:
                         help="include draft ratings (needs a live DB)")
     parser.add_argument("--part2-limit", type=int, default=6,
                         help="drafts to rate; 4 gate questions each, so this drives completion time")
+    parser.add_argument("--forms-guide", default="study_forms_guide.md",
+                        help="transcription guide for Microsoft Forms, written alongside the instrument")
     args = parser.parse_args()
 
     items = read_holdout(Path(args.holdout), [row for row, _ in PART1_ROWS])
     document = CONSENT + render_part1(items)
     key = render_key(items)
+    drafts: list[dict] = []
 
     if args.with_part2:
         available = await load_drafts()
@@ -396,8 +641,10 @@ async def main() -> None:
 
     Path(args.out).write_text(document, encoding="utf-8")
     Path(args.key_out).write_text(key, encoding="utf-8")
+    Path(args.forms_guide).write_text(render_forms_guide(items, drafts), encoding="utf-8")
     print(f"  wrote {args.out} ({len(document.splitlines())} lines)")
     print(f"  wrote {args.key_out} — keep this away from participants")
+    print(f"  wrote {args.forms_guide} — paste-ready blocks and the export column mapping")
 
 
 if __name__ == "__main__":
