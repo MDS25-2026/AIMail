@@ -36,6 +36,14 @@ from pathlib import Path
 from sklearn.metrics import f1_score
 
 _LABELS = ("low", "medium", "high")
+# Values as the page emits them, lowercased. "edit" is kept as an alias because the earlier
+# Microsoft Forms draft used it.
+_SEND_ALIASES = {
+    "yes": "yes",
+    "only after editing": "edit",
+    "edit": "edit",
+    "no": "no",
+}
 _SEND = ("yes", "edit", "no")
 
 # Below this, 9 items times N people is too few judgements to report a mean F1 honestly.
@@ -128,6 +136,19 @@ def report_part1(responses: list[dict[str, str]], gold: list[str], rows: list[in
               f"{_MIN_PARTICIPANTS_FOR_F1}. Per the spec, agreement is reported descriptively")
         print("  rather than as a statistic built on too few judgements.")
 
+    others = [
+        (name, i + 1)
+        for name, r in zip(per_person, responses)
+        for i in range(n_items)
+        if (r.get(f"item_{i + 1}") or "").strip().lower() == "other"
+    ]
+    if others:
+        print(f"\n  \"Other\" chosen {len(others)} time(s) — none of high/medium/low fitted:")
+        for name, item in others:
+            note = (responses[list(per_person).index(name)].get(f"other_{item}") or "").strip()
+            print(f"    {name}, item {item}: {note or '(no explanation given)'}")
+        print("  This answers the class-count question directly. Report it alongside Q1.")
+
     if len(complete) > 1:
         matrix = [[labels[i] for labels in complete.values()] for i in range(n_items)]
         kappa = fleiss_kappa(matrix)
@@ -172,8 +193,8 @@ def report_part2(responses: list[dict[str, str]], key_rows: list[dict[str, str]]
     tally: Counter[str] = Counter()
     for response in responses:
         for column in send_columns:
-            value = (response.get(column) or "").strip().lower()
-            if value in _SEND:
+            value = _SEND_ALIASES.get((response.get(column) or "").strip().lower())
+            if value:
                 tally[value] += 1
     total = sum(tally.values())
     if not total:
