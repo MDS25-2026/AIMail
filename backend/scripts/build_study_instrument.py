@@ -108,14 +108,9 @@ PART1_HEADER = """
 
 You will read 9 emails. For each one, decide how urgently it needs the recipient's attention.
 
-**Use your own judgement.** We deliberately have not given you a rulebook, because we want to know
-how people sort these naturally.
-
-A rough guide only:
-
-- **High** — needs action soon, and something goes wrong if it is missed
-- **Medium** — needs attention, but not immediately
-- **Low** — can wait, or needs nothing at all
+**Use your own judgement.** We have deliberately not defined high, medium or low, because we want
+to know how people sort these naturally rather than whether they can follow our definitions. Sort
+them the way you would your own inbox.
 
 Two questions follow the emails.
 """

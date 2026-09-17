@@ -208,6 +208,24 @@ follow-up: persist the initial evaluation alongside the final one.
 
 ## Instrument design decisions (2026-09-17)
 
+**Participants are given no definition of high, medium or low.** An earlier draft included a
+"rough guide" defining the three tiers. It was removed, for two reasons.
+
+It would have contaminated the question the study exists to ask. "Does the rubric match how people
+actually sort?" cannot be answered after handing people the rubric — that measures whether they can
+follow instructions. The same applies to "did any email not fit three tiers": a participant shown
+definitions will fit emails to them.
+
+And unguided sorting is the comparison that reflects deployment. The classifier runs against a
+user's inbox, and that user has no rubric. A ceiling measured on rubric-following humans would be a
+ceiling for a task nobody performs.
+
+**Consequence to report, not to fix:** the gold labels were produced with an explicit boundary
+rubric — that relabelling is what moved the classifier from 0.57 to 0.69 — while participants sort
+without one. Some participant disagreement is therefore definitional rather than genuine judgement
+difference. State this alongside the agreement figure. It cannot be removed without reintroducing
+the contamination above, so it is a limitation, not a defect.
+
 **Reasoning is collected on three items, not nine.** `backlog.md` specifies "sort, then explain two
 or three". Asking on all nine would triple completion time for diminishing returns. The three chosen
 are where disagreement is most informative: the item whose gold label contradicts the written rubric,
