@@ -147,23 +147,48 @@ data policy that keeps `backend/*.csv` gitignored.
   [`priority-classifier.md`](priority-classifier.md).
 - Part 2 shows generated drafts, which are written from **masked** email content, so no unmasked
   project mailbox content is exposed.
-- No participant PII is collected beyond a free-text job role. No names, no email addresses.
+- **No personal data is collected, by design.** Work category is a fixed five-option list, not
+  free text: a free-text role is the one field where a participant can identify themselves, and
+  one response reading "FYP supervisor for MDS25" would collapse the anonymity claim for the whole
+  study. No names, no email addresses, no ID numbers. This is what makes "follow Malaysian law"
+  cheap to satisfy — PDPA's obligations attach to personal data, and there is none here.
+- Raw responses are deleted once the report is submitted, and the consent screen says so.
 - Response data is gitignored like the rest of `backend/*.csv`. Aggregate figures go in the report;
   raw responses do not go in the repo.
 
 ## Open questions
 
-- Does FIT3164 require ethics clearance beyond an in-instrument consent screen, or is coursework
-  covered by a blanket low-risk approval? Ask Dr. Asad. This gates recruitment, not the instrument,
-  so drafting proceeds in parallel.
-- Which agreement statistic: Fleiss' kappa (matches the Cohen's kappa already used in
-  `label_agreement.py`, so the report stays internally consistent) or Krippendorff's alpha (handles
-  the ordinal low/medium/high ordering and partial responses better). Recommend Fleiss for
-  consistency, and state the ordinal caveat.
-- Delivery: Google Form, or a page on the dashboard? A form is faster and needs no Lane D time,
-  which is the reason this item was placed first.
-- Target participant count. 5-8 is realistic for the timeframe; below 4 the macro-F1 comparison
-  should be dropped per the edge case above.
+All four resolved 2026-09-17. Kept here with their answers rather than deleted, since the reasoning
+is what the report needs.
+
+- ~~Ethics clearance beyond the consent screen?~~ **Dr. Asad: follow Malaysian law.** PDPA
+  obligations attach to personal data, so the instrument is designed to collect none — see Security
+  & privacy below. Recruitment is unblocked.
+- ~~Which agreement statistic?~~ **Fleiss' kappa**, for consistency with the Cohen's kappa in
+  `label_agreement.py`. Implemented in `scripts/analyse_study.py` rather than adding statsmodels;
+  the ordinal caveat prints alongside the number.
+- ~~Delivery?~~ **Microsoft Forms.** Institutional tooling, so response storage has a cleaner
+  answer under PDPA than Google Forms, at identical effort. A dashboard page was rejected: it is
+  the only option costing Lane D time, which is the project's named constraint.
+- ~~Target participant count?~~ **Target 8, floor 5.** Below 4, `analyse_study.py` withholds
+  macro-F1 and reports agreement descriptively, per the edge case above. Recruit beyond target,
+  because people drop out.
+
+## The 0.8 threshold cannot be tested on stored drafts
+
+Found 2026-09-17 while building Part 2, and it supersedes the "all Part-2 drafts score above 0.8"
+edge case with a sharper reason.
+
+After regenerating all 18 stored drafts through the current pipeline, **zero fall below 0.8** — and
+this is structural, not a sampling accident. `REFINE_THRESHOLD` is 0.8, so the refine loop runs
+until confidence clears 0.8. Nothing below 0.8 can survive to be stored, by construction.
+
+Testing the threshold would require capturing **pre-refine** confidence, which is not persisted
+today. Part 2 therefore asks whether confidence discriminates at all, which the post-regeneration
+spread makes answerable: four distinct values (0.80, 0.85, 0.95, 1.00) where there were two.
+
+Reporting this reason is worth more than reporting "insufficient data", and it is a concrete
+follow-up: persist the initial evaluation alongside the final one.
 
 ## Out-of-scope future extensions
 

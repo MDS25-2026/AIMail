@@ -1,9 +1,14 @@
 """Build the priority-calibration study instrument from the labelled holdout and stored drafts.
 
-Emits a markdown document ready to be transcribed into a form, plus an answer key held in a
-separate file the instrument never references. The split is structural: the participant-facing
+Emits a markdown document ready to be transcribed into Microsoft Forms, plus an answer key held in
+a separate file the instrument never references. The split is structural: the participant-facing
 document must not contain gold labels, and keeping them in one file with a "don't show this bit"
 comment is how that goes wrong.
+
+Microsoft Forms over Google Forms deliberately — it is the institution's own tooling, so where the
+responses are stored has a cleaner answer under PDPA. The heavier obligations should not attach at
+all, since the instrument collects no personal data by design: a fixed-option work category, not a
+free-text role that a participant could self-identify in.
 
 Part 1 items are the nine rows chosen in specs/features/priority-calibration-study.md. The row
 indices live in this script rather than being re-derived, because the spec records them as the
@@ -58,9 +63,10 @@ system's judgement is reasonable or just self-consistent.
 1. Read 9 emails and sort each into high, medium or low urgency.
 2. Read some AI-written replies and say whether each is good enough to send.
 
-**What we collect.** Your answers, and your job role in general terms (for example "student",
-"engineer", "administrator"). **We do not collect your name, your email address, or anything else
-that identifies you.** Responses are given a number, not a name.
+**What we collect.** Your answers, and a broad category for the kind of work you do, chosen from a
+short list. **We do not collect your name, your email address, your student or staff ID, or any
+free-text description of yourself.** Responses are given a number, not a name. We have deliberately
+designed this so that no response can be traced back to a person, including by us.
 
 **The emails you will read are real but public.** They come from the Enron corpus, a dataset of
 company emails released publicly during a US legal case and used widely in research. They are not
@@ -77,6 +83,9 @@ you finished unless you tell us otherwise.
 **Where it goes.** Summary figures appear in our final report. Individual responses do not, and the
 raw responses are not published.
 
+**How long we keep it.** Raw responses are deleted once the project report is submitted. Only the
+summary figures in the report outlive the project.
+
 Questions: contact the project team.
 
 ---
@@ -87,6 +96,19 @@ Questions: contact the project team.
 - [ ] No
 
 *(If no, please close this form. Nothing is recorded.)*
+
+---
+
+**Which best describes the kind of work you do?**
+
+- [ ] Student
+- [ ] Academic or teaching staff
+- [ ] Administrative or professional services
+- [ ] Engineering or technical
+- [ ] Other
+
+*(Broad categories only, deliberately — we only want to know whether the kind of work someone does
+predicts how they sort email. A free-text box here could identify you, so there isn't one.)*
 """
 
 PART1_HEADER = """
