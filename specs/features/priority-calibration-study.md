@@ -216,9 +216,15 @@ It also corrects an asymmetry rather than creating one. The classifier was *trai
 labelled emails from this corpus, so it absorbed the domain. A participant given nothing is at a
 disadvantage the model does not have, which would depress the human ceiling for the wrong reason.
 
-The profile states what the company was, the period, that most mail is internal employee-to-employee,
-and that unfamiliar jargon is expected. It gives a role frame — read as the person who received it —
-and deliberately says nothing about what makes an email urgent, which is the thing being measured.
+The profile states what the company was, the period, the nature of the business, that most mail is
+internal employee-to-employee, and that unfamiliar jargon is expected. It gives a role frame — read
+as the person who received it — and deliberately says nothing about what makes an email urgent,
+which is the thing being measured.
+
+It includes a six-term glossary drawn from the nine items themselves rather than written from
+general knowledge: `ECT` appears 12 times across them, `HOU` 5, `EOL` 4, `MW` 4, `CAISO` 3, plus
+`ENA`. Explaining terms that do not appear would pad the instrument; missing ones that do leaves a
+participant guessing at the text they are being asked to judge.
 
 **The nine items are not normalised to a common format.** They vary considerably, measured:
 

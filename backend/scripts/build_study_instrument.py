@@ -109,19 +109,37 @@ PART1_HEADER = """
 
 ### A little context first
 
-These emails are from **Enron**, a large American energy and commodities company, written between
-roughly 1999 and 2001. They became public through a US court case, which is why they can be used
-for research.
+These emails are from **Enron**, an American energy company based in Houston, Texas, written
+between roughly 1999 and 2001. At the time it was one of the largest companies in the United
+States, employing around 20,000 people.
 
-Most are internal — one employee writing to another about deals, reports, meetings and scheduling.
-A few are newsletters or automated notices from systems the company used.
+Enron bought and sold energy — mainly natural gas and electricity — and also ran pipelines and
+power plants. Much of the business was **trading**: agreeing deals with other companies to buy or
+sell energy at set prices and dates. So a lot of the day-to-day email is people coordinating those
+deals, the paperwork around them, and the meetings and reports that go with them.
 
-**Read each one as the person who received it:** an employee at that company, going through their
-own work inbox on a normal working day.
+The company collapsed at the end of 2001. A US regulator released these emails during the
+investigation that followed, which is why they can be used for research.
 
-You will not recognise all the jargon — deal names, system names, internal abbreviations, people
-you have never heard of. That is expected. You do not need to understand every term to get a sense
-of how much attention an email needs.
+Most of what you will read is internal — one employee writing to another. A few are newsletters or
+automated notices from systems the company used.
+
+**Read each one as the person who received it:** an employee going through their own work inbox on
+a normal working day.
+
+**Abbreviations you will see:**
+
+- **EOL** — EnronOnline, the company's electronic trading platform
+- **ECT** — Enron Capital & Trade, a division of the company. **ENA** — Enron North America
+- **HOU**, **DEN** — office locations, Houston and Denver. Internal addresses look like
+  `Phillip K Allen/HOU/ECT`
+- **MW** — megawatts, a unit of electricity
+- **CAISO** — the body that runs California's electricity grid
+- **a "book"** — the set of trades a particular desk or region is responsible for
+
+You will not recognise everything — deal names, system names, people you have never heard of. That
+is expected. You do not need to understand every term to get a sense of how much attention an email
+needs.
 
 ---
 
