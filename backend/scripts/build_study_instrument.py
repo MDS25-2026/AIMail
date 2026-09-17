@@ -7,8 +7,13 @@ comment is how that goes wrong.
 
 Microsoft Forms over Google Forms deliberately — it is the institution's own tooling, so where the
 responses are stored has a cleaner answer under PDPA. The heavier obligations should not attach at
-all, since the instrument collects no personal data by design: a fixed-option work category, not a
-free-text role that a participant could self-identify in.
+all, since the instrument collects no personal data by design: one fixed-option question about
+work-email experience, not a free-text role a participant could self-identify in.
+
+That question is also a validity control, not a demographic. The corpus is workplace email and the
+classifier is for workplace triage, so a human ceiling measured on people who have never managed a
+work inbox is a ceiling for the wrong population. Recording the spread lets the report say which
+population the number describes.
 
 Part 1 items are the nine rows chosen in specs/features/priority-calibration-study.md. The row
 indices live in this script rather than being re-derived, because the spec records them as the
@@ -63,8 +68,8 @@ system's judgement is reasonable or just self-consistent.
 1. Read 9 emails and sort each into high, medium or low urgency.
 2. Read some AI-written replies and say whether each is good enough to send.
 
-**What we collect.** Your answers, and a broad category for the kind of work you do, chosen from a
-short list. **We do not collect your name, your email address, your student or staff ID, or any
+**What we collect.** Your answers, and roughly how much experience you have with work email,
+chosen from a short list. **We do not collect your name, your email address, your student or staff ID, or any
 free-text description of yourself.** Responses are given a number, not a name. We have deliberately
 designed this so that no response can be traced back to a person, including by us.
 
@@ -99,16 +104,16 @@ Questions: contact the project team.
 
 ---
 
-**Which best describes the kind of work you do?**
+**How much experience do you have managing a work or professional email inbox?**
 
-- [ ] Student
-- [ ] Academic or teaching staff
-- [ ] Administrative or professional services
-- [ ] Engineering or technical
-- [ ] Other
+- [ ] Little or none
+- [ ] Some — an internship, part-time or casual work
+- [ ] Regular — it is part of my current work
+- [ ] Heavy — I deal with a large volume of work email daily
 
-*(Broad categories only, deliberately — we only want to know whether the kind of work someone does
-predicts how they sort email. A free-text box here could identify you, so there isn't one.)*
+*(One question, broad options, deliberately. The emails you are about to read are workplace emails,
+so what matters is how familiar you are with sorting that kind of mail — not your job title. A
+free-text box here could identify you, so there isn't one.)*
 """
 
 PART1_HEADER = """

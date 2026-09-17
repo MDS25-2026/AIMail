@@ -131,6 +131,15 @@ data policy that keeps `backend/*.csv` gitignored.
 - **Too few participants.** 9 items times a handful of people is a small sample. Mitigation is
   honesty, not more statistics: report N with every figure. Below 4 participants, report agreement
   descriptively and drop the macro-F1 comparison rather than publish a number built on ~27 judgements.
+- **Participants who do not resemble the target population.** The corpus is workplace email and the
+  classifier is for workplace triage, so a ceiling measured entirely on people who have never
+  managed a work inbox is a ceiling for the wrong population. This is the study's main threat to
+  validity and it cannot be fixed by statistics.
+  Mitigation, in order of preference: recruit at least two or three people who currently handle
+  work email; record the experience spread either way; and report the composition alongside every
+  figure. If the sample skews inexperienced, say so and scope the claim to "how people unfamiliar
+  with corporate mail sort it", which is still a finding — it just is not the finding the report
+  would otherwise imply.
 - **All Part-2 drafts score above 0.8.** Then the threshold cannot be tested at all. Detect this at
   sampling time, before recruiting; if it holds, Part 2 becomes "does confidence correlate with
   quality at all" and the threshold question is deferred with the reason recorded.
