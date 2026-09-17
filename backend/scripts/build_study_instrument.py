@@ -63,41 +63,26 @@ PART1_ROWS: list[tuple[int, str]] = [
 
 CONSENT = """## Before you start
 
-Thank you for helping with this project.
+We are building an email assistant that sorts mail by how urgently it needs attention. We want to
+know how *people* sort the same emails, so we can tell whether the system's judgement is reasonable
+or just self-consistent.
 
-**What this is.** We are building an email assistant that sorts incoming mail by how urgently it
-needs attention. We want to know how *people* sort the same emails, so we can tell whether the
-system's judgement is reasonable or just self-consistent.
+**What you will do.** Read 9 emails and sort each as high, medium or low urgency, then rate a few
+AI-written replies. About 20 minutes.
 
-**What you will do.** Two parts, about 20 minutes in total.
+**What we collect.** Your answers, plus one multiple-choice question about how much work email you
+deal with. **No name, no email address, no ID number.** Responses are numbered, not named — we
+cannot tell which one is yours.
 
-1. Read 9 emails and sort each into high, medium or low urgency.
-2. Read some AI-written replies and say whether each is good enough to send.
+**The emails are real but public.** They come from the Enron corpus, a public research dataset from
+a US court case. They are not anyone's private mail and have nothing to do with anyone on this
+project.
 
-**What we collect.** Your answers, and roughly how much experience you have with work email,
-chosen from a short list. **We do not collect your name, your email address, your student or staff ID, or any
-free-text description of yourself.** Responses are given a number, not a name. We have deliberately
-designed this so that no response can be traced back to a person, including by us.
+**There are no right answers.** Where you disagree with us, or with each other, that disagreement
+is exactly what we are looking for.
 
-**The emails you will read are real but public.** They come from the Enron corpus, a dataset of
-company emails released publicly during a US legal case and used widely in research. They are not
-anyone's private mail, and they are not from anyone involved in this project. Some contain ordinary
-business details such as names and phone numbers. They are shown unedited because the system was
-measured on the unedited text, and editing them would break that comparison.
-
-**Your answers are not a test.** There are no right answers. Where you disagree with us or with
-each other, that disagreement is the result we are looking for.
-
-**You can stop at any time**, and you can skip any question. If you stop partway, we keep whatever
-you finished unless you tell us otherwise.
-
-**Where it goes.** Summary figures appear in our final report. Individual responses do not, and the
-raw responses are not published.
-
-**How long we keep it.** Raw responses are deleted once the project report is submitted. Only the
-summary figures in the report outlive the project.
-
-Questions: contact the project team.
+You can skip any question or stop at any time. Summary figures go in our report; raw responses do
+not, and they are deleted once it is submitted. Any questions, reply to whoever sent you this link.
 
 ---
 
@@ -106,20 +91,14 @@ Questions: contact the project team.
 - [ ] Yes, I consent
 - [ ] No
 
-*(If no, please close this form. Nothing is recorded.)*
-
 ---
 
 **How much experience do you have managing a work or professional email inbox?**
 
 - [ ] Little or none
-- [ ] Some — an internship, part-time or casual work
-- [ ] Regular — it is part of my current work
-- [ ] Heavy — I deal with a large volume of work email daily
-
-*(One question, broad options, deliberately. The emails you are about to read are workplace emails,
-so what matters is how familiar you are with sorting that kind of mail — not your job title. A
-free-text box here could identify you, so there isn't one.)*
+- [ ] Some - an internship, part-time or casual work
+- [ ] Regular - it is part of my current work
+- [ ] Heavy - I deal with a large volume of work email daily
 """
 
 PART1_HEADER = """
