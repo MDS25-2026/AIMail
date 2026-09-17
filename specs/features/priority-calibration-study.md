@@ -208,6 +208,31 @@ follow-up: persist the initial evaluation alongside the final one.
 
 ## Instrument design decisions (2026-09-17)
 
+**The nine items are not normalised to a common format.** They vary considerably, measured:
+
+| | has From/To/Subject or forwarding | bare body |
+|---|---|---|
+| items | 4 | 5 |
+| gold high / medium / low | 2 / 1 / 1 | 1 / 2 / 2 |
+
+Length varies more than format does — 94 to 2,267 characters, a 24x range.
+
+Format does not track the gold label in any obvious way, though at n=9 that is a weak check and
+should not be reported as evidence of no confound.
+
+**Left as-is deliberately.** The classifier was measured on exactly this text, headers included.
+Normalising would mean participants judge different information than the model had — sender and
+subject are real urgency signals — and the human ceiling would stop being a ceiling for this
+classifier. Same reasoning as showing unmasked text.
+
+What is addressed instead is the participant's reaction: the Part 1 intro now says the emails come
+from a real archive, will look inconsistent, and that a missing sender is part of the situation
+rather than a broken form. Manage the expectation, do not alter the stimulus.
+
+**Report this as a limitation.** Presentation heterogeneity is uncontrolled variance in a 9-item
+instrument, and some disagreement between participants will come from it rather than from genuine
+differences in judgement.
+
 **Email text is re-flowed before display.** The corpus is hard-wrapped at roughly 70 characters by
 a 2000-era mail client. Microsoft Forms discards single line breaks on paste and keeps blank ones,
 so raw text arrives as a run-on block — "Thanks in advance.Mick Walters3-4783EB3299d" — with header

@@ -113,6 +113,11 @@ You will read 9 emails. For each one, decide how urgently it needs the recipient
 to know how people sort these naturally rather than whether they can follow our definitions. Sort
 them the way you would your own inbox.
 
+**They will look inconsistent, and that is not a mistake.** These are real emails pulled from an
+archive exactly as they were stored. Some show who sent them and a subject line; some are just the
+message. Some are forwards with the older thread underneath. Judge each on what is actually in
+front of you — if you cannot tell who sent it, that is part of the situation.
+
 Two questions follow the emails.
 """
 
