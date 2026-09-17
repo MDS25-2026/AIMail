@@ -109,20 +109,33 @@ PART1_HEADER = """
 
 ### A little context first
 
-These emails are from **Enron**, an American energy company based in Houston, Texas, written
-between roughly 1999 and 2001. At the time it was one of the largest companies in the United
-States, employing around 20,000 people.
+These emails are from **Enron**, an American company based in Houston, Texas, written between
+roughly 1999 and 2001. At the time it was one of the largest companies in the United States —
+around 20,000 employees, with offices across America, Europe and Asia.
 
-Enron bought and sold energy — mainly natural gas and electricity — and also ran pipelines and
-power plants. Much of the business was **trading**: agreeing deals with other companies to buy or
-sell energy at set prices and dates. So a lot of the day-to-day email is people coordinating those
-deals, the paperwork around them, and the meetings and reports that go with them.
+**What the company did.** Enron began as a natural gas pipeline business. By the time these emails
+were written it had become mainly an energy *trading* company: it bought gas and electricity from
+producers and sold it on to utilities, factories and other large users, making its money on the
+difference and on managing the risk in between. It still owned physical assets — pipelines, power
+plants — but trading was the centre of the business.
+
+**What that looked like day to day.** Traders agreed contracts with other companies to deliver a
+quantity of gas or electricity, at an agreed price, on agreed dates — sometimes for the next day,
+sometimes years ahead. Around them sat analysts pricing those deals, schedulers arranging the
+physical delivery, risk managers tracking how exposed the company was, and lawyers and accountants
+handling the paperwork. In 1999 Enron launched an online trading platform that let other companies
+deal with it directly through a website, which pushed the volume up enormously.
+
+Enron was also heavily involved in California's electricity market during the power shortages there
+in 2000 and 2001, which comes up in some of the mail.
+
+**Whose inboxes these are.** The archive holds the mailboxes of roughly 150 employees, mostly
+traders and their managers in the Houston gas and power groups. So most of what you will read is
+one colleague writing to another about a deal, a report, a meeting, or an approval someone needs.
+A few are newsletters or automated notices from internal systems.
 
 The company collapsed at the end of 2001. A US regulator released these emails during the
 investigation that followed, which is why they can be used for research.
-
-Most of what you will read is internal — one employee writing to another. A few are newsletters or
-automated notices from systems the company used.
 
 **Read each one as the person who received it:** an employee going through their own work inbox on
 a normal working day.
