@@ -208,6 +208,18 @@ follow-up: persist the initial evaluation alongside the final one.
 
 ## Instrument design decisions (2026-09-17)
 
+**Participants get a short factual profile of Enron before Part 1.** Without it the task is
+partly incoherent: "bridge all financial deals on EOL over to the FT-Denver book" cannot be judged
+by someone with no idea what the company did or who is speaking.
+
+It also corrects an asymmetry rather than creating one. The classifier was *trained* on 959
+labelled emails from this corpus, so it absorbed the domain. A participant given nothing is at a
+disadvantage the model does not have, which would depress the human ceiling for the wrong reason.
+
+The profile states what the company was, the period, that most mail is internal employee-to-employee,
+and that unfamiliar jargon is expected. It gives a role frame — read as the person who received it —
+and deliberately says nothing about what makes an email urgent, which is the thing being measured.
+
 **The nine items are not normalised to a common format.** They vary considerably, measured:
 
 | | has From/To/Subject or forwarding | bare body |

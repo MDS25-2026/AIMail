@@ -107,11 +107,29 @@ PART1_HEADER = """
 
 # Part 1 — Sorting emails by urgency
 
+### A little context first
+
+These emails are from **Enron**, a large American energy and commodities company, written between
+roughly 1999 and 2001. They became public through a US court case, which is why they can be used
+for research.
+
+Most are internal — one employee writing to another about deals, reports, meetings and scheduling.
+A few are newsletters or automated notices from systems the company used.
+
+**Read each one as the person who received it:** an employee at that company, going through their
+own work inbox on a normal working day.
+
+You will not recognise all the jargon — deal names, system names, internal abbreviations, people
+you have never heard of. That is expected. You do not need to understand every term to get a sense
+of how much attention an email needs.
+
+---
+
 You will read 9 emails. For each one, decide how urgently it needs the recipient's attention.
 
 **Use your own judgement.** We have deliberately not defined high, medium or low, because we want
 to know how people sort these naturally rather than whether they can follow our definitions. Sort
-them the way you would your own inbox.
+them the way you would if this were your inbox.
 
 **They will look inconsistent, and that is not a mistake.** These are real emails pulled from an
 archive exactly as they were stored. Some show who sent them and a subject line; some are just the
