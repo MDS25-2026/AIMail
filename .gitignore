@@ -93,3 +93,6 @@ backend/data/*
 backend/data/policies/*
 !backend/data/policies/README.md
 backend/models/distilbert-checkpoints/
+
+# Study instrument and answer key: contain corpus text and gold labels
+backend/study_*.md
