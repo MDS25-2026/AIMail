@@ -63,7 +63,7 @@ Thank you for helping with this project.
 needs attention. We want to know how *people* sort the same emails, so we can tell whether the
 system's judgement is reasonable or just self-consistent.
 
-**What you will do.** Two short parts, about 15 minutes in total.
+**What you will do.** Two parts, about 20 minutes in total.
 
 1. Read 9 emails and sort each into high, medium or low urgency.
 2. Read some AI-written replies and say whether each is good enough to send.
@@ -135,6 +135,19 @@ A rough guide only:
 Two questions follow the emails.
 """
 
+# Positions (not row indices) where we ask for reasoning. Chosen because these three are where
+# disagreement is most informative: 4 is the item whose gold label contradicts the written rubric,
+# 7 hides its request in quoted history, and 8 is the one the model got confidently wrong.
+# Asking on all nine would triple the completion time for diminishing returns.
+EXPLAIN_POSITIONS = (4, 7, 8)
+
+EXPLAIN_PROMPT = """
+**In one or two sentences: what made you choose that?**
+
+*(Free text. There is no right answer — we are asking because this email is one people tend to
+read differently.)*
+"""
+
 PART1_CLOSING = """
 ---
 
@@ -157,18 +170,58 @@ PART2_HEADER = """
 
 # Part 2 — Rating AI-written replies
 
-Below are replies our system drafted automatically. For each one, say whether you would be willing
-to send it as written.
+Below are replies our system drafted automatically. The email it was replying to is shown first,
+then the draft.
 
-The original email is shown first, then the draft reply.
+For each one you will answer four quick yes/no checks and then an overall verdict. The four checks
+are the same ones our system runs on itself — we want to know where your judgement and its
+judgement differ, not just whether they agree overall.
 
-For each, answer:
+Personal details were removed before the AI ever saw these emails, so you may see placeholders like
+`[EMAIL_REDACTED]`. That is expected, not an error.
+"""
 
-- **Would you send this as written?** Yes / No / Only after editing
-- **If no, or only after editing — what is wrong with it?** *(Free text)*
+# Plain-language wording of the four gates the critic already computes. Deliberately not the
+# internal names: asking "is grounding_ok" would get a shrug, and the point is to compare a human
+# judgement against each gate separately. #78 requires exactly this — one overall verdict hides
+# which gate carries signal.
+PART2_GATES = """
+**1. Does the reply state anything that is not in the email above?**
+Made-up facts, dates, names, or promises that were never mentioned.
 
-Personal details in these replies have been masked before the AI ever saw them, so you may see
-placeholders like `[EMAIL_REDACTED]`. That is expected, not an error.
+- [ ] No, everything in it traces back to the email
+- [ ] Yes, it invents something
+- [ ] Not sure
+
+**2. Does the reply give away any personal details it should not?**
+A phone number, email address, ID number, or someone else's name.
+
+- [ ] No
+- [ ] Yes
+- [ ] Not sure
+
+**3. Is the tone right for a work reply?**
+
+- [ ] Yes
+- [ ] Too formal
+- [ ] Too casual
+- [ ] Something else is off
+
+**4. Does the reply answer everything the email asked?**
+
+- [ ] Yes, all of it
+- [ ] It misses part of it
+- [ ] It misses most of it
+
+**Overall: would you send this as written?**
+
+- [ ] Yes
+- [ ] Only after editing
+- [ ] No
+
+**If not as written, what would you change?**
+
+*(Free text, optional)*
 """
 
 
@@ -192,12 +245,15 @@ def render_part1(items: dict[int, tuple[str, str]]) -> str:
     blocks = [PART1_HEADER]
     for position, (row, _) in enumerate(PART1_ROWS, 1):
         body, _gold = items[row]
-        blocks.append(
+        block = (
             f"\n---\n\n### Email {position} of 9\n\n"
             f"```\n{body.strip()}\n```\n\n"
             f"**How urgent is this email?**\n\n"
             f"- [ ] High\n- [ ] Medium\n- [ ] Low\n"
         )
+        if position in EXPLAIN_POSITIONS:
+            block += EXPLAIN_PROMPT
+        blocks.append(block)
     blocks.append(PART1_CLOSING)
     return "\n".join(blocks)
 
@@ -227,7 +283,7 @@ def render_key(items: dict[int, tuple[str, str]]) -> str:
 
 
 _DRAFTS = text("""
-    select id, body_masked, draft_reply, critic_confidence, needs_human_review
+    select id, body_masked, draft_reply, critic_confidence, needs_human_review, critic_checks
     from messages
     where coalesce(draft_reply, '') <> ''
     order by critic_confidence nulls first, id
@@ -240,24 +296,61 @@ async def load_drafts() -> list[dict]:
     return [dict(row) for row in rows]
 
 
+def _first_reason(draft: dict) -> str:
+    reasons = (draft.get("critic_checks") or {}).get("review_reasons") or []
+    return reasons[0].split(":")[0] if reasons else ""
+
+
+def select_drafts(drafts: list[dict], limit: int) -> list[dict]:
+    """Spread the sample across distinct flag reasons, with unflagged drafts as controls.
+
+    Rating all of them would take longer than the rest of the instrument combined, and a sample of
+    near-identical passes teaches nothing. Every gate we want to test needs at least one draft the
+    critic flagged on that ground, and at least one it did not, or a disagreement is unreadable.
+    """
+    flagged = [d for d in drafts if d["needs_human_review"]]
+    clean = [d for d in drafts if not d["needs_human_review"]]
+
+    # Controls are reserved first, not added after. Filling on distinct flag reasons alone consumes
+    # every slot, and a sample with no unflagged draft cannot distinguish a participant who says
+    # "fine" to everything from a critic that flags nothing.
+    controls = min(len(clean), max(1, limit // 3)) if clean else 0
+    chosen = clean[:controls]
+
+    seen: set[str] = set()
+    for draft in flagged:
+        if len(chosen) >= limit:
+            break
+        reason = _first_reason(draft)
+        if reason not in seen:
+            seen.add(reason)
+            chosen.append(draft)
+
+    remaining = [d for d in flagged + clean if d not in chosen]
+    chosen.extend(remaining[: max(0, limit - len(chosen))])
+    return chosen[:limit]
+
+
 def render_part2(drafts: list[dict]) -> tuple[str, str]:
     blocks = [PART2_HEADER]
     key = ["", "## Part 2 key — do NOT show participants", "",
-           "| Position | Message id | Critic confidence | Flagged for review |",
-           "|----------|------------|-------------------|--------------------|"]
+           "Gate answers map to the critic's own checks: Q1 grounding_ok, Q2 pii_clean,",
+           "Q3 tone_match, Q4 completeness. Compare each separately — one overall verdict",
+           "hides which gate carries signal (#78).", "",
+           "| Position | Message id | Confidence | Flagged | Critic's reason |",
+           "|----------|------------|------------|---------|-----------------|"]
     for position, row in enumerate(drafts, 1):
         source = (row["body_masked"] or "").strip()
         blocks.append(
             f"\n---\n\n### Reply {position} of {len(drafts)}\n\n"
-            f"**The email received:**\n\n```\n{source}\n```\n\n"
-            f"**The draft reply:**\n\n```\n{(row['draft_reply'] or '').strip()}\n```\n\n"
-            f"**Would you send this as written?**\n\n"
-            f"- [ ] Yes\n- [ ] Only after editing\n- [ ] No\n\n"
-            f"**If no or only after editing, what is wrong with it?**\n\n*(Free text)*\n"
+            f"**The email that was received:**\n\n```\n{source}\n```\n\n"
+            f"**The draft reply:**\n\n```\n{(row['draft_reply'] or '').strip()}\n```\n"
+            f"{PART2_GATES}"
         )
         confidence = row["critic_confidence"]
         shown = "null" if confidence is None else f"{confidence:.2f}"
-        key.append(f"| {position} | {row['id']} | {shown} | {row['needs_human_review']} |")
+        key.append(f"| {position} | {row['id']} | {shown} | {row['needs_human_review']} "
+                   f"| {_first_reason(row) or '-'} |")
     return "\n".join(blocks), "\n".join(key) + "\n"
 
 
@@ -282,6 +375,8 @@ async def main() -> None:
     parser.add_argument("--key-out", default="study_answer_key.md")
     parser.add_argument("--with-part2", action="store_true",
                         help="include draft ratings (needs a live DB)")
+    parser.add_argument("--part2-limit", type=int, default=6,
+                        help="drafts to rate; 4 gate questions each, so this drives completion time")
     args = parser.parse_args()
 
     items = read_holdout(Path(args.holdout), [row for row, _ in PART1_ROWS])
@@ -289,9 +384,11 @@ async def main() -> None:
     key = render_key(items)
 
     if args.with_part2:
-        drafts = await load_drafts()
-        if not drafts:
+        available = await load_drafts()
+        if not available:
             raise SystemExit("no stored drafts — run scripts/generate_pending.py first")
+        drafts = select_drafts(available, args.part2_limit)
+        print(f"  selected {len(drafts)} of {len(available)} draft(s) for Part 2")
         part2, part2_key = render_part2(drafts)
         document += part2
         key += part2_key

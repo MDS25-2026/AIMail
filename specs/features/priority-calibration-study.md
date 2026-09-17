@@ -206,6 +206,27 @@ follow-up: persist the initial evaluation alongside the final one.
 - Repeating Part 1 on masked text to measure what masking costs a human sorter. Interesting, and a
   second session's worth of work.
 
+## Instrument design decisions (2026-09-17)
+
+**Reasoning is collected on three items, not nine.** `backlog.md` specifies "sort, then explain two
+or three". Asking on all nine would triple completion time for diminishing returns. The three chosen
+are where disagreement is most informative: the item whose gold label contradicts the written rubric,
+the one hiding its request in quoted history, and the one the model got confidently wrong. Without
+these, the study yields "humans agree N%" but never why — and the why is the better finding.
+
+**Part 2 asks the four gates separately, not one overall verdict.** Required by #78: a holistic
+"would you send this" cannot say which gate carries signal and which is noise. Each draft gets four
+plain-language checks mapping to `grounding_ok`, `pii_clean`, `tone_match` and `completeness`, then
+an overall verdict. The internal names are never shown — asking "is grounding_ok" gets a shrug.
+
+**Six drafts, not all fifteen.** Four gate questions each, so the count drives completion time.
+The sample reserves unflagged controls *first*, then fills on distinct flag reasons: a sample with
+no clean draft cannot distinguish a participant who says "fine" to everything from a critic that
+flags nothing. Current draw is 2 clean plus 4 flagged on distinct grounds.
+
+**"Not sure" counts as no complaint** in the analysis. Treating uncertainty as a gate failure would
+inflate every disagreement and make the critic look worse than the evidence supports.
+
 ## Implementation notes
 
 Item selection for Part 1 is the real work and should be done by reading candidates, not sampling
