@@ -131,6 +131,15 @@ data policy that keeps `backend/*.csv` gitignored.
 - **Too few participants.** 9 items times a handful of people is a small sample. Mitigation is
   honesty, not more statistics: report N with every figure. Below 4 participants, report agreement
   descriptively and drop the macro-F1 comparison rather than publish a number built on ~27 judgements.
+- **Participants who do not resemble the target population.** The corpus is workplace email and the
+  classifier is for workplace triage, so a ceiling measured entirely on people who have never
+  managed a work inbox is a ceiling for the wrong population. This is the study's main threat to
+  validity and it cannot be fixed by statistics.
+  Mitigation, in order of preference: recruit at least two or three people who currently handle
+  work email; record the experience spread either way; and report the composition alongside every
+  figure. If the sample skews inexperienced, say so and scope the claim to "how people unfamiliar
+  with corporate mail sort it", which is still a finding — it just is not the finding the report
+  would otherwise imply.
 - **All Part-2 drafts score above 0.8.** Then the threshold cannot be tested at all. Detect this at
   sampling time, before recruiting; if it holds, Part 2 becomes "does confidence correlate with
   quality at all" and the threshold question is deferred with the reason recorded.
@@ -147,23 +156,48 @@ data policy that keeps `backend/*.csv` gitignored.
   [`priority-classifier.md`](priority-classifier.md).
 - Part 2 shows generated drafts, which are written from **masked** email content, so no unmasked
   project mailbox content is exposed.
-- No participant PII is collected beyond a free-text job role. No names, no email addresses.
+- **No personal data is collected, by design.** Work category is a fixed five-option list, not
+  free text: a free-text role is the one field where a participant can identify themselves, and
+  one response reading "FYP supervisor for MDS25" would collapse the anonymity claim for the whole
+  study. No names, no email addresses, no ID numbers. This is what makes "follow Malaysian law"
+  cheap to satisfy — PDPA's obligations attach to personal data, and there is none here.
+- Raw responses are deleted once the report is submitted, and the consent screen says so.
 - Response data is gitignored like the rest of `backend/*.csv`. Aggregate figures go in the report;
   raw responses do not go in the repo.
 
 ## Open questions
 
-- Does FIT3164 require ethics clearance beyond an in-instrument consent screen, or is coursework
-  covered by a blanket low-risk approval? Ask Dr. Asad. This gates recruitment, not the instrument,
-  so drafting proceeds in parallel.
-- Which agreement statistic: Fleiss' kappa (matches the Cohen's kappa already used in
-  `label_agreement.py`, so the report stays internally consistent) or Krippendorff's alpha (handles
-  the ordinal low/medium/high ordering and partial responses better). Recommend Fleiss for
-  consistency, and state the ordinal caveat.
-- Delivery: Google Form, or a page on the dashboard? A form is faster and needs no Lane D time,
-  which is the reason this item was placed first.
-- Target participant count. 5-8 is realistic for the timeframe; below 4 the macro-F1 comparison
-  should be dropped per the edge case above.
+All four resolved 2026-09-17. Kept here with their answers rather than deleted, since the reasoning
+is what the report needs.
+
+- ~~Ethics clearance beyond the consent screen?~~ **Dr. Asad: follow Malaysian law.** PDPA
+  obligations attach to personal data, so the instrument is designed to collect none — see Security
+  & privacy below. Recruitment is unblocked.
+- ~~Which agreement statistic?~~ **Fleiss' kappa**, for consistency with the Cohen's kappa in
+  `label_agreement.py`. Implemented in `scripts/analyse_study.py` rather than adding statsmodels;
+  the ordinal caveat prints alongside the number.
+- ~~Delivery?~~ **Microsoft Forms.** Institutional tooling, so response storage has a cleaner
+  answer under PDPA than Google Forms, at identical effort. A dashboard page was rejected: it is
+  the only option costing Lane D time, which is the project's named constraint.
+- ~~Target participant count?~~ **Target 8, floor 5.** Below 4, `analyse_study.py` withholds
+  macro-F1 and reports agreement descriptively, per the edge case above. Recruit beyond target,
+  because people drop out.
+
+## The 0.8 threshold cannot be tested on stored drafts
+
+Found 2026-09-17 while building Part 2, and it supersedes the "all Part-2 drafts score above 0.8"
+edge case with a sharper reason.
+
+After regenerating all 18 stored drafts through the current pipeline, **zero fall below 0.8** — and
+this is structural, not a sampling accident. `REFINE_THRESHOLD` is 0.8, so the refine loop runs
+until confidence clears 0.8. Nothing below 0.8 can survive to be stored, by construction.
+
+Testing the threshold would require capturing **pre-refine** confidence, which is not persisted
+today. Part 2 therefore asks whether confidence discriminates at all, which the post-regeneration
+spread makes answerable: four distinct values (0.80, 0.85, 0.95, 1.00) where there were two.
+
+Reporting this reason is worth more than reporting "insufficient data", and it is a concrete
+follow-up: persist the initial evaluation alongside the final one.
 
 ## Out-of-scope future extensions
 
@@ -171,6 +205,100 @@ data policy that keeps `backend/*.csv` gitignored.
   (`known-issues.md`). Related, but a labelling job, not a study.
 - Repeating Part 1 on masked text to measure what masking costs a human sorter. Interesting, and a
   second session's worth of work.
+
+## Instrument design decisions (2026-09-17)
+
+**Participants get a short factual profile of Enron before Part 1.** Without it the task is
+partly incoherent: "bridge all financial deals on EOL over to the FT-Denver book" cannot be judged
+by someone with no idea what the company did or who is speaking.
+
+It also corrects an asymmetry rather than creating one. The classifier was *trained* on 959
+labelled emails from this corpus, so it absorbed the domain. A participant given nothing is at a
+disadvantage the model does not have, which would depress the human ceiling for the wrong reason.
+
+The profile states what the company was, the period, the nature of the business, that most mail is
+internal employee-to-employee, and that unfamiliar jargon is expected. It gives a role frame — read
+as the person who received it — and deliberately says nothing about what makes an email urgent,
+which is the thing being measured.
+
+It includes a six-term glossary drawn from the nine items themselves rather than written from
+general knowledge: `ECT` appears 12 times across them, `HOU` 5, `EOL` 4, `MW` 4, `CAISO` 3, plus
+`ENA`. Explaining terms that do not appear would pad the instrument; missing ones that do leaves a
+participant guessing at the text they are being asked to judge.
+
+**The nine items are not normalised to a common format.** They vary considerably, measured:
+
+| | has From/To/Subject or forwarding | bare body |
+|---|---|---|
+| items | 4 | 5 |
+| gold high / medium / low | 2 / 1 / 1 | 1 / 2 / 2 |
+
+Length varies more than format does — 94 to 2,267 characters, a 24x range.
+
+Format does not track the gold label in any obvious way, though at n=9 that is a weak check and
+should not be reported as evidence of no confound.
+
+**Left as-is deliberately.** The classifier was measured on exactly this text, headers included.
+Normalising would mean participants judge different information than the model had — sender and
+subject are real urgency signals — and the human ceiling would stop being a ceiling for this
+classifier. Same reasoning as showing unmasked text.
+
+What is addressed instead is the participant's reaction: the Part 1 intro now says the emails come
+from a real archive, will look inconsistent, and that a missing sender is part of the situation
+rather than a broken form. Manage the expectation, do not alter the stimulus.
+
+**Report this as a limitation.** Presentation heterogeneity is uncontrolled variance in a 9-item
+instrument, and some disagreement between participants will come from it rather than from genuine
+differences in judgement.
+
+**Email text is re-flowed before display.** The corpus is hard-wrapped at roughly 70 characters by
+a 2000-era mail client. Microsoft Forms discards single line breaks on paste and keeps blank ones,
+so raw text arrives as a run-on block — "Thanks in advance.Mick Walters3-4783EB3299d" — with header
+lines and signatures fused into the body.
+
+`readable_email()` joins lines that were clearly wrapped (long, no terminal punctuation, not a mail
+header) and separates every remaining logical line with a blank line, which is what Forms preserves.
+
+**Not a comparability problem:** no word changes, only whitespace. The classifier's tokeniser
+normalises whitespace anyway, so participants read the same content the model was measured on. This
+is a different case from masking, which would change content.
+
+**Participants are given no definition of high, medium or low.** An earlier draft included a
+"rough guide" defining the three tiers. It was removed, for two reasons.
+
+It would have contaminated the question the study exists to ask. "Does the rubric match how people
+actually sort?" cannot be answered after handing people the rubric — that measures whether they can
+follow instructions. The same applies to "did any email not fit three tiers": a participant shown
+definitions will fit emails to them.
+
+And unguided sorting is the comparison that reflects deployment. The classifier runs against a
+user's inbox, and that user has no rubric. A ceiling measured on rubric-following humans would be a
+ceiling for a task nobody performs.
+
+**Consequence to report, not to fix:** the gold labels were produced with an explicit boundary
+rubric — that relabelling is what moved the classifier from 0.57 to 0.69 — while participants sort
+without one. Some participant disagreement is therefore definitional rather than genuine judgement
+difference. State this alongside the agreement figure. It cannot be removed without reintroducing
+the contamination above, so it is a limitation, not a defect.
+
+**Reasoning is collected on three items, not nine.** `backlog.md` specifies "sort, then explain two
+or three". Asking on all nine would triple completion time for diminishing returns. The three chosen
+are where disagreement is most informative: the item whose gold label contradicts the written rubric,
+the one hiding its request in quoted history, and the one the model got confidently wrong. Without
+these, the study yields "humans agree N%" but never why — and the why is the better finding.
+
+**Part 2 asks the four gates separately, not one overall verdict.** Required by #78: a holistic
+"would you send this" cannot say which gate carries signal and which is noise. Each draft gets four
+plain-language checks mapping to `grounding_ok`, `pii_clean`, `tone_match` and `completeness`, then
+an overall verdict. The internal names are never shown — asking "is grounding_ok" gets a shrug.
+
+**Six drafts, not all fifteen.** Four gate questions each, so the count drives completion time.
+The sample reserves unflagged controls *first*, then fills on distinct flag reasons: a sample with
+no clean draft cannot distinguish a participant who says "fine" to everything from a critic that
+flags nothing. Current draw is 2 clean plus 4 flagged on distinct grounds.
+
+**"Not sure" counts as no complaint** in the analysis. Treating uncertainty as a gate failure would
+inflate every disagreement and make the critic look worse than the evidence supports.
 
 ## Implementation notes
 
