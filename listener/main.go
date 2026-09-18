@@ -631,6 +631,11 @@ func ingestMessage(ctx context.Context, srv *gmail.Service, msgID string) error 
 
 	body := getBody(msg.Payload)
 
+	// #82: text inside image attachments. The image is redacted by Presidio before anything reads
+	// it, so this arrives already free of PII — but it still goes through maskText below like any
+	// other untrusted text, because a second net costs nothing and OCR can misread a redaction box.
+	body += ocrAttachments(ctx, srv, msgID, msg.Payload)
+
 	// Mask PII before anything touches storage or logs: regex floor first, then Presidio NER.
 	maskedBody, bodyEmails, bodyPhones, degradedBody := maskText(ctx, body)
 	maskedSnippet, snipEmails, snipPhones, degradedSnip := maskText(ctx, msg.Snippet)

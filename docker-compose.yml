@@ -22,3 +22,14 @@ services:
     environment:
       - PORT=5002
     restart: unless-stopped
+
+  # Redacts PII *inside* attachment images, before the image is read anywhere else. This is what
+  # keeps the mask-before-transit guarantee true for attachments: the image that reaches the model
+  # has already had names, addresses, emails and phone numbers blacked out on this machine.
+  # Listens on 3000 internally, unlike the other two.
+  presidio-image-redactor:
+    image: mcr.microsoft.com/presidio-image-redactor:latest
+    container_name: presidio-image-redactor
+    ports:
+      - "127.0.0.1:5003:3000"
+    restart: unless-stopped
