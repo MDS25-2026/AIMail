@@ -1,20 +1,20 @@
 # Backend runtime + dev deps. Python 3.11+. See specs/context/tech-stack.md.
 
 # --- runtime ---
-pydantic>=2.13.4
+pydantic>=2.13.5
 pydantic-settings>=2.15.0
 SQLAlchemy[asyncio]>=2.0.52
 asyncpg>=0.31.0
 pgvector>=0.5.0
-google-genai>=2.18.1          # Gemini embeddings (Lane B) + query reformulation
+google-genai>=2.20.0          # Gemini embeddings (Lane B) + query reformulation
 httpx>=0.28.1                # imported directly for embedding-error handling
-pypdf>=6.16.1                 # policy-PDF text extraction
+pypdf>=6.16.2                 # policy-PDF text extraction
 numpy>=2.5.2                 # L2 normalization of embeddings
 scikit-learn>=1.9.0          # priority-classifier baseline (TF-IDF + logistic regression)
 
 # API layer (serves the retrieval demo)
 fastapi>=0.141.1
-uvicorn[standard]>=0.52.3
+uvicorn[standard]>=0.52.4
 python-multipart>=0.0.32    # PDF/file uploads
 
 # --- Lane C (email_agent) ---
