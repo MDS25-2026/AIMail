@@ -123,6 +123,48 @@ The generator writes a subject line into the draft body. It is stripped at send 
 (`gmail_send.py`), but it is still visible in the dashboard's draft editor and stored in
 `draft_reply`. Better fixed in the generator prompt so the stored draft is clean.
 
+### Masked bodies still contain raw HTML — Lane A (#108)
+
+**11 of 15 stored messages** hold HTML markup in `messages.body_masked` — one is 5,933 characters
+of `<!DOCTYPE html>`, CSS and `<div>` soup with the actual message buried inside it. Measured
+2026-09-17 by inspecting every stored draft's source email while building the study instrument.
+
+`#57` added HTML stripping to the listener before masking. Either these rows predate that fix or it
+is not holding for multi-part messages.
+
+Two consequences beyond the display problem. Markup inflates the text sent to the model, wasting a
+256-token budget on style attributes; and PII inside HTML attributes is not necessarily reachable
+by regex patterns written for prose.
+
+Worked around in the study instrument by stripping at render (`build_study_instrument.py`), which
+does nothing for what is stored or what the model receives.
+
+### Masking silently degraded on a stored message — Lane A (#109)
+
+`body_masked` for one message left a real person's name and town in plain text. Found 2026-09-17
+while selecting drafts for the study.
+
+The evidence is stronger than usual because it is a controlled comparison. Five near-identical
+copies of the same support email exist in the corpus. Four carry 12, 12, 9 and 12 redactions; the
+fifth carried 6, with the name and location unredacted. **Same input, masked correctly four times
+and incorrectly once.**
+
+The likely cause is documented below as accepted behaviour: masking degrades to regex-only when
+Presidio is unreachable, and NER is what catches names and places. What was not known is that this
+had actually happened to stored data rather than remaining a theoretical fallback.
+
+The row was repaired with `backend/scripts/remask_outliers.py`, which finds candidates by the same
+redaction-count comparison, re-runs Presidio, and rewrites the stored body. That repairs data; it
+does not stop it recurring.
+
+**This matters for how the masking evidence is reported.** The fixture passes 38/38, but it was
+written after the implementation, so it demonstrates that no *known* failure mode is unhandled.
+This is an unknown one, and it was found by accident. The honest claim is narrower than "masking
+works".
+
+Worth doing: have the listener record the degraded path per message rather than only in the audit
+log, so a degraded row is identifiable without comparing it to its siblings.
+
 ### Training and evaluation data are not reproducible — Lane B
 `.gitignore` excludes `backend/*.csv` and `backend/models/`, so no labelled dataset or trained
 model is in version control. A clean clone cannot reproduce any reported number. Acceptable for
@@ -142,7 +184,8 @@ These are not defects — they are trade-offs with reasons, recorded so the reas
   the model payload.
 - **Masking degrades rather than blocks.** If Presidio is unreachable, the regex floor still runs
   and the row is stored with the degradation recorded in the audit log. Names and locations are
-  not masked in that mode.
+  not masked in that mode. **This is no longer only theoretical** — see the degraded-message entry
+  above for an observed instance in stored data.
 - **A low-confidence draft is shown, not withheld.** Gating hard on an unvalidated self-reported
   score would silently discard work; the approval click is the real control.
 
