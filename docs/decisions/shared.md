@@ -6,6 +6,58 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-09-11 — The review gate reads the critic's four checks, not its self-reported score
+- Decision: `needs_human_review` is now a conjunction over the checks the critic already computes
+  (grounding, PII, completeness) plus a deterministic PII scan of the generated draft and an
+  `attempts > 0` term, instead of one comparison against a self-reported scalar. Tone is advisory
+  and never blocks. Refine and review thresholds are split (0.8 / 0.9). Confidence is clamped to
+  [0,1]. Quoted history is stripped inside `extract_actions()` only.
+- Why: measured over 43 drafts, the gate had never fired. The repair loop ran on the same constant
+  as the flag, so it resolved anything that would have tripped it, and the four real checks were
+  computed and discarded — they appeared nowhere in the code outside the prompt and schema.
+  Verified after the change: a draft echoing an email address and phone number, scoring exactly
+  0.8, now flags on two independent grounds; under the old comparison it passed.
+- Why not just move the threshold: the scalar has no definition and is documented to saturate at
+  the ceiling (Xiong et al., ICLR 2024, arXiv 2306.13063 — our values were 0.85/0.9/0.95/1.0,
+  their "80-100% in multiples of 5"). Recalibrating leaves the gate reading a number nobody can
+  defend in a viva.
+- Why the PII scan is deterministic: the draft is generated from masked text, so any format-clear
+  PII in it was invented or leaked. Presidio with ad-hoc MY_NRIC and MY_PHONE recognizers, verified
+  live against the running analyzer; an unreachable scanner yields `pii_clean: None`, not True.
+- Cross-lane: this edits `backend/email_agent.py`, which is Lane C's. Done at the Lane B owner's
+  direction without waiting for Hanif; design rationale in
+  [`../../specs/features/critic-evaluation-gates.md`](../../specs/features/critic-evaluation-gates.md).
+  **Hanif should review and is free to redo any of it** — the seam (`/process-email` response) only
+  gained fields, so nothing downstream breaks.
+- Affects: `backend/email_agent.py`, `app/dashboard.py`, `app/db/models.py`, migration 0010,
+  `Makefile` (lint now covers `email_agent.py`, which neither it nor CI checked before).
+  `.github/workflows/ci.yml` still runs `ruff check app tests scripts` and should be brought into
+  line — a workflow edit, so left for a separate ask.
+- Status: proposed — needs Hanif's review as owner of the file.
+
+### 2026-09-09 — Thread identity is captured at ingestion, not fetched at send
+- Decision: `messages` gains `thread_id`, `rfc822_message_id`, `thread_refs` (Lane A, from the
+  message the listener already fetches) and `sent_message_id` (backend, for its own replies).
+  Migration 0009 — independent of 0006, 0007 and 0008, so no ordering constraint between them.
+  (0008 went to `critic_attempts`, which needs no co-sign and could land immediately; these
+  columns wait on Lane A.)
+- Why: approved replies send as standalone mail because nothing stores what threading needs. Four
+  planned items need that identity in the database, not just at send time — sent-mail indexing
+  (backlog 2), the thread view (backlog 4), the Chrome extension (Gmail's URL fragment names the
+  *thread*, not the message), and the history-ID ingestion fix.
+- Why not fetch at send time: cheaper this week — no migration, no cross-lane change — but it
+  serves one caller, makes the other three pay their own round trip, and fails if the original is
+  deleted. Kept as the fallback if the schedule forces it; the header-construction code is the same
+  either way, so it is not throwaway work.
+- Naming and shape: `thread_refs` because `references` is a reserved SQL keyword; it holds the whole
+  chain, not just the parent's ID, so ancestry survives past depth one (RFC 5322 §3.6.4). Column
+  semantics are documented in `specs/context/db-schema.md`.
+- Open: confirm Gmail preserves a client-supplied `Message-ID` on `messages.send` before relying on
+  `sent_message_id`. Store only these four fields, not the full header block.
+- Affects: Lane A (`listener/main.go`, `StoredMessage`), Lane B (`app/gmail_send.py`, `dashboard.py`),
+  `specs/context/db-schema.md` (this PR), migration 0009.
+- Status: proposed — needs JiaJun's co-sign as owner of the `messages` table and the listener.
+
 ### 2026-08-31 — Seam 1 resolved: canonical column is `messages.body_masked`
 - Decision: the masked-email column is `messages.body_masked`; `masked_body` is retired.
   Closes finding 1 of the 2026-08-06 integration-sync entry.

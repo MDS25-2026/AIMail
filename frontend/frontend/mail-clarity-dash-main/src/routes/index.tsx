@@ -4,8 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import InboxList from "../components/InboxList";
 import EmailDetailPanel from "../components/EmailDetailPanel";
 import AppShell from "../components/AppShell";
-import { fetchEmail, fetchEmails, refineEmail, regenerateEmail, sendEmail } from "../lib/api";
-import type { Email, Tone } from "../types/email";
+import {
+  useEmail,
+  useEmails,
+  useRefineEmail,
+  useRegenerateEmail,
+  useSendEmail,
+} from "../lib/queries";
+import type { Tone } from "../types/email";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -30,135 +36,105 @@ export const Route = createFileRoute("/")({
 });
 
 function DashboardPage() {
-  const [emails, setEmails] = useState<Email[]>([]);
-  const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
+  const emails = useEmails();
+  const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
+  const selected = useEmail(selectedEmailId);
 
-  // Draft + tone live here so the panels stay presentational.
-  const [draft, setDraft] = useState("");
-  const [tone, setTone] = useState<Tone>("professional");
-  const [isRegenerating, setIsRegenerating] = useState(false);
-  const [isRefining, setIsRefining] = useState(false);
-  const [isSending, setIsSending] = useState(false);
+  // The detail call re-runs generation (~15s), so show the list row's copy until it lands.
+  const listEmail = (emails.data ?? []).find((item) => item.id === selectedEmailId) ?? null;
+  const email = selected.data ?? listEmail;
 
-  useEffect(() => {
-    fetchEmails().then(setEmails).catch(() => {});
-  }, []);
+  // The draft is server state the user can type over. Rather than syncing state to the query in
+  // an effect (which fights the user's keystrokes), an override shadows the server value and is
+  // cleared whenever the server should win again: a new selection, or a completed mutation.
+  const [draftOverride, setDraftOverride] = useState<string | null>(null);
+  const [toneOverride, setToneOverride] = useState<Tone | null>(null);
+  const draft = draftOverride ?? email?.draftReply ?? "";
+  const tone = toneOverride ?? email?.tone ?? "professional";
 
+  const regenerate = useRegenerateEmail();
+  const refine = useRefineEmail();
+  const send = useSendEmail();
+
+  // Last issued wins. Query keys already stop a stale response landing on another email, but
+  // two regenerates for the SAME email resolve into the same cache entry, so a slow first
+  // response could still overwrite a newer one.
   const requestSeqRef = useRef(0);
-  const didAutoSelectRef = useRef(false);
-
-  const handleSelectEmail = async (emailId: string) => {
-    // Render list metadata immediately, then fill the Lane C draft when /emails/{id} returns
-    // (that call runs the ~15s generation pipeline).
+  const runDraftMutation = (run: () => Promise<unknown>) => {
     const seq = ++requestSeqRef.current;
-    const listEmail = emails.find((item) => item.id === emailId) ?? null;
-    if (listEmail) {
-      setSelectedEmail(listEmail);
-      setDraft(listEmail.draftReply);
-      setTone(listEmail.tone);
-    }
-    const detail = await fetchEmail(emailId).catch(() => null);
-    // Only the newest selection's response wins. Guards both a later click and a duplicate
-    // in-flight fetch for the same email (StrictMode) from clobbering the shown draft.
-    if (detail && seq === requestSeqRef.current) {
-      setSelectedEmail(detail);
-      setDraft(detail.draftReply);
-      setTone(detail.tone);
-    }
+    void run()
+      .then(() => {
+        if (seq === requestSeqRef.current) setDraftOverride(null);
+      })
+      .catch(() => {
+        // Keep whatever is on screen; the mutation's error state drives the UI.
+      });
   };
 
+  const handleSelectEmail = (emailId: string) => {
+    setSelectedEmailId(emailId);
+    setDraftOverride(null);
+    setToneOverride(null);
+  };
+
+  const didAutoSelectRef = useRef(false);
   useEffect(() => {
     // Auto-select the first email once; StrictMode double-invokes effects in dev.
-    if (emails.length > 0 && !didAutoSelectRef.current) {
+    const first = emails.data?.[0];
+    if (first && !didAutoSelectRef.current) {
       didAutoSelectRef.current = true;
-      void handleSelectEmail(emails[0].id);
+      handleSelectEmail(first.id);
     }
-  }, [emails]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [emails.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // --- Stubs: wire these to the real API later ---------------------------
-  // Apply a draft-mutating result only if it's still the latest request, so a double-click or
-  // rapid tone-toggle can't let a slower earlier response clobber the newer draft.
-  const applyIfLatest = (seq: number, updated: Email) => {
-    if (seq !== requestSeqRef.current) return;
-    setSelectedEmail(updated);
-    setDraft(updated.draftReply);
+  const onRegenerate = (emailId: string) => {
+    runDraftMutation(() => regenerate.mutateAsync({ emailId, tone }));
   };
 
-  const onRegenerate = async (emailId: string) => {
-    const seq = ++requestSeqRef.current;
-    setIsRegenerating(true);
-    try {
-      applyIfLatest(seq, await regenerateEmail(emailId, tone));
-    } catch {
-      // keep the current draft on failure
-    } finally {
-      if (seq === requestSeqRef.current) setIsRegenerating(false);
-    }
+  const onRefine = (emailId: string, instruction: string) => {
+    runDraftMutation(() => refine.mutateAsync({ emailId, instruction, draft }));
   };
 
-  const onRefine = async (emailId: string, instruction: string) => {
-    const seq = ++requestSeqRef.current;
-    setIsRefining(true);
-    try {
-      applyIfLatest(seq, await refineEmail(emailId, instruction, draft));
-    } catch {
-      // keep the current draft on failure
-    } finally {
-      if (seq === requestSeqRef.current) setIsRefining(false);
-    }
+  const onToneChange = (emailId: string, nextTone: Tone) => {
+    setToneOverride(nextTone);
+    runDraftMutation(() => regenerate.mutateAsync({ emailId, tone: nextTone }));
   };
 
-  const onToneChange = async (emailId: string, nextTone: Tone) => {
-    setTone(nextTone);
-    const seq = ++requestSeqRef.current;
-    setIsRegenerating(true);
-    try {
-      applyIfLatest(seq, await regenerateEmail(emailId, nextTone));
-    } catch {
-      // keep the current draft on failure
-    } finally {
-      if (seq === requestSeqRef.current) setIsRegenerating(false);
-    }
+  const onApproveSend = (emailId: string) => {
+    send.mutate(
+      { emailId, draft },
+      {
+        onSuccess: () => setDraftOverride(null),
+        onError: () =>
+          window.alert("Send failed — check the backend and email agent, then try again."),
+      },
+    );
   };
-
-  const onApproveSend = async (emailId: string) => {
-    setIsSending(true);
-    try {
-      const updated = await sendEmail(emailId, draft);
-      setSelectedEmail(updated);
-      setEmails((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
-    } catch {
-      window.alert("Send failed — check the backend and email agent, then try again.");
-    } finally {
-      setIsSending(false);
-    }
-  };
-  // -----------------------------------------------------------------------
 
   return (
     <AppShell>
       <>
         <aside className="w-80 shrink-0 border-r border-slate-200 bg-white">
           <InboxList
-            emails={emails}
-            selectedEmailId={selectedEmail?.id ?? null}
+            emails={emails.data ?? []}
+            selectedEmailId={selectedEmailId}
             onSelectEmail={handleSelectEmail}
           />
         </aside>
 
         <section className="min-w-0 flex-1 bg-slate-50">
           <EmailDetailPanel
-            email={selectedEmail}
+            email={email}
             draft={draft}
             tone={tone}
-            onDraftChange={setDraft}
+            onDraftChange={setDraftOverride}
             onToneChange={onToneChange}
             onRegenerate={onRegenerate}
             onRefine={onRefine}
             onApproveSend={onApproveSend}
-            isRegenerating={isRegenerating}
-            isRefining={isRefining}
-            isSending={isSending}
+            isRegenerating={regenerate.isPending}
+            isRefining={refine.isPending}
+            isSending={send.isPending}
           />
         </section>
       </>

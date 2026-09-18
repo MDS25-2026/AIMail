@@ -3,6 +3,9 @@ type ApproveSendButtonProps = {
   onApproveSend: (emailId: string) => void;
   isSending?: boolean;
   isSent?: boolean;
+  /** A draft mutation is in flight. Sending now would dispatch the pre-mutation text while the
+   *  screen goes on to show the new one — and a send cannot be taken back. */
+  isDraftChanging?: boolean;
 };
 
 /**
@@ -14,8 +17,9 @@ export default function ApproveSendButton({
   onApproveSend,
   isSending = false,
   isSent = false,
+  isDraftChanging = false,
 }: ApproveSendButtonProps) {
-  const disabled = emailId === null || isSending || isSent;
+  const disabled = emailId === null || isSending || isSent || isDraftChanging;
   const label = isSent ? "Sent" : isSending ? "Sending…" : "Approve & Send";
   const className = isSent
     ? "rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-default"

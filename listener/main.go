@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"log"
 	"net/http"
@@ -65,7 +66,9 @@ var (
 	// separated "713-853-6161". Runs AFTER the IC pass, so a 12-digit IC is already redacted.
 	// The US branches require parens or separators, so they can't swallow a bare account digit-run.
 	// MY branch allows a separator and parens after the country code ("+60 (12) 345 6789").
-	phoneRegex = regexp.MustCompile(`(?:\+?60|\b0)[\s.-]?\(?\d{1,2}\)?[\s.-]?\d{3,4}[\s.-]?\d{3,4}\b|\(\d{3}\)[\s.-]?\d{3}[\s.-]?\d{4}|\b\d{3}[\s.-]\d{3}[\s.-]\d{4}\b`)
+	// The final branch is a short local number ("555-0142"): separator required, so it cannot
+	// swallow a bare digit run, and it runs after the IC pass so an IC is already redacted.
+	phoneRegex = regexp.MustCompile(`(?:\+?60|\b0)[\s.-]?\(?\d{1,2}\)?[\s.-]?\d{3,4}[\s.-]?\d{3,4}\b|\(\d{3}\)[\s.-]?\d{3}[\s.-]?\d{4}|\b\d{3}[\s.-]\d{3}[\s.-]\d{4}\b|\b\d{3}[.-]\d{4}\b`)
 )
 
 // isICDate reports whether the YYMMDD prefix of a bare 12-digit string is a plausible date,
@@ -167,9 +170,46 @@ var localeRecognizers = []presidioRecognizer{
 		Name:              "FLEXIBLE_ACCOUNT_RECOGNIZER",
 		SupportedLanguage: "en",
 		SupportedEntity:   "ACCOUNT_NUMBER",
-		Patterns:          []presidioPattern{{Name: "arbitrary_digit_pattern", Regex: `\b\d{6,16}\b`, Score: 0.4}},
-		Context:           []string{"account", "acc", "bank", "maybank", "cimb", "rhb", "public bank", "transfer", "reference", "ref", "passport", "policy", "member"},
+		// From 4 digits: real emails cite a partial account ("the account ending 4471"). The
+		// 0.4 base still sits below the 0.6 threshold, so a bare 4-digit run like a year is only
+		// masked when a context word below sits near it.
+		Patterns: []presidioPattern{{Name: "arbitrary_digit_pattern", Regex: `\b\d{4,16}\b`, Score: 0.4}},
+		Context:  []string{"account", "acc", "bank", "maybank", "cimb", "rhb", "public bank", "transfer", "reference", "ref", "passport", "policy", "member", "employee", "emp", "staff", "badge", "payroll"},
 	},
+}
+
+// allowedLocations are place names kept in the text rather than redacted. A country or state in
+// business mail is organisational context, not personal data: masking "the US desk" or "our
+// Selangor branch" strips meaning from the draft the model then writes, without protecting
+// anyone. The boundary is country and state only — cities, districts and streets stay masked, so
+// anything ambiguous errs toward redaction. Keep this list short; extending it to cities would
+// punch holes in the privacy claim. Recorded in docs/decisions/lane-a-spine.md.
+var allowedLocations = map[string]bool{
+	"us": true, "u.s.": true, "u.s.a.": true, "usa": true, "america": true,
+	"uk": true, "u.k.": true, "britain": true, "eu": true, "apac": true, "asean": true,
+	"malaysia": true, "singapore": true, "indonesia": true, "thailand": true,
+	"australia": true, "india": true, "china": true, "japan": true,
+	// Malaysian states — "our Selangor branch" is a business unit, not a person's address.
+	"selangor": true, "penang": true, "johor": true, "sabah": true, "sarawak": true,
+	"melaka": true, "malacca": true, "perak": true, "pahang": true, "kedah": true,
+	"kelantan": true, "terengganu": true, "perlis": true, "negeri sembilan": true,
+}
+
+// filterAllowedLocations drops LOCATION hits naming a country or state, leaving every other
+// entity untouched. Offsets from Presidio are Python character indices, so the text is sliced as
+// runes — byte slicing would misalign the moment an email contains a non-ASCII character.
+func filterAllowedLocations(text string, results []presidioResult) []presidioResult {
+	runes := []rune(text)
+	kept := make([]presidioResult, 0, len(results))
+	for _, r := range results {
+		if r.EntityType == "LOCATION" && r.Start >= 0 && r.End <= len(runes) && r.Start < r.End {
+			if allowedLocations[strings.ToLower(strings.TrimSpace(string(runes[r.Start:r.End])))] {
+				continue
+			}
+		}
+		kept = append(kept, r)
+	}
+	return kept
 }
 
 // maskText applies the regex PII floor first (always, offline-proof), then layers Presidio
@@ -196,10 +236,12 @@ func maskWithPresidio(ctx context.Context, text string) (string, error) {
 	anonymizerURL := getEnvOrDefault("PRESIDIO_ANONYMIZER_URL", "http://localhost:5002/anonymize")
 
 	analyzePayload, err := json.Marshal(presidioAnalyzeRequest{
-		Text:             text,
-		Language:         "en",
-		ScoreThreshold:   0.6,
-		Entities:         []string{"PERSON", "LOCATION", "ORGANIZATION", "ACCOUNT_NUMBER"},
+		Text:           text,
+		Language:       "en",
+		ScoreThreshold: 0.6,
+		// CREDIT_CARD is Presidio's built-in recogniser and validates the Luhn checksum, so it
+		// cannot fire on an invoice or order number that merely looks card-shaped.
+		Entities:         []string{"PERSON", "LOCATION", "ORGANIZATION", "ACCOUNT_NUMBER", "CREDIT_CARD"},
 		AdHocRecognizers: localeRecognizers,
 	})
 	if err != nil {
@@ -214,6 +256,7 @@ func maskWithPresidio(ctx context.Context, text string) (string, error) {
 	if err := json.Unmarshal(raw, &results); err != nil {
 		return "", fmt.Errorf("decode analyze results: %w", err)
 	}
+	results = filterAllowedLocations(text, results)
 	if len(results) == 0 {
 		return text, nil // no PII beyond the regex floor
 	}
@@ -437,7 +480,11 @@ func listenToPubSub(ctx context.Context, ts oauth2.TokenSource, srv *gmail.Servi
 // Fetches the most recent message, masks PII, and persists it + an audit
 // log entry to Supabase.
 func fetchLatestMessage(ctx context.Context, srv *gmail.Service) {
-	list, err := srv.Users.Messages.List("me").MaxResults(1).Do()
+	// INBOX only, matching the label the watch is registered against (setupWatch). Without it
+	// this fetches the newest message anywhere in the mailbox — including a reply the system
+	// just sent, which Gmail files in the same mailbox. That made AImail ingest its own outgoing
+	// mail and generate replies to itself.
+	list, err := srv.Users.Messages.List("me").LabelIds("INBOX").MaxResults(1).Do()
 	if err != nil || len(list.Messages) == 0 {
 		log.Printf("Could not fetch messages: %v", err)
 		writeAuditLog(ctx, "fetch_message", fmt.Sprintf("list error: %v", err), false)
@@ -505,14 +552,42 @@ func fetchLatestMessage(ctx context.Context, srv *gmail.Service) {
 
 // getBody prefers the text/html part so the dashboard can render the email like a normal inbox;
 // it falls back to text/plain, then to a single-part body.
+// getBody returns the message body as plain prose. text/plain is preferred over text/html
+// because it needs no conversion; HTML is stripped rather than stored raw.
+//
+// This is a masking control, not formatting. Presidio's NER scores a name by its sentence
+// context, and a name sitting immediately after markup ("<p dir=\"ltr\">Priya has...") scores
+// below threshold and survives masking — the same name in prose is caught. Storing raw HTML
+// silently degraded name and location recall on every HTML email, which is nearly all of them.
 func getBody(part *gmail.MessagePart) string {
-	if html := findPart(part, "text/html"); html != "" {
-		return html
-	}
 	if plain := findPart(part, "text/plain"); plain != "" {
 		return plain
 	}
+	if markup := findPart(part, "text/html"); markup != "" {
+		return htmlToText(markup)
+	}
 	return decodePart(part)
+}
+
+var (
+	// script/style hold code, not prose: drop their contents rather than leaving CSS in the body.
+	htmlDropRegex  = regexp.MustCompile(`(?is)<(script|style)[^>]*>.*?</(script|style)>`)
+	htmlBreakRegex = regexp.MustCompile(`(?i)<(br\s*/?|/p|/div|/tr|/li|/h[1-6])>`)
+	htmlTagRegex   = regexp.MustCompile(`<[^>]*>`)
+	blankLineRegex = regexp.MustCompile(`\n{3,}`)
+)
+
+// htmlToText reduces email HTML to prose. Deliberately regex-based rather than a full parser:
+// the goal is feeding clean sentences to the masker, not faithful rendering, and a parser would
+// add a dependency for no gain here. Block-closing tags become newlines so sentences do not run
+// together, which would confuse NER as much as the tags did.
+func htmlToText(markup string) string {
+	text := htmlDropRegex.ReplaceAllString(markup, " ")
+	text = htmlBreakRegex.ReplaceAllString(text, "\n")
+	text = htmlTagRegex.ReplaceAllString(text, "")
+	text = html.UnescapeString(text)
+	text = blankLineRegex.ReplaceAllString(text, "\n\n")
+	return strings.TrimSpace(text)
 }
 
 func findPart(part *gmail.MessagePart, mimeType string) string {

@@ -31,6 +31,17 @@ done
 # would be an unauthenticated LLM endpoint. Do not change to 0.0.0.0 without adding a token.
 ( cd backend && ../.venv/bin/uvicorn email_agent:app --reload --port 8001 --host 127.0.0.1 2>&1 | sed 's/^/[agent]    /' ) &
 ( cd frontend/frontend/mail-clarity-dash-main && npm run dev -- --port 8090 --strictPort 2>&1 | sed 's/^/[web]      /' ) &
-( cd listener && go run . 2>&1 | sed 's/^/[listener] /' ) &
+# The listener holds long-lived Google connections, and a transient TLS or token-refresh failure
+# exits it outright. Unsupervised that is the worst failure shape: every other service keeps
+# serving, so the stack looks healthy while mail silently stops arriving. Restart it, with a pause
+# so a real misconfiguration (missing credentials) reports repeatedly instead of spinning.
+(
+	cd listener || exit
+	while true; do
+		go run . 2>&1
+		echo "exited ($?) — restarting in 5s"
+		sleep 5
+	done | sed 's/^/[listener] /'
+) &
 
 wait

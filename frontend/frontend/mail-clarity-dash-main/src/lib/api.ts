@@ -1,4 +1,5 @@
 import type { Email } from "../types/email";
+import type { PolicyDocument, SystemInfo } from "../types/knowledge";
 
 /** Backend base URL. Defaults to the local backend; override with VITE_BACKEND_URL for other envs. */
 const BASE = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:8000";
@@ -55,5 +56,55 @@ export async function sendEmail(id: string, draft: string): Promise<Email> {
     body: JSON.stringify({ draft }),
   });
   if (!res.ok) throw new Error(`POST /emails/${id}/send failed (${res.status})`);
+  return res.json();
+}
+
+/** Knowledge base inventory — one row per ingested policy document. */
+export async function fetchDocuments(): Promise<PolicyDocument[]> {
+  const res = await fetch(`${BASE}/documents`, { headers: authHeaders() });
+  if (!res.ok) throw new Error(`GET /documents failed (${res.status})`);
+  return res.json();
+}
+
+/** Ingest pasted text as a document; returns the number of chunks stored. */
+export async function addDocument(title: string, text: string): Promise<number> {
+  const res = await fetch(`${BASE}/documents`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ title, text }),
+  });
+  if (!res.ok) throw new Error(await uploadErrorMessage(res, "POST /documents"));
+  const body: { chunks: number } = await res.json();
+  return body.chunks;
+}
+
+/** Ingest a PDF; returns the number of chunks stored. */
+export async function uploadDocument(file: File): Promise<number> {
+  const form = new FormData();
+  form.append("file", file);
+  // No Content-Type: the browser sets the multipart boundary itself.
+  const res = await fetch(`${BASE}/documents/upload`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: form,
+  });
+  if (!res.ok) throw new Error(await uploadErrorMessage(res, "POST /documents/upload"));
+  const body: { chunks: number } = await res.json();
+  return body.chunks;
+}
+
+/** Turn the backend's guard responses into something a person can act on. */
+async function uploadErrorMessage(res: Response, route: string): Promise<string> {
+  if (res.status === 413) return "That file is over the 10 MB limit.";
+  if (res.status === 429) return "Too many uploads just now — wait a minute and retry.";
+  if (res.status === 400) return "That file was rejected: it must be a real PDF.";
+  if (res.status === 401) return "Not authorised — check VITE_BACKEND_API_TOKEN.";
+  return `${route} failed (${res.status})`;
+}
+
+/** Non-secret runtime configuration, for the Settings view. */
+export async function fetchSystemInfo(): Promise<SystemInfo> {
+  const res = await fetch(`${BASE}/system/info`, { headers: authHeaders() });
+  if (!res.ok) throw new Error(`GET /system/info failed (${res.status})`);
   return res.json();
 }

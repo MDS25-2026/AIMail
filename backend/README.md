@@ -37,6 +37,12 @@ Defined in the repo-root [`../.env.example`](../.env.example). Expected keys:
 - `GEMINI_CHAT_MODEL` — optional, defaults to `gemini-2.5-flash`
 - `GOOGLE_API_KEY` — Gemini for the Lane C agent
 - `FRONTEND_ORIGIN` — dev CORS origin for the dashboard (default `http://localhost:3000`)
+- `BACKEND_API_TOKEN` — bearer token required on every route except `GET /`. Empty means the API
+  refuses all requests rather than silently running unauthenticated
+- `EMAIL_AGENT_URL` — where the backend calls Lane C (default `http://localhost:8001`)
+- `PRIORITY_MODEL` — `baseline` (TF-IDF) or `distilbert` (fine-tuned); selects which predictor
+  `backfill_importance.py` uses
+- `MAILBOX_OWNER_EMAIL` — keys the per-user policy layer; blank falls back to neutral defaults
 
 ## Folder structure
 
@@ -47,12 +53,14 @@ backend/
 │   ├── main.py              # FastAPI entrypoint: dashboard API + retrieval
 │   ├── dashboard.py         # assemble the email view, generation cache, regenerate/refine/send
 │   ├── contracts.py         # cross-lane data shapes (single source of truth)
+│   ├── personalisation.py   # per-user policy applied AFTER the classifier predicts (Lane B)
+│   ├── audit.py             # best-effort audit trail for generate/refine/send
 │   ├── gmail_send.py        # send approved replies via the Gmail API
 │   ├── static/              # demo.html (retrieval showcase page)
 │   ├── rag/                 # embeddings, ingestion, retrieval, eval (Lane B)
 │   ├── ml/                  # priority classifier + temporal layer (Lane B)
 │   ├── db/                  # SQLAlchemy models + migrations
-│   └── core/                # config, constants
+│   └── core/                # config, constants, auth, rate limiting
 ├── scripts/                 # migrate, seed, ingest, eval, train, generate
 ├── tests/
 └── requirements.txt

@@ -15,11 +15,12 @@ import httpx
 from sqlalchemy import select
 
 from app.audit import audit
-from app.contracts import DashboardEmail, priority_label
+from app.contracts import DashboardEmail
 from app.core.config import get_settings
 from app.db.models import Message
 from app.db.session import get_sessionmaker
 from app.gmail_send import SendError, send_reply
+from app.personalisation import DEFAULT_POLICY, Policy, apply_policy, load_policy
 from app.rag.embed import EmbeddingError
 from app.rag.retrieve import retrieve
 from app.rag.utils import format_rag_context
@@ -27,7 +28,7 @@ from app.rag.utils import format_rag_context
 logger = logging.getLogger(__name__)
 
 
-def _to_email(message: Message) -> DashboardEmail:
+def _to_email(message: Message, policy: Policy = DEFAULT_POLICY) -> DashboardEmail:
     return DashboardEmail(
         id=str(message.id),
         sender=message.from_addr or "",
@@ -35,7 +36,8 @@ def _to_email(message: Message) -> DashboardEmail:
         preview=message.snippet_masked or "",
         body=message.body_masked or "",
         timestamp=(message.received_at or message.created_at).isoformat(),
-        priority=priority_label(message.importance),
+        # The classifier's prediction, then the user's policy on top of it.
+        priority=apply_policy(message, policy),
         threadContext=[],
         aiSummary=message.ai_summary or "",
         actionItems=message.action_items or [],
@@ -45,6 +47,7 @@ def _to_email(message: Message) -> DashboardEmail:
         piiMasked=bool((message.emails_masked or 0) + (message.phones_masked or 0)),
         criticConfidence=message.critic_confidence or 0.0,
         sentAt=message.sent_at.isoformat() if message.sent_at else None,
+        isRead=message.read_at is not None,
     )
 
 
@@ -52,7 +55,8 @@ async def list_dashboard_emails(limit: int = 50) -> list[DashboardEmail]:
     stmt = select(Message).order_by(Message.created_at.desc()).limit(limit)
     async with get_sessionmaker()() as session:
         rows = (await session.scalars(stmt)).all()
-    return [_to_email(message) for message in rows]
+        policy = await load_policy(session, get_settings().mailbox_owner_email)
+    return [_to_email(message, policy) for message in rows]
 
 
 async def generate_pending(limit: int | None = None) -> int:
@@ -117,11 +121,27 @@ async def _generate_and_store(message: Message, tone: str = "professional") -> b
     message.ai_summary = generated.get("summary") or ""
     message.draft_reply = draft
     message.action_items = generated.get("action_items") or []
-    message.critic_confidence = float(generated.get("confidence") or 0.0)
+    # NULL, not 0.0: an NA message was never scored, and coercing that to zero made "not
+    # evaluated" indistinguishable from "the critic rejected this" in every stored statistic.
+    confidence = generated.get("confidence")
+    message.critic_confidence = None if confidence is None else float(confidence)
+    # The agent already reports this; storing it is what makes a rescued draft
+    # distinguishable from a first-pass success.
+    message.critic_attempts = int(generated.get("attempts") or 0)
+    message.critic_checks = {
+        "grounding_ok": generated.get("grounding_ok"),
+        "pii_clean": generated.get("pii_clean"),
+        "tone_match": generated.get("tone_match"),
+        "completeness": generated.get("completeness"),
+        "pii_findings": generated.get("pii_findings") or [],
+        "review_reasons": generated.get("review_reasons") or [],
+    }
+    message.needs_human_review = bool(generated.get("needs_human_review"))
     message.generated_at = datetime.now(timezone.utc)
     await audit(
         "generate_draft",
-        f"message={message.id} tone={tone} confidence={message.critic_confidence:.2f}",
+        f"message={message.id} tone={tone} confidence={message.critic_confidence} "
+        f"review={message.needs_human_review}",
     )
     return bool(draft)
 
@@ -137,6 +157,10 @@ async def email_detail(message_id: str) -> DashboardEmail | None:
             return None
         if message.generated_at is None:
             await _generate_and_store(message)
+        # Opening the detail view is the moment a person actually reads it. Set once so the
+        # first-open time is preserved rather than being bumped on every revisit.
+        if message.read_at is None:
+            message.read_at = datetime.now(timezone.utc)
         email = _to_email(message)
         await session.commit()
         return email

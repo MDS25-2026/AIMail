@@ -39,6 +39,8 @@ export type Email = {
   criticConfidence: number;
   /** ISO 8601 when the approved reply was sent, else null/undefined. */
   sentAt?: string | null;
+  /** Opened at least once. Anything new is unread. */
+  isRead?: boolean;
 };
 
 /** Below this the draft is flagged "review recommended". */

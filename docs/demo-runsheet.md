@@ -60,7 +60,7 @@ refine (R04.2) - most likely beat to hang on a live API call, proves nothing the
   Live proof, if asked to show it:
   `curl -si -X POST localhost:8000/emails/x/send -H 'Content-Type: application/json' -d '{"draft":"hi"}' | head -1`
 - **"How do you know the masking works?"** 13 tests in `listener/`, plus a recall harness
-  (`recall_test.go`) scoring a labeled corpus of 29 cases / 35 PII spans: currently **35/35
+  (`recall_test.go`) scoring a labeled corpus of 31 cases / 37 PII spans: currently **37/37
   against the 80% R02 target**, and it scores the regex layer alone when Presidio is down so an
   offline run never reports the full number. Covered: email, MY and US phone formats, IC
   (dashed, space-separated, and bare date-gated), PERSON, LOCATION, context-gated
