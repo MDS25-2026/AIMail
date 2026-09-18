@@ -31,9 +31,22 @@ The `n8n/` folder is unused scaffolding.
 
 ## Components
 
-- **listener/** (Lane A, Go): receives Gmail Pub/Sub notifications, pulls the message, **masks
-  PII in the listener** (not the backend), and writes the masked row + an audit entry to Supabase
-  via the PostgREST API (`SUPABASE_URL` + `SUPABASE_SERVICE_KEY`). Stateless.
+- **listener/** (Lane A, Go): receives Gmail Pub/Sub notifications, pulls the message named by
+  the notification's history ID, **masks PII in the listener** (not the backend), and writes the
+  masked row + an audit entry to Supabase via the PostgREST API (`SUPABASE_URL` +
+  `SUPABASE_SERVICE_KEY`). Stateless.
+
+  **Image attachments (#82).** Text inside an image is extracted, but the ordering is the control,
+  not an implementation detail. The image is redacted by a local Presidio container
+  (`presidio-image-redactor`, bound to `127.0.0.1`) **before anything reads it**; only the
+  redacted image is sent to the model for transcription, and the transcript then passes through
+  the same `maskText` as any other body text.
+
+  This ordering is what keeps *masking before transit* true for attachments. No cloud-OCR-first
+  design can: reading an image is what finds the PII in it, so anything reading it remotely sees
+  the PII before masking is possible. If redaction fails, the attachment is **skipped** rather
+  than read — falling through to OCR would silently undo the guarantee. The message still ingests
+  on its text body.
 - **backend/** (Lanes B + C, Python/FastAPI): reads masked email from Supabase (via `DATABASE_URL`
   / asyncpg), runs retrieval (B), the classifier (B), and generation (C, `email_agent.py`, on
   Gemini), caches + pre-generates drafts, exposes REST for the dashboard, and sends approved
