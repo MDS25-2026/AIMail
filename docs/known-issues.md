@@ -77,25 +77,6 @@ until the overflow appears, then names the deepest element that no ancestor clip
 })()
 ```
 
-### The Gmail watch is never renewed — Lane A
-`setupWatch` registers a watch that Gmail expires after roughly seven days, and nothing renews it.
-Restarting the listener re-registers, so frequent restarts hide the problem — but a listener left
-running for a week would stop receiving mail silently. Needs a periodic re-registration.
-
-### Pub/Sub messages are acknowledged before they are processed — Lane A
-`msg.Ack()` is the first line of the receive callback, so a failure during masking or storage
-means the notification is never redelivered and that email is lost. The alternative — acking after
-success — risks a poison message redelivering forever. Neither is free; the current choice is
-deliberate but undocumented outside this note.
-
-### Ingestion fetches "the latest message" instead of what actually changed — Lane A
-The Pub/Sub notification carries a history ID naming exactly what changed, and
-`fetchLatestMessage` ignores it in favour of `Messages.List(...).MaxResults(1)`. If two emails
-arrive close together, the second notification fetches the same newest message twice and the
-earlier one is never ingested. The unique constraint on `gmail_message_id` prevents duplicate
-rows, so the failure mode is a missed email rather than a corrupted one. Using the history
-properly is the correct fix.
-
 ### Uploaded documents are never masked — Lane B
 `ingest_text` chunks and embeds directly with no masking step, and those chunks become the RAG
 context sent to the model. A policy PDF containing personal data reaches the LLM unmasked. The
@@ -113,10 +94,6 @@ The confidence score is emitted by the model itself and is not compared to any h
 "below 0.8 is flagged" rests on an unmeasured signal. A small study — two people rating ~20 drafts
 good/bad, compared against the critic's pass/fail — would convert the project's weakest claim into
 a measured one.
-
-### `supabaseInsert` has no timeout — Lane A
-It uses `http.DefaultClient` with no deadline, unlike the Presidio client which is bounded at five
-seconds. A hung connection to Supabase would block that handler indefinitely.
 
 ### Generated drafts still contain a "Subject:" line — Lane C
 The generator writes a subject line into the draft body. It is stripped at send time
