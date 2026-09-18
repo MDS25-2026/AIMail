@@ -1,5 +1,7 @@
 # Backlog — scoped 2026-09-07
 
+**Sequenced for the final sprint in [`week10-plan.md`](week10-plan.md); every item below now has an issue on the Week 10 milestone.**
+
 Feature work proposed in a working session, scoped and placed. Distinct from
 [`audit-remediation-plan.md`](audit-remediation-plan.md) (the nine audit items) and
 [`known-issues.md`](known-issues.md) (defects found in testing).
