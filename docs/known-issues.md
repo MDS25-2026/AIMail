@@ -11,10 +11,71 @@ Each entry: what happens, why it happens if known, and how much it matters.
 ### Page scrolls past the app into empty space — Lane D
 The dashboard can be scrolled below the interface into blank space. An attempted fix (2026-09-04)
 changed the shell from `h-screen` to `h-dvh` with `overflow-hidden` and set `html, body` to
-`height: 100%` — **this did not resolve it**, so the cause is elsewhere. Body overflow was
-deliberately not locked, since `/extension` is a taller standalone page that must still scroll.
-Next step is to inspect the rendered document in a browser and find which element exceeds the
-viewport, rather than guessing at the container. Cosmetic, but visible during a demo.
+`height: 100%` — **this did not resolve it**. Body overflow was deliberately not locked, since
+`/extension` is a taller standalone page that must still scroll. Cosmetic, but visible in a demo.
+
+**Measured 2026-09-15 (Lane B, handing to Lane D).** Three in-browser measurements:
+
+| run | viewport | `html.scrollHeight` | verdict |
+|-----|----------|---------------------|---------|
+| 1   | 812      | 812                 | clean   |
+| 2   | 812      | 3636                | **bug reproduced** |
+| 3   | 731      | 731                 | clean   |
+
+Run 3's viewport changed because devtools were docked, which forces a relayout. **The overflow is
+transient: it survives until something invalidates layout, then clears.** That is why the container
+fix looked like it failed and why the bug resists on-demand reproduction — measuring after a resize
+destroys the evidence. In run 2 the document height (3636) tracked the inbox list's own content
+height (3628, `InboxList.tsx:17`) to within 8px, but which element carries that height out to the
+document root is **not** established.
+
+Separately, and not the cause: `routes/index.tsx:117` (`aside`) and `:125` (`section`) sit between
+`main.flex.min-h-0.flex-1` (`AppShell.tsx:20`) and both scroll containers, and carry neither
+`h-full` nor `min-h-0`. They depend entirely on `align-items: stretch` for their height, which is
+the fragile case when a child uses `h-full`. Worth tightening regardless.
+
+Next step is to run this in the browser and then use the app normally — pop devtools into a
+separate window first, because docking or resizing it clears the state being hunted. It stays quiet
+until the overflow appears, then names the deepest element that no ancestor clips.
+
+```js
+(() => {
+  const de = document.documentElement;
+  let wasOverflowing = false;
+
+  const clipper = (el) => {
+    for (let n = el.parentElement; n; n = n.parentElement) {
+      const o = getComputedStyle(n).overflowY;
+      if (o === 'hidden' || o === 'auto' || o === 'scroll')
+        return n.tagName + '.' + String(n.className || '').slice(0, 30);
+    }
+    return 'NONE';
+  };
+
+  window.__scrollWatch = setInterval(() => {
+    const isOverflowing = de.scrollHeight > de.clientHeight + 4;
+    if (isOverflowing === wasOverflowing) return;
+    wasOverflowing = isOverflowing;
+    if (!isOverflowing) return console.log('--- cleared');
+
+    const shell = document.querySelector('.h-dvh');
+    console.log('=== OVERFLOW', de.scrollHeight, 'vs', de.clientHeight,
+      '| route', location.pathname,
+      '| body children', document.body.children.length,
+      '| h-dvh resolves to', shell ? getComputedStyle(shell).height : 'shell not found');
+
+    [...document.querySelectorAll('*')]
+      .map((el) => ({ el, bottom: Math.round(el.getBoundingClientRect().bottom + window.scrollY) }))
+      .filter((o) => o.bottom > de.clientHeight + 4 && clipper(o.el) === 'NONE')
+      .sort((a, b) => b.bottom - a.bottom)
+      .slice(0, 8)
+      .forEach(({ el, bottom }) => console.log('  ', bottom, el.tagName,
+        String(el.className || '').slice(0, 45), '| pos', getComputedStyle(el).position));
+  }, 250);
+
+  console.log('watching. clearInterval(window.__scrollWatch) to stop.');
+})()
+```
 
 ### The Gmail watch is never renewed — Lane A
 `setupWatch` registers a watch that Gmail expires after roughly seven days, and nothing renews it.
