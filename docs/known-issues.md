@@ -151,6 +151,23 @@ coursework; state it if asked about reproducibility.
 
 These are not defects — they are trade-offs with reasons, recorded so the reasoning is not lost.
 
+- **Dates inside image attachments are redacted; dates in email text are not.** The listener's
+  text masking asks Presidio for `PERSON, LOCATION, ORGANIZATION, ACCOUNT_NUMBER, CREDIT_CARD`
+  (`main.go:258`). The image redactor's `/redact` endpoint ignores an entity list — verified by
+  checksum, identical output with and without one — and always applies Presidio's defaults, which
+  include `DATE_TIME`. So "Payment due 30 September 2026" in an attached invoice arrives as
+  "Payment due [REDACTED] [REDACTED] [REDACTED]".
+
+  The cost is narrow but real: `app/ml/temporal.py` reads deadlines to lift the importance score,
+  so an email whose only deadline lives inside an attached image will be under-prioritised. Body
+  text is unaffected, which is where most deadlines are.
+
+  Accepted rather than fixed, because the alternatives all cost more than the defect: `presidio-ocr`
+  is a legacy gRPC service, and a self-built Tesseract wrapper is a container to maintain for a
+  minority of messages. **The proper fix** is a thin wrapper around the `presidio-image-redactor`
+  *Python package*, which does accept an entity list even though the REST image does not — worth
+  doing after submission, not before.
+
 - **Street numbers survive masking.** "12 Jalan Ampang" keeps the number. An address pattern would
   collide with dates, quantities and clause numbers, which the negative controls exist to prevent.
 - **Organisation names are not masked.** Masking company names degrades draft quality, and the
