@@ -113,3 +113,33 @@ def test_the_dashboard_thread_lists_every_other_message():
     message = Message(id=uuid4(), created_at=_at(12))
     shown = _to_email(message, thread=thread).threadContext
     assert [(m.sender, m.snippet) for m in shown] == [("a@x.com", "First"), ("b@x.com", "Second")]
+
+
+def test_a_draft_that_fails_for_content_is_stored_as_not_drafted_so_it_is_not_retried(monkeypatch):
+    import asyncio
+
+    import httpx
+
+    from app import dashboard
+
+    async def no_chunks(*_args, **_kwargs):
+        return []
+
+    async def refuses(path, payload):
+        request = httpx.Request("POST", "http://agent/process-email")
+        response = httpx.Response(422, json={"detail": "gemini_output_truncated"}, request=request)
+        raise httpx.HTTPStatusError("422", request=request, response=response)
+
+    async def no_audit(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(dashboard, "retrieve", no_chunks)
+    monkeypatch.setattr(dashboard, "_call_agent", refuses)
+    monkeypatch.setattr(dashboard, "audit", no_audit)
+    from app.db.models import MaskingStatus
+
+    message = Message(id=uuid4(), body_masked="Hi", masking_status=MaskingStatus.COMPLETE)
+    asyncio.run(dashboard._generate_and_store(message))
+    # Stored as handled (generated_at set), which is what stops the poller retrying it.
+    assert message.generated_at is not None and message.needs_human_review is True
+    assert message.critic_checks["review_reasons"] == ["no draft: gemini_output_truncated"]

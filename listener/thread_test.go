@@ -44,3 +44,13 @@ func TestStoredMessageSendsThreadColumnsFlatAndOmitsEmptyOnes(t *testing.T) {
 		t.Fatalf("thread columns must be top-level and omitted when empty: %s", text)
 	}
 }
+
+func TestHTMLLinksKeepTheirTarget(t *testing.T) {
+	got := htmlToText(`<p>Please <a class="btn" href="https://secure-bank.example/verify">verify your account</a> today.</p>`)
+	if !strings.Contains(got, "verify your account (https://secure-bank.example/verify)") {
+		t.Fatalf("the link target was lost: %q", got)
+	}
+	if strings.Contains(htmlToText(`<a href="mailto:a@b.c">write</a>`), "mailto") {
+		t.Fatal("only web links are kept as text")
+	}
+}

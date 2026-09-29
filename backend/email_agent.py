@@ -1,5 +1,6 @@
 import json
 import logging
+import math
 import os
 import re
 from enum import StrEnum
@@ -11,14 +12,19 @@ from pydantic import BaseModel, Field
 
 from app.core.logging_setup import configure_logging
 from app.core.middleware import request_context
-from app.normalise.numbers import canonical, numbers_in
+from app.normalise.numbers import (
+    canonical,
+    figure_readings,
+    numbers_in,
+    readings_per_figure,
+)
 from app.normalise.quantities import converted_figures
 from gemini_client import (
+    CONTENT_ERRORS,
     GeminiError,
     GeminiErrorCode,
     deadline,
     generate,
-    second_opinion_model,
     track_calls,
 )
 
@@ -32,13 +38,18 @@ PRESIDIO_ANALYZER_URL = os.getenv("PRESIDIO_ANALYZER_URL", "http://localhost:500
 # both later, and the code in the body says which.
 _STATUS_FOR_ERROR = {GeminiErrorCode.DEADLINE_EXCEEDED: 504}
 _SERVICE_UNAVAILABLE = 503
+# A content outcome (cut off, blocked, malformed, rejected input) repeats at temperature 0; 422
+# tells the caller not to retry it, where 503/504 say "try later".
+_UNPROCESSABLE = 422
 
 ROUTER_CATEGORIES = ("STANDARD", "COMPLEX", "NA")
-# Bounds one translation call; a longer body would also overrun the output cap.
-MAX_TRANSLATE_CHARS = 20_000
+# A translation is about as long as its source, and Chinese or Malay can run to one token per
+# character or more, so the input bound sits well inside TRANSLATION_MAX_OUTPUT_TOKENS.
+MAX_TRANSLATE_CHARS = 12_000
 # Caps are a runaway guard, not a length target: hitting one fails the stage (a cut-off reply must
 # never pass as whole), so they sit well above what a real summary or email reply needs.
 SUMMARY_MAX_TOKENS = 512
+ROUTER_MAX_TOKENS = 256
 DRAFT_MAX_TOKENS = 2048
 
 configure_logging()
@@ -83,10 +94,9 @@ class ProcessEmailResponse(BaseModel):
 # ---------- LLM helpers (Gemini-backed, see gemini_client.py) ----------
 
 async def call_gemini(prompt: str, response_schema: dict | None = None,
-                      max_output_tokens: int | None = None,
-                      models: list[str] | None = None) -> dict | str:
+                      max_output_tokens: int | None = None) -> dict | str:
     return await generate(prompt, response_schema=response_schema,
-                          max_output_tokens=max_output_tokens, models=models)
+                          max_output_tokens=max_output_tokens)
 
 
 async def call_llm(system_prompt: str, user_prompt: str, max_tokens: int = DRAFT_MAX_TOKENS) -> str:
@@ -136,8 +146,7 @@ def fence(tag: str, text: str) -> str:
 
 # ---------- Stage 1: Router ----------
 
-async def route_email(thread_context: str, email_body: str,
-                      model: str | None = None) -> str:
+async def route_email(thread_context: str, email_body: str) -> str:
     prompt = f"""You are a routing classifier for an email assistant.
 
 {_ISOLATION_RULE}
@@ -162,8 +171,8 @@ Respond with the category."""
         "properties": {"category": {"type": "string", "enum": list(ROUTER_CATEGORIES)}},
         "required": ["category"],
     }
-    result = await call_gemini(prompt, response_schema=schema, max_output_tokens=50,
-                               models=[model] if model else None)
+    # Room to spare: a model that thinks before answering spends output tokens on it.
+    result = await call_gemini(prompt, response_schema=schema, max_output_tokens=ROUTER_MAX_TOKENS)
     category = result.get("category") if isinstance(result, dict) else None
     return category if category in ROUTER_CATEGORIES else "NA"
 
@@ -250,7 +259,10 @@ Respond only with the evaluation."""
                      "issues", "unaddressed_items"],
     }
 
-    return await call_gemini(prompt, response_schema=schema)
+    evaluation = await call_gemini(prompt, response_schema=schema)
+    if not isinstance(evaluation, dict):
+        raise GeminiError(GeminiErrorCode.MALFORMED_JSON, "critic reply is not an object")
+    return evaluation
 
 
 # ---------- Stage 4: Refine ----------
@@ -424,6 +436,11 @@ def _figures_in(text: str) -> set[str]:
     return {canonical(value) for value in numbers_in(text)}
 
 
+def _significant(figures: set[str]) -> set[str]:
+    """Two digits or more: single digits are prose counts ("your 2 questions"), not facts."""
+    return {figure for figure in figures if len(figure.replace(".", "")) >= _SIGNIFICANT_DIGITS}
+
+
 def unsupported_specifics(draft: str, *sources: str) -> list[str]:
     """Numbers asserted in the draft that appear nowhere in the source material.
 
@@ -432,8 +449,7 @@ def unsupported_specifics(draft: str, *sources: str) -> list[str]:
     """
     source_text = "\n".join(sources)
     known = _figures_in(source_text) | converted_figures(draft, source_text)
-    return sorted(v for v in _figures_in(draft)
-                  if len(v.replace(".", "")) >= _SIGNIFICANT_DIGITS and v not in known)
+    return sorted(v for v in _significant(_figures_in(draft)) if v not in known)
 
 
 # ---------- Input signals: reasons for review that come from the email, not the draft ----------
@@ -446,39 +462,21 @@ _CREDENTIAL_ASK = re.compile(
     r" (?:password|code)|otp|pin|security code|bank details|card details|credentials)\b",
     re.IGNORECASE,
 )
-_LINK = re.compile(r"\bhttps?://|\bwww\.", re.IGNORECASE)
+# A scheme, "www.", or a bare domain followed by a path ("secure-bank.com/verify").
+_LINK = re.compile(r"\bhttps?://|\bwww\.|\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}/", re.IGNORECASE)
 
 
 def phishing_signal(email_body: str) -> bool:
     return bool(_CREDENTIAL_ASK.search(email_body) and _LINK.search(email_body))
 
 
-def input_reasons(req: "ProcessEmailRequest", is_phishing: bool,
-                  second_category: str | None, category: str) -> list[str]:
+def input_reasons(req: "ProcessEmailRequest", is_phishing: bool) -> list[str]:
     reasons = []
     if is_phishing:
         reasons.append("possible phishing: asks for credentials beside a link")
-    if second_category and second_category != category:
-        reasons.append(f"routing models disagree: {category} vs {second_category}")
     if not req.rag_context.strip():
         reasons.append("no policy context retrieved: reply is not grounded")
     return reasons
-
-
-async def second_opinion(req: "ProcessEmailRequest", is_phishing: bool) -> str | None:
-    """A different model's routing, asked only when something about the email raises doubt.
-
-    Costs one call on the rare email that needs it, rather than doubling every draft.
-    """
-    model = second_opinion_model()
-    if not (is_phishing and model):
-        return None
-    try:
-        return await route_email(req.thread_context, req.email_body, model=model)
-    except GeminiError as error:
-        # Optional evidence: without it the phishing reason alone still sends the email to review.
-        logger.warning("second opinion from %s unavailable: %s", model, error.code)
-        return None
 
 
 # ---------- Orchestrator endpoint ----------
@@ -497,9 +495,11 @@ def clamp_confidence(value: object) -> float | None:
     if value is None:
         return None
     try:
-        return min(max(float(value), 0.0), 1.0)
+        number = float(value)
     except (TypeError, ValueError):
         return None
+    # json.loads accepts NaN, and NaN < threshold is False: it would skip review entirely.
+    return min(max(number, 0.0), 1.0) if math.isfinite(number) else None
 
 
 def pii_verdict(findings: list[str]) -> bool | None:
@@ -549,16 +549,23 @@ def build_review_reasons(evaluation: dict, confidence: float | None, attempts: i
 
 
 def _unavailable(error: GeminiError) -> HTTPException:
+    if error.code in CONTENT_ERRORS:
+        return HTTPException(status_code=_UNPROCESSABLE, detail=str(error.code))
     return HTTPException(status_code=_STATUS_FOR_ERROR.get(error.code, _SERVICE_UNAVAILABLE),
                          detail=str(error.code))
 
 
 @app.post("/process-email", response_model=ProcessEmailResponse)
 async def process_email(req: ProcessEmailRequest) -> ProcessEmailResponse:
+    calls: list[dict] = []
     try:
         with deadline(), track_calls() as calls:
             response = await _process_email(req)
     except GeminiError as error:
+        # The failed draft is the one whose attempts most need explaining; they are not stored,
+        # so they go to the log (outcomes and timings only).
+        logger.warning("draft failed with %s after %s", error.code,
+                       [(c["model"], c["outcome"], c["ms"]) for c in calls])
         raise _unavailable(error) from error
     return response.model_copy(update={"model_calls": calls})
 
@@ -566,7 +573,7 @@ async def process_email(req: ProcessEmailRequest) -> ProcessEmailResponse:
 async def _process_email(req: ProcessEmailRequest) -> ProcessEmailResponse:
     category = await route_email(req.thread_context, req.email_body)
     is_phishing = phishing_signal(req.email_body)
-    signals = input_reasons(req, is_phishing, await second_opinion(req, is_phishing), category)
+    signals = input_reasons(req, is_phishing)
 
     summary = await extract_summary(req.email_body, req.thread_context, req.rag_context)
     action_items = await extract_actions(req.email_body)
@@ -635,7 +642,7 @@ LANGUAGE_NAMES = {
     TranslationLanguage.MALAY: "Bahasa Melayu (Malay)",
     TranslationLanguage.CHINESE: "Simplified Chinese",
 }
-TRANSLATION_MAX_OUTPUT_TOKENS = 4096
+TRANSLATION_MAX_OUTPUT_TOKENS = 16_384
 UNFAITHFUL_TRANSLATION = "translation_unfaithful"
 
 
@@ -651,12 +658,21 @@ def translation_problems(source: str, translation: str) -> list[str]:
     changes is a false statement in the reader's language. Figures are compared as values, so
     "1,250.00" and the Malay "1.250,00" agree.
     """
+    if source.strip() and not translation.strip():
+        return ["translation is empty"]
     problems = []
     if sorted(_PLACEHOLDER.findall(source)) != sorted(_PLACEHOLDER.findall(translation)):
         problems.append("redaction markers changed")
-    missing = _figures_in(source) - _figures_in(translation)
+    # Either reading of an ambiguous figure counts ("1.250" is 1250 in Malay), and single digits
+    # are skipped as in the draft gate, since a date's month moves between "September" and "9".
+    missing = _significant(_figures_in(source)) - figure_readings(translation)
     if missing:
         problems.append(f"figures missing: {', '.join(sorted(missing))}")
+    in_source = figure_readings(source)
+    added = {min(readings) for readings in readings_per_figure(translation)
+             if not readings & in_source and _significant(readings)}
+    if added:
+        problems.append(f"figures added: {', '.join(sorted(added))}")
     return problems
 
 
@@ -680,7 +696,10 @@ Rules:
     }
     result = await call_gemini(prompt, response_schema=schema,
                                max_output_tokens=TRANSLATION_MAX_OUTPUT_TOKENS)
-    return result.get("translation", "") if isinstance(result, dict) else ""
+    translation = result.get("translation") if isinstance(result, dict) else None
+    if not isinstance(translation, str):
+        raise GeminiError(GeminiErrorCode.MALFORMED_JSON, "no translation field")
+    return translation
 
 
 @app.post("/translate")

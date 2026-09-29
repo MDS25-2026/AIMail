@@ -727,6 +727,9 @@ var (
 	htmlDropRegex  = regexp.MustCompile(`(?is)<(script|style)[^>]*>.*?</(script|style)>`)
 	htmlBreakRegex = regexp.MustCompile(`(?i)<(br\s*/?|/p|/div|/tr|/li|/h[1-6])>`)
 	htmlTagRegex   = regexp.MustCompile(`<[^>]*>`)
+	// A link's target is kept as text: stripping tags would otherwise erase the only sign that a
+	// "verify your account" email points somewhere, which the agent's phishing check reads.
+	htmlLinkRegex  = regexp.MustCompile(`(?is)<a\b[^>]*\bhref\s*=\s*["'](https?://[^"'\s]+)["'][^>]*>(.*?)</a>`)
 	blankLineRegex = regexp.MustCompile(`\n{3,}`)
 )
 
@@ -736,6 +739,7 @@ var (
 // together, which would confuse NER as much as the tags did.
 func htmlToText(markup string) string {
 	text := htmlDropRegex.ReplaceAllString(markup, " ")
+	text = htmlLinkRegex.ReplaceAllString(text, "$2 ($1)")
 	text = htmlBreakRegex.ReplaceAllString(text, "\n")
 	text = htmlTagRegex.ReplaceAllString(text, "")
 	text = html.UnescapeString(text)

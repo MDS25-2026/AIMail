@@ -91,7 +91,8 @@ def _alternation(units: list[str]) -> str:
 _SHORT = [s for s in SYMBOLS if len(s) == 1]
 _LONG = [s for s in SYMBOLS if len(s) > 1]
 _QUANTITY = re.compile(
-    rf"(?P<number>{NUMBER})"
+    # A leading minus counts only as a sign, not as the hyphen in "INV-2026" or "10-12 kg".
+    rf"(?:(?<![\w\-−])(?P<sign>[-−]))?(?P<number>{NUMBER})"
     rf"(?:\s?(?P<unit>(?i:{_alternation(list(WORDS))})|{_alternation(_LONG)})"
     rf"|\s(?P<short>{_alternation(_SHORT)}))"
     r"(?![A-Za-z0-9²])"
@@ -150,7 +151,7 @@ def _is_money(text: str, start: int) -> bool:
 
 def _quantity(match: re.Match[str]) -> Quantity:
     unit = _unit_for(match.group("unit") or match.group("short"))
-    value = parse_number(match.group("number"))
+    value = parse_number(match.group("number")) * (-1 if match.group("sign") else 1)
     measured = _registry().Quantity(value, unit.pint_name)
     dimension = str(measured.dimensionality)
     targets = TARGETS[dimension]
@@ -175,6 +176,8 @@ def quantities_in(text: str) -> list[Quantity]:
 # Converting and rounding moves a figure a little ("4,409 lb" for 2,000 kg is 1999.9 kg); a
 # wrong figure moves it a lot. Applies only across units: the same unit needs the same figure.
 CONVERSION_TOLERANCE = 0.01
+TEMPERATURE = "[temperature]"
+TEMPERATURE_TOLERANCE = 0.5  # degrees Celsius: rounding a conversion to whole degrees
 
 
 def _written(quantity: Quantity) -> Measure:
@@ -184,11 +187,14 @@ def _written(quantity: Quantity) -> Measure:
 def _is_conversion_of(candidate: Quantity, source: Quantity) -> bool:
     if candidate.dimension != source.dimension or _written(candidate).unit == _written(source).unit:
         return False
-    return math.isclose(candidate.base, source.base, rel_tol=CONVERSION_TOLERANCE)
+    # Temperatures cross zero, where a relative tolerance can never match (0 °C is 32 °F).
+    absolute = TEMPERATURE_TOLERANCE if candidate.dimension == TEMPERATURE else 0.0
+    return math.isclose(candidate.base, source.base, rel_tol=CONVERSION_TOLERANCE, abs_tol=absolute)
 
 
 def converted_figures(text: str, reference: str) -> set[str]:
     """Figures in `text` that are a unit conversion of a quantity in `reference`."""
     sources = quantities_in(reference)
-    return {canonical(_written(q).value) for q in quantities_in(text)
+    # Unsigned, to match the figures gate, which reads "-5" as the figure 5.
+    return {canonical(abs(_written(q).value)) for q in quantities_in(text)
             if any(_is_conversion_of(q, source) for source in sources)}

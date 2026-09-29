@@ -243,31 +243,8 @@ def _request(rag_context: str = "Refunds take 14 days.") -> email_agent.ProcessE
 
 
 def test_an_ungrounded_reply_is_a_review_reason():
-    reasons = email_agent.input_reasons(_request(rag_context="  "), False, None, "STANDARD")
+    reasons = email_agent.input_reasons(_request(rag_context="  "), False)
     assert any("not grounded" in reason for reason in reasons)
-
-
-def test_router_disagreement_is_a_review_reason():
-    reasons = email_agent.input_reasons(_request(), True, "NA", "STANDARD")
-    assert "routing models disagree: STANDARD vs NA" in reasons
-
-
-def test_no_second_opinion_without_doubt(monkeypatch):
-    monkeypatch.setenv("GEMINI_FALLBACK_MODEL", "other-model")
-    assert asyncio.run(email_agent.second_opinion(_request(), is_phishing=False)) is None
-
-
-def test_doubt_asks_the_other_model(monkeypatch):
-    monkeypatch.setenv("GEMINI_FALLBACK_MODEL", "other-model")
-    asked = []
-
-    async def fake(*_args, models=None, **_kwargs):
-        asked.append(models)
-        return {"category": "NA"}
-
-    monkeypatch.setattr(email_agent, "call_gemini", fake)
-    assert asyncio.run(email_agent.second_opinion(_request(), is_phishing=True)) == "NA"
-    assert asked == [["other-model"]]
 
 
 # ---------- Translation faithfulness ----------
@@ -316,11 +293,67 @@ def test_a_hostile_huge_number_does_not_crash_the_figures_gate():
     assert unsupported_specifics("1" + "0" * 400 + " kg shipped.", SOURCE) == []
 
 
-def test_a_failing_second_opinion_degrades_to_none(monkeypatch):
-    monkeypatch.setenv("GEMINI_FALLBACK_MODEL", "missing-model")
+# ---------- Audit follow-ups ----------
 
+@pytest.mark.parametrize("translation, problem", [
+    ("", "translation is empty"),
+    ("Kepada [Redacted], invois RM 1,250.00 perlu dibayar pada 30 September 2026. Hubungi 60123.",
+     "figures added: 60123"),
+])
+def test_an_empty_or_embellished_translation_is_refused(translation, problem):
+    assert problem in email_agent.translation_problems(TRANSLATE_SOURCE, translation)
+
+
+@pytest.mark.parametrize("translation", [
+    "Kepada [Redacted], invois RM 1.250 perlu dibayar pada 30 September 2026.",  # Malay thousands
+    "Kepada [Redacted], invois RM 1,250.00 perlu dibayar pada 30/9/2026.",  # month as a digit
+])
+def test_legitimate_rewritings_of_figures_are_not_flagged(translation):
+    assert email_agent.translation_problems(TRANSLATE_SOURCE, translation) == []
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), "nan"])
+def test_a_non_finite_confidence_is_treated_as_unknown(value):
+    assert clamp_confidence(value) is None
+
+
+def test_a_critic_reply_that_is_not_an_object_is_a_typed_error(monkeypatch):
+    async def fake(*_args, **_kwargs):
+        return ["not", "an", "object"]
+
+    monkeypatch.setattr(email_agent, "call_gemini", fake)
+    with pytest.raises(GeminiError) as caught:
+        asyncio.run(email_agent.evaluate_reply("", "", "Hi", "Draft", "professional"))
+    assert caught.value.code == GeminiErrorCode.MALFORMED_JSON
+
+
+@pytest.mark.parametrize("draft, expected", [
+    ("It will be 23 °F.", []),  # -5 °C, converted correctly
+    ("It will be 41 °F.", ["41"]),  # +5 °C: the sign was lost
+])
+def test_negative_temperatures_keep_their_sign(draft, expected):
+    assert unsupported_specifics(draft, "Store at -5 °C.") == expected
+
+
+def test_zero_degrees_converts():
+    assert unsupported_specifics("Keep it at 32 °F.", "Keep it at 0 °C.") == []
+
+
+def test_a_bare_domain_link_counts_for_phishing():
+    assert email_agent.phishing_signal("Verify your account at secure-bank.example/verify now.")
+
+
+@pytest.mark.parametrize("code, status", [
+    (GeminiErrorCode.OUTPUT_TRUNCATED, 422),
+    (GeminiErrorCode.NO_CANDIDATE, 422),
+    (GeminiErrorCode.REJECTED, 422),
+])
+def test_a_content_failure_is_not_worth_retrying(monkeypatch, code, status):
     async def failing(*_args, **_kwargs):
-        raise GeminiError(GeminiErrorCode.UNAVAILABLE, "404")
+        raise GeminiError(code, "test")
 
     monkeypatch.setattr(email_agent, "call_gemini", failing)
-    assert asyncio.run(email_agent.second_opinion(_request(), is_phishing=True)) is None
+    response = TestClient(email_agent.app).post("/process-email", json={
+        "thread_context": "", "email_body": "Hi", "rag_context": ""})
+    assert response.status_code == status
+

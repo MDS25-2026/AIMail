@@ -90,7 +90,7 @@ def test_a_client_error_is_not_retried(monkeypatch):
     asked = route(monkeypatch, lambda model: httpx.Response(400))
     with pytest.raises(GeminiError) as caught:
         run(generate("hi"))
-    assert caught.value.code == GeminiErrorCode.UNAVAILABLE
+    assert caught.value.code == GeminiErrorCode.REJECTED
     assert asked == [PRIMARY]
 
 
@@ -181,7 +181,47 @@ def test_every_attempt_is_tracked_with_its_outcome(monkeypatch):
     assert all(isinstance(c["ms"], int) for c in calls)
 
 
-def test_a_models_override_asks_only_that_model(monkeypatch):
-    asked = route(monkeypatch, lambda model: httpx.Response(200, json=reply("x")))
-    run(generate("hi", models=[FALLBACK]))
-    assert asked == [FALLBACK]
+def test_a_long_retry_after_moves_to_the_fallback_instead_of_waiting(monkeypatch):
+    asked = route(monkeypatch, lambda model: httpx.Response(429, headers={"retry-after": "300"})
+                  if model == PRIMARY else httpx.Response(200, json=reply("from fallback")))
+    assert run(generate("hi")) == "from fallback"
+    assert asked == [PRIMARY, FALLBACK]
+
+
+def test_a_rejected_request_does_not_open_the_breaker_or_try_the_fallback(monkeypatch):
+    asked = route(monkeypatch, lambda model: httpx.Response(400))
+    for _ in range(gemini_client.BREAKER_THRESHOLD + 1):
+        with pytest.raises(GeminiError) as caught:
+            run(generate("hi"))
+        assert caught.value.code == GeminiErrorCode.REJECTED
+    assert not gemini_client.breaker_for(PRIMARY).is_open()
+    assert FALLBACK not in asked
+
+
+@pytest.mark.parametrize("candidate", [
+    {"finishReason": "SAFETY"},
+    {"finishReason": "RECITATION", "content": {"parts": [{"text": "partial"}]}},
+    {"finishReason": "STOP", "content": {"parts": [{"text": "  "}]}},
+])
+def test_a_blocked_or_empty_reply_never_passes_as_text(monkeypatch, candidate):
+    route(monkeypatch, lambda model: httpx.Response(200, json={"candidates": [candidate]}))
+    with pytest.raises(GeminiError) as caught:
+        run(generate("hi"))
+    assert caught.value.code == GeminiErrorCode.NO_CANDIDATE
+
+
+def test_a_hung_attempt_is_cut_at_the_deadline(monkeypatch):
+    class _Hung(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            await asyncio.Event().wait()
+
+    monkeypatch.setattr(gemini_client, "transport", _Hung())
+    monkeypatch.setenv("GEMINI_FALLBACK_MODEL", "")
+
+    async def bounded():
+        with deadline(0.2):
+            await generate("hi")
+
+    with pytest.raises(GeminiError) as caught:
+        run(bounded())
+    assert caught.value.code in (GeminiErrorCode.DEADLINE_EXCEEDED, GeminiErrorCode.UNAVAILABLE)

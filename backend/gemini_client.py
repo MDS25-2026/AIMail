@@ -48,6 +48,18 @@ class GeminiErrorCode(StrEnum):
     OUTPUT_TRUNCATED = "gemini_output_truncated"
     NO_CANDIDATE = "gemini_no_candidate"
     MALFORMED_JSON = "gemini_malformed_json"
+    # The request itself was refused (400/413/422): another try or another model will not help.
+    REJECTED = "gemini_rejected"
+
+
+# Outcomes about the content, not the provider: retrying at temperature 0 gives the same answer.
+CONTENT_ERRORS = frozenset({
+    GeminiErrorCode.OUTPUT_TRUNCATED, GeminiErrorCode.NO_CANDIDATE,
+    GeminiErrorCode.MALFORMED_JSON, GeminiErrorCode.REJECTED,
+})
+# The request was malformed or too large; the model is fine.
+INPUT_REJECTED_STATUS = frozenset({400, 413, 422})
+FINISH_STOP = "STOP"
 
 
 class GeminiError(RuntimeError):
@@ -152,12 +164,6 @@ def models_in_order() -> list[str]:
     return [primary, fallback] if fallback and fallback != primary else [primary]
 
 
-def second_opinion_model() -> str | None:
-    """A model other than the primary, when one is configured."""
-    models = models_in_order()
-    return models[1] if len(models) > 1 else None
-
-
 def breaker_for(model: str) -> CircuitBreaker:
     return _breakers.setdefault(model, CircuitBreaker())
 
@@ -173,14 +179,21 @@ def gemini_payload(prompt: str, response_schema: dict | None = None,
 
 
 def reply_text(body: dict) -> str:
-    """The text of a reply, refusing a cut-off one: a truncated draft must not pass as whole."""
+    """The text of a complete reply. Cut off, blocked (SAFETY, RECITATION ...) or empty all raise:
+    none of them may pass as a draft or a summary."""
     candidates = body.get("candidates") or []
     if not candidates:
         raise GeminiError(GeminiErrorCode.NO_CANDIDATE, "no candidate (blocked or empty)")
-    if candidates[0].get("finishReason") == FINISH_TRUNCATED:
+    finish = candidates[0].get("finishReason", FINISH_STOP)
+    if finish == FINISH_TRUNCATED:
         raise GeminiError(GeminiErrorCode.OUTPUT_TRUNCATED, "reply hit maxOutputTokens")
+    if finish != FINISH_STOP:
+        raise GeminiError(GeminiErrorCode.NO_CANDIDATE, f"reply stopped: {finish}")
     parts = (candidates[0].get("content") or {}).get("parts") or []
-    return "".join(part.get("text", "") for part in parts).strip()
+    text = "".join(part.get("text", "") for part in parts).strip()
+    if not text:
+        raise GeminiError(GeminiErrorCode.NO_CANDIDATE, "empty reply")
+    return text
 
 
 def parse_reply(body: dict, is_json: bool) -> dict | str:
@@ -200,11 +213,17 @@ def backoff_seconds(attempt: int, retry_after: str | None) -> float:
     return random.uniform(0, min(BACKOFF_CAP_SECONDS, BACKOFF_BASE_SECONDS * 2 ** attempt))
 
 
+class _GiveUpOnModel(Exception):
+    """Waiting for this model is pointless within the budget; the next model may answer now."""
+
+
 async def _post(model: str, payload: dict, timeout: float) -> httpx.Response:
     base_url = (os.getenv("GEMINI_BASE_URL") or DEFAULT_BASE_URL).rstrip("/")
     headers = {"Content-Type": "application/json",
                "X-goog-api-key": os.getenv("GOOGLE_API_KEY", "")}
-    async with httpx.AsyncClient(timeout=timeout, transport=transport) as client:
+    # httpx's timeout bounds each phase (connect, write, read) separately; asyncio.timeout bounds
+    # the whole attempt, so one slow call cannot run past the shared deadline.
+    async with asyncio.timeout(timeout), httpx.AsyncClient(timeout=timeout, transport=transport) as client:
         return await client.post(f"{base_url}/models/{model}:generateContent",
                                  headers=headers, json=payload)
 
@@ -217,9 +236,14 @@ def _attempt_timeout() -> float:
 
 
 async def _wait_before_retry(model: str, attempt: int, retry_after: str | None) -> None:
+    """Sleep before the next try on this model, or give up on it so the fallback can answer.
+
+    A Retry-After longer than the backoff cap, or longer than the budget left, is a reason to move
+    on, not to spend the draft's deadline waiting on one provider.
+    """
     delay = backoff_seconds(attempt, retry_after)
-    if delay >= remaining_seconds():
-        raise GeminiError(GeminiErrorCode.DEADLINE_EXCEEDED, f"no time left to retry {model}")
+    if delay > BACKOFF_CAP_SECONDS or delay >= remaining_seconds():
+        raise _GiveUpOnModel(f"{model}: waiting {delay:.0f}s is not worth the budget")
     await asyncio.sleep(delay)
 
 
@@ -229,7 +253,7 @@ async def call_model(model: str, payload: dict) -> dict:
         started = time.monotonic()
         try:
             response = await _post(model, payload, _attempt_timeout())
-        except httpx.TransportError as error:
+        except (httpx.TransportError, TimeoutError) as error:
             _record(model, OUTCOME_TRANSPORT_ERROR, started)
             logger.warning("gemini %s attempt %d failed: %r", model, attempt + 1, error)
             retry_after = None
@@ -238,6 +262,9 @@ async def call_model(model: str, payload: dict) -> dict:
                     started)
             if response.is_success:
                 return response.json()
+            if response.status_code in INPUT_REJECTED_STATUS:
+                raise GeminiError(GeminiErrorCode.REJECTED,
+                                  f"{model} rejected the request: {response.status_code}")
             if response.status_code not in RETRYABLE_STATUS:
                 raise GeminiError(GeminiErrorCode.UNAVAILABLE,
                                   f"{model} returned {response.status_code}")
@@ -245,19 +272,18 @@ async def call_model(model: str, payload: dict) -> dict:
                            response.status_code)
             retry_after = response.headers.get("retry-after")
         if attempt + 1 < ATTEMPTS_PER_MODEL:
-            await _wait_before_retry(model, attempt, retry_after)
+            try:
+                await _wait_before_retry(model, attempt, retry_after)
+            except _GiveUpOnModel as give_up:
+                raise GeminiError(GeminiErrorCode.UNAVAILABLE, str(give_up)) from give_up
     raise GeminiError(GeminiErrorCode.UNAVAILABLE, f"{model}: {ATTEMPTS_PER_MODEL} attempts failed")
 
 
 async def generate(prompt: str, response_schema: dict | None = None,
-                   max_output_tokens: int | None = None,
-                   models: list[str] | None = None) -> dict | str:
-    """Ask the primary model, then the fallback; parsed JSON when a schema is given.
-
-    `models` replaces the configured order, for a caller that wants one specific model's view.
-    """
+                   max_output_tokens: int | None = None) -> dict | str:
+    """Ask the primary model, then the fallback; parsed JSON when a schema is given."""
     payload = gemini_payload(prompt, response_schema, max_output_tokens)
-    models = models or models_in_order()
+    models = models_in_order()
     failure: GeminiError | None = None
     for position, model in enumerate(models):
         breaker = breaker_for(model)
@@ -269,7 +295,9 @@ async def generate(prompt: str, response_schema: dict | None = None,
         try:
             body = await call_model(model, payload)
         except GeminiError as error:
-            if error.code == GeminiErrorCode.DEADLINE_EXCEEDED:
+            # Out of time, or the request itself is at fault: no other model would do better, and
+            # a bad input must not open the breaker for every other user.
+            if error.code in (GeminiErrorCode.DEADLINE_EXCEEDED, GeminiErrorCode.REJECTED):
                 raise
             breaker.record_failure()
             failure = error

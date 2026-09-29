@@ -166,6 +166,17 @@ async def _call_agent(path: str, payload: dict) -> dict:
         return response.json()
 
 
+# The agent's "this will fail the same way every time" status (cut off, blocked, rejected input).
+AGENT_CONTENT_FAILURE = 422
+
+
+def _not_drafted(code: str) -> dict:
+    """Stored like an NA route: a human handles it, and the poller stops retrying a failure that
+    repeats at temperature 0 and would otherwise spend quota every cycle."""
+    return {"category": "NA", "draft": None, "summary": "", "action_items": [],
+            "needs_human_review": True, "review_reasons": [f"no draft: {code}"]}
+
+
 def _source_records(chunks: list[ContextChunk]) -> list[dict]:
     return [
         {"label": chunk["source_title"] or "Policy", "chunkId": str(chunk["chunk_id"]),
@@ -187,7 +198,13 @@ async def _generate(message: Message, tone: str, thread: list[Message]) -> dict:
             "rag_context": format_rag_context(chunks),
             "tone": _TONE_PROMPTS.get(tone, _TONE_PROMPTS["professional"]),
         }
-        return await _call_agent("/process-email", payload) | {"rag_sources": _source_records(chunks)}
+        try:
+            generated = await _call_agent("/process-email", payload)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code != AGENT_CONTENT_FAILURE:
+                raise
+            generated = _not_drafted(_agent_error_code(exc.response))
+        return generated | {"rag_sources": _source_records(chunks)}
     except (httpx.HTTPError, EmbeddingError, ValueError) as exc:
         logger.warning("draft generation failed for message %s: %s", message.id, exc)
         return {}
@@ -325,7 +342,7 @@ async def _refine(message: Message, draft: str, instruction: str) -> str | None:
 
 # Mirrors the agent's own bound (email_agent.MAX_TRANSLATE_CHARS), checked here first so an
 # over-long body gets a clear answer instead of a validation error that echoes the body back.
-MAX_TRANSLATE_CHARS = 20_000
+MAX_TRANSLATE_CHARS = 12_000
 AGENT_ERROR = "agent_error"
 
 
