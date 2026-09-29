@@ -92,6 +92,8 @@ class DashboardEmail(BaseModel):
     sentAt: str | None = None  # ISO 8601 when the approved reply was sent, else null
     isRead: bool = False  # opened at least once; unread is the default for anything new
     quantities: list[QuantityView] = []  # from the normalisation layer, computed at read
+    # True while the listener holds the content back because NER masking was unavailable (#109).
+    maskingPending: bool = False
 
 
 _PRIORITY_LABELS: dict[int, Literal["low", "medium", "high"]] = {0: "low", 1: "medium", 2: "high"}

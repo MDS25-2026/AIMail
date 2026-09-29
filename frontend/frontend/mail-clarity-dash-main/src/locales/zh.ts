@@ -169,6 +169,11 @@ export const zh: Translations = {
     emptyHint: "向已连接的邮箱发送一封邮件，它就会出现在这里。",
     panel: "扩展面板",
   },
+  quarantine: {
+    badge: "等待遮蔽",
+    title: "在移除个人数据之前暂不显示",
+    body: "此邮件到达时姓名检测服务不可用，因此尚未保存其内容。一旦可以完全遮蔽，它会自动显示在这里。在此之前不会生成草稿。",
+  },
   announce: {
     regenerated: "草稿已重新生成",
     refined: "草稿已优化",

@@ -154,6 +154,10 @@
     [
       "fg-subtle",
       "surface-muted"
+    ],
+    [
+      "fg-body",
+      "warning-soft"
     ]
   ],
   "non_text_pairs": [

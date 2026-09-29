@@ -59,6 +59,8 @@ export type Email = {
   /** Opened at least once. Anything new is unread. */
   isRead?: boolean;
   quantities?: Quantity[];
+  /** Content withheld until personal data can be fully masked (#109). */
+  maskingPending?: boolean;
 };
 
 /** Below this the draft is flagged "review recommended". */

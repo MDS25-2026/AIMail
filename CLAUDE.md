@@ -10,7 +10,7 @@ AImail is an AI-powered corporate email assistant. It ingests email threads, mas
 
 Three services, split into four ownership lanes. `specs/architecture.md` is the authoritative version of this section — if the two disagree, that file wins.
 
-1. **`listener/`** (Lane A, **Go**) — receives Gmail Pub/Sub push notifications, pulls the message, **masks PII here** (ordered regex floor for email/phone/Malaysian IC, then Presidio NER for names, locations, and context-gated account numbers; degrades to regex-only if Presidio is down), and writes the masked row plus an audit entry to Supabase via PostgREST. Stateless.
+1. **`listener/`** (Lane A, **Go**) — receives Gmail Pub/Sub push notifications, pulls the message, **masks PII here** (ordered regex floor for email/phone/Malaysian IC, then Presidio NER for names, locations, and context-gated account numbers; quarantines the message with no content until it can be masked if Presidio is down), and writes the masked row plus an audit entry to Supabase via PostgREST. Stateless.
 2. **`backend/`** (Lanes B + C, Python/FastAPI) — reads masked rows via asyncpg. Lane B (`app/`) does retrieval, the priority classifier, and the REST surface; Lane C (`email_agent.py`, served separately on :8001) does router/generator/critic/refine generation on Gemini. Also sends approved replies via the Gmail API.
 3. **`frontend/frontend/mail-clarity-dash-main/`** (Lane D) — **Vite + React + TypeScript + Tailwind** dashboard (not Next.js). Talks to the backend via REST only.
 

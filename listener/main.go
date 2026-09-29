@@ -323,16 +323,33 @@ func getEnvOrDefault(key, fallback string) string {
 
 // --- Supabase storage + audit log -------------------------------------------
 
+// MaskedContent is every content column, all of it masked. It is written whole or not at all:
+// a quarantined row has none of it, and completing that row later patches exactly these fields.
+type MaskedContent struct {
+	Subject       string `json:"subject"`
+	BodyMasked    string `json:"body_masked"`
+	SnippetMasked string `json:"snippet_masked"`
+	EmailsMasked  int    `json:"emails_masked"`
+	PhonesMasked  int    `json:"phones_masked"`
+	MaskingStatus string `json:"masking_status"`
+}
+
 // StoredMessage is what we persist for each processed email, post-masking.
 type StoredMessage struct {
 	GmailMessageID string    `json:"gmail_message_id"`
 	FromAddr       string    `json:"from_addr"`
-	Subject        string    `json:"subject"`
-	BodyMasked     string    `json:"body_masked"`
-	SnippetMasked  string    `json:"snippet_masked"`
-	EmailsMasked   int       `json:"emails_masked"`
-	PhonesMasked   int       `json:"phones_masked"`
 	ReceivedAt     time.Time `json:"received_at"`
+	ThreadIdentity
+	MaskedContent
+}
+
+// QuarantinedMessage is the row for a message whose masking could not complete (#109): enough to
+// show it exists and to finish it later, and no content at all.
+type QuarantinedMessage struct {
+	GmailMessageID string    `json:"gmail_message_id"`
+	FromAddr       string    `json:"from_addr"`
+	ReceivedAt     time.Time `json:"received_at"`
+	MaskingStatus  string    `json:"masking_status"`
 	ThreadIdentity
 }
 
@@ -624,73 +641,66 @@ func ingestMessage(ctx context.Context, srv *gmail.Service, msgID string) error 
 		return nil
 	}
 
-	msg, err := srv.Users.Messages.Get("me", msgID).Format("full").Do()
+	msg, err := fetchMessage(ctx, srv, msgID)
 	if err != nil {
-		log.Printf("Could not retrieve message details: %v", err)
-		writeAuditLog(ctx, "fetch_message", fmt.Sprintf("get error for %s: %v", msgID, err), false)
-		return fmt.Errorf("get message %s: %w", msgID, err)
+		return err
 	}
-
-	var subject, from string
-	for _, h := range msg.Payload.Headers {
-		if h.Name == "Subject" {
-			subject = h.Value
-		}
-		if h.Name == "From" {
-			from = h.Value
-		}
+	identity := threadIdentity(msg)
+	content, isComplete := maskMessage(ctx, srv, msg)
+	if !isComplete {
+		return quarantine(ctx, msgID, headerValue(msg.Payload.Headers, "From"), identity)
 	}
-
-	body := getBody(msg.Payload)
-
-	// Mask PII before anything touches storage or logs: regex floor first, then Presidio NER.
-	maskedBody, bodyEmails, bodyPhones, degradedBody := maskText(ctx, body)
-
-	// #82: attachment text, read locally. Images were redacted before any model read them; the text
-	// is masked again here like any untrusted text, separately and in pieces, and dropped rather than
-	// stored if NER is unavailable (see maskAttachmentText).
-	maskedAttachments, attachEmails, attachPhones := maskAttachmentText(ctx, msgID,
-		ocrAttachments(ctx, srv, msgID, msg.Payload))
-	maskedBody += maskedAttachments
-	bodyEmails += attachEmails
-	bodyPhones += attachPhones
-	maskedSnippet, snipEmails, snipPhones, degradedSnip := maskText(ctx, msg.Snippet)
-	maskedSubject, subEmails, subPhones, degradedSubj := maskText(ctx, subject)
-	totalEmails := bodyEmails + snipEmails + subEmails
-	totalPhones := bodyPhones + snipPhones + subPhones
-	presidioDegraded := degradedBody || degradedSnip || degradedSubj
-
-	fmt.Println("-------------------------------------------")
-	fmt.Printf("FROM: %s\n", from)
-	fmt.Printf("SUBJECT (masked): %s\n", maskedSubject)
-	fmt.Printf("BODY SNIPPET (masked): %s\n", maskedSnippet)
-	fmt.Printf("FULL BODY LENGTH: %d bytes | masked %d emails, %d phones\n", len(body), totalEmails, totalPhones)
-	fmt.Println("-------------------------------------------")
 
 	stored := StoredMessage{
 		GmailMessageID: msgID,
-		FromAddr:       from, // sender address kept as-is for reply threading; masking here is a policy call for the team to confirm
-		Subject:        maskedSubject,
-		BodyMasked:     maskedBody,
-		SnippetMasked:  maskedSnippet,
-		EmailsMasked:   totalEmails,
-		PhonesMasked:   totalPhones,
+		FromAddr:       headerValue(msg.Payload.Headers, "From"), // kept as-is for reply threading; a policy call for the team to confirm
 		ReceivedAt:     time.Now().UTC(),
-		ThreadIdentity: threadIdentity(msg),
+		ThreadIdentity: identity,
+		MaskedContent:  content,
 	}
-
 	if err := supabaseInsert(ctx, "messages", stored, "gmail_message_id"); err != nil {
-		log.Printf("Could not store message: %v", err)
+		log.Printf("could not store message %s: %v", msgID, err)
 		writeAuditLog(ctx, "store_message", fmt.Sprintf("msg %s: %v", msgID, err), false)
 		return fmt.Errorf("store message %s: %w", msgID, err)
 	}
-
-	detail := fmt.Sprintf("msg %s stored, %d emails / %d phones masked", msgID, totalEmails, totalPhones)
-	if presidioDegraded {
-		detail += " (presidio degraded: regex-only)"
-	}
-	writeAuditLog(ctx, "store_message", detail, true)
+	// Counts only: the sender, subject and body are never written to stdout.
+	log.Printf("stored %s: %d bytes, %d emails / %d phones masked", msgID, len(content.BodyMasked),
+		content.EmailsMasked, content.PhonesMasked)
+	writeAuditLog(ctx, "store_message", fmt.Sprintf("msg %s stored, %d emails / %d phones masked",
+		msgID, content.EmailsMasked, content.PhonesMasked), true)
 	return nil
+}
+
+func fetchMessage(ctx context.Context, srv *gmail.Service, msgID string) (*gmail.Message, error) {
+	msg, err := srv.Users.Messages.Get("me", msgID).Format("full").Context(ctx).Do()
+	if err != nil {
+		log.Printf("could not retrieve message %s: %v", msgID, err)
+		writeAuditLog(ctx, "fetch_message", fmt.Sprintf("get error for %s: %v", msgID, err), false)
+		return nil, fmt.Errorf("get message %s: %w", msgID, err)
+	}
+	return msg, nil
+}
+
+// maskMessage masks every content field. isComplete is false when NER was unavailable for any
+// of them: the caller must then store nothing of the content (#109). Attachment text is masked on
+// its own and dropped rather than degraded, so it never decides the outcome.
+func maskMessage(ctx context.Context, srv *gmail.Service, msg *gmail.Message) (MaskedContent, bool) {
+	maskedBody, bodyEmails, bodyPhones, degradedBody := maskText(ctx, getBody(msg.Payload))
+	maskedSnippet, snipEmails, snipPhones, degradedSnip := maskText(ctx, msg.Snippet)
+	maskedSubject, subEmails, subPhones, degradedSubj := maskText(ctx, headerValue(msg.Payload.Headers, "Subject"))
+	if degradedBody || degradedSnip || degradedSubj {
+		return MaskedContent{}, false
+	}
+	attachments, attachEmails, attachPhones := maskAttachmentText(ctx, msg.Id,
+		ocrAttachments(ctx, srv, msg.Id, msg.Payload))
+	return MaskedContent{
+		Subject:       maskedSubject,
+		BodyMasked:    maskedBody + attachments,
+		SnippetMasked: maskedSnippet,
+		EmailsMasked:  bodyEmails + snipEmails + subEmails + attachEmails,
+		PhonesMasked:  bodyPhones + snipPhones + subPhones + attachPhones,
+		MaskingStatus: maskingComplete,
+	}, true
 }
 
 // getBody prefers the text/html part so the dashboard can render the email like a normal inbox;
@@ -807,6 +817,8 @@ func main() {
 
 	// #83: keep the watch alive. Gmail expires it after about a week and nothing renewed it.
 	go renewWatchPeriodically(ctx, srv)
+	// #109: finish messages quarantined while Presidio was down.
+	go remaskQuarantinedPeriodically(ctx, srv)
 
 	// 2. Start live Pub/Sub listener loop
 	listenToPubSub(ctx, tokenSource, srv)

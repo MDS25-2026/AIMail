@@ -180,6 +180,11 @@ export const ms: Translations = {
     emptyHint: "Hantar mesej ke peti mel yang disambungkan dan ia akan muncul di sini.",
     panel: "Panel sambungan",
   },
+  quarantine: {
+    badge: "Menunggu penyamaran",
+    title: "Ditahan sehingga data peribadi dapat dibuang",
+    body: "Perkhidmatan pengesanan nama tidak tersedia semasa e-mel ini tiba, jadi kandungannya belum disimpan. Ia akan muncul di sini secara automatik sebaik sahaja dapat disamarkan sepenuhnya. Tiada draf dibuat sehingga itu.",
+  },
   announce: {
     regenerated: "Draf dijana semula",
     refined: "Draf diperhalus",

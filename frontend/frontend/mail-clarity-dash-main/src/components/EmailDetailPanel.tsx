@@ -4,6 +4,7 @@ import { useFormat } from "../lib/useFormat";
 import type { Email, Tone } from "../types/email";
 import AISummaryCard from "./AISummaryCard";
 import EmailBody from "./EmailBody";
+import QuarantineNotice from "./QuarantineNotice";
 import ActionItemsList from "./ActionItemsList";
 import ThreadContextToggle from "./ThreadContextToggle";
 import DraftReplyEditor from "./DraftReplyEditor";
@@ -49,17 +50,33 @@ export default function EmailDetailPanel({
     );
   }
 
+  const header = (
+    <header className="border-b border-line bg-surface px-6 py-4">
+      <div className="flex items-start justify-between gap-3">
+        <h1 className="text-base font-semibold text-fg">{email.subject}</h1>
+        <PriorityBadge priority={email.priority} />
+      </div>
+      <p className="mt-0.5 text-sm text-fg-muted">
+        {email.sender} &middot; {format.timestamp(email.timestamp)}
+      </p>
+    </header>
+  );
+
+  // Quarantined (#109): nothing to read or draft from until the listener can mask the content.
+  if (email.maskingPending) {
+    return (
+      <div className="h-full overflow-y-auto">
+        {header}
+        <div className="p-6">
+          <QuarantineNotice />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full overflow-y-auto">
-      <header className="border-b border-line bg-surface px-6 py-4">
-        <div className="flex items-start justify-between gap-3">
-          <h1 className="text-base font-semibold text-fg">{email.subject}</h1>
-          <PriorityBadge priority={email.priority} />
-        </div>
-        <p className="mt-0.5 text-sm text-fg-muted">
-          {email.sender} &middot; {format.timestamp(email.timestamp)}
-        </p>
-      </header>
+      {header}
 
       <div className="space-y-4 p-6">
         <EmailBody key={email.id} email={email} />

@@ -64,3 +64,27 @@ def test_the_passages_a_draft_was_grounded_on_reach_the_dashboard():
 def test_an_email_generated_before_sources_were_stored_has_none():
     message = Message(id=uuid4(), created_at=datetime(2026, 8, 1, tzinfo=timezone.utc))
     assert _to_email(message).sources == []
+
+
+def test_a_quarantined_message_is_shown_as_pending_with_no_content():
+    from app.db.models import MaskingStatus
+
+    message = Message(id=uuid4(), masking_status=MaskingStatus.PENDING,
+                      created_at=datetime(2026, 8, 1, tzinfo=timezone.utc))
+    email = _to_email(message)
+    assert email.maskingPending is True
+    assert email.body == "" and email.quantities == []
+
+
+def test_a_quarantined_message_is_never_drafted(monkeypatch):
+    import asyncio
+
+    from app import dashboard
+    from app.db.models import MaskingStatus
+
+    async def must_not_run(*_args, **_kwargs):
+        raise AssertionError("generation ran on a quarantined message")
+
+    monkeypatch.setattr(dashboard, "_generate", must_not_run)
+    message = Message(id=uuid4(), masking_status=MaskingStatus.PENDING)
+    assert asyncio.run(dashboard._generate_and_store(message)) is False

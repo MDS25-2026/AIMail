@@ -176,6 +176,11 @@ export const en = {
     emptyHint: "Send a message to the connected mailbox and it will appear here.",
     panel: "Extension panel",
   },
+  quarantine: {
+    badge: "Awaiting masking",
+    title: "Held back until personal data can be removed",
+    body: "The name-detection service was unavailable when this email arrived, so its content is not stored yet. It appears here automatically once it can be fully masked. No draft is made until then.",
+  },
   announce: {
     regenerated: "Draft regenerated",
     refined: "Draft refined",

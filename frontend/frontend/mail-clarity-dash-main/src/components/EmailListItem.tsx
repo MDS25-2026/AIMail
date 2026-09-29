@@ -50,7 +50,11 @@ export default function EmailListItem({ email, selected, onSelect }: EmailListIt
         >
           {email.subject}
         </div>
-        <p className="mt-0.5 line-clamp-2 text-xs text-fg-muted">{email.preview}</p>
+        {email.maskingPending ? (
+          <p className="mt-0.5 text-xs font-medium text-warning">{t("quarantine.badge")}</p>
+        ) : (
+          <p className="mt-0.5 line-clamp-2 text-xs text-fg-muted">{email.preview}</p>
+        )}
         <div className="mt-2">
           <PriorityBadge priority={email.priority} />
         </div>

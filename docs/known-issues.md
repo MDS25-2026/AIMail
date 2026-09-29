@@ -116,7 +116,14 @@ by regex patterns written for prose.
 Worked around in the study instrument by stripping at render (`build_study_instrument.py`), which
 does nothing for what is stored or what the model receives.
 
-### Masking silently degraded on a stored message — Lane A (#109)
+### Masking silently degraded on a stored message — Lane A (#109) — FIXED 2026-09-29
+
+**Fixed:** the listener no longer stores degraded content. If NER is unavailable for any part of a
+message, the row is quarantined (`masking_status = 'pending'`, no subject, body or snippet) and a
+background loop re-fetches and masks it once Presidio's health check passes. The dashboard shows it
+as awaiting masking and nothing drafts from it. Rows stored degraded *before* the fix are still
+found only by `backend/scripts/remask_outliers.py`. The original finding follows.
+
 
 `body_masked` for one message left a real person's name and town in plain text. Found 2026-09-17
 while selecting drafts for the study.
@@ -171,10 +178,10 @@ These are not defects — they are trade-offs with reasons, recorded so the reas
   and order number being redacted.
 - **`from_addr` is stored unmasked.** `approve_and_send` needs a real recipient. It never enters
   the model payload.
-- **Masking degrades rather than blocks.** If Presidio is unreachable, the regex floor still runs
-  and the row is stored with the degradation recorded in the audit log. Names and locations are
-  not masked in that mode. **This is no longer only theoretical** — see the degraded-message entry
-  above for an observed instance in stored data.
+- **Masking now blocks rather than degrades (changed 2026-09-29, #109).** If Presidio is
+  unreachable, the message is quarantined with no content until it can be masked properly. The
+  cost: a message arriving during an outage is not readable until Presidio recovers, and needs the
+  listener running to be released.
 - **A low-confidence draft is shown, not withheld.** Gating hard on an unvalidated self-reported
   score would silently discard work; the approval click is the real control.
 

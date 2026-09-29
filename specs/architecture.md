@@ -36,6 +36,11 @@ The `n8n/` folder is unused scaffolding.
   masked row + an audit entry to Supabase via the PostgREST API (`SUPABASE_URL` +
   `SUPABASE_SERVICE_KEY`). Stateless.
 
+  **Masking fails closed (#109).** If Presidio NER is unavailable for any part of a message, the
+  listener stores a quarantine row (`masking_status = 'pending'`: sender, date, thread ids, no
+  content) instead of regex-only text, and a background loop re-fetches and masks it once
+  Presidio's health check passes. Nothing reads or drafts from a pending row.
+
   **Attachments (#82).** Images, PDFs, .docx and .xlsx are read, but the ordering is the control,
   not an implementation detail. Every attachment goes first to the local attachment reader
   (`listener/attachment-reader`, a container bound to `127.0.0.1` that never calls out):

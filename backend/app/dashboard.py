@@ -25,7 +25,7 @@ from app.contracts import (
 from app.core.config import get_settings
 from app.core.logging_setup import request_id
 from app.core.middleware import REQUEST_ID_HEADER
-from app.db.models import Message
+from app.db.models import MaskingStatus, Message
 from app.db.session import get_sessionmaker
 from app.gmail_send import SendError, send_reply
 from app.normalise.quantities import quantities_in
@@ -72,6 +72,7 @@ def _to_email(message: Message, policy: Policy = DEFAULT_POLICY) -> DashboardEma
         sentAt=message.sent_at.isoformat() if message.sent_at else None,
         isRead=message.read_at is not None,
         quantities=_quantity_views(message.body_masked or ""),
+        maskingPending=not message.is_masked,
     )
 
 
@@ -91,7 +92,9 @@ async def generate_pending(limit: int | None = None) -> int:
     """
     generated = 0
     async with get_sessionmaker()() as session:
-        stmt = select(Message).where(Message.generated_at.is_(None))
+        stmt = select(Message).where(
+            Message.generated_at.is_(None), Message.masking_status == MaskingStatus.COMPLETE
+        )
         if limit is not None:
             stmt = stmt.limit(limit)
         pending = (await session.scalars(stmt)).all()
@@ -154,6 +157,8 @@ async def _generate_and_store(message: Message, tone: str = "professional") -> b
     notification) so the poller stops retrying it. A non-NA empty draft is a transient failure and
     left uncached to retry. The caller owns committing the session.
     """
+    if not message.is_masked:
+        return False  # quarantined (#109): there is no masked content to draft from yet
     generated = await _generate(message, tone)
     if not generated:  # {} means the call failed (rate limit / error) — leave uncached to retry
         return False
@@ -310,6 +315,8 @@ async def translate_email(message_id: str, language: str) -> dict | None:
         message = await session.get(Message, pk)
     if message is None:
         return None
+    if not message.is_masked:
+        raise TranslationError("masking_pending", 409)
     text = plain_text(message.body_masked or "")
     if len(text) > MAX_TRANSLATE_CHARS:
         raise TranslationError("email_too_long_to_translate", 413)
@@ -334,7 +341,7 @@ async def refine_email(message_id: str, instruction: str, draft: str) -> Dashboa
         message = await session.get(Message, pk)
         if message is None:
             return None
-        refined = await _refine(message, draft, instruction)
+        refined = await _refine(message, draft, instruction) if message.is_masked else None
         if refined:
             message.draft_reply = refined
         await audit("refine_draft", f"message={message_id}", success=bool(refined))
