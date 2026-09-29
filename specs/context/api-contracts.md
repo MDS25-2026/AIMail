@@ -27,6 +27,10 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   `{ label, chunkId, excerpt, score }` (`score` is cosine similarity, 0..1), captured when the
   draft was generated. Empty for a draft generated before migration 0011, or with no policy
   retrieved. Additive: `label` keeps its meaning.
+- `DashboardEmail.threadContext` lists the other masked messages in the same Gmail thread,
+  oldest first, as `{ sender, snippet }` (detail and regenerate responses; the list endpoint
+  leaves it empty). The draft now sees up to five earlier messages, labelled by position and never
+  by sender address.
 - `DashboardEmail.maskingPending` is true for a quarantined message (#109): its subject, body and
   preview are empty and no draft exists until the listener can mask it. The dashboard shows it as
   awaiting masking; `/translate` answers 409 `masking_pending`.

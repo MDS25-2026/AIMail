@@ -88,3 +88,27 @@ def test_a_quarantined_message_is_never_drafted(monkeypatch):
     monkeypatch.setattr(dashboard, "_generate", must_not_run)
     message = Message(id=uuid4(), masking_status=MaskingStatus.PENDING)
     assert asyncio.run(dashboard._generate_and_store(message)) is False
+
+
+def _at(hour: int) -> datetime:
+    return datetime(2026, 9, 1, hour, tzinfo=timezone.utc)
+
+
+def test_the_model_sees_earlier_thread_messages_by_position_never_by_sender():
+    from app.dashboard import thread_context
+
+    current = Message(id=uuid4(), received_at=_at(12), body_masked="Latest")
+    earlier = Message(id=uuid4(), received_at=_at(9), from_addr="boss@company.com",
+                      body_masked="Please send the Q3 figures.")
+    later = Message(id=uuid4(), received_at=_at(15), body_masked="A later reply")
+    context = thread_context(current, [earlier, later])
+    assert context == "Earlier message 1:\nPlease send the Q3 figures."
+    assert "boss@company.com" not in context
+
+
+def test_the_dashboard_thread_lists_every_other_message():
+    thread = [Message(id=uuid4(), from_addr="a@x.com", snippet_masked="First"),
+              Message(id=uuid4(), from_addr="b@x.com", snippet_masked="Second")]
+    message = Message(id=uuid4(), created_at=_at(12))
+    shown = _to_email(message, thread=thread).threadContext
+    assert [(m.sender, m.snippet) for m in shown] == [("a@x.com", "First"), ("b@x.com", "Second")]

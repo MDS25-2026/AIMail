@@ -13,6 +13,7 @@ from uuid import UUID
 
 import httpx
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import audit
 from app.contracts import (
@@ -21,6 +22,7 @@ from app.contracts import (
     MeasureView,
     QuantityView,
     Source,
+    ThreadMessage,
 )
 from app.core.config import get_settings
 from app.core.logging_setup import request_id
@@ -51,7 +53,46 @@ def _quantity_views(text: str) -> list[QuantityView]:
     ]
 
 
-def _to_email(message: Message, policy: Policy = DEFAULT_POLICY) -> DashboardEmail:
+# The thread the model sees: the latest few earlier messages, each cut short. Enough to know what
+# was already said; bounded so one long thread cannot crowd the email itself out of the prompt.
+THREAD_CONTEXT_MESSAGES = 5
+THREAD_CONTEXT_CHARS_EACH = 1500
+
+
+async def _thread_of(session: AsyncSession, message: Message) -> list[Message]:
+    """The other masked messages in this Gmail thread, oldest first."""
+    if not message.thread_id:
+        return []
+    stmt = (
+        select(Message)
+        .where(
+            Message.thread_id == message.thread_id,
+            Message.id != message.id,
+            Message.masking_status == MaskingStatus.COMPLETE,
+        )
+        .order_by(Message.received_at)
+    )
+    return list((await session.scalars(stmt)).all())
+
+
+def thread_context(message: Message, thread: list[Message]) -> str:
+    """Earlier messages for the model, labelled by position. Never by sender: from_addr is stored
+    unmasked and is documented as never entering a model payload."""
+    before = [m for m in thread if m.received_at and message.received_at
+              and m.received_at < message.received_at][-THREAD_CONTEXT_MESSAGES:]
+    return "\n\n".join(
+        f"Earlier message {index}:\n{(m.body_masked or '')[:THREAD_CONTEXT_CHARS_EACH]}"
+        for index, m in enumerate(before, 1)
+    )
+
+
+def _thread_view(thread: list[Message]) -> list[ThreadMessage]:
+    return [ThreadMessage(sender=m.from_addr or "", snippet=m.snippet_masked or "") for m in thread]
+
+
+def _to_email(
+    message: Message, policy: Policy = DEFAULT_POLICY, thread: list[Message] | None = None
+) -> DashboardEmail:
     return DashboardEmail(
         id=str(message.id),
         sender=message.from_addr or "",
@@ -61,7 +102,7 @@ def _to_email(message: Message, policy: Policy = DEFAULT_POLICY) -> DashboardEma
         timestamp=(message.received_at or message.created_at).isoformat(),
         # The classifier's prediction, then the user's policy on top of it.
         priority=apply_policy(message, policy),
-        threadContext=[],
+        threadContext=_thread_view(thread or []),
         aiSummary=message.ai_summary or "",
         actionItems=message.action_items or [],
         draftReply=message.draft_reply or "",
@@ -99,7 +140,7 @@ async def generate_pending(limit: int | None = None) -> int:
             stmt = stmt.limit(limit)
         pending = (await session.scalars(stmt)).all()
         for message in pending:
-            if await _generate_and_store(message):
+            if await _generate_and_store(message, thread=await _thread_of(session, message)):
                 generated += 1
             await session.commit()
     return generated
@@ -131,7 +172,7 @@ def _source_records(chunks: list[ContextChunk]) -> list[dict]:
     ]
 
 
-async def _generate(message: Message, tone: str = "professional") -> dict:
+async def _generate(message: Message, tone: str, thread: list[Message]) -> dict:
     """Retrieve policy context (Lane B) and call Lane C's /process-email. Returns {} on any failure.
 
     The chunks ride along under "rag_sources" so the caller stores what the draft was grounded on.
@@ -139,7 +180,7 @@ async def _generate(message: Message, tone: str = "professional") -> dict:
     try:
         chunks = await retrieve(message.body_masked or "", k=5)
         payload = {
-            "thread_context": "",
+            "thread_context": thread_context(message, thread),
             "email_body": message.body_masked or "",
             "rag_context": format_rag_context(chunks),
             "tone": _TONE_PROMPTS.get(tone, _TONE_PROMPTS["professional"]),
@@ -150,7 +191,9 @@ async def _generate(message: Message, tone: str = "professional") -> dict:
         return {}
 
 
-async def _generate_and_store(message: Message, tone: str = "professional") -> bool:
+async def _generate_and_store(
+    message: Message, tone: str = "professional", thread: list[Message] | None = None
+) -> bool:
     """Generate the Lane C draft and cache it on the message; return True if a draft was stored.
 
     Caches a real draft, and also an "NA" result (the agent decided no reply is needed, e.g. a
@@ -159,7 +202,7 @@ async def _generate_and_store(message: Message, tone: str = "professional") -> b
     """
     if not message.is_masked:
         return False  # quarantined (#109): there is no masked content to draft from yet
-    generated = await _generate(message, tone)
+    generated = await _generate(message, tone, thread or [])
     if not generated:  # {} means the call failed (rate limit / error) — leave uncached to retry
         return False
     draft = generated.get("draft") or ""
@@ -205,13 +248,14 @@ async def email_detail(message_id: str) -> DashboardEmail | None:
         message = await session.get(Message, pk)
         if message is None:
             return None
+        thread = await _thread_of(session, message)
         if message.generated_at is None:
-            await _generate_and_store(message)
+            await _generate_and_store(message, thread=thread)
         # Opening the detail view is the moment a person actually reads it. Set once so the
         # first-open time is preserved rather than being bumped on every revisit.
         if message.read_at is None:
             message.read_at = datetime.now(timezone.utc)
-        email = _to_email(message)
+        email = _to_email(message, thread=thread)
         await session.commit()
         return email
 
@@ -227,8 +271,9 @@ async def regenerate_email(message_id: str, tone: str = "professional") -> Dashb
         if message is None:
             return None
         message.generated_at = None
-        await _generate_and_store(message, tone)
-        email = _to_email(message)
+        thread = await _thread_of(session, message)
+        await _generate_and_store(message, tone, thread)
+        email = _to_email(message, thread=thread)
         await session.commit()
         return email
 
