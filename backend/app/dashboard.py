@@ -209,13 +209,18 @@ async def approve_and_send(message_id: str, draft: str) -> DashboardEmail | None
             return None
         if message.sent_at is None:
             try:
-                await send_reply(message.from_addr or "", message.subject or "", draft)
+                sent = await send_reply(
+                    message.gmail_message_id, message.from_addr or "", message.subject or "", draft
+                )
             except SendError:
                 # The failed attempt is the row an auditor most wants; log before unwinding.
                 await audit("approve_and_send", f"message={message_id}", success=False)
                 raise
             message.draft_reply = draft
             message.sent_at = datetime.now(timezone.utc)
+            message.sent_message_id = sent.message_id
+            # Rows ingested before migration 0009 learn their thread from the send.
+            message.thread_id = message.thread_id or sent.thread_id
             await audit("approve_and_send", f"message={message_id}")
         email = _to_email(message)
         await session.commit()

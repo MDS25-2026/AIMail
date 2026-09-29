@@ -332,6 +332,7 @@ type StoredMessage struct {
 	EmailsMasked   int       `json:"emails_masked"`
 	PhonesMasked   int       `json:"phones_masked"`
 	ReceivedAt     time.Time `json:"received_at"`
+	ThreadIdentity
 }
 
 // AuditLogEntry records every pipeline action for traceability — required
@@ -670,6 +671,7 @@ func ingestMessage(ctx context.Context, srv *gmail.Service, msgID string) error 
 		EmailsMasked:   totalEmails,
 		PhonesMasked:   totalPhones,
 		ReceivedAt:     time.Now().UTC(),
+		ThreadIdentity: threadIdentity(msg),
 	}
 
 	if err := supabaseInsert(ctx, "messages", stored, "gmail_message_id"); err != nil {

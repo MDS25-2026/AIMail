@@ -112,6 +112,12 @@ class Message(Base):
     generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Thread identity (migration 0009): Lane A writes the first three at ingest, the backend
+    # writes sent_message_id after a reply goes out.
+    thread_id: Mapped[str | None] = mapped_column(Text)
+    rfc822_message_id: Mapped[str | None] = mapped_column(Text)
+    thread_refs: Mapped[str | None] = mapped_column(Text)
+    sent_message_id: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

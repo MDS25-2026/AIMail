@@ -93,7 +93,7 @@ listener — a migration must create `messages` + `audit_log` in Supabase before
 | `sent_at` | `TIMESTAMPTZ NULL` | backend | when the approved reply was sent (migration 0005) |
 | `read_at` | `TIMESTAMPTZ NULL` | backend | first time the detail view was opened; NULL = unread. Set once, so it records first read rather than latest (migration 0006) |
 | `user_id` | `UUID NULL FK` | backend | mailbox owner. Nullable: one mailbox today, so multi-user is a backfill rather than schema surgery (migration 0007) |
-| `sent_message_id` | `TEXT NULL` | backend | the `Message-ID` the backend generated for its own outgoing reply. Without it the thread graph breaks at every AImail hop — an incoming reply's `In-Reply-To` points here and matches nothing (migration 0009) |
+| `sent_message_id` | `TEXT NULL` | backend | the `Message-ID` Gmail assigned to the backend's outgoing reply, read back after `messages.send` rather than assumed. Without it the thread graph breaks at every AImail hop — an incoming reply's `In-Reply-To` points here and matches nothing (migration 0009) |
 | `created_at` | `TIMESTAMPTZ DEFAULT now()` | default | |
 
 Index `thread_id` — every planned consumer (thread view, sent-mail indexing, the extension's

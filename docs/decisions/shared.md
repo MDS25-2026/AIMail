@@ -6,6 +6,23 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-09-29 — Replies read the original's headers from Gmail at send time
+- Decision: the send path reads Subject, From, Reply-To, Message-ID, References and threadId
+  from Gmail (`format=metadata`, headers only) when the reply is approved, and sends with
+  `threadId`, `In-Reply-To` and `References`. The listener also stores `thread_id`,
+  `rfc822_message_id` and `thread_refs` at ingest, per the 2026-09-09 decision, for the thread
+  view and the extension. After sending, the backend reads back the `Message-ID` Gmail assigned
+  and stores it as `sent_message_id`, which settles that decision's open question without
+  relying on Gmail keeping a client-supplied one.
+- Why: Gmail threads a reply only when the Subject matches the original's
+  (developers.google.com/workspace/gmail/api/guides/threads), and the stored subject is masked.
+  Replies were going out as new threads titled "Re: ... [Redacted]". The real subject now lives
+  only in memory for the length of the send.
+- Why not store the raw subject: it is content, and storing it would break mask-before-storage.
+- Affects: Lane A (`listener/thread.go`, `StoredMessage`), Lane B (`app/gmail_send.py`,
+  `app/dashboard.py`, `app/db/models.py`), migration 0009 (applied).
+- Status: implemented — needs JiaJun's review of the listener change.
+
 ### 2026-09-11 — The review gate reads the critic's four checks, not its self-reported score
 - Decision: `needs_human_review` is now a conjunction over the checks the critic already computes
   (grounding, PII, completeness) plus a deterministic PII scan of the generated draft and an
@@ -56,7 +73,8 @@ here when their change crosses a lane boundary. Schema and public contracts are 
   `sent_message_id`. Store only these four fields, not the full header block.
 - Affects: Lane A (`listener/main.go`, `StoredMessage`), Lane B (`app/gmail_send.py`, `dashboard.py`),
   `specs/context/db-schema.md` (this PR), migration 0009.
-- Status: proposed — needs JiaJun's co-sign as owner of the `messages` table and the listener.
+- Status: implemented 2026-09-29 (migration 0009 applied). Still needs JiaJun's co-sign as owner
+  of the `messages` table and the listener; see the 2026-09-29 entry for what the build settled.
 
 ### 2026-08-31 — Seam 1 resolved: canonical column is `messages.body_masked`
 - Decision: the masked-email column is `messages.body_masked`; `masked_body` is retired.
