@@ -15,11 +15,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from sqlalchemy import select
 
-from app.core.constants import EMBEDDING_MODEL
+from app.core.constants import EMBEDDING_TAG
 from app.db.models import Chunk, Document, Embedding
 from app.db.session import get_sessionmaker
 from app.rag.chunk import estimate_tokens
-from app.rag.embed import embed_texts
+from app.rag.embed import embed_documents
 
 _SOURCE = "demo://employee-handbook"
 _SNIPPETS = [
@@ -51,7 +51,7 @@ _SNIPPETS = [
 
 
 async def main() -> None:
-    vectors = await embed_texts(_SNIPPETS)
+    vectors = await embed_documents(_SNIPPETS)
     sessionmaker = get_sessionmaker()
     async with sessionmaker() as session, session.begin():
         existing = await session.scalar(select(Document).where(Document.source == _SOURCE))
@@ -67,7 +67,7 @@ async def main() -> None:
             )
             session.add(chunk)
             await session.flush()
-            session.add(Embedding(chunk_id=chunk.id, embedding=vector, model_name=EMBEDDING_MODEL))
+            session.add(Embedding(chunk_id=chunk.id, embedding=vector, model_name=EMBEDDING_TAG))
     print(f"seeded {len(_SNIPPETS)} policy chunks under {_SOURCE}")
 
 

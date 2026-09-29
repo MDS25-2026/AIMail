@@ -20,13 +20,21 @@ def _l2_normalize(vectors: np.ndarray) -> np.ndarray:
     return vectors / norms
 
 
-def _embed_sync(texts: list[str]) -> list[list[float]]:
+# Gemini tunes the vector for its role: a policy chunk and a question about it land closer
+# together when each is embedded for its own side of retrieval.
+DOCUMENT_TASK = "RETRIEVAL_DOCUMENT"
+QUERY_TASK = "RETRIEVAL_QUERY"
+
+
+def _embed_sync(texts: list[str], task_type: str) -> list[list[float]]:
     client = gemini_client()
     try:
         result = client.models.embed_content(
             model=EMBEDDING_MODEL,
             contents=texts,
-            config=types.EmbedContentConfig(output_dimensionality=EMBEDDING_DIM),
+            config=types.EmbedContentConfig(
+                output_dimensionality=EMBEDDING_DIM, task_type=task_type
+            ),
         )
     except (httpx.HTTPError, errors.APIError) as exc:
         raise EmbeddingError(
@@ -38,8 +46,8 @@ def _embed_sync(texts: list[str]) -> list[list[float]]:
     return _l2_normalize(raw).tolist()
 
 
-async def embed_texts(texts: list[str]) -> list[list[float]]:
-    """Embed texts with gemini-embedding-001, L2-normalized to unit length.
+async def _embed(texts: list[str], task_type: str) -> list[list[float]]:
+    """Embed with gemini-embedding-001, L2-normalized to unit length.
 
     Runs the blocking Gemini call in a thread so a single embedding never stalls the event loop.
     gemini-embedding-001 does NOT auto-normalize at 1536 dims (confirmed against the docs, 2026-07),
@@ -47,4 +55,15 @@ async def embed_texts(texts: list[str]) -> list[list[float]]:
     """
     if not texts:
         return []
-    return await asyncio.to_thread(_embed_sync, texts)
+    return await asyncio.to_thread(_embed_sync, texts, task_type)
+
+
+async def embed_documents(texts: list[str]) -> list[list[float]]:
+    """Vectors for stored policy chunks."""
+    return await _embed(texts, DOCUMENT_TASK)
+
+
+async def embed_query(text: str) -> list[float] | None:
+    """The vector a search compares against stored chunks, or None for empty input."""
+    vectors = await _embed([text], QUERY_TASK)
+    return vectors[0] if vectors else None

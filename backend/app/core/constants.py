@@ -4,6 +4,11 @@
 # See docs/decisions/lane-b-ml.md. Changing the dim needs a migration + full re-embed.
 EMBEDDING_MODEL = "gemini-embedding-001"
 EMBEDDING_DIM = 1536
+# Stored in embedding.model_name. It names the model AND how its vectors were made: chunks are
+# embedded as RETRIEVAL_DOCUMENT and queries as RETRIEVAL_QUERY, and a vector of one kind is not
+# comparable with the other. Bump it whenever that changes; embed_pending re-embeds under the new
+# tag, and the old rows stay so a rollback is a one-line change.
+EMBEDDING_TAG = f"{EMBEDDING_MODEL}/retrieval-task"
 
 # Answer-generation model for the /ask demo. Override via the GEMINI_CHAT_MODEL env var.
 # If a call returns "model not found", swap this (e.g. gemini-flash-latest, gemini-3.6-flash).

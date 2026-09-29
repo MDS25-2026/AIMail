@@ -27,7 +27,7 @@ def rate_limited(monkeypatch):
 
 def test_rate_limited_embedding_raises_embedding_error(rate_limited):
     with pytest.raises(embed.EmbeddingError):
-        asyncio.run(embed.embed_texts(["hello"]))
+        asyncio.run(embed.embed_documents(["hello"]))
 
 
 def test_rate_limited_answer_raises_generation_error(rate_limited):

@@ -11,6 +11,17 @@
 
 ## Log
 
+### 2026-09-29 — Chunks and queries are embedded for their own side of retrieval
+- Decision: chunks are embedded with `task_type=RETRIEVAL_DOCUMENT` and queries with
+  `RETRIEVAL_QUERY` (`embed_documents` / `embed_query`), stored under a new tag
+  `EMBEDDING_TAG = "gemini-embedding-001/retrieval-task"` in `embedding.model_name`.
+- Why: measured on `scripts/eval_set.json`, same corpus, same day: precision@5 0.600 -> 0.700,
+  MRR 0.900 -> 0.906, hit rate 1.000 both. All 53 chunks re-embedded.
+- Why a new tag rather than overwriting: the table is append-only, so the untyped vectors stay
+  under `gemini-embedding-001` and rolling back is a one-line constant change.
+- Affects: `app/rag/{embed,retrieve,ingest}.py`, `app/core/constants.py`, `scripts/seed_demo.py`,
+  `scripts/smoke_primitive.py`.
+
 ### 2026-09-07 — Personalise the ranking, not the model
 - Decision: per-user preferences are applied **after** the classifier predicts, in a policy layer
   (`backend/app/personalisation.py`), never by retraining or by adding user features to the model.
