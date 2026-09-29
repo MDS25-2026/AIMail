@@ -28,3 +28,7 @@ INGEST_RATE_WINDOW_SECONDS = 60
 # a person clicking and far below what drains the free tier.
 GENERATION_RATE_LIMIT = 10
 GENERATION_RATE_WINDOW_SECONDS = 60
+# Password guessing on the admin sign-in: five tries per five minutes per client, on top of
+# Supabase's own limits.
+ADMIN_SIGN_IN_LIMIT = 5
+ADMIN_SIGN_IN_WINDOW_SECONDS = 300

@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { label: "nav.sent", to: "/sent" },
   { label: "nav.knowledge", to: "/knowledge" },
   { label: "nav.settings", to: "/settings" },
+  { label: "nav.admin", to: "/admin" },
 ] as const;
 
 const BASE_ITEM = "block w-full rounded-md px-3 py-2 text-left text-sm";

@@ -108,6 +108,27 @@ See [`../features/rag-retrieval.md`](../features/rag-retrieval.md).
 - Not stored. Rate limited with the other model-spending routes. Only the masked body is sent,
   as plain text (markup stripped). See [`../features/translation.md`](../features/translation.md).
 
+### Admin console (`/admin`, ADR 0004)
+
+A separate app mounted at `/admin`. The shared bearer token does **not** apply and does not grant
+access: every call below except sign-in needs the `aimail_admin` HttpOnly cookie for a Supabase
+user with `app_metadata.role = "admin"`. State-changing calls must send `X-AIMail-Admin: 1`. The
+dashboard calls these with `credentials: "include"`. Errors are `{"detail": "<code>"}`.
+
+- **`POST /admin/session`** `{ email, password }` → 200 `{ email }` and sets the session cookies ·
+  401 `invalid_credentials` · 403 `not_an_admin` · 429 after 5 tries in 5 minutes ·
+  503 `admin_auth_not_configured` / `supabase_unavailable`.
+- **`POST /admin/session/refresh`** → 200 `{ email }`, renews the cookies from the refresh cookie.
+- **`DELETE /admin/session`** → 204, revokes the Supabase session and clears both cookies.
+- **`GET /admin/session`** → `{ email }` of the signed-in admin; 401 `admin_signed_out` /
+  `admin_session_invalid`.
+- **`GET /admin/overview?days=1..90`** → mailbox counts, privacy counts, review-reason categories,
+  model health (attempts, outcomes, fallback use, p50/p95 model time per draft).
+- **`GET /admin/flagged?limit=`** → drafts awaiting review: id, masked subject, reason categories.
+- **`GET /admin/audit?limit=&failures_only=`** → recent `audit_log` rows, detail cut to 240 chars.
+
+No admin response contains an email body, a draft, or the text after a review reason's colon.
+
 ### Shared data shapes (the Seams)
 
 Cross-lane shapes live in `backend/app/contracts.py` — the **single source of truth** both lanes

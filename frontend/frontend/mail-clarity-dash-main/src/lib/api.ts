@@ -2,7 +2,7 @@ import type { Email, Translation } from "../types/email";
 import type { PolicyDocument, SystemInfo } from "../types/knowledge";
 
 /** Backend base URL. Defaults to the local backend; override with VITE_BACKEND_URL for other envs. */
-const BASE = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:8000";
+export const BASE = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:8000";
 
 /** Shared bearer token the backend requires on every route (backend/app/core/auth.py). */
 const TOKEN = import.meta.env.VITE_BACKEND_API_TOKEN ?? "";

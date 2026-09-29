@@ -12,6 +12,7 @@ pypdf>=6.16.2                 # policy-PDF text extraction
 numpy>=2.5.2                 # L2 normalization of embeddings
 scikit-learn>=1.9.0          # priority-classifier baseline (TF-IDF + logistic regression)
 pint>=0.26.1                 # unit conversion in the normalisation layer (BSD-3)
+PyJWT[crypto]>=2.10          # admin console: verifies Supabase ES256 access tokens (MIT)
 
 # API layer (serves the retrieval demo)
 fastapi>=0.141.1

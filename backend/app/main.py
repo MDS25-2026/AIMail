@@ -18,6 +18,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import DBAPIError, InterfaceError, OperationalError
 
+from app.admin.app import admin_app
 from app.contracts import DashboardEmail
 from app.core.auth import require_auth
 from app.core.config import get_settings
@@ -52,6 +53,8 @@ configure_logging()
 
 app = FastAPI(title="AImail backend", dependencies=[Depends(require_auth)])
 app.middleware("http")(request_context)
+# Its own app, so the shared token never applies there: admin is a Supabase session (ADR 0004).
+app.mount("/admin", admin_app)
 
 # Dev CORS so the Next.js frontend can call this API cross-origin. The regex covers any
 # localhost/127.0.0.1 port (they are distinct origins to the browser); FRONTEND_ORIGIN adds
@@ -62,6 +65,9 @@ app.add_middleware(
     allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_methods=["*"],
     allow_headers=["*"],
+    # The admin console's session travels in HttpOnly cookies (ADR 0004). Credentials are only
+    # ever echoed to the explicit and localhost origins above, never to a wildcard.
+    allow_credentials=True,
 )
 
 _STATIC = Path(__file__).parent / "static"

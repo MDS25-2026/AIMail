@@ -13,6 +13,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
+  fetchAdminSession,
+  fetchAudit,
+  fetchFlagged,
+  fetchOverview,
+  signIn,
+  signOut,
+} from "./adminApi";
+import {
   addDocument,
   fetchDocuments,
   fetchEmail,
@@ -143,4 +151,56 @@ export function useAddDocument() {
   return useIngestMutation<{ title: string; text: string }>(({ title, text }) =>
     addDocument(title, text),
   );
+}
+
+// ---------- Admin console (docs/adr/0004) ----------
+
+const adminKeys = {
+  session: ["admin", "session"] as const,
+  overview: (days: number) => ["admin", "overview", days] as const,
+  flagged: ["admin", "flagged"] as const,
+  audit: (failuresOnly: boolean) => ["admin", "audit", failuresOnly] as const,
+};
+
+/** Who is signed in to the console. A 401 is an answer ("nobody"), so it is not retried. */
+export function useAdminSession() {
+  return useQuery({ queryKey: adminKeys.session, queryFn: fetchAdminSession, retry: false });
+}
+
+export function useAdminOverview(days: number, isEnabled: boolean) {
+  return useQuery({
+    queryKey: adminKeys.overview(days),
+    queryFn: () => fetchOverview(days),
+    enabled: isEnabled,
+  });
+}
+
+export function useAdminFlagged(isEnabled: boolean) {
+  return useQuery({ queryKey: adminKeys.flagged, queryFn: fetchFlagged, enabled: isEnabled });
+}
+
+export function useAdminAudit(failuresOnly: boolean, isEnabled: boolean) {
+  return useQuery({
+    queryKey: adminKeys.audit(failuresOnly),
+    queryFn: () => fetchAudit(failuresOnly),
+    enabled: isEnabled,
+  });
+}
+
+export function useAdminSignIn() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ email, password }: { email: string; password: string }) =>
+      signIn(email, password),
+    onSuccess: (identity) => queryClient.setQueryData(adminKeys.session, identity),
+  });
+}
+
+/** Signing out drops every admin query, so nothing from the session stays in the cache. */
+export function useAdminSignOut() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: signOut,
+    onSettled: () => queryClient.removeQueries({ queryKey: ["admin"] }),
+  });
 }
