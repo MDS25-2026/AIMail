@@ -20,7 +20,7 @@ export const en = {
     count_one: "{{count}} message",
     count_other: "{{count}} messages",
     unread: "(unread)",
-    keyboardHint: "J/K or arrow keys move between emails.",
+    keyboardHint: "In the list, J/K or the arrow keys move between emails.",
   },
   priority: { high: "Urgent", medium: "Medium", low: "Low" },
   detail: {
@@ -131,6 +131,13 @@ export const en = {
     stored_one: "Stored {{count}} chunk.",
     stored_other: "Stored {{count}} chunks.",
     failed: "Failed",
+    errors: {
+      too_large: "That file is over the 10 MB limit.",
+      rate_limited: "Too many uploads just now. Wait a minute and retry.",
+      not_pdf: "That file was rejected: it must be a real PDF.",
+      unauthorized: "Not authorised. Check VITE_BACKEND_API_TOKEN.",
+      failed: "The upload failed.",
+    },
   },
   settings: {
     title: "Settings",
@@ -249,6 +256,8 @@ export const en = {
     detail: "Detail",
     ok: "OK",
     failed: "Failed",
+    unknown: "Unknown",
+    needsAttention: "needs attention",
     loading: "admin data",
   },
   announce: {

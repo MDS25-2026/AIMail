@@ -55,6 +55,7 @@ export default function FilteredEmailList({
             <li key={email.id}>
               <Link
                 to="/"
+                search={{ email: email.id }}
                 className="block px-4 py-3 transition-colors hover:bg-surface-muted"
                 aria-label={t("sent.open", { subject: email.subject })}
               >

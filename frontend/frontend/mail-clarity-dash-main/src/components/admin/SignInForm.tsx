@@ -18,7 +18,7 @@ type ErrorKey =
   | "admin.errors.generic";
 
 function isKnownCode(code: string): code is keyof typeof MESSAGE_FOR_CODE {
-  return code in MESSAGE_FOR_CODE;
+  return Object.hasOwn(MESSAGE_FOR_CODE, code);
 }
 
 /** The backend's error code, as a sentence the admin can act on. */

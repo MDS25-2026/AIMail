@@ -23,7 +23,7 @@ export const ms: Translations = {
     count_one: "{{count}} mesej",
     count_other: "{{count}} mesej",
     unread: "(belum dibaca)",
-    keyboardHint: "J/K atau kekunci anak panah untuk beralih antara e-mel.",
+    keyboardHint: "Dalam senarai, J/K atau kekunci anak panah beralih antara e-mel.",
   },
   priority: { high: "Segera", medium: "Sederhana", low: "Rendah" },
   detail: {
@@ -135,6 +135,13 @@ export const ms: Translations = {
     stored_one: "{{count}} bahagian disimpan.",
     stored_other: "{{count}} bahagian disimpan.",
     failed: "Gagal",
+    errors: {
+      too_large: "Fail itu melebihi had 10 MB.",
+      rate_limited: "Terlalu banyak muat naik sekarang. Tunggu seminit dan cuba lagi.",
+      not_pdf: "Fail itu ditolak: ia mesti PDF sebenar.",
+      unauthorized: "Tidak dibenarkan. Semak VITE_BACKEND_API_TOKEN.",
+      failed: "Muat naik gagal.",
+    },
   },
   settings: {
     title: "Tetapan",
@@ -253,6 +260,8 @@ export const ms: Translations = {
     detail: "Butiran",
     ok: "OK",
     failed: "Gagal",
+    unknown: "Tidak diketahui",
+    needsAttention: "perlu perhatian",
     loading: "data pentadbir",
   },
   announce: {

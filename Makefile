@@ -9,7 +9,7 @@ VENV := .venv/bin
 help:  ## list targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  make %-12s %s\n", $$1, $$2}'
 
-check: test lint typecheck  ## backend tests + lint + frontend typecheck
+check: test lint typecheck  ## backend tests + ruff; dashboard typecheck, eslint, unit tests, palette check
 
 hooks:  ## install git hooks (pre-push runs 'make check')
 	git config core.hooksPath .githooks
@@ -23,7 +23,7 @@ lint:  ## backend lint
 
 typecheck:  ## dashboard typecheck, palette contrast/colour-blind checks, lint and unit tests
 	cd frontend/frontend/mail-clarity-dash-main && npx tsc --noEmit
-	cd frontend/frontend/mail-clarity-dash-main && python3 scripts/check-palette.py > /dev/null
+	cd frontend/frontend/mail-clarity-dash-main && python3 scripts/check-palette.py --quiet
 	cd frontend/frontend/mail-clarity-dash-main && npx eslint src && npm test --silent
 
 dev:  ## run ALL services (backend, agent, web, listener) in one terminal; Ctrl+C stops all

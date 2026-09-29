@@ -96,7 +96,7 @@ export default function EmailDetailPanel({
             disabled={isRegenerating || isRefining || isSending}
           />
 
-          <SourcesChips sources={email.sources} draft={draft} />
+          <SourcesChips key={email.id} sources={email.sources} draft={draft} />
 
           <RefineInput
             emailId={email.id}

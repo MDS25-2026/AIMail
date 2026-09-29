@@ -23,8 +23,9 @@ function AdminPage() {
     <AppShell>
       <section className="min-w-0 flex-1 overflow-y-auto bg-surface-muted p-6">
         {session.isPending ? <PageLoading label={t("admin.loading")} /> : null}
-        {session.data ? <AdminConsole admin={session.data} /> : null}
-        {session.isError ? <SignInForm /> : null}
+        {/* A failed refetch keeps the old data, so the error decides: signed out means the form. */}
+        {!session.isPending && (session.isError || !session.data) ? <SignInForm /> : null}
+        {session.isSuccess && session.data ? <AdminConsole admin={session.data} /> : null}
       </section>
     </AppShell>
   );

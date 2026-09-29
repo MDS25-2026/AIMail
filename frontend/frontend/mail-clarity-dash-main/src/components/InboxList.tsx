@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 
+import { inboxKeyHandler } from "../lib/inboxKeys";
 import type { Email } from "../types/email";
 import EmailListItem from "./EmailListItem";
 
@@ -18,7 +19,14 @@ export default function InboxList({ emails, selectedEmailId, onSelectEmail }: In
         <p className="text-xs text-fg-muted">{t("inbox.count", { count: emails.length })}</p>
         <p className="mt-0.5 text-[11px] text-fg-subtle">{t("inbox.keyboardHint")}</p>
       </div>
-      <ul className="flex-1 divide-y divide-line-subtle overflow-y-auto">
+      <ul
+        className="flex-1 divide-y divide-line-subtle overflow-y-auto"
+        onKeyDown={inboxKeyHandler(
+          emails.map((email) => email.id),
+          selectedEmailId,
+          onSelectEmail,
+        )}
+      >
         {emails.map((email) => (
           <EmailListItem
             key={email.id}

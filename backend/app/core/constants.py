@@ -38,4 +38,6 @@ ADMIN_SIGN_IN_WINDOW_SECONDS = 300
 # Admin console (docs/adr/0004). The dashboard as `make web` serves it; set ADMIN_ORIGINS for any
 # other host or port. Only these origins may carry the admin session cross-origin.
 ADMIN_PREFIX = "/admin"
-DEFAULT_ADMIN_ORIGINS = "http://localhost:8090,http://127.0.0.1:8090"
+# localhost only: from 127.0.0.1 the dashboard and an API on localhost are different sites, and
+# the SameSite=Strict session cookie would not travel anyway. Open the dashboard at localhost.
+DEFAULT_ADMIN_ORIGINS = "http://localhost:8090"

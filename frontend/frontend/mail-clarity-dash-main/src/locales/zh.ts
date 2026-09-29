@@ -19,7 +19,7 @@ export const zh: Translations = {
     count_one: "{{count}} 封邮件",
     count_other: "{{count}} 封邮件",
     unread: "（未读）",
-    keyboardHint: "按 J/K 或方向键在邮件之间切换。",
+    keyboardHint: "在列表中，按 J/K 或方向键在邮件之间切换。",
   },
   priority: { high: "紧急", medium: "中等", low: "低" },
   detail: {
@@ -125,6 +125,13 @@ export const zh: Translations = {
     stored_one: "已保存 {{count}} 个片段。",
     stored_other: "已保存 {{count}} 个片段。",
     failed: "失败",
+    errors: {
+      too_large: "该文件超过 10 MB 限制。",
+      rate_limited: "上传次数过多。请稍等一分钟后重试。",
+      not_pdf: "该文件被拒绝：必须是真正的 PDF。",
+      unauthorized: "未授权。请检查 VITE_BACKEND_API_TOKEN。",
+      failed: "上传失败。",
+    },
   },
   settings: {
     title: "设置",
@@ -239,6 +246,8 @@ export const zh: Translations = {
     detail: "详情",
     ok: "成功",
     failed: "失败",
+    unknown: "未知",
+    needsAttention: "需要关注",
     loading: "管理数据",
   },
   announce: {

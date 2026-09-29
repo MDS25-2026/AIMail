@@ -1,4 +1,4 @@
-import { CircleAlert, CircleCheck } from "lucide-react";
+import { CircleAlert, CircleCheck, CircleHelp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { useFormat } from "../../lib/useFormat";
@@ -31,7 +31,12 @@ export default function AuditTable({ events }: { events: AuditEvent[] }) {
               </td>
               <td className="py-2 pr-4 font-mono text-xs text-fg-body">{event.action}</td>
               <td className="py-2 pr-4">
-                {event.success === false ? (
+                {event.success === null ? (
+                  <span className="inline-flex items-center gap-1 text-fg-muted">
+                    <CircleHelp aria-hidden className="size-3.5" />
+                    {t("admin.unknown")}
+                  </span>
+                ) : event.success === false ? (
                   <span className="inline-flex items-center gap-1 text-danger">
                     <CircleAlert aria-hidden className="size-3.5" />
                     {t("admin.failed")}

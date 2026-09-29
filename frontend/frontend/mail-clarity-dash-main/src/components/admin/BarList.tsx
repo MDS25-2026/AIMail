@@ -9,7 +9,8 @@ import type { Count } from "../../types/admin";
 export default function BarList({ items, label }: { items: Count[]; label: string }) {
   const { t } = useTranslation();
   if (items.length === 0) return <p className="text-sm text-fg-subtle">{t("admin.noData")}</p>;
-  const largest = Math.max(...items.map((item) => item.count));
+  // At least 1: when every count is 0 the bars are empty, not NaN% wide.
+  const largest = Math.max(1, ...items.map((item) => item.count));
 
   return (
     <ul aria-label={label} className="space-y-2">

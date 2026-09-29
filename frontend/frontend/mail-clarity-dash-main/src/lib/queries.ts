@@ -202,7 +202,14 @@ export function useAdminSignIn() {
   return useMutation({
     mutationFn: ({ email, password }: { email: string; password: string }) =>
       signIn(email, password),
-    onSuccess: (identity) => queryClient.setQueryData(adminKeys.session, identity),
+    onSuccess: (identity) => {
+      queryClient.setQueryData(adminKeys.session, identity);
+      // Panels that failed while signed out must fetch again for the new session.
+      void queryClient.invalidateQueries({
+        queryKey: ["admin"],
+        predicate: (query) => query.queryKey[1] !== "session",
+      });
+    },
   });
 }
 
@@ -219,11 +226,15 @@ export function useSignedOutRecovery(errors: unknown[]): void {
   }, [isSignedOut, queryClient]);
 }
 
-/** Signing out drops every admin query, so nothing from the session stays in the cache. */
+/**
+ * Signing out resets every admin query. resetQueries, not removeQueries: a removed query tells its
+ * mounted observers nothing, so the console stayed on screen with the old identity. A reset
+ * returns them to their initial state and refetches, and the session query then answers 401.
+ */
 export function useAdminSignOut() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: signOut,
-    onSettled: () => queryClient.removeQueries({ queryKey: ["admin"] }),
+    onSettled: () => queryClient.resetQueries({ queryKey: ["admin"] }),
   });
 }

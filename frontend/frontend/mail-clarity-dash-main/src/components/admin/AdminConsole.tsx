@@ -75,7 +75,9 @@ export default function AdminConsole({ admin }: { admin: AdminIdentity }) {
       {overview.data ? <OverviewPanels overview={overview.data} /> : null}
 
       <Panel title={t("admin.flagged")}>
-        <FlaggedTable drafts={flagged.data ?? []} />
+        {flagged.isPending ? <PageLoading label={t("admin.flagged")} /> : null}
+        {flagged.isError ? <PageError label={t("admin.flagged")} error={flagged.error} /> : null}
+        {flagged.data ? <FlaggedTable drafts={flagged.data} /> : null}
       </Panel>
 
       <Panel title={t("admin.activity")}>
@@ -87,7 +89,9 @@ export default function AdminConsole({ admin }: { admin: AdminIdentity }) {
           />
           {t("admin.failuresOnly")}
         </label>
-        <AuditTable events={audit.data ?? []} />
+        {audit.isPending ? <PageLoading label={t("admin.activity")} /> : null}
+        {audit.isError ? <PageError label={t("admin.activity")} error={audit.error} /> : null}
+        {audit.data ? <AuditTable events={audit.data} /> : null}
       </Panel>
     </div>
   );

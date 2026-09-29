@@ -12,10 +12,15 @@ import {
   useRegenerateEmail,
   useSendEmail,
 } from "../lib/queries";
-import { useInboxKeyboard } from "../lib/useInboxKeyboard";
 import type { Tone } from "../types/email";
 
+type InboxSearch = { email?: string };
+
 export const Route = createFileRoute("/")({
+  // ?email=<id> opens that email, so Sent and other lists can link straight to one.
+  validateSearch: (search: Record<string, unknown>): InboxSearch => ({
+    email: typeof search.email === "string" ? search.email : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "AIMail — AI inbox dashboard" },
@@ -39,9 +44,16 @@ export const Route = createFileRoute("/")({
 
 function DashboardPage() {
   const { t } = useTranslation();
+  const { email: requestedId } = Route.useSearch();
   const emails = useEmails();
   // Read out by screen readers when a slow action finishes, since the result appears elsewhere.
   const [announcement, setAnnouncement] = useState("");
+  // Clear, then set on the next frame: the same text twice is no DOM change, so a second
+  // "Draft regenerated" would never be read out.
+  const announce = (text: string) => {
+    setAnnouncement("");
+    requestAnimationFrame(() => setAnnouncement(text));
+  };
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
   const selected = useEmail(selectedEmailId);
 
@@ -71,7 +83,7 @@ function DashboardPage() {
       .then(() => {
         if (seq !== requestSeqRef.current) return;
         setDraftOverride(null);
-        setAnnouncement(done);
+        announce(done);
       })
       .catch(() => {
         // Keep whatever is on screen; the mutation's error state drives the UI.
@@ -84,16 +96,12 @@ function DashboardPage() {
     setToneOverride(null);
   }, []);
 
-  useInboxKeyboard(
-    (emails.data ?? []).map((item) => item.id),
-    selectedEmailId,
-    handleSelectEmail,
-  );
-
   const didAutoSelectRef = useRef(false);
   useEffect(() => {
-    // Auto-select the first email once; StrictMode double-invokes effects in dev.
-    const first = emails.data?.[0];
+    // Auto-select once: the email the link asked for, else the first. StrictMode double-invokes
+    // effects in dev, hence the ref.
+    const requested = emails.data?.find((item) => item.id === requestedId);
+    const first = requested ?? emails.data?.[0];
     if (first && !didAutoSelectRef.current) {
       didAutoSelectRef.current = true;
       handleSelectEmail(first.id);
@@ -125,7 +133,7 @@ function DashboardPage() {
       {
         onSuccess: () => {
           setDraftOverride(null);
-          setAnnouncement(t("announce.sent"));
+          announce(t("announce.sent"));
         },
         onError: () => window.alert(t("draft.sendFailed")),
       },

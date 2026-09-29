@@ -83,4 +83,4 @@ When you finish exploring a service or subsystem for the first time, **offer** t
 
 ## Running it
 
-`make dev` starts everything: Presidio containers, backend (:8000), Lane C agent (:8001), dashboard (:8090), and the listener. Ports 8000/8001/8090 are freed first; **:8080 is deliberately left alone** for other local projects. `make check` runs backend tests, ruff, and the dashboard typecheck. Stop the stack with Ctrl+C, never Ctrl+Z — a suspended run keeps holding the ports and the next start fails to bind.
+`make dev` starts everything: Presidio containers, backend (:8000), Lane C agent (:8001), dashboard (:8090), and the listener. Ports 8000/8001/8090 are freed first; **:8080 is deliberately left alone** for other local projects. `make check` runs the backend tests and ruff, then the dashboard typecheck, eslint, unit tests and palette (contrast and colour-blind) check. `go test ./...` in `listener/` and `make test-reader` cover Lane A. Stop the stack with Ctrl+C, never Ctrl+Z — a suspended run keeps holding the ports and the next start fails to bind.

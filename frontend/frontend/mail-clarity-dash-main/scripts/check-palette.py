@@ -1,6 +1,7 @@
 """Verify the dashboard palette: WCAG 2.1 contrast in both themes, and colour-blind separation.
 
 Run: python3 scripts/check-palette.py           (exit 1 on any failure or a stale src/palette.css)
+     python3 scripts/check-palette.py --quiet   (print failures only; what make check uses)
      python3 scripts/check-palette.py --write   (regenerate src/palette.css from palette.json)
 
 Contrast follows WCAG 2.1 SC 1.4.3 (4.5:1 text) and 1.4.11 (3:1 non-text). Colour-blind vision is
@@ -109,7 +110,8 @@ def main() -> int:
             for fg, bg in pairs:
                 ratio = contrast(colours[fg], colours[bg])
                 status = "ok " if ratio >= minimum else "FAIL"
-                print(f"{status} {theme:5} {fg:>13} on {bg:<14} {ratio:5.2f}:1 (min {minimum})")
+                if ratio < minimum or "--quiet" not in sys.argv:
+                    print(f"{status} {theme:5} {fg:>13} on {bg:<14} {ratio:5.2f}:1 (min {minimum})")
                 if ratio < minimum:
                     failures.append(f"{theme} {fg}/{bg}")
         for vision, matrix in [("normal", None), *MACHADO.items()]:
@@ -120,7 +122,10 @@ def main() -> int:
                 if distance < MIN_DELTA_E:
                     failures.append(f"{theme} {vision} {a}~{b} dE={distance:.1f}")
                     print(f"FAIL {theme:5} {vision:12} {a} vs {b}: dE {distance:.1f}")
-    print(f"\n{len(failures)} failure(s)" if failures else "\nall checks pass")
+    if failures:
+        print(f"\n{len(failures)} failure(s): " + "; ".join(failures))
+    elif "--quiet" not in sys.argv:
+        print("\nall checks pass")
     return 1 if failures else 0
 
 
