@@ -1,15 +1,13 @@
 package main
 
-// Attachment OCR (#82).
+// Attachment reading (#82, extended to documents and scans).
 //
-// The ordering here is the whole point. An attachment image is redacted by Presidio on this
-// machine *first*, and only the redacted image is ever read by the model. That keeps the
-// mask-before-transit guarantee true for attachments, which no cloud-OCR-first design can:
-// reading an image is what finds the PII in it, so anything that reads it remotely sees the PII
-// before masking can happen.
-//
-// Presidio's image redactor returns an image, not text — there is no text endpoint — so a reader
-// is still needed. Gemini reads the redacted image. By then there is nothing sensitive left in it.
+// The ordering here is the whole point. Every attachment goes to the local attachment reader
+// (listener/attachment-reader) first. Documents with text come back as text and are masked below
+// like any body text, never touching a model. Images and scanned pages come back redacted, and
+// only if the reader's OCR could read them confidently and found no PII left after redacting.
+// Only those redacted images reach Gemini. That keeps mask-before-transit true for attachments,
+// which no cloud-OCR-first design can: reading an image is what finds the PII in it.
 
 import (
 	"bytes"
@@ -17,7 +15,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"mime/multipart"
 	"net/http"
 	"strconv"
@@ -37,15 +34,31 @@ const (
 		"Return only the transcription, with no commentary. " +
 		"If the image contains no text, return nothing."
 
-	ocrMarker = "\n\n--- text from attached image ---\n"
+	ocrMarker = "\n\n--- text from attachments ---\n"
+
+	docxMime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+	xlsxMime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
 
-// Redacting and reading are both slow enough to need generous deadlines, and both are bounded so
-// a stuck call cannot hold the Pub/Sub receive callback open (the same failure as #86).
+// Reading and OCR are both slow enough to need generous deadlines, and both are bounded so a
+// stuck call cannot hold the Pub/Sub receive callback open (the same failure as #86). The reader
+// runs two local OCR passes per scanned page, up to its 20-page cap.
 var (
-	redactorClient = &http.Client{Timeout: 60 * time.Second}
-	ocrClient      = &http.Client{Timeout: 90 * time.Second}
+	readerClient = &http.Client{Timeout: 180 * time.Second}
+	ocrClient    = &http.Client{Timeout: 90 * time.Second}
 )
+
+// readerResult is the attachment reader's reply: local text, and redacted images that passed both
+// of its gates. SkippedPages were withheld on this machine and never read remotely.
+type readerResult struct {
+	Text   string `json:"text"`
+	Images []struct {
+		MimeType string `json:"mime_type"`
+		Data     string `json:"data"`
+	} `json:"images"`
+	SkippedPages int `json:"skipped_pages"`
+	Pages        int `json:"pages"`
+}
 
 func ocrMaxBytes() int64 {
 	size, err := strconv.ParseInt(getEnvOrDefault("OCR_MAX_ATTACHMENT_BYTES", "5000000"), 10, 64)
@@ -55,56 +68,69 @@ func ocrMaxBytes() int64 {
 	return size
 }
 
-// imageAttachments walks the MIME tree for image parts carrying an attachment id.
-func imageAttachments(part *gmail.MessagePart, max int64) []*gmail.MessagePart {
+func isReadableAttachment(mimeType string) bool {
+	switch mimeType {
+	case "application/pdf", docxMime, xlsxMime:
+		return true
+	}
+	return strings.HasPrefix(mimeType, "image/")
+}
+
+// readableAttachments walks the MIME tree for attachments the reader handles, carrying an
+// attachment id and within the size cap.
+func readableAttachments(part *gmail.MessagePart, max int64) []*gmail.MessagePart {
 	var found []*gmail.MessagePart
-	if strings.HasPrefix(part.MimeType, "image/") &&
+	if isReadableAttachment(part.MimeType) &&
 		part.Body != nil && part.Body.AttachmentId != "" && part.Body.Size <= max {
 		found = append(found, part)
 	}
 	for _, sub := range part.Parts {
-		found = append(found, imageAttachments(sub, max)...)
+		found = append(found, readableAttachments(sub, max)...)
 	}
 	return found
 }
 
-// redactImage blacks out PII inside the image. An error here must fail the attachment rather than
-// fall through to OCR: sending an unredacted image onward is the one outcome this design exists to
-// prevent, so degrading to "read it anyway" would silently undo it.
-func redactImage(ctx context.Context, raw []byte, filename string) ([]byte, error) {
-	url := getEnvOrDefault("PRESIDIO_IMAGE_REDACTOR_URL", "http://localhost:5003/redact")
+// readLocally sends an attachment to the local reader. An error here must fail the attachment
+// rather than fall through to OCR: sending an unread, unredacted image onward is the one outcome
+// this design exists to prevent. The file name is deliberately not sent; names carry PII.
+func readLocally(ctx context.Context, raw []byte, mimeType string) (readerResult, error) {
+	url := getEnvOrDefault("ATTACHMENT_READER_URL", "http://localhost:5003/read")
 
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
-	part, err := writer.CreateFormFile("image", filename)
+	part, err := writer.CreateFormFile("file", "attachment")
 	if err != nil {
-		return nil, fmt.Errorf("build form: %w", err)
+		return readerResult{}, fmt.Errorf("build form: %w", err)
 	}
 	if _, err := part.Write(raw); err != nil {
-		return nil, fmt.Errorf("write image: %w", err)
+		return readerResult{}, fmt.Errorf("write attachment: %w", err)
 	}
-	if err := writer.WriteField("data", `{"color_fill":"0,0,0"}`); err != nil {
-		return nil, fmt.Errorf("write field: %w", err)
+	if err := writer.WriteField("mime_type", mimeType); err != nil {
+		return readerResult{}, fmt.Errorf("write field: %w", err)
 	}
 	if err := writer.Close(); err != nil {
-		return nil, fmt.Errorf("close form: %w", err)
+		return readerResult{}, fmt.Errorf("close form: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, &body)
 	if err != nil {
-		return nil, fmt.Errorf("build request: %w", err)
+		return readerResult{}, fmt.Errorf("build request: %w", err)
 	}
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
-	resp, err := redactorClient.Do(req)
+	resp, err := readerClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("redactor unreachable: %w", err)
+		return readerResult{}, fmt.Errorf("attachment reader unreachable: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("redactor returned %d", resp.StatusCode)
+		return readerResult{}, fmt.Errorf("attachment reader returned %d", resp.StatusCode)
 	}
-	return io.ReadAll(resp.Body)
+	var result readerResult
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return readerResult{}, fmt.Errorf("decode reader reply: %w", err)
+	}
+	return result, nil
 }
 
 // readRedactedImage asks Gemini to transcribe an image that has already been redacted.
@@ -164,61 +190,74 @@ func readRedactedImage(ctx context.Context, redacted []byte, mimeType string) (s
 	return strings.TrimSpace(parsed.Candidates[0].Content.Parts[0].Text), nil
 }
 
-// ocrAttachments returns transcribed text for every image attachment on the message.
+// ocrAttachments returns the text of every readable attachment on the message.
 //
 // A failure on one attachment is logged and skipped rather than failing the message: an email
-// whose screenshot could not be read is still worth ingesting for its body, and #84 made ingest
-// failures retry, so failing here would loop the whole message over one unreadable image.
+// whose attachment could not be read is still worth ingesting for its body, and #84 made ingest
+// failures retry, so failing here would loop the whole message over one unreadable file.
 func ocrAttachments(ctx context.Context, srv *gmail.Service, msgID string, payload *gmail.MessagePart) string {
 	if payload == nil {
 		return ""
 	}
-	parts := imageAttachments(payload, ocrMaxBytes())
-	if len(parts) == 0 {
+	var texts []string
+	for _, part := range readableAttachments(payload, ocrMaxBytes()) {
+		if text := readAttachment(ctx, srv, msgID, part); text != "" {
+			texts = append(texts, text)
+		}
+	}
+	if len(texts) == 0 {
+		return ""
+	}
+	return ocrMarker + strings.Join(texts, "\n\n")
+}
+
+func readAttachment(ctx context.Context, srv *gmail.Service, msgID string, part *gmail.MessagePart) string {
+	attachment, err := srv.Users.Messages.Attachments.
+		Get("me", msgID, part.Body.AttachmentId).Context(ctx).Do()
+	if err != nil {
+		logOCRFailure(ctx, msgID, "fetch", err)
+		return ""
+	}
+	raw, err := base64.URLEncoding.DecodeString(attachment.Data)
+	if err != nil {
+		logOCRFailure(ctx, msgID, "decode", err)
+		return ""
+	}
+	result, err := readLocally(ctx, raw, part.MimeType)
+	if err != nil {
+		// Not falling through to OCR on purpose: see readLocally's comment.
+		logOCRFailure(ctx, msgID, "read locally", err)
 		return ""
 	}
 
-	var transcripts []string
-	for _, part := range parts {
-		attachment, err := srv.Users.Messages.Attachments.
-			Get("me", msgID, part.Body.AttachmentId).Context(ctx).Do()
-		if err != nil {
-			logOCRFailure(ctx, msgID, "fetch", err)
-			continue
-		}
-		raw, err := base64.URLEncoding.DecodeString(attachment.Data)
-		if err != nil {
-			logOCRFailure(ctx, msgID, "decode", err)
-			continue
-		}
-
-		redacted, err := redactImage(ctx, raw, part.Filename)
-		if err != nil {
-			// Not falling through to OCR on purpose — see redactImage's comment.
-			logOCRFailure(ctx, msgID, "redact", err)
-			continue
-		}
-
-		text, err := readRedactedImage(ctx, redacted, part.MimeType)
-		if err != nil {
-			logOCRFailure(ctx, msgID, "read", err)
-			continue
-		}
-		if text != "" {
-			transcripts = append(transcripts, text)
-			writeAuditLog(ctx, "ocr_attachment",
-				fmt.Sprintf("msg %s: %s redacted and read, %d chars", msgID, part.MimeType, len(text)), true)
-		}
+	texts := []string{result.Text}
+	for _, img := range result.Images {
+		texts = append(texts, transcribe(ctx, msgID, img.Data, img.MimeType))
 	}
+	text := strings.TrimSpace(strings.Join(texts, "\n\n"))
+	writeAuditLog(ctx, "read_attachment", fmt.Sprintf(
+		"msg %s: %s, %d page(s), %d redacted image(s) sent for OCR, %d withheld locally, %d chars",
+		msgID, part.MimeType, result.Pages, len(result.Images), result.SkippedPages, len(text)), true)
+	return text
+}
 
-	if len(transcripts) == 0 {
+// transcribe OCRs one image the reader has already redacted and cleared.
+func transcribe(ctx context.Context, msgID, encoded, mimeType string) string {
+	redacted, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		logOCRFailure(ctx, msgID, "decode redacted image", err)
 		return ""
 	}
-	return ocrMarker + strings.Join(transcripts, "\n\n")
+	text, err := readRedactedImage(ctx, redacted, mimeType)
+	if err != nil {
+		logOCRFailure(ctx, msgID, "read", err)
+		return ""
+	}
+	return text
 }
 
 func logOCRFailure(ctx context.Context, msgID, stage string, err error) {
-	// The error is logged, never the attachment: a redactor failure means the image still holds
+	// The error is logged, never the attachment: a reader failure means the file still holds
 	// whatever PII it held.
 	fmt.Printf("OCR %s failed for msg %s: %v\n", stage, msgID, err)
 	writeAuditLog(ctx, "ocr_attachment", fmt.Sprintf("msg %s: %s failed: %v", msgID, stage, err), false)

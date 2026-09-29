@@ -36,17 +36,22 @@ The `n8n/` folder is unused scaffolding.
   masked row + an audit entry to Supabase via the PostgREST API (`SUPABASE_URL` +
   `SUPABASE_SERVICE_KEY`). Stateless.
 
-  **Image attachments (#82).** Text inside an image is extracted, but the ordering is the control,
-  not an implementation detail. The image is redacted by a local Presidio container
-  (`presidio-image-redactor`, bound to `127.0.0.1`) **before anything reads it**; only the
-  redacted image is sent to the model for transcription, and the transcript then passes through
-  the same `maskText` as any other body text.
+  **Attachments (#82).** Images, PDFs, .docx and .xlsx are read, but the ordering is the control,
+  not an implementation detail. Every attachment goes first to the local attachment reader
+  (`listener/attachment-reader`, a container bound to `127.0.0.1` that never calls out):
+  - documents with a text layer come back as **text**, which passes through the same `maskText`
+    as body text and never reaches a model;
+  - images and scanned pages are **redacted on this machine**, then released only past two gates:
+    the local OCR must have read the page confidently (text it cannot read cannot be checked for
+    PII), and OCR of the redacted pixels must find no fixed-format identifier left. Only those
+    redacted images are sent to Gemini for transcription, and the transcript passes through
+    `maskText` too. A page failing either gate is withheld and counted in the audit log.
 
   This ordering is what keeps *masking before transit* true for attachments. No cloud-OCR-first
   design can: reading an image is what finds the PII in it, so anything reading it remotely sees
-  the PII before masking is possible. If redaction fails, the attachment is **skipped** rather
+  the PII before masking is possible. If the reader fails, the attachment is **skipped** rather
   than read — falling through to OCR would silently undo the guarantee. The message still ingests
-  on its text body.
+  on its text body. Spec: [`features/attachment-reading.md`](features/attachment-reading.md).
 - **backend/** (Lanes B + C, Python/FastAPI): reads masked email from Supabase (via `DATABASE_URL`
   / asyncpg), runs retrieval (B), the classifier (B), and generation (C, `email_agent.py`, on
   Gemini), caches + pre-generates drafts, exposes REST for the dashboard, and sends approved

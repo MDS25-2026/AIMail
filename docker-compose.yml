@@ -2,7 +2,7 @@
 # on top of its regex floor; if they are down it degrades to regex-only (see listener/main.go).
 # Bound to 127.0.0.1 so the analyzer/anonymizer are never exposed off the host.
 #
-#   docker compose up -d        # start analyzer :5001 + anonymizer :5002
+#   docker compose up -d        # analyzer :5001, anonymizer :5002, attachment reader :5003
 #   docker compose down
 services:
   presidio-analyzer:
@@ -23,13 +23,14 @@ services:
       - PORT=5002
     restart: unless-stopped
 
-  # Redacts PII *inside* attachment images, before the image is read anywhere else. This is what
-  # keeps the mask-before-transit guarantee true for attachments: the image that reaches the model
-  # has already had names, addresses, emails and phone numbers blacked out on this machine.
-  # Listens on 3000 internally, unlike the other two.
-  presidio-image-redactor:
-    image: mcr.microsoft.com/presidio-image-redactor:latest
-    container_name: presidio-image-redactor
+  # Reads attachments on this machine before anything else can. Documents come back as text for
+  # the listener to mask; images and scanned pages come back redacted, and only if the local OCR
+  # read them confidently and found no PII left after redacting. Built on the pinned
+  # presidio-image-redactor image for its Tesseract and spaCy models (listener/attachment-reader).
+  attachment-reader:
+    build: ./listener/attachment-reader
+    image: aimail-attachment-reader:local
+    container_name: aimail-attachment-reader
     ports:
       - "127.0.0.1:5003:3000"
     restart: unless-stopped

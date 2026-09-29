@@ -4,7 +4,7 @@
 VENV := .venv/bin
 .DEFAULT_GOAL := help
 
-.PHONY: help check test lint typecheck hooks dev backend agent web migrate seed ingest eval eval-reform baseline backfill generate ml-deps distilbert eval-classifier label eval-critic
+.PHONY: help check test lint typecheck hooks dev backend agent web test-reader migrate seed ingest eval eval-reform baseline backfill generate ml-deps distilbert eval-classifier label eval-critic
 
 help:  ## list targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  make %-12s %s\n", $$1, $$2}'
@@ -38,6 +38,10 @@ agent:  ## run the Lane C email agent on :8001 (localhost-only; frees the port f
 web:  ## run the dashboard on :8090 (8080 is left to other local projects)
 	-fuser -k 8090/tcp 2>/dev/null
 	cd frontend/frontend/mail-clarity-dash-main && npm run dev -- --port 8090 --strictPort
+
+test-reader:  ## attachment reader tests, inside its image against the real OCR and NER models
+	docker build -q -t aimail-attachment-reader:test listener/attachment-reader
+	docker run --rm --user root --entrypoint sh aimail-attachment-reader:test -c 'pip install -q pytest && python -m pytest -q -p no:warnings tests'
 
 migrate:  ## create all tables (RAG + messages + audit_log) — first run
 	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0001_rag_tables.sql
