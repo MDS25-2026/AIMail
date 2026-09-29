@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"google.golang.org/api/googleapi"
 )
 
 func TestAQuarantinedRowCarriesNoContent(t *testing.T) {
@@ -29,16 +31,41 @@ func TestAStoredRowIsMarkedComplete(t *testing.T) {
 	}
 }
 
-func TestQuarantinedIDsAsksForPendingRowsOldestFirst(t *testing.T) {
+func TestQuarantinedRowsComeFewestAttemptsFirst(t *testing.T) {
 	queries := withSupabase(t, func(w http.ResponseWriter, _ *http.Request) {
-		w.Write([]byte(`[{"gmail_message_id":"a"},{"gmail_message_id":"b"}]`))
+		w.Write([]byte(`[{"gmail_message_id":"a","masking_attempts":0},{"gmail_message_id":"b","masking_attempts":3}]`))
 	})
-	ids, err := quarantinedIDs(context.Background())
-	if err != nil || len(ids) != 2 || ids[0] != "a" {
-		t.Fatalf("got %v, %v", ids, err)
+	rows, err := quarantinedRows(context.Background())
+	if err != nil || len(rows) != 2 || rows[1].MaskingAttempts != 3 {
+		t.Fatalf("got %v, %v", rows, err)
 	}
-	if q := (*queries)[0]; !strings.Contains(q, "masking_status=eq.pending") || !strings.Contains(q, "order=received_at.asc") {
-		t.Fatalf("unexpected query %s", q)
+	q := (*queries)[0]
+	if !strings.Contains(q, "masking_status=eq.pending") || !strings.Contains(q, "order=masking_attempts.asc,received_at.asc") {
+		t.Fatalf("a failing row must not hold the head of the queue: %s", q)
+	}
+}
+
+func TestAFailedAttemptIsCountedThenAbandoned(t *testing.T) {
+	var bodies []string
+	withSupabase(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPatch {
+			raw, _ := io.ReadAll(r.Body)
+			bodies = append(bodies, string(raw))
+		}
+	})
+	recordFailure(context.Background(), quarantinedRow{GmailMessageID: "m", MaskingAttempts: 0}, "x")
+	recordFailure(context.Background(), quarantinedRow{GmailMessageID: "m", MaskingAttempts: maxRemaskAttempts - 1}, "x")
+	if len(bodies) != 2 || !strings.Contains(bodies[0], `"masking_attempts":1`) {
+		t.Fatalf("first failure must only count: %v", bodies)
+	}
+	if !strings.Contains(bodies[1], `"masking_status":"abandoned"`) {
+		t.Fatalf("the last attempt must abandon the row: %v", bodies)
+	}
+}
+
+func TestAMessageGoneFromGmailIsRecognised(t *testing.T) {
+	if !isGone(&googleapi.Error{Code: http.StatusNotFound}) || isGone(&googleapi.Error{Code: 500}) {
+		t.Fatal("only a 404 means the message is gone")
 	}
 }
 

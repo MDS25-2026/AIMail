@@ -15,6 +15,7 @@ class SignInRequest(BaseModel):
 class MailboxCounts(BaseModel):
     total: int
     masking_pending: int
+    masking_abandoned: int
     generated: int
     awaiting_review: int
     sent: int

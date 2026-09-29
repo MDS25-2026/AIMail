@@ -115,6 +115,12 @@ function OverviewPanels({ overview }: { overview: Overview }) {
             icon={ShieldAlert}
             isAlert={mailbox.masking_pending > 0}
           />
+          <StatTile
+            label={t("admin.maskingAbandoned")}
+            value={mailbox.masking_abandoned}
+            icon={ShieldAlert}
+            isAlert={mailbox.masking_abandoned > 0}
+          />
         </dl>
       </Panel>
 

@@ -50,8 +50,10 @@ export default function EmailListItem({ email, selected, onSelect }: EmailListIt
         >
           {email.subject}
         </div>
-        {email.maskingPending ? (
-          <p className="mt-0.5 text-xs font-medium text-warning">{t("quarantine.badge")}</p>
+        {email.masking === "pending" || email.masking === "abandoned" ? (
+          <p className="mt-0.5 text-xs font-medium text-warning">
+            {t(email.masking === "abandoned" ? "quarantine.abandonedBadge" : "quarantine.badge")}
+          </p>
         ) : (
           <p className="mt-0.5 line-clamp-2 text-xs text-fg-muted">{email.preview}</p>
         )}

@@ -31,9 +31,10 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   oldest first, as `{ sender, snippet }` (detail and regenerate responses; the list endpoint
   leaves it empty). The draft now sees up to five earlier messages, labelled by position and never
   by sender address.
-- `DashboardEmail.maskingPending` is true for a quarantined message (#109): its subject, body and
-  preview are empty and no draft exists until the listener can mask it. The dashboard shows it as
-  awaiting masking; `/translate` answers 409 `masking_pending`.
+- `DashboardEmail.masking` is `"complete"`, `"pending"` (quarantined because NER masking was
+  unavailable, #109) or `"abandoned"` (the listener gave up: deleted from Gmail, or never
+  maskable). For the last two, subject, body and preview are empty and no draft exists;
+  `/translate` answers 409 `masking_pending`.
 - `DashboardEmail.quantities` lists every quantity in the masked body (weight, length, volume,
   temperature, area, speed) as `{ text, system: "metric"|"imperial", metric: {value, unit},
   imperial: {value, unit} }`. The side matching `system` is the figure exactly as written; the

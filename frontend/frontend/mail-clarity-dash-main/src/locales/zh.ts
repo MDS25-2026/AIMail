@@ -174,6 +174,10 @@ export const zh: Translations = {
     badge: "等待遮蔽",
     title: "在移除个人数据之前暂不显示",
     body: "此邮件到达时姓名检测服务不可用，因此尚未保存其内容。一旦可以完全遮蔽，它会自动显示在这里。在此之前不会生成草稿。",
+    abandonedBadge: "未保存",
+    abandonedTitle: "未保存：无法遮蔽",
+    abandonedBody:
+      "监听器多次尝试仍无法移除此邮件中的个人数据，或该邮件已先从 Gmail 中删除。其内容从未保存，因此没有可阅读或起草的内容。如需查看，请在 Gmail 中打开。",
   },
   admin: {
     title: "管理",
@@ -204,6 +208,7 @@ export const zh: Translations = {
     sentCount: "已发送",
     unread: "未读",
     maskingPending: "等待遮蔽",
+    maskingAbandoned: "已放弃（从未遮蔽）",
     privacy: "隐私与遮蔽",
     quarantined: "已隔离（NER 不可用）",
     released: "重新遮蔽后已释放",

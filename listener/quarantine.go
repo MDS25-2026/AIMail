@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -19,14 +20,24 @@ import (
 	"time"
 
 	"google.golang.org/api/gmail/v1"
+	"google.golang.org/api/googleapi"
 )
 
 const (
-	maskingComplete = "complete"
-	maskingPending  = "pending"
+	maskingComplete  = "complete"
+	maskingPending   = "pending"
+	maskingAbandoned = "abandoned"
 	// A bounded batch per pass: re-reading attachments is slow, and the next pass picks up the rest.
 	remaskBatchSize = 20
+	// About an hour of failures at the default 5 m interval while Presidio itself is healthy: a
+	// message that still cannot be masked by then is abandoned, never stored degraded.
+	maxRemaskAttempts = 12
 )
+
+type quarantinedRow struct {
+	GmailMessageID  string `json:"gmail_message_id"`
+	MaskingAttempts int    `json:"masking_attempts"`
+}
 
 func remaskInterval() time.Duration {
 	minutes, err := time.ParseDuration(getEnvOrDefault("REMASK_INTERVAL", "5m"))
@@ -70,53 +81,97 @@ func presidioHealthy(ctx context.Context) bool {
 	return resp.StatusCode < 300
 }
 
-func quarantinedIDs(ctx context.Context) ([]string, error) {
-	query := fmt.Sprintf("select=gmail_message_id&masking_status=eq.%s&order=received_at.asc&limit=%d",
-		maskingPending, remaskBatchSize)
+// quarantinedRows lists pending rows, fewest attempts first, so a message that keeps failing
+// sinks behind newer ones instead of holding the head of the queue.
+func quarantinedRows(ctx context.Context) ([]quarantinedRow, error) {
+	query := fmt.Sprintf("select=gmail_message_id,masking_attempts&masking_status=eq.%s"+
+		"&order=masking_attempts.asc,received_at.asc&limit=%d", maskingPending, remaskBatchSize)
 	body, err := supabaseGet(ctx, "messages", query)
 	if err != nil {
 		return nil, err
 	}
-	var rows []struct {
-		GmailMessageID string `json:"gmail_message_id"`
-	}
+	var rows []quarantinedRow
 	if err := json.Unmarshal(body, &rows); err != nil {
-		return nil, fmt.Errorf("decode quarantined ids: %w", err)
+		return nil, fmt.Errorf("decode quarantined rows: %w", err)
 	}
-	ids := make([]string, 0, len(rows))
-	for _, row := range rows {
-		ids = append(ids, row.GmailMessageID)
-	}
-	return ids, nil
+	return rows, nil
 }
 
-// remaskQuarantined completes quarantined rows while NER stays available, stopping at the first
-// message it still cannot mask rather than hammering a Presidio that has just gone down again.
+func messageFilter(msgID string) string {
+	return "gmail_message_id=eq." + url.QueryEscape(msgID)
+}
+
+// abandon marks a message that can never be masked: its content is never stored.
+func abandon(ctx context.Context, row quarantinedRow, reason string) {
+	fields := map[string]interface{}{"masking_status": maskingAbandoned, "masking_attempts": row.MaskingAttempts + 1}
+	if err := supabasePatch(ctx, "messages", messageFilter(row.GmailMessageID), fields); err != nil {
+		log.Printf("could not abandon %s: %v", row.GmailMessageID, err)
+		return
+	}
+	writeAuditLog(ctx, "remask_message", fmt.Sprintf("msg %s abandoned: %s", row.GmailMessageID, reason), false)
+}
+
+// recordFailure counts one failed attempt, abandoning the row once it has used its attempts.
+func recordFailure(ctx context.Context, row quarantinedRow, reason string) {
+	if row.MaskingAttempts+1 >= maxRemaskAttempts {
+		abandon(ctx, row, reason)
+		return
+	}
+	fields := map[string]int{"masking_attempts": row.MaskingAttempts + 1}
+	if err := supabasePatch(ctx, "messages", messageFilter(row.GmailMessageID), fields); err != nil {
+		log.Printf("could not count attempt for %s: %v", row.GmailMessageID, err)
+	}
+}
+
+func isGone(err error) bool {
+	var apiErr *googleapi.Error
+	return errors.As(err, &apiErr) && apiErr.Code == http.StatusNotFound
+}
+
+// remaskQuarantined completes quarantined rows while NER is available. A row that fails is counted
+// and skipped, so it cannot stall the rows behind it; if Presidio itself has gone down again the
+// pass stops, since every remaining row would fail for the same reason.
 func remaskQuarantined(ctx context.Context, srv *gmail.Service) {
 	if !presidioHealthy(ctx) {
 		return
 	}
-	ids, err := quarantinedIDs(ctx)
+	rows, err := quarantinedRows(ctx)
 	if err != nil {
 		log.Printf("could not list quarantined messages: %v", err)
 		return
 	}
-	for _, msgID := range ids {
-		msg, err := fetchMessage(ctx, srv, msgID)
-		if err != nil {
-			continue
-		}
-		content, isComplete := maskMessage(ctx, srv, msg)
-		if !isComplete {
+	for _, row := range rows {
+		if !remaskOne(ctx, srv, row) {
 			return
 		}
-		filter := "gmail_message_id=eq." + url.QueryEscape(msgID)
-		if err := supabasePatch(ctx, "messages", filter, content); err != nil {
-			writeAuditLog(ctx, "remask_message", fmt.Sprintf("msg %s: %v", msgID, err), false)
-			continue
-		}
-		writeAuditLog(ctx, "remask_message", fmt.Sprintf("msg %s released from quarantine", msgID), true)
 	}
+}
+
+// remaskOne releases one row. It reports false only when Presidio has gone down mid-pass.
+func remaskOne(ctx context.Context, srv *gmail.Service, row quarantinedRow) bool {
+	msg, err := fetchMessage(ctx, srv, row.GmailMessageID)
+	if isGone(err) {
+		abandon(ctx, row, "no longer in Gmail")
+		return true
+	}
+	if err != nil {
+		recordFailure(ctx, row, "fetch failed")
+		return true
+	}
+	content, isComplete := maskMessage(ctx, srv, msg)
+	if !isComplete {
+		if !presidioHealthy(ctx) {
+			return false
+		}
+		recordFailure(ctx, row, "masking did not complete")
+		return true
+	}
+	if err := supabasePatch(ctx, "messages", messageFilter(row.GmailMessageID), content); err != nil {
+		writeAuditLog(ctx, "remask_message", fmt.Sprintf("msg %s: %v", row.GmailMessageID, err), false)
+		return true
+	}
+	writeAuditLog(ctx, "remask_message", fmt.Sprintf("msg %s released from quarantine", row.GmailMessageID), true)
+	return true
 }
 
 func remaskQuarantinedPeriodically(ctx context.Context, srv *gmail.Service) {

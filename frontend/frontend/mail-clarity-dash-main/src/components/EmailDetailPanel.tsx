@@ -63,12 +63,12 @@ export default function EmailDetailPanel({
   );
 
   // Quarantined (#109): nothing to read or draft from until the listener can mask the content.
-  if (email.maskingPending) {
+  if (email.masking === "pending" || email.masking === "abandoned") {
     return (
       <div className="h-full overflow-y-auto">
         {header}
         <div className="p-6">
-          <QuarantineNotice />
+          <QuarantineNotice isAbandoned={email.masking === "abandoned"} />
         </div>
       </div>
     );

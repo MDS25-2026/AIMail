@@ -185,6 +185,10 @@ export const ms: Translations = {
     badge: "Menunggu penyamaran",
     title: "Ditahan sehingga data peribadi dapat dibuang",
     body: "Perkhidmatan pengesanan nama tidak tersedia semasa e-mel ini tiba, jadi kandungannya belum disimpan. Ia akan muncul di sini secara automatik sebaik sahaja dapat disamarkan sepenuhnya. Tiada draf dibuat sehingga itu.",
+    abandonedBadge: "Tidak disimpan",
+    abandonedTitle: "Tidak disimpan: tidak dapat disamarkan",
+    abandonedBody:
+      "Pendengar mencuba berulang kali tetapi tidak dapat membuang data peribadi daripada e-mel ini, atau ia telah dipadam daripada Gmail terlebih dahulu. Kandungannya tidak pernah disimpan, jadi tiada apa untuk dibaca atau didraf. Bukanya dalam Gmail jika anda memerlukannya.",
   },
   admin: {
     title: "Pentadbir",
@@ -218,6 +222,7 @@ export const ms: Translations = {
     sentCount: "Dihantar",
     unread: "Belum dibaca",
     maskingPending: "Menunggu penyamaran",
+    maskingAbandoned: "Ditinggalkan (tidak pernah disamarkan)",
     privacy: "Privasi dan penyamaran",
     quarantined: "Dikuarantin (NER tidak tersedia)",
     released: "Dilepaskan selepas disamarkan semula",

@@ -58,7 +58,7 @@ def client(monkeypatch):
     monkeypatch.setattr(auth, "_jwks", lambda auth_base: _FakeJwks())
 
     async def fake_overview(session, days):
-        return Overview(days=days, mailbox=MailboxCounts(total=1, masking_pending=0, generated=1,
+        return Overview(days=days, mailbox=MailboxCounts(total=1, masking_pending=0, masking_abandoned=0, generated=1,
                         awaiting_review=0, sent=0, unread=1),
                         privacy=PrivacyCounts(quarantined=0, released=0, degraded_before_fix=0,
                         attachment_text_dropped=0, pages_withheld=0, attachment_failures=0),

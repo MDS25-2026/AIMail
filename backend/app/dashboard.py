@@ -113,7 +113,7 @@ def _to_email(
         sentAt=message.sent_at.isoformat() if message.sent_at else None,
         isRead=message.read_at is not None,
         quantities=_quantity_views(message.body_masked or ""),
-        maskingPending=not message.is_masked,
+        masking=message.masking_status or MaskingStatus.COMPLETE,
     )
 
 

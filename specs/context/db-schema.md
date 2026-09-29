@@ -97,7 +97,8 @@ listener — a migration must create `messages` + `audit_log` in Supabase before
 | `read_at` | `TIMESTAMPTZ NULL` | backend | first time the detail view was opened; NULL = unread. Set once, so it records first read rather than latest (migration 0006) |
 | `user_id` | `UUID NULL FK` | backend | mailbox owner. Nullable: one mailbox today, so multi-user is a backfill rather than schema surgery (migration 0007) |
 | `sent_message_id` | `TEXT NULL` | backend | the `Message-ID` Gmail assigned to the backend's outgoing reply, read back after `messages.send` rather than assumed. Without it the thread graph breaks at every AImail hop — an incoming reply's `In-Reply-To` points here and matches nothing (migration 0009) |
-| `masking_status` | `TEXT NOT NULL DEFAULT 'complete'` | Lane A | `complete`, or `pending` for a quarantined row with no content because NER masking was unavailable (#109). The listener completes pending rows when Presidio recovers; nothing reads or drafts from them (migration 0012) |
+| `masking_status` | `TEXT NOT NULL DEFAULT 'complete'` | Lane A | `complete`; `pending` for a quarantined row with no content because NER masking was unavailable (#109), completed by the listener when Presidio recovers; `abandoned` when it gave up. Nothing reads or drafts from a row that is not complete (migrations 0012, 0013) |
+| `masking_attempts` | `INT NOT NULL DEFAULT 0` | Lane A | failed re-mask attempts; the loop works fewest-first and abandons a row at 12 (migration 0013) |
 | `created_at` | `TIMESTAMPTZ DEFAULT now()` | default | |
 
 Index `thread_id` — every planned consumer (thread view, sent-mail indexing, the extension's

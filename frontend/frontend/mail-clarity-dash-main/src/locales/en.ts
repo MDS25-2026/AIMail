@@ -181,6 +181,10 @@ export const en = {
     badge: "Awaiting masking",
     title: "Held back until personal data can be removed",
     body: "The name-detection service was unavailable when this email arrived, so its content is not stored yet. It appears here automatically once it can be fully masked. No draft is made until then.",
+    abandonedBadge: "Never stored",
+    abandonedTitle: "Not stored: it could not be masked",
+    abandonedBody:
+      "The listener tried repeatedly and could not remove personal data from this email, or it was deleted from Gmail first. Its content was never stored, so there is nothing to read or draft. Open it in Gmail if you need it.",
   },
   admin: {
     title: "Admin",
@@ -214,6 +218,7 @@ export const en = {
     sentCount: "Sent",
     unread: "Unread",
     maskingPending: "Awaiting masking",
+    maskingAbandoned: "Abandoned (never masked)",
     privacy: "Privacy and masking",
     quarantined: "Quarantined (NER down)",
     released: "Released after re-masking",

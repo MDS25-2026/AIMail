@@ -72,7 +72,7 @@ def test_a_quarantined_message_is_shown_as_pending_with_no_content():
     message = Message(id=uuid4(), masking_status=MaskingStatus.PENDING,
                       created_at=datetime(2026, 8, 1, tzinfo=timezone.utc))
     email = _to_email(message)
-    assert email.maskingPending is True
+    assert email.masking == "pending"
     assert email.body == "" and email.quantities == []
 
 
@@ -86,8 +86,9 @@ def test_a_quarantined_message_is_never_drafted(monkeypatch):
         raise AssertionError("generation ran on a quarantined message")
 
     monkeypatch.setattr(dashboard, "_generate", must_not_run)
-    message = Message(id=uuid4(), masking_status=MaskingStatus.PENDING)
-    assert asyncio.run(dashboard._generate_and_store(message)) is False
+    for status in (MaskingStatus.PENDING, MaskingStatus.ABANDONED):
+        message = Message(id=uuid4(), masking_status=status)
+        assert asyncio.run(dashboard._generate_and_store(message)) is False
 
 
 def _at(hour: int) -> datetime:

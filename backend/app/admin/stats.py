@@ -46,6 +46,7 @@ async def mailbox_counts(session: AsyncSession) -> MailboxCounts:
     return MailboxCounts(
         total=await _count(session),
         masking_pending=await _count(session, Message.masking_status == MaskingStatus.PENDING),
+        masking_abandoned=await _count(session, Message.masking_status == MaskingStatus.ABANDONED),
         generated=await _count(session, Message.generated_at.is_not(None)),
         awaiting_review=await _count(session, Message.needs_human_review.is_(True),
                                      Message.sent_at.is_(None)),

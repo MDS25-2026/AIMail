@@ -7,6 +7,7 @@ export type Overview = {
   mailbox: {
     total: number;
     masking_pending: number;
+    masking_abandoned: number;
     generated: number;
     awaiting_review: number;
     sent: number;

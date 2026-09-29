@@ -89,6 +89,8 @@ class MaskingStatus(StrEnum):
 
     COMPLETE = "complete"
     PENDING = "pending"
+    # The listener gave up (deleted from Gmail, or never maskable): content is never stored.
+    ABANDONED = "abandoned"
 
 
 class Message(Base):
@@ -133,7 +135,7 @@ class Message(Base):
     @property
     def is_masked(self) -> bool:
         """Content exists and was masked with NER. Nothing reads or drafts from a row that is not."""
-        return self.masking_status != MaskingStatus.PENDING
+        return self.masking_status == MaskingStatus.COMPLETE
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
