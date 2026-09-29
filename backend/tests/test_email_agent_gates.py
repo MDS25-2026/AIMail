@@ -100,6 +100,19 @@ def test_value_substitution_is_caught(draft, expected):
     assert unsupported_specifics(draft, SOURCE) == expected
 
 
+@pytest.mark.parametrize("draft, expected", [
+    ("That is 4,409 lb gross.", []),  # a correct conversion of 2,000 kg
+    ("That is 4,000 lb gross.", ["4000"]),  # a wrong one
+    ("That is 2,010 kg gross.", ["2010"]),  # same unit, different figure
+])
+def test_a_unit_conversion_is_supported_only_when_it_is_right(draft, expected):
+    assert unsupported_specifics(draft, "Gross weight 2,000 kg.") == expected
+
+
+def test_a_european_written_figure_matches_its_source():
+    assert unsupported_specifics("I will refund 18.400,00 in full.", SOURCE) == []
+
+
 def test_currency_prefixed_amounts_are_seen():
     """A word boundary cannot match between a letter and a digit, so RM500 was invisible."""
     assert unsupported_specifics("Gifts above RM9,999 apply.", SOURCE) == ["9999"]

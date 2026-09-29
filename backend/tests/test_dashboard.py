@@ -38,3 +38,11 @@ def test_email_detail_returns_none_for_bad_uuid():
     from app.dashboard import email_detail
 
     assert asyncio.run(email_detail("not-a-uuid")) is None
+
+
+def test_quantities_in_the_body_reach_the_dashboard_in_both_systems():
+    message = Message(id=uuid4(), body_masked="Ship 2,000 lb to the depot.",
+                      created_at=datetime(2026, 8, 1, tzinfo=timezone.utc))
+    (quantity,) = _to_email(message).quantities
+    assert quantity.text == "2,000 lb" and quantity.system == "imperial"
+    assert (quantity.metric.value, quantity.metric.unit) == (907.0, "kg")

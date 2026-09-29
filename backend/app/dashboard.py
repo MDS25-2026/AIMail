@@ -15,13 +15,14 @@ import httpx
 from sqlalchemy import select
 
 from app.audit import audit
-from app.contracts import DashboardEmail
+from app.contracts import DashboardEmail, MeasureView, QuantityView
 from app.core.config import get_settings
 from app.core.logging_setup import request_id
 from app.core.middleware import REQUEST_ID_HEADER
 from app.db.models import Message
 from app.db.session import get_sessionmaker
 from app.gmail_send import SendError, send_reply
+from app.normalise.quantities import quantities_in
 from app.personalisation import DEFAULT_POLICY, Policy, apply_policy, load_policy
 from app.rag.embed import EmbeddingError
 from app.rag.retrieve import retrieve
@@ -30,6 +31,17 @@ from app.rag.utils import format_rag_context
 logger = logging.getLogger(__name__)
 
 AGENT_TIMEOUT_SECONDS = 120
+
+
+def _quantity_views(text: str) -> list[QuantityView]:
+    return [
+        QuantityView(
+            text=q.text, system=q.system,
+            metric=MeasureView(value=q.metric.value, unit=q.metric.unit),
+            imperial=MeasureView(value=q.imperial.value, unit=q.imperial.unit),
+        )
+        for q in quantities_in(text)
+    ]
 
 
 def _to_email(message: Message, policy: Policy = DEFAULT_POLICY) -> DashboardEmail:
@@ -52,6 +64,7 @@ def _to_email(message: Message, policy: Policy = DEFAULT_POLICY) -> DashboardEma
         criticConfidence=message.critic_confidence or 0.0,
         sentAt=message.sent_at.isoformat() if message.sent_at else None,
         isRead=message.read_at is not None,
+        quantities=_quantity_views(message.body_masked or ""),
     )
 
 

@@ -9,6 +9,8 @@ from pydantic import BaseModel, Field
 
 from app.core.logging_setup import configure_logging
 from app.core.middleware import request_context
+from app.normalise.numbers import canonical, numbers_in
+from app.normalise.quantities import converted_figures
 from gemini_client import (
     GeminiError,
     GeminiErrorCode,
@@ -401,21 +403,15 @@ def strip_quoted(text: str) -> str:
 # documented to miss it entirely because the wrong number is topically identical to the right
 # one, so this is string comparison rather than a model. It is an engineering augmentation,
 # not a published metric — do not cite it as one.
-# Thousands separators are removed before matching, so 18,400.00 and 18400 compare equal and
-# the pattern never has to allow digits and commas in one repetition. That ambiguity is what
-# made the previous version a polynomial-backtracking risk (CodeQL, high) on text an outside
-# party controls. Both parts below are fixed-width or unambiguous.
-_THOUSANDS_SEPARATOR = re.compile(r"(?<=\d),(?=\d)")
-_NUMERIC = re.compile(r"\d+(?:\.\d+)?")
+# Figures are compared as values through the normalisation layer, so 18,400.00, 18400 and the
+# European 18.400,00 are one figure, and "4,409 lb" is supported by a source saying "2,000 kg"
+# while "4,000 lb" is not. Its number pattern is fixed-width per alternative, which matters here:
+# the previous pattern was flagged as polynomial backtracking (CodeQL, high) on outside text.
+_SIGNIFICANT_DIGITS = 2
 
 
-def _trim_zeros(token: str) -> str:
-    return token.rstrip("0").rstrip(".") if "." in token else token
-
-
-def _numbers_in(text: str) -> set[str]:
-    """Comparable numeric values, separators removed and trailing decimal zeros trimmed."""
-    return {_trim_zeros(t) for t in _NUMERIC.findall(_THOUSANDS_SEPARATOR.sub("", text))}
+def _figures_in(text: str) -> set[str]:
+    return {canonical(value) for value in numbers_in(text)}
 
 
 def unsupported_specifics(draft: str, *sources: str) -> list[str]:
@@ -424,8 +420,10 @@ def unsupported_specifics(draft: str, *sources: str) -> list[str]:
     Single digits are skipped: they are almost always prose counts ("your 2 questions")
     rather than facts carried over, and flagging them buries the real findings.
     """
-    known = set().union(*(_numbers_in(source) for source in sources))
-    return sorted(v for v in _numbers_in(draft) if len(v.lstrip("0")) >= 2 and v not in known)
+    source_text = "\n".join(sources)
+    known = _figures_in(source_text) | converted_figures(draft, source_text)
+    return sorted(v for v in _figures_in(draft)
+                  if len(v.replace(".", "")) >= _SIGNIFICANT_DIGITS and v not in known)
 
 
 # ---------- Input signals: reasons for review that come from the email, not the draft ----------

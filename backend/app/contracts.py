@@ -47,6 +47,21 @@ class Source(BaseModel):
     label: str
 
 
+class MeasureView(BaseModel):
+    value: float
+    unit: str
+
+
+class QuantityView(BaseModel):
+    """A quantity in the body, in both unit systems. The dashboard shows whichever the reader
+    prefers; the side matching `system` is the figure exactly as the sender wrote it."""
+
+    text: str
+    system: Literal["metric", "imperial"]
+    metric: MeasureView
+    imperial: MeasureView
+
+
 class DashboardEmail(BaseModel):
     """The joined email view the Lane D dashboard renders (matches Han's `Email` type).
 
@@ -71,6 +86,7 @@ class DashboardEmail(BaseModel):
     criticConfidence: float
     sentAt: str | None = None  # ISO 8601 when the approved reply was sent, else null
     isRead: bool = False  # opened at least once; unread is the default for anything new
+    quantities: list[QuantityView] = []  # from the normalisation layer, computed at read
 
 
 _PRIORITY_LABELS: dict[int, Literal["low", "medium", "high"]] = {0: "low", 1: "medium", 2: "high"}

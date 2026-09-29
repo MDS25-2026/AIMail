@@ -23,6 +23,11 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   `priority` that is the classifier's prediction **after** the per-user policy layer has been
   applied — see the Personalisation section of `db-schema.md`. Consumers should treat `priority`
   as "what this user should see", not as the raw model output.
+- `DashboardEmail.quantities` lists every quantity in the masked body (weight, length, volume,
+  temperature, area, speed) as `{ text, system: "metric"|"imperial", metric: {value, unit},
+  imperial: {value, unit} }`. The side matching `system` is the figure exactly as written; the
+  other is a conversion to three significant figures (whole units from 100 up). Currency is never
+  converted. See [`../features/normalisation-layer.md`](../features/normalisation-layer.md).
 - `GET /system/info` returns non-secret runtime configuration (model names, feature flags,
   corpus counts) for the dashboard's Settings view. Never add keys, URLs or credentials to
   it — the browser reads it.
