@@ -192,3 +192,25 @@ def test_hiding_repeats_until_nothing_new_reads_as_pii(redactor):
     text, words = reader.ocr_words(_image(["Signed by Aisyah Rahman binti Abdullah"]))
     hidden = {words[i].text for i in redactor.words_to_hide(words, text)}
     assert {"Aisyah", "Rahman"} <= hidden
+
+
+def test_a_docx_without_its_main_part_is_a_422(client):
+    assert _read(client, _office({"word/other.xml": "<x/>"}), reader.DOCX_MIME).status_code == 422
+
+
+def test_a_workbook_whose_sheets_inflate_past_the_total_cap_is_refused(client, monkeypatch):
+    monkeypatch.setattr(reader, "MAX_TOTAL_INFLATED_BYTES", 5000)
+    sheets = {f"xl/worksheets/sheet{i}.xml": "<v>1</v>" + "x" * 2000 for i in range(4)}
+    assert _read(client, _office(sheets), reader.XLSX_MIME).status_code == 422
+
+
+def test_a_huge_page_is_rendered_at_a_bounded_size():
+    # A 5 m square poster page: the full scale would be about 800 Mpx.
+    scale = reader.render_scale(14_000, 14_000)
+    assert (14_000 * scale) * (14_000 * scale) <= reader.MAX_RENDER_PIXELS * 1.001
+
+
+def test_pages_past_the_cap_are_reported_not_silently_dropped(client, monkeypatch):
+    monkeypatch.setattr(reader, "MAX_PDF_PAGES", 0)
+    body = _read(client, _text_pdf("Quarterly report"), reader.PDF_MIME).get_json()
+    assert body["unread_pages"] == 1 and body["pages"] == 0

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -38,4 +39,39 @@ func messageStored(ctx context.Context, msgID string) (bool, error) {
 		return false, fmt.Errorf("decode lookup: %w", err)
 	}
 	return len(rows) > 0, nil
+}
+
+// insertMessage inserts a messages row unless one already exists for its Gmail id, and reports
+// which happened. PostgREST returns the inserted rows; an ignored duplicate returns none, so an
+// audit entry can say "stored" only when something was.
+func insertMessage(ctx context.Context, row interface{}) (bool, error) {
+	if supabaseURL == "" || supabaseKey == "" {
+		return false, fmt.Errorf("SUPABASE_URL / SUPABASE_SERVICE_KEY not set")
+	}
+	body, err := json.Marshal(row)
+	if err != nil {
+		return false, fmt.Errorf("marshal row: %w", err)
+	}
+	target := fmt.Sprintf("%s/rest/v1/messages?on_conflict=gmail_message_id&select=gmail_message_id", supabaseURL)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, target, bytes.NewReader(body))
+	if err != nil {
+		return false, fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("apikey", supabaseKey)
+	req.Header.Set("Authorization", "Bearer "+supabaseKey)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Prefer", "return=representation,resolution=ignore-duplicates")
+	resp, err := supabaseClient.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("do request: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return false, fmt.Errorf("supabase insert into messages failed: status %d", resp.StatusCode)
+	}
+	var inserted []json.RawMessage
+	if err := json.NewDecoder(resp.Body).Decode(&inserted); err != nil {
+		return false, fmt.Errorf("decode insert: %w", err)
+	}
+	return len(inserted) > 0, nil
 }

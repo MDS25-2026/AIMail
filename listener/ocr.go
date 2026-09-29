@@ -58,6 +58,7 @@ type readerResult struct {
 	} `json:"images"`
 	SkippedPages int `json:"skipped_pages"`
 	Pages        int `json:"pages"`
+	UnreadPages  int `json:"unread_pages"` // past the page cap or the reader's time budget
 }
 
 func ocrMaxBytes() int64 {
@@ -74,6 +75,19 @@ func isReadableAttachment(mimeType string) bool {
 		return true
 	}
 	return strings.HasPrefix(mimeType, "image/")
+}
+
+// oversizeAttachments counts readable attachments skipped for size, so the loss is recorded.
+func oversizeAttachments(part *gmail.MessagePart, max int64) int {
+	count := 0
+	if isReadableAttachment(part.MimeType) && part.Body != nil && part.Body.AttachmentId != "" &&
+		part.Body.Size > max {
+		count++
+	}
+	for _, sub := range part.Parts {
+		count += oversizeAttachments(sub, max)
+	}
+	return count
 }
 
 // readableAttachments walks the MIME tree for attachments the reader handles, carrying an
@@ -199,6 +213,10 @@ func ocrAttachments(ctx context.Context, srv *gmail.Service, msgID string, paylo
 	if payload == nil {
 		return ""
 	}
+	if skipped := oversizeAttachments(payload, ocrMaxBytes()); skipped > 0 {
+		writeAuditLog(ctx, "read_attachment",
+			fmt.Sprintf("msg %s: %d attachment(s) over the size cap not read; oversize=%d", msgID, skipped, skipped), false)
+	}
 	var texts []string
 	for _, part := range readableAttachments(payload, ocrMaxBytes()) {
 		if text := readAttachment(ctx, srv, msgID, part); text != "" {
@@ -237,9 +255,9 @@ func readAttachment(ctx context.Context, srv *gmail.Service, msgID string, part 
 	text := strings.TrimSpace(strings.Join(texts, "\n\n"))
 	writeAuditLog(ctx, "read_attachment", fmt.Sprintf(
 		// The key=value tail is read by the admin console; keep it stable if the prose changes.
-		"msg %s: %s, %d page(s), %d redacted image(s) sent for OCR, %d withheld locally, %d chars; withheld=%d",
+		"msg %s: %s, %d page(s), %d redacted image(s) sent for OCR, %d withheld locally, %d chars; withheld=%d unread=%d",
 		msgID, part.MimeType, result.Pages, len(result.Images), result.SkippedPages, len(text),
-		result.SkippedPages), true)
+		result.SkippedPages, result.UnreadPages), true)
 	return text
 }
 

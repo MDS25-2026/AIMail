@@ -15,8 +15,11 @@ import base64
 import html
 import io
 import logging
+import math
 import os
 import re
+import time
+import warnings
 import zipfile
 from dataclasses import dataclass, field
 
@@ -41,6 +44,17 @@ MAX_ZIP_MEMBERS = 500
 # Fewer characters than this on a PDF page means a scan, or a page that is only a picture.
 MIN_TEXT_LAYER_CHARS = 20
 RENDER_SCALE = 2.0  # ~144 dpi: Tesseract's accuracy drops sharply below ~100 dpi.
+# Memory bounds. An A4 page at RENDER_SCALE is about 2 Mpx; a poster-sized page is scaled down to
+# this instead of being rendered at hundreds of megapixels. Across all sheets of one workbook,
+# inflated bytes are capped too: each member alone is capped, but 500 of them are not.
+MAX_RENDER_PIXELS = 25_000_000
+MAX_TOTAL_INFLATED_BYTES = 32_000_000
+# Pillow only warns up to twice this; the warning is made an error below.
+Image.MAX_IMAGE_PIXELS = 50_000_000
+warnings.simplefilter("error", Image.DecompressionBombWarning)
+# gunicorn's --timeout does not bound a request in a thread worker, so a long PDF stops itself:
+# inside the listener's 180 s client timeout, with the pages left unread reported.
+READ_BUDGET_SECONDS = 150
 
 # The privacy gate. Tesseract's per-word confidence is 0-100.
 LOW_CONFIDENCE = 60
@@ -89,6 +103,8 @@ class Reading:
     images: list[bytes] = field(default_factory=list)
     skipped_pages: int = 0
     pages: int = 0
+    # Pages not read at all: past MAX_PDF_PAGES or past the time budget. Reported, never silent.
+    unread_pages: int = 0
 
     def as_json(self) -> dict:
         return {
@@ -97,6 +113,7 @@ class Reading:
                        for i in self.images],
             "skipped_pages": self.skipped_pages,
             "pages": self.pages,
+            "unread_pages": self.unread_pages,
         }
 
 
@@ -221,19 +238,32 @@ def read_pdf(data: bytes, redactor: Redactor) -> Reading:
     except pdfium.PdfiumError as error:
         raise ReaderError(f"unreadable PDF: {error}") from error
     reading = Reading()
-    for index in range(min(len(document), MAX_PDF_PAGES)):
+    started = time.monotonic()
+    for index in range(len(document)):
+        if index >= MAX_PDF_PAGES or time.monotonic() - started > READ_BUDGET_SECONDS:
+            reading.unread_pages = len(document) - index
+            break
         page = document[index]
         text = page.get_textpage().get_text_bounded()
         if len(text.strip()) >= MIN_TEXT_LAYER_CHARS:
             reading.pages += 1
             reading.texts.append(text)
             continue
-        add_image(reading, redactor, page.render(scale=RENDER_SCALE).to_pil())
+        add_image(reading, redactor, page.render(scale=render_scale(*page.get_size())).to_pil())
     return reading
 
 
+def render_scale(width_points: float, height_points: float) -> float:
+    """RENDER_SCALE, reduced for a page so large that rendering it would exhaust memory."""
+    area = max(width_points * height_points, 1.0)
+    return min(RENDER_SCALE, math.sqrt(MAX_RENDER_PIXELS / area))
+
+
 def _member(archive: zipfile.ZipFile, name: str) -> str:
-    info = archive.getinfo(name)
+    try:
+        info = archive.getinfo(name)
+    except KeyError as error:
+        raise ReaderError(f"not a complete Office document: no {name}") from error
     if info.file_size > MAX_MEMBER_BYTES:
         raise ReaderError(f"{name} declares {info.file_size} bytes")
     with archive.open(info) as handle:
@@ -270,6 +300,9 @@ def read_xlsx(data: bytes) -> Reading:
     with _open_zip(data) as archive:
         names = [n for n in archive.namelist()
                  if n == "xl/sharedStrings.xml" or n.startswith("xl/worksheets/sheet")]
+        declared = sum(archive.getinfo(n).file_size for n in names)
+        if declared > MAX_TOTAL_INFLATED_BYTES:
+            raise ReaderError(f"workbook declares {declared} bytes across its sheets")
         values = [html.unescape(v) for n in names for v in _XLSX_TEXT.findall(_member(archive, n))]
     return Reading(texts=["\n".join(v for v in values if v.strip())], pages=1)
 
@@ -278,7 +311,7 @@ def read_image(data: bytes, redactor: Redactor) -> Reading:
     try:
         image = Image.open(io.BytesIO(data))
         image.load()
-    except (OSError, Image.DecompressionBombError) as error:
+    except (OSError, Image.DecompressionBombError, Image.DecompressionBombWarning) as error:
         raise ReaderError(f"unreadable image: {error}") from error
     reading = Reading()
     add_image(reading, redactor, image)

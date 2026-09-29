@@ -230,14 +230,21 @@ func filterAllowedLocations(text string, results []presidioResult) []presidioRes
 // NER on the floored text. On any Presidio error it degrades to the regex result — raw text
 // is never returned. emails/phones counts come from the regex pass so they stay honest in
 // both modes; degraded reports whether Presidio ran, for the audit log.
+// maskText runs the regex floor over the whole text, then NER over it in pieces. The floor is never
+// chunked: an email address cut across two pieces would match in neither. NER is, because one
+// Presidio call on a long body or a 20-page PDF can outrun presidioClient's timeout.
 func maskText(ctx context.Context, text string) (masked string, emailsMasked, phonesMasked int, degraded bool) {
 	masked, emailsMasked, phonesMasked = maskPII(text)
-	presidioMasked, err := maskWithPresidio(ctx, masked)
-	if err != nil {
-		log.Printf("presidio degraded, regex-only for this field: %v", err)
-		return masked, emailsMasked, phonesMasked, true
+	var pieces []string
+	for _, chunk := range chunkText(masked, nerChunkChars) {
+		piece, err := maskWithPresidio(ctx, chunk)
+		if err != nil {
+			log.Printf("presidio degraded, regex-only for this field: %v", err)
+			return masked, emailsMasked, phonesMasked, true
+		}
+		pieces = append(pieces, piece)
 	}
-	return presidioMasked, emailsMasked, phonesMasked, false
+	return strings.Join(pieces, ""), emailsMasked, phonesMasked, false
 }
 
 // maskWithPresidio detects PII via the analyzer container and redacts it via the anonymizer
@@ -599,18 +606,26 @@ func ingestHistory(ctx context.Context, srv *gmail.Service, historyID uint64) er
 		return ingestNewestInbox(ctx, srv)
 	}
 
-	atomic.StoreUint64(&lastHistoryID, historyID)
-	if len(ids) == 0 {
-		fmt.Println("No new INBOX messages in this history range.")
-		return nil
-	}
-
 	for _, msgID := range ids {
 		if err := ingestMessage(ctx, srv, msgID); err != nil {
+			// The baseline stays put, so the redelivery lists this range again and retries the
+			// message; the ones already stored are skipped by messageStored.
 			return fmt.Errorf("message %s: %w", msgID, err)
 		}
 	}
+	advanceBaseline(historyID)
 	return nil
+}
+
+// advanceBaseline moves lastHistoryID forward only. Notifications are handled concurrently, and a
+// slower, older one must not move the baseline back and make a newer range be listed twice.
+func advanceBaseline(historyID uint64) {
+	for {
+		current := atomic.LoadUint64(&lastHistoryID)
+		if historyID <= current || atomic.CompareAndSwapUint64(&lastHistoryID, current, historyID) {
+			return
+		}
+	}
 }
 
 // ingestNewestInbox is the fallback for when history is unusable: the pre-#85 behaviour, kept
@@ -647,6 +662,11 @@ func ingestMessage(ctx context.Context, srv *gmail.Service, msgID string) error 
 	if err != nil {
 		return err
 	}
+	if msg.Payload == nil {
+		// Nothing to read or mask; a nil payload must not panic the Pub/Sub callback.
+		writeAuditLog(ctx, "fetch_message", fmt.Sprintf("msg %s: no payload", msgID), false)
+		return nil
+	}
 	identity := threadIdentity(msg)
 	content, isComplete := maskMessage(ctx, srv, msg)
 	if !isComplete {
@@ -661,10 +681,15 @@ func ingestMessage(ctx context.Context, srv *gmail.Service, msgID string) error 
 		ThreadIdentity: identity,
 		MaskedContent:  content,
 	}
-	if err := supabaseInsert(ctx, "messages", stored, "gmail_message_id"); err != nil {
+	isInserted, err := insertMessage(ctx, stored)
+	if err != nil {
 		log.Printf("could not store message %s: %v", msgID, err)
 		writeAuditLog(ctx, "store_message", fmt.Sprintf("msg %s: %v", msgID, err), false)
 		return fmt.Errorf("store message %s: %w", msgID, err)
+	}
+	if !isInserted {
+		log.Printf("%s already stored; the insert was ignored", msgID)
+		return nil
 	}
 	// Counts only: the sender, subject and body are never written to stdout.
 	log.Printf("stored %s: %d bytes, %d emails / %d phones masked", msgID, len(content.BodyMasked),

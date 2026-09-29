@@ -49,10 +49,10 @@ func loadFixtures(t *testing.T) piiFixtures {
 }
 
 // presidioIsLive reports whether the NER layer can be scored in this run.
+// presidioIsLive needs both containers, like the listener's own health check: with only the
+// analyzer up, NER cases degrade and would understate recall.
 func presidioIsLive() bool {
-	url := getEnvOrDefault("PRESIDIO_ANALYZER_URL", "http://localhost:5001/analyze")
-	_, err := presidioPost(context.Background(), url, []byte(`{"text":"ping","language":"en"}`))
-	return err == nil
+	return presidioHealthy(context.Background())
 }
 
 func TestMaskingRecallMeetsTarget(t *testing.T) {

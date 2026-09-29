@@ -167,8 +167,15 @@ These are not defects — they are trade-offs with reasons, recorded so the reas
 - **Attachments are over-redacted where NER is unsure.** A capitalised label can be tagged as a
   name ("Bill to:" loses "Bill"). The business content that matters (amounts, dates, reference
   numbers) survives: `tests/test_reader.py` asserts it on a synthetic invoice.
-- **Only the first 20 pages of a PDF are read**, and spreadsheet layout is flattened to one value
-  per line. Both bound the time a single attachment can hold the Pub/Sub callback.
+- **Attachment text dropped during an NER outage is not recovered.** If Presidio is down when a
+  message arrives, the whole message is quarantined and re-read later, attachments included. But
+  if Presidio fails only while masking the attachment text (the body masked fine), that text is
+  dropped and the message is stored without it: recorded as `drop_attachment_text` and counted on
+  the admin console, not retried. Accepted because the body, which is what gets drafted from, is
+  intact.
+- **Only the first 20 pages of a PDF are read, within a 150 s budget**, and spreadsheet layout is
+  flattened to one value per line. Pages left unread are reported in the audit row (`unread=`).
+  Both bound the time and memory a single attachment can take.
 
 - **Street numbers survive masking.** "12 Jalan Ampang" keeps the number. An address pattern would
   collide with dates, quantities and clause numbers, which the negative controls exist to prevent.

@@ -94,6 +94,7 @@ func TestPresidioHealthFollowsTheAnalyzerURL(t *testing.T) {
 	}))
 	defer server.Close()
 	t.Setenv("PRESIDIO_ANALYZER_URL", server.URL+"/analyze")
+	t.Setenv("PRESIDIO_ANONYMIZER_URL", server.URL+"/anonymize")
 	if !presidioHealthy(context.Background()) {
 		t.Fatal("a healthy analyzer reported unhealthy")
 	}

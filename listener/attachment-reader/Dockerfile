@@ -15,6 +15,7 @@ ENV PYTHONPATH=/reader
 WORKDIR /reader
 EXPOSE 3000
 # One worker: each loads spaCy en_core_web_lg (~800 MB). Threads share it; per-call state is not shared.
-# 170 s: inside the listener's 180 s client timeout, so a slow scan fails here with an answer
-# rather than the listener giving up on a worker that is then killed mid-page.
+# --timeout here only restarts a worker that stops heartbeating; it does not bound a request in a
+# thread worker. reader.py stops a long PDF itself after READ_BUDGET_SECONDS (150 s), inside the
+# listener's 180 s client timeout.
 ENTRYPOINT ["gunicorn", "-w", "1", "--threads", "2", "--timeout", "170", "-b", "0.0.0.0:3000", "reader:create_app()"]

@@ -4,7 +4,10 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"google.golang.org/api/gmail/v1"
 )
 
 func withSupabase(t *testing.T, handler http.HandlerFunc) *[]string {
@@ -59,5 +62,42 @@ func TestMessageStoredReportsAnErrorRatherThanGuessing(t *testing.T) {
 	})
 	if _, err := messageStored(context.Background(), "abc"); err == nil {
 		t.Fatal("a failed lookup must be an error, not a silent 'not stored'")
+	}
+}
+
+func TestAnIgnoredDuplicateIsNotReportedAsStored(t *testing.T) {
+	withSupabase(t, func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.Header.Get("Prefer"), "return=representation") {
+			t.Error("the insert must ask for the rows it wrote")
+		}
+		w.Write([]byte(`[]`))
+	})
+	isInserted, err := insertMessage(context.Background(), map[string]string{"gmail_message_id": "m1"})
+	if err != nil || isInserted {
+		t.Fatalf("an empty reply means nothing was inserted: %v %v", isInserted, err)
+	}
+}
+
+func TestOversizeAttachmentsAreCounted(t *testing.T) {
+	tree := &gmail.MessagePart{MimeType: "multipart/mixed", Parts: []*gmail.MessagePart{
+		{MimeType: "application/pdf", Body: &gmail.MessagePartBody{AttachmentId: "a", Size: 9_000_000}},
+		{MimeType: "image/png", Body: &gmail.MessagePartBody{AttachmentId: "b", Size: 100}},
+	}}
+	if got := oversizeAttachments(tree, 5_000_000); got != 1 {
+		t.Fatalf("want 1 oversize attachment, got %d", got)
+	}
+}
+
+func TestTheHistoryBaselineOnlyMovesForward(t *testing.T) {
+	old := lastHistoryID
+	t.Cleanup(func() { lastHistoryID = old })
+	lastHistoryID = 100
+	advanceBaseline(90)
+	if lastHistoryID != 100 {
+		t.Fatal("an older notification moved the baseline back")
+	}
+	advanceBaseline(120)
+	if lastHistoryID != 120 {
+		t.Fatal("a newer notification did not advance the baseline")
 	}
 }

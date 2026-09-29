@@ -16,9 +16,10 @@ func requireLivePresidio(t *testing.T) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	url := getEnvOrDefault("PRESIDIO_ANALYZER_URL", "http://localhost:5001/analyze")
-	if _, err := presidioPost(ctx, url, []byte(`{"text":"ping","language":"en"}`)); err != nil {
-		t.Skipf("presidio analyzer unreachable (%v) — start it: docker compose up -d", err)
+	// Both containers: with only the analyzer up, masking degrades and every assertion would fail
+	// for a reason that is the environment, not the code.
+	if !presidioHealthy(ctx) {
+		t.Skip("presidio analyzer or anonymizer unreachable — start them: docker compose up -d")
 	}
 }
 

@@ -39,3 +39,23 @@ func TestAttachmentTextIsDroppedWhenNERIsUnavailable(t *testing.T) {
 		t.Fatalf("degraded attachment text must be dropped, got %q", masked)
 	}
 }
+
+func TestAnEmailAcrossAChunkBoundaryIsStillMasked(t *testing.T) {
+	// The regex floor must see the whole text: cut first, and neither half matches.
+	t.Setenv("PRESIDIO_ANALYZER_URL", "http://127.0.0.1:1/analyze")
+	withSupabase(t, func(w http.ResponseWriter, _ *http.Request) {})
+	text := strings.Repeat("a", nerChunkChars-10) + " john.doe@example.com and more"
+	masked, emails, _, _ := maskText(context.Background(), text)
+	if strings.Contains(masked, "john.doe") || strings.Contains(masked, "example.com") || emails != 1 {
+		t.Fatalf("an address straddling the cut leaked: emails=%d", emails)
+	}
+}
+
+func TestChunksCutAtWhitespaceSoWordsStayWhole(t *testing.T) {
+	text := strings.Repeat("word ", 1000) // one long line
+	for _, chunk := range chunkText(text, 3000) {
+		if strings.HasSuffix(strings.TrimRight(chunk, " "), "wor") || strings.HasPrefix(chunk, "d ") {
+			t.Fatal("a word was cut in half")
+		}
+	}
+}

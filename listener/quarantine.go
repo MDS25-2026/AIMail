@@ -56,9 +56,13 @@ func quarantine(ctx context.Context, msgID string, headers []*gmail.MessagePartH
 		MaskingStatus:  maskingPending,
 		ThreadIdentity: identity,
 	}
-	if err := supabaseInsert(ctx, "messages", row, "gmail_message_id"); err != nil {
+	isInserted, err := insertMessage(ctx, row)
+	if err != nil {
 		writeAuditLog(ctx, "quarantine_message", fmt.Sprintf("msg %s: %v", msgID, err), false)
 		return fmt.Errorf("quarantine message %s: %w", msgID, err)
+	}
+	if !isInserted {
+		return nil // already stored or already quarantined
 	}
 	log.Printf("quarantined %s: NER masking unavailable, content withheld until it is", msgID)
 	writeAuditLog(ctx, "quarantine_message",
@@ -66,11 +70,22 @@ func quarantine(ctx context.Context, msgID string, headers []*gmail.MessagePartH
 	return nil
 }
 
-// presidioHealthy asks the analyzer's /health, derived from its configured /analyze URL.
+// presidioHealthy asks both containers: masking needs the analyzer to find entities and the
+// anonymizer to replace them, and either one down makes every message fail the same way.
 func presidioHealthy(ctx context.Context) bool {
-	analyze := getEnvOrDefault("PRESIDIO_ANALYZER_URL", "http://localhost:5001/analyze")
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		strings.TrimSuffix(analyze, "/analyze")+"/health", nil)
+	analyzer := getEnvOrDefault("PRESIDIO_ANALYZER_URL", "http://localhost:5001/analyze")
+	anonymizer := getEnvOrDefault("PRESIDIO_ANONYMIZER_URL", "http://localhost:5002/anonymize")
+	return serviceHealthy(ctx, healthURL(analyzer, "/analyze")) &&
+		serviceHealthy(ctx, healthURL(anonymizer, "/anonymize"))
+}
+
+// healthURL turns a configured endpoint into its /health sibling, trailing slash or not.
+func healthURL(endpoint, suffix string) string {
+	return strings.TrimSuffix(strings.TrimRight(endpoint, "/"), suffix) + "/health"
+}
+
+func serviceHealthy(ctx context.Context, target string) bool {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
 		return false
 	}
@@ -129,6 +144,16 @@ func isGone(err error) bool {
 	return errors.As(err, &apiErr) && apiErr.Code == http.StatusNotFound
 }
 
+// isGmailTrouble is an outage rather than a problem with this message: a rate limit, a 5xx, or no
+// answer at all. It must not use up the message's attempts, or one bad hour abandons the queue.
+func isGmailTrouble(err error) bool {
+	var apiErr *googleapi.Error
+	if !errors.As(err, &apiErr) {
+		return true
+	}
+	return apiErr.Code == http.StatusTooManyRequests || apiErr.Code >= http.StatusInternalServerError
+}
+
 // remaskQuarantined completes quarantined rows while NER is available. A row that fails is counted
 // and skipped, so it cannot stall the rows behind it; if Presidio itself has gone down again the
 // pass stops, since every remaining row would fail for the same reason.
@@ -148,14 +173,17 @@ func remaskQuarantined(ctx context.Context, srv *gmail.Service) {
 	}
 }
 
-// remaskOne releases one row. It reports false only when Presidio has gone down mid-pass.
+// remaskOne releases one row. It reports false when the pass should stop: Presidio or Gmail is
+// down, so every remaining row would fail for the same reason and none of them should be charged.
 func remaskOne(ctx context.Context, srv *gmail.Service, row quarantinedRow) bool {
 	msg, err := fetchMessage(ctx, srv, row.GmailMessageID)
-	if isGone(err) {
+	switch {
+	case isGone(err):
 		abandon(ctx, row, "no longer in Gmail")
 		return true
-	}
-	if err != nil {
+	case err != nil && isGmailTrouble(err):
+		return false
+	case err != nil || msg.Payload == nil:
 		recordFailure(ctx, row, "fetch failed")
 		return true
 	}
@@ -168,7 +196,10 @@ func remaskOne(ctx context.Context, srv *gmail.Service, row quarantinedRow) bool
 		return true
 	}
 	if err := supabasePatch(ctx, "messages", messageFilter(row.GmailMessageID), content); err != nil {
+		// Counted like any failure: a PATCH that always fails would otherwise re-read and re-OCR
+		// the attachments every pass, forever.
 		writeAuditLog(ctx, "remask_message", fmt.Sprintf("msg %s: %v", row.GmailMessageID, err), false)
+		recordFailure(ctx, row, "could not store the masked content")
 		return true
 	}
 	writeAuditLog(ctx, "remask_message", fmt.Sprintf("msg %s released from quarantine", row.GmailMessageID), true)
