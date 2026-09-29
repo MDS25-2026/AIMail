@@ -48,7 +48,7 @@ export default function ExtensionPanel({
         <span className="text-xs text-fg-subtle">{t("extension.panel")}</span>
       </header>
 
-      <div className="flex-1 space-y-3 overflow-y-auto p-3">
+      <div className="relative flex-1 space-y-3 overflow-y-auto p-3">
         <div>
           <p className="truncate text-sm font-medium text-fg">{email.subject}</p>
           <p className="text-xs text-fg-muted">

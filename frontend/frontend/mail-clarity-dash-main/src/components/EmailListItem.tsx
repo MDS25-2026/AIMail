@@ -24,6 +24,10 @@ export default function EmailListItem({ email, selected, onSelect }: EmailListIt
           selected ? "border-brand bg-brand-soft" : "border-transparent hover:bg-surface-muted"
         }`}
       >
+        {/* First in the row, not after the sender: an sr-only label is absolutely positioned at
+            where it would sit in flow, and after a truncated name that is past the list's right
+            edge, which widened the list (and, with no positioned ancestor, the page: #96). */}
+        {email.isRead ? null : <span className="sr-only">{t("inbox.unread")} </span>}
         <div className="flex items-baseline justify-between gap-2">
           <span
             aria-hidden="true"
@@ -37,7 +41,6 @@ export default function EmailListItem({ email, selected, onSelect }: EmailListIt
             }`}
           >
             {email.sender}
-            {email.isRead ? null : <span className="sr-only"> {t("inbox.unread")}</span>}
           </span>
           <span className="shrink-0 text-xs text-fg-subtle">
             {format.timestamp(email.timestamp)}

@@ -30,7 +30,7 @@ function SettingsPage() {
 
   return (
     <AppShell>
-      <section className="min-w-0 flex-1 overflow-y-auto bg-surface-muted p-6">
+      <section className="relative min-w-0 flex-1 overflow-y-auto bg-surface-muted p-6">
         <header className="mb-5">
           <h1 className="text-xl font-semibold text-fg">{t("settings.title")}</h1>
           <p className="mt-1 text-sm text-fg-muted">

@@ -23,7 +23,7 @@ function AdminPage() {
 
   return (
     <AppShell>
-      <section className="min-w-0 flex-1 overflow-y-auto bg-surface-muted p-6">
+      <section className="relative min-w-0 flex-1 overflow-y-auto bg-surface-muted p-6">
         {session.isPending ? <PageLoading label={t("admin.loading")} /> : null}
         {/* Signed out (a 401) means the form; any other failure is an error, not a sign-out: a
             network blip must not swap the console for a password prompt. A failed refetch keeps

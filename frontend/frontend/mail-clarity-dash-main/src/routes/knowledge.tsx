@@ -41,7 +41,7 @@ function KnowledgePage() {
 
   return (
     <AppShell>
-      <section className="min-w-0 flex-1 overflow-y-auto bg-surface-muted p-6">
+      <section className="relative min-w-0 flex-1 overflow-y-auto bg-surface-muted p-6">
         <header className="mb-5">
           <h1 className="text-xl font-semibold text-fg">{t("knowledge.heading")}</h1>
           <p className="mt-1 text-sm text-fg-muted">{t("knowledge.description")}</p>
@@ -75,7 +75,7 @@ function KnowledgePage() {
         ) : null}
 
         {documents.data && documents.data.length > 0 ? (
-          <div className="overflow-x-auto rounded-lg border border-line bg-surface">
+          <div className="relative overflow-x-auto rounded-lg border border-line bg-surface">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-line text-xs uppercase tracking-wide text-fg-muted">
                 <tr>

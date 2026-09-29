@@ -8,7 +8,9 @@ import SideNav from "./SideNav";
 export default function AppShell({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-app">
+    // relative: the containing block for anything absolutely positioned below (sr-only text),
+    // so none of it can position against the page and stretch it past the viewport (#96).
+    <div className="relative flex h-dvh flex-col overflow-hidden bg-app">
       <header className="flex items-center justify-between border-b border-line bg-surface px-6 py-3">
         <div className="flex items-baseline gap-2">
           <span className="text-lg font-semibold tracking-tight text-fg">{t("app.name")}</span>

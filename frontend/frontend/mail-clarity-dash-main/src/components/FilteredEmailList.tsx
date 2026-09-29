@@ -39,7 +39,7 @@ export default function FilteredEmailList({
   const rows = (emails.data ?? []).filter(filter);
 
   return (
-    <section className="min-w-0 flex-1 overflow-y-auto bg-surface-muted p-6">
+    <section className="relative min-w-0 flex-1 overflow-y-auto bg-surface-muted p-6">
       <header className="mb-5">
         <h1 className="text-xl font-semibold text-fg">{heading}</h1>
         <p className="mt-1 text-sm text-fg-muted">{description}</p>
@@ -50,7 +50,7 @@ export default function FilteredEmailList({
       {emails.data && rows.length === 0 ? <PageEmpty title={emptyTitle} hint={emptyHint} /> : null}
 
       {rows.length > 0 ? (
-        <ul className="divide-y divide-line-subtle overflow-hidden rounded-lg border border-line bg-surface">
+        <ul className="relative divide-y divide-line-subtle overflow-hidden rounded-lg border border-line bg-surface">
           {rows.map((email) => (
             <li key={email.id}>
               <Link

@@ -58,7 +58,10 @@ export default function EmailBody({ email }: { email: Email }) {
         </>
       ) : LOOKS_LIKE_HTML.test(email.body) ? (
         <div
-          className="max-w-none overflow-x-auto text-sm text-fg-body [&_a]:text-brand [&_a]:underline [&_img]:max-w-full"
+          // contain:paint makes this the containing block even for position:fixed, and clips to
+          // it: sanitised email HTML keeps inline styles, and a fixed element must not be able to
+          // draw over the dashboard (a fake button over Approve & Send).
+          className="relative max-w-none overflow-x-auto text-sm text-fg-body [contain:paint] [&_a]:text-brand [&_a]:underline [&_img]:max-w-full"
           // Email HTML is untrusted — sanitize to strip scripts/handlers before rendering.
           dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(email.body) }}
         />

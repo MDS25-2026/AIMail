@@ -57,6 +57,11 @@ def is_admin(user: dict) -> bool:
 
 
 def new_password() -> str:
+    # getpass needs a terminal to hide what is typed; without one it would echo the password or
+    # crash. Refuse plainly instead.
+    if not sys.stdin.isatty():
+        sys.exit("A new admin's password is typed at a terminal, hidden. Run this in your own "
+                 "terminal, not through a non-interactive shell.")
     password = getpass.getpass("Password for the new admin (min 12 characters): ")
     if len(password) < MIN_PASSWORD_LENGTH:
         sys.exit(f"Password must be at least {MIN_PASSWORD_LENGTH} characters.")

@@ -8,7 +8,18 @@ Each entry: what happens, why it happens if known, and how much it matters.
 
 ## Open
 
-### Page scrolls past the app into empty space — Lane D
+### Page scrolls past the app into empty space — Lane D — FIXED 2026-09-29 (#96)
+
+**Cause, measured:** each unread inbox row carried an `sr-only` "(unread)" label, and Tailwind's
+`sr-only` is `position: absolute`. With no positioned ancestor inside the list's scroll container,
+the label was placed against the page at its in-flow position (thousands of pixels down the list)
+and escaped the `overflow` clipping. 21 unread labels stretched the document to 4211px on a 900px
+viewport. It looked transient because it tracked which rows were unread, and container-level fixes
+could not touch it. **Fix:** every scroll or clip container is `relative` (a unit test enforces
+it), the app shell is `relative` as a backstop, and the label sits first in its row so it cannot
+widen the list either. Verified in Chrome over CDP: document 900px, list width unchanged, a scroll
+to y=99999 stays at 0. The investigation notes below are kept for the record.
+
 The dashboard can be scrolled below the interface into blank space. An attempted fix (2026-09-04)
 changed the shell from `h-screen` to `h-dvh` with `overflow-hidden` and set `html, body` to
 `height: 100%` — **this did not resolve it**. Body overflow was deliberately not locked, since

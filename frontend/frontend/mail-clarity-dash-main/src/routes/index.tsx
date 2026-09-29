@@ -146,7 +146,7 @@ function DashboardPage() {
         <p role="status" aria-live="polite" className="sr-only">
           {announcement}
         </p>
-        <aside className="w-80 shrink-0 border-r border-line bg-surface">
+        <aside className="min-h-0 w-80 shrink-0 border-r border-line bg-surface">
           <InboxList
             emails={emails.data ?? []}
             selectedEmailId={selectedEmailId}
@@ -154,7 +154,7 @@ function DashboardPage() {
           />
         </aside>
 
-        <section className="min-w-0 flex-1 bg-surface-muted">
+        <section className="min-h-0 min-w-0 flex-1 bg-surface-muted">
           <EmailDetailPanel
             email={email}
             draft={draft}

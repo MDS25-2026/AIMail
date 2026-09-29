@@ -10,7 +10,7 @@ export default function AuditTable({ events }: { events: AuditEvent[] }) {
   if (events.length === 0) return <p className="text-sm text-fg-subtle">{t("admin.noData")}</p>;
 
   return (
-    <div className="max-h-[28rem] overflow-auto">
+    <div className="relative max-h-[28rem] overflow-auto">
       <table className="w-full text-left text-sm">
         <thead className="sticky top-0 border-b border-line bg-surface text-xs uppercase tracking-wide text-fg-muted">
           <tr>

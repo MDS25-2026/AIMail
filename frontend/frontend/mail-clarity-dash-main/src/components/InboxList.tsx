@@ -20,7 +20,10 @@ export default function InboxList({ emails, selectedEmailId, onSelectEmail }: In
         <p className="mt-0.5 text-[11px] text-fg-subtle">{t("inbox.keyboardHint")}</p>
       </div>
       <ul
-        className="flex-1 divide-y divide-line-subtle overflow-y-auto"
+        // relative: each unread row carries an absolutely positioned sr-only label; without a
+        // positioned ancestor inside this scroller it positioned against the page, and 21 of them
+        // stretched the document to 4211px on a 900px viewport (#96, measured).
+        className="relative min-h-0 flex-1 divide-y divide-line-subtle overflow-y-auto"
         onKeyDown={inboxKeyHandler(
           emails.map((email) => email.id),
           selectedEmailId,

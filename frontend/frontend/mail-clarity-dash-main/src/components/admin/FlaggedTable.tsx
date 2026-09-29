@@ -10,7 +10,7 @@ export default function FlaggedTable({ drafts }: { drafts: FlaggedDraft[] }) {
   if (drafts.length === 0) return <p className="text-sm text-fg-subtle">{t("admin.noData")}</p>;
 
   return (
-    <div className="overflow-x-auto">
+    <div className="relative overflow-x-auto">
       <table className="w-full text-left text-sm">
         <thead className="border-b border-line text-xs uppercase tracking-wide text-fg-muted">
           <tr>
