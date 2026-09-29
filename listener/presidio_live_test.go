@@ -62,3 +62,17 @@ func TestMaskTextLiveLeavesContextFreeDigitRun(t *testing.T) {
 		t.Fatalf("context-free digit run over-masked: %q", masked)
 	}
 }
+
+// An IBAN names one person's account. Presidio's built-in recogniser validates the checksum, so a
+// reference that merely looks IBAN-shaped is left alone.
+func TestMaskTextLiveMasksAnIBAN(t *testing.T) {
+	requireLivePresidio(t)
+
+	masked, _, _, _ := maskText(context.Background(), "Please pay into GB82 WEST 1234 5698 7654 32 by Friday.")
+	if strings.Contains(masked, "WEST") || strings.Contains(masked, "GB82") {
+		t.Fatalf("IBAN leaked past masking: %q", masked)
+	}
+	if !strings.Contains(masked, "by Friday") {
+		t.Fatalf("masking ate the sentence around the IBAN: %q", masked)
+	}
+}

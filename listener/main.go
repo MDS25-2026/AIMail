@@ -253,9 +253,10 @@ func maskWithPresidio(ctx context.Context, text string) (string, error) {
 		Text:           text,
 		Language:       "en",
 		ScoreThreshold: 0.6,
-		// CREDIT_CARD is Presidio's built-in recogniser and validates the Luhn checksum, so it
-		// cannot fire on an invoice or order number that merely looks card-shaped.
-		Entities:         []string{"PERSON", "LOCATION", "ORGANIZATION", "ACCOUNT_NUMBER", "CREDIT_CARD"},
+		// CREDIT_CARD and IBAN_CODE are Presidio built-ins that validate their checksums, so they
+		// cannot fire on an invoice or order number that merely looks card- or IBAN-shaped. SWIFT/BIC
+		// is left out on purpose: it names a bank, which is public, not a person.
+		Entities:         []string{"PERSON", "LOCATION", "ORGANIZATION", "ACCOUNT_NUMBER", "CREDIT_CARD", "IBAN_CODE"},
 		AdHocRecognizers: localeRecognizers,
 	})
 	if err != nil {

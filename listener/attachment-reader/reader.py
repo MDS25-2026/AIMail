@@ -47,18 +47,19 @@ MAX_LOW_CONFIDENCE_SHARE = 0.2
 
 REDACTION_FILL = (0, 0, 0)
 SCORE_THRESHOLD = 0.4
-# The listener's text entities plus the ones its regex floor catches in text. DATE_TIME is
+# The listener's text entities plus the ones its regex floor catches in text. SWIFT/BIC is not
+# here: it names a bank, which is public, not a person. DATE_TIME is
 # deliberately absent: "Payment due 30 September 2026" is business content, not personal data,
 # and the REST redactor's defaults were blacking it out (docs/known-issues.md).
 IMAGE_ENTITIES = [
     "PERSON", "LOCATION", "ORGANIZATION", "EMAIL_ADDRESS", "PHONE_NUMBER", "CREDIT_CARD",
-    "IBAN_CODE", "ACCOUNT_NUMBER", "MY_NRIC", "MY_PHONE", "SWIFT_CODE",
+    "IBAN_CODE", "ACCOUNT_NUMBER", "MY_NRIC", "MY_PHONE",
 ]
 
 
 # Identifiers with a fixed shape: OCR noise around a redaction box cannot fake one of these.
 FORMAT_ENTITIES = [
-    "EMAIL_ADDRESS", "PHONE_NUMBER", "CREDIT_CARD", "IBAN_CODE", "MY_NRIC", "MY_PHONE", "SWIFT_CODE",
+    "EMAIL_ADDRESS", "PHONE_NUMBER", "CREDIT_CARD", "IBAN_CODE", "MY_NRIC", "MY_PHONE",
 ]
 MAX_REDACTION_PASSES = 3
 
@@ -74,8 +75,6 @@ AD_HOC_RECOGNIZERS = [
     _recognizer("MY_NRIC", r"\b\d{6}[- ]?\d{2}[- ]?\d{4}\b", 0.6, ["ic", "nric", "mykad"]),
     _recognizer("MY_PHONE", r"\b(?:\+?60|0)1\d[- ]?\d{3,4}[- ]?\d{4}\b", 0.6, ["phone", "tel"]),
     _recognizer("ACCOUNT_NUMBER", r"\b\d{4,16}\b", 0.3, ["account", "acc", "bank", "ref"]),
-    _recognizer("SWIFT_CODE", r"\b[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}(?:[A-Z0-9]{3})?\b", 0.3,
-                ["swift", "bic", "bank"]),
 ]
 
 

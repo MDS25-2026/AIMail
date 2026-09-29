@@ -31,7 +31,7 @@ unredacted attachment content leaving the machine.
    handed to a stronger remote reader.
 2. **Verification.** Names and places are found by NER over the OCR text, re-run until removing
    the found words turns up nothing new. Then the redacted pixels are OCR'd again, and any
-   fixed-format identifier still detectable (email, phone, IC, card, IBAN, SWIFT) withholds the
+   fixed-format identifier still detectable (email, phone, IC, card, IBAN) withholds the
    page. Names are not re-checked on pixels: box edges make OCR read "Email:" as "Ena:", which
    NER tags as a person.
 
