@@ -10,6 +10,7 @@ import asyncio
 import logging
 import os
 from pathlib import Path
+from typing import Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Request, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,12 +31,14 @@ from app.core.logging_setup import configure_logging
 from app.core.middleware import request_context
 from app.core.ratelimit import rate_limit_generation, rate_limit_ingest
 from app.dashboard import (
+    TranslationError,
     approve_and_send,
     email_detail,
     generate_pending,
     list_dashboard_emails,
     refine_email,
     regenerate_email,
+    translate_email,
 )
 from app.gmail_send import SendError
 from app.rag.chunk import extract_pdf_bytes
@@ -237,6 +240,29 @@ async def refine_email_route(message_id: str, body: RefineRequest) -> DashboardE
     if email is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "email not found")
     return email
+
+
+class TranslateRequest(BaseModel):
+    language: Literal["en", "ms", "zh"]
+
+
+class TranslateResponse(BaseModel):
+    language: str
+    text: str
+
+
+@app.post(
+    "/emails/{message_id}/translate", dependencies=[Depends(rate_limit_generation)]
+)
+async def translate_email_route(message_id: str, body: TranslateRequest) -> TranslateResponse:
+    # The masked body in the reader's language; refused (422) if the result is unfaithful.
+    try:
+        translated = await translate_email(message_id, body.language)
+    except TranslationError as exc:
+        raise HTTPException(exc.status_code, exc.code) from exc
+    if translated is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "email not found")
+    return TranslateResponse(**translated)
 
 
 class SendRequest(BaseModel):

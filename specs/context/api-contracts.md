@@ -23,6 +23,10 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   `priority` that is the classifier's prediction **after** the per-user policy layer has been
   applied — see the Personalisation section of `db-schema.md`. Consumers should treat `priority`
   as "what this user should see", not as the raw model output.
+- `DashboardEmail.sources` lists the policy passages the cached draft was grounded on, as
+  `{ label, chunkId, excerpt, score }` (`score` is cosine similarity, 0..1), captured when the
+  draft was generated. Empty for a draft generated before migration 0011, or with no policy
+  retrieved. Additive: `label` keeps its meaning.
 - `DashboardEmail.quantities` lists every quantity in the masked body (weight, length, volume,
   temperature, area, speed) as `{ text, system: "metric"|"imperial", metric: {value, unit},
   imperial: {value, unit} }`. The side matching `system` is the figure exactly as written; the
@@ -35,7 +39,7 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   requests per 60s per client IP; over that returns `429` with `Retry-After`. Uploads are
   capped at 10 MB (`413`) and must carry a real `%PDF-` header (`400`).
 - Model-spending routes (`POST /search`, `POST /ask`, `POST /emails/{id}/regenerate`,
-  `POST /emails/{id}/refine`) are rate limited to 10 requests per 60s per client IP; over that
+  `POST /emails/{id}/refine`, `POST /emails/{id}/translate`) are rate limited to 10 requests per 60s per client IP; over that
   returns `429` with `Retry-After`.
 - Every response carries `X-Request-ID` (a caller-supplied one is kept when it is 1-64 chars of
   `[A-Za-z0-9._-]`, otherwise replaced), and the backend forwards it to Lane C so both logs share
@@ -87,6 +91,15 @@ See [`../features/rag-retrieval.md`](../features/rag-retrieval.md).
 
 > Drift note: these currently return FastAPI defaults (`{"detail": ...}` on error, bare JSON bodies),
 > not the `{ "error": {...} }` envelope above. Aligning them is a follow-up when the contract is finalised.
+
+### Dashboard (email view)
+
+**`POST /emails/{id}/translate`** — the masked body in another language, for reading only.
+- Request: `{ "language": "en" | "ms" | "zh" }` · Response 200: `{ "language": string, "text": string }`
+- 404 unknown email · 422 `translation_unfaithful` when the result changed a redaction marker or
+  dropped a figure (checked through the normalisation layer) · 503/504 when Gemini fails.
+- Not stored. Rate limited with the other model-spending routes. Only the masked body is sent,
+  as plain text (markup stripped). See [`../features/translation.md`](../features/translation.md).
 
 ### Shared data shapes (the Seams)
 

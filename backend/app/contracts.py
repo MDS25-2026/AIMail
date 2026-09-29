@@ -44,7 +44,12 @@ class ThreadMessage(BaseModel):
 
 
 class Source(BaseModel):
+    """A policy passage the draft was grounded on. `excerpt` is the passage as the model saw it."""
+
     label: str
+    chunkId: str | None = None
+    excerpt: str = ""
+    score: float | None = None
 
 
 class MeasureView(BaseModel):

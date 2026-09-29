@@ -118,6 +118,8 @@ class Message(Base):
     rfc822_message_id: Mapped[str | None] = mapped_column(Text)
     thread_refs: Mapped[str | None] = mapped_column(Text)
     sent_message_id: Mapped[str | None] = mapped_column(Text)
+    # The policy chunks the cached draft was grounded on (migration 0011).
+    rag_sources: Mapped[list[dict] | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

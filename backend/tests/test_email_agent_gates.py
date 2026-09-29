@@ -268,3 +268,45 @@ def test_doubt_asks_the_other_model(monkeypatch):
     monkeypatch.setattr(email_agent, "call_gemini", fake)
     assert asyncio.run(email_agent.second_opinion(_request(), is_phishing=True)) == "NA"
     assert asked == [["other-model"]]
+
+
+# ---------- Translation faithfulness ----------
+
+TRANSLATE_SOURCE = "Dear [Redacted], the invoice of RM 1,250.00 is due 30 September 2026."
+
+
+def test_a_faithful_translation_passes():
+    malay = "Kepada [Redacted], invois RM 1.250,00 perlu dibayar pada 30 September 2026."
+    assert email_agent.translation_problems(TRANSLATE_SOURCE, malay) == []
+
+
+def test_a_filled_in_redaction_is_caught():
+    guessed = "Kepada Encik Ali, invois RM 1,250.00 perlu dibayar pada 30 September 2026."
+    assert "redaction markers changed" in email_agent.translation_problems(TRANSLATE_SOURCE, guessed)
+
+
+def test_a_changed_figure_is_caught():
+    wrong = "Kepada [Redacted], invois RM 1,520.00 perlu dibayar pada 30 September 2026."
+    problems = email_agent.translation_problems(TRANSLATE_SOURCE, wrong)
+    assert any("1250" in problem for problem in problems)
+
+
+def test_chinese_date_order_keeps_every_figure():
+    chinese = "[Redacted]您好，金额为 RM 1,250.00 的发票须于 2026年9月30日 前支付。"
+    assert email_agent.translation_problems(TRANSLATE_SOURCE, chinese) == []
+
+
+def test_an_unfaithful_translation_is_refused_with_422(monkeypatch):
+    async def fake(*_args, **_kwargs):
+        return {"translation": "Kepada Ali, invois RM 99 perlu dibayar."}
+
+    monkeypatch.setattr(email_agent, "call_gemini", fake)
+    response = TestClient(email_agent.app).post(
+        "/translate", json={"text": TRANSLATE_SOURCE, "language": "ms"})
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "translation_unfaithful"
+
+
+def test_an_unsupported_language_is_rejected_before_any_call():
+    response = TestClient(email_agent.app).post("/translate", json={"text": "hi", "language": "fr"})
+    assert response.status_code == 422

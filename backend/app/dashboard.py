@@ -15,7 +15,13 @@ import httpx
 from sqlalchemy import select
 
 from app.audit import audit
-from app.contracts import DashboardEmail, MeasureView, QuantityView
+from app.contracts import (
+    ContextChunk,
+    DashboardEmail,
+    MeasureView,
+    QuantityView,
+    Source,
+)
 from app.core.config import get_settings
 from app.core.logging_setup import request_id
 from app.core.middleware import REQUEST_ID_HEADER
@@ -24,6 +30,7 @@ from app.db.session import get_sessionmaker
 from app.gmail_send import SendError, send_reply
 from app.normalise.quantities import quantities_in
 from app.personalisation import DEFAULT_POLICY, Policy, apply_policy, load_policy
+from app.plain_text import plain_text
 from app.rag.embed import EmbeddingError
 from app.rag.retrieve import retrieve
 from app.rag.utils import format_rag_context
@@ -59,7 +66,7 @@ def _to_email(message: Message, policy: Policy = DEFAULT_POLICY) -> DashboardEma
         actionItems=message.action_items or [],
         draftReply=message.draft_reply or "",
         tone="professional",
-        sources=[],
+        sources=[Source(**source) for source in message.rag_sources or []],
         piiMasked=bool((message.emails_masked or 0) + (message.phones_masked or 0)),
         criticConfidence=message.critic_confidence or 0.0,
         sentAt=message.sent_at.isoformat() if message.sent_at else None,
@@ -113,8 +120,19 @@ async def _call_agent(path: str, payload: dict) -> dict:
         return response.json()
 
 
+def _source_records(chunks: list[ContextChunk]) -> list[dict]:
+    return [
+        {"label": chunk["source_title"] or "Policy", "chunkId": str(chunk["chunk_id"]),
+         "excerpt": chunk["content"], "score": round(chunk["similarity_score"], 3)}
+        for chunk in chunks
+    ]
+
+
 async def _generate(message: Message, tone: str = "professional") -> dict:
-    """Retrieve policy context (Lane B) and call Lane C's /process-email. Returns {} on any failure."""
+    """Retrieve policy context (Lane B) and call Lane C's /process-email. Returns {} on any failure.
+
+    The chunks ride along under "rag_sources" so the caller stores what the draft was grounded on.
+    """
     try:
         chunks = await retrieve(message.body_masked or "", k=5)
         payload = {
@@ -123,7 +141,7 @@ async def _generate(message: Message, tone: str = "professional") -> dict:
             "rag_context": format_rag_context(chunks),
             "tone": _TONE_PROMPTS.get(tone, _TONE_PROMPTS["professional"]),
         }
-        return await _call_agent("/process-email", payload)
+        return await _call_agent("/process-email", payload) | {"rag_sources": _source_records(chunks)}
     except (httpx.HTTPError, EmbeddingError, ValueError) as exc:
         logger.warning("draft generation failed for message %s: %s", message.id, exc)
         return {}
@@ -145,6 +163,7 @@ async def _generate_and_store(message: Message, tone: str = "professional") -> b
     message.ai_summary = generated.get("summary") or ""
     message.draft_reply = draft
     message.action_items = generated.get("action_items") or []
+    message.rag_sources = generated.get("rag_sources") or []
     # NULL, not 0.0: an NA message was never scored, and coercing that to zero made "not
     # evaluated" indistinguishable from "the critic rejected this" in every stored statistic.
     confidence = generated.get("confidence")
@@ -250,6 +269,42 @@ async def _refine(message: Message, draft: str, instruction: str) -> str | None:
     except (httpx.HTTPError, ValueError) as exc:
         logger.warning("refine failed for message %s: %s", message.id, exc)
         return None
+
+
+class TranslationError(RuntimeError):
+    """Translation was refused (unfaithful) or the agent could not produce one."""
+
+    def __init__(self, code: str, status_code: int) -> None:
+        super().__init__(code)
+        self.code = code
+        self.status_code = status_code
+
+
+async def translate_email(message_id: str, language: str) -> dict | None:
+    """The masked body in another language. Not stored: it is a reading aid, regenerated on ask.
+
+    Only masked text is sent, so this reaches the model with nothing drafting did not already send.
+    """
+    try:
+        pk = UUID(message_id)
+    except ValueError:
+        return None
+    async with get_sessionmaker()() as session:
+        message = await session.get(Message, pk)
+    if message is None:
+        return None
+    payload = {"text": plain_text(message.body_masked or ""), "language": language}
+    try:
+        translated = await _call_agent("/translate", payload)
+    except httpx.HTTPStatusError as exc:
+        await audit("translate_email", f"message={message_id} language={language}", success=False)
+        detail = exc.response.json().get("detail") if exc.response.content else None
+        code = detail.get("code") if isinstance(detail, dict) else str(detail or "agent_error")
+        raise TranslationError(code, exc.response.status_code) from exc
+    except httpx.HTTPError as exc:
+        raise TranslationError("agent_unreachable", 502) from exc
+    await audit("translate_email", f"message={message_id} language={language}")
+    return translated
 
 
 async def refine_email(message_id: str, instruction: str, draft: str) -> DashboardEmail | None:

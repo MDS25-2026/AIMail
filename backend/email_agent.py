@@ -1,6 +1,7 @@
 import json
 import os
 import re
+from enum import StrEnum
 
 import httpx
 from dotenv import load_dotenv
@@ -30,6 +31,8 @@ _STATUS_FOR_ERROR = {GeminiErrorCode.DEADLINE_EXCEEDED: 504}
 _SERVICE_UNAVAILABLE = 503
 
 ROUTER_CATEGORIES = ("STANDARD", "COMPLEX", "NA")
+# Bounds one translation call; a longer body would also overrun the output cap.
+MAX_TRANSLATE_CHARS = 20_000
 
 configure_logging()
 
@@ -605,6 +608,82 @@ async def _process_email(req: ProcessEmailRequest) -> ProcessEmailResponse:
         unaddressed_requests=unaddressed,
         review_reasons=reasons,
     )
+
+
+# ---------- Translation of the masked body ----------
+
+class TranslationLanguage(StrEnum):
+    ENGLISH = "en"
+    MALAY = "ms"
+    CHINESE = "zh"
+
+
+LANGUAGE_NAMES = {
+    TranslationLanguage.ENGLISH: "English",
+    TranslationLanguage.MALAY: "Bahasa Melayu (Malay)",
+    TranslationLanguage.CHINESE: "Simplified Chinese",
+}
+TRANSLATION_MAX_OUTPUT_TOKENS = 4096
+UNFAITHFUL_TRANSLATION = "translation_unfaithful"
+
+
+class TranslateRequest(BaseModel):
+    text: str = Field(max_length=MAX_TRANSLATE_CHARS)
+    language: TranslationLanguage
+
+
+def translation_problems(source: str, translation: str) -> list[str]:
+    """Deterministic checks a translation must pass before anyone reads it.
+
+    A redaction marker that disappears may have been filled in with a guess, and a figure that
+    changes is a false statement in the reader's language. Figures are compared as values, so
+    "1,250.00" and the Malay "1.250,00" agree.
+    """
+    problems = []
+    if sorted(_PLACEHOLDER.findall(source)) != sorted(_PLACEHOLDER.findall(translation)):
+        problems.append("redaction markers changed")
+    missing = _figures_in(source) - _figures_in(translation)
+    if missing:
+        problems.append(f"figures missing: {', '.join(sorted(missing))}")
+    return problems
+
+
+async def translate_text(text: str, language: TranslationLanguage) -> str:
+    prompt = f"""Translate the email below into {LANGUAGE_NAMES[language]}.
+
+{_ISOLATION_RULE}
+
+Rules:
+- Translate faithfully. Do not summarise, add, answer or omit anything.
+- Copy every bracketed marker such as [Redacted], [REDACTED] or [EMAIL_REDACTED] exactly as written.
+  They stand for removed personal data; never replace them with a guess.
+- Keep every number, amount, date and unit exactly as written, digits included.
+- If the email is already in {LANGUAGE_NAMES[language]}, return it unchanged.
+
+{fence("email_body", text)}"""
+    schema = {
+        "type": "object",
+        "properties": {"translation": {"type": "string"}},
+        "required": ["translation"],
+    }
+    result = await call_gemini(prompt, response_schema=schema,
+                               max_output_tokens=TRANSLATION_MAX_OUTPUT_TOKENS)
+    return result.get("translation", "") if isinstance(result, dict) else ""
+
+
+@app.post("/translate")
+async def translate(req: TranslateRequest) -> dict:
+    """Translate masked text. 422 when the result fails the faithfulness checks."""
+    try:
+        with deadline():
+            translated = await translate_text(req.text, req.language)
+    except GeminiError as error:
+        raise _unavailable(error) from error
+    problems = translation_problems(req.text, translated)
+    if problems:
+        raise HTTPException(status_code=422, detail={"code": UNFAITHFUL_TRANSLATION,
+                                                     "problems": problems})
+    return {"language": req.language, "text": translated}
 
 
 class RefineRequest(BaseModel):

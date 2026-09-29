@@ -46,3 +46,21 @@ def test_quantities_in_the_body_reach_the_dashboard_in_both_systems():
     (quantity,) = _to_email(message).quantities
     assert quantity.text == "2,000 lb" and quantity.system == "imperial"
     assert (quantity.metric.value, quantity.metric.unit) == (907.0, "kg")
+
+
+def test_the_passages_a_draft_was_grounded_on_reach_the_dashboard():
+    from app.dashboard import _source_records
+
+    chunk_id = uuid4()
+    records = _source_records([{"chunk_id": chunk_id, "content": "Refunds take 14 days.",
+                                "similarity_score": 0.81234, "source_title": "Refund policy"}])
+    message = Message(id=uuid4(), rag_sources=records,
+                      created_at=datetime(2026, 8, 1, tzinfo=timezone.utc))
+    (source,) = _to_email(message).sources
+    assert source.label == "Refund policy" and source.chunkId == str(chunk_id)
+    assert source.excerpt == "Refunds take 14 days." and source.score == 0.812
+
+
+def test_an_email_generated_before_sources_were_stored_has_none():
+    message = Message(id=uuid4(), created_at=datetime(2026, 8, 1, tzinfo=timezone.utc))
+    assert _to_email(message).sources == []
