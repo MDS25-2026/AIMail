@@ -213,11 +213,14 @@ async def _call_agent(path: str, payload: dict) -> dict:
 AGENT_CONTENT_FAILURE = 422
 
 
+NOT_DRAFTED = "not_drafted"
+
+
 def _not_drafted(code: str) -> dict:
     """Stored like an NA route: a human handles it, and the poller stops retrying a failure that
     repeats at temperature 0 and would otherwise spend quota every cycle."""
     return {"category": "NA", "draft": None, "summary": "", "action_items": [],
-            "needs_human_review": True, "review_reasons": [f"no draft: {code}"]}
+            "needs_human_review": True, "review_reasons": [f"no draft: {code}"], NOT_DRAFTED: True}
 
 
 def _source_records(chunks: list[ContextChunk]) -> list[dict]:
@@ -291,6 +294,8 @@ async def _generate_and_store(
     if not message.is_masked:
         return False  # quarantined (#109): there is no masked content to draft from yet
     generated = await _generate(message, tone, thread or [])
+    if generated.get(NOT_DRAFTED) and message.draft_reply:
+        return False  # a regenerate that failed for content keeps the draft the reviewer has
     is_usable = bool(generated) and (bool(generated.get("draft")) or generated.get("category") == "NA")
     fields = (_generation_fields(generated) if is_usable
               else {"generation_attempts": (message.generation_attempts or 0) + 1})

@@ -101,3 +101,16 @@ func TestTheHistoryBaselineOnlyMovesForward(t *testing.T) {
 		t.Fatal("a newer notification did not advance the baseline")
 	}
 }
+
+func TestAFailureThatWillRecurIsSkippedNotRetried(t *testing.T) {
+	withSupabase(t, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusBadRequest) })
+	_, err := insertMessage(context.Background(), map[string]string{"gmail_message_id": "m1"})
+	if !isPermanentIngestFailure(err) {
+		t.Fatalf("a 4xx insert must count as permanent: %v", err)
+	}
+	withSupabase(t, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusServiceUnavailable) })
+	_, err = insertMessage(context.Background(), map[string]string{"gmail_message_id": "m1"})
+	if isPermanentIngestFailure(err) {
+		t.Fatal("an outage must stay retryable")
+	}
+}

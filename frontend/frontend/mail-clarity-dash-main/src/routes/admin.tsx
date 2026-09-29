@@ -4,7 +4,8 @@ import { useTranslation } from "react-i18next";
 import AdminConsole from "../components/admin/AdminConsole";
 import SignInForm from "../components/admin/SignInForm";
 import AppShell from "../components/AppShell";
-import { PageLoading } from "../components/PageState";
+import { PageError, PageLoading } from "../components/PageState";
+import { isAuthError } from "../lib/adminApi";
 import { useAdminSession } from "../lib/queries";
 
 export const Route = createFileRoute("/admin")({
@@ -18,13 +19,19 @@ export const Route = createFileRoute("/admin")({
 function AdminPage() {
   const { t } = useTranslation();
   const session = useAdminSession();
+  const isSignedOut = session.isError && isAuthError(session.error);
 
   return (
     <AppShell>
       <section className="min-w-0 flex-1 overflow-y-auto bg-surface-muted p-6">
         {session.isPending ? <PageLoading label={t("admin.loading")} /> : null}
-        {/* A failed refetch keeps the old data, so the error decides: signed out means the form. */}
-        {!session.isPending && (session.isError || !session.data) ? <SignInForm /> : null}
+        {/* Signed out (a 401) means the form; any other failure is an error, not a sign-out: a
+            network blip must not swap the console for a password prompt. A failed refetch keeps
+            the old data, so the error decides. */}
+        {isSignedOut ? <SignInForm /> : null}
+        {session.isError && !isSignedOut ? (
+          <PageError label={t("admin.loading")} error={session.error} />
+        ) : null}
         {session.isSuccess && session.data ? <AdminConsole admin={session.data} /> : null}
       </section>
     </AppShell>

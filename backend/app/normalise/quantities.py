@@ -13,7 +13,7 @@ from functools import lru_cache
 
 import pint
 
-from app.normalise.numbers import NUMBER, canonical, parse_number
+from app.normalise.numbers import canonical, number_matches, parse_number
 
 
 class UnitSystem(StrEnum):
@@ -90,13 +90,15 @@ def _alternation(units: list[str]) -> str:
 # A one-letter unit must stand apart from its number: "RM5m" and "$2m" are millions, not metres.
 _SHORT = [s for s in SYMBOLS if len(s) == 1]
 _LONG = [s for s in SYMBOLS if len(s) > 1]
-_QUANTITY = re.compile(
-    # A leading minus counts only as a sign, not as the hyphen in "INV-2026" or "10-12 kg".
-    rf"(?:(?<![\w\-−])(?P<sign>[-−]))?(?P<number>{NUMBER})"
+# Matched at the end of each number, not as one pattern with the number in front: that pattern
+# backtracked through every digit group whenever no unit followed, and 16 KB of "111 222 ..." took
+# 7.6 s. Numbers come from the linear scan in numbers.py, and this runs once per number.
+_UNIT_AFTER = re.compile(
     rf"(?:\s?(?P<unit>(?i:{_alternation(list(WORDS))})|{_alternation(_LONG)})"
     rf"|\s(?P<short>{_alternation(_SHORT)}))"
     r"(?![A-Za-z0-9²])"
 )
+_MINUS = "-−"
 # An amount of money is never a quantity, whatever follows it.
 _CURRENCY_BEFORE = re.compile(r"(?:RM|MYR|USD|SGD|EUR|GBP|[$£€¥])\s?$", re.IGNORECASE)
 _CURRENCY_LOOKBACK = 4
@@ -149,9 +151,19 @@ def _is_money(text: str, start: int) -> bool:
     return bool(_CURRENCY_BEFORE.search(text[max(0, start - _CURRENCY_LOOKBACK):start]))
 
 
-def _quantity(match: re.Match[str]) -> Quantity:
-    unit = _unit_for(match.group("unit") or match.group("short"))
-    value = parse_number(match.group("number")) * (-1 if match.group("sign") else 1)
+def _has_sign(text: str, start: int) -> bool:
+    """A minus right before the number, and not a hyphen ("INV-2026", "10-12 kg")."""
+    if start == 0 or text[start - 1] not in _MINUS:
+        return False
+    before = text[start - 2] if start >= 2 else " "
+    return not (before.isalnum() or before in _MINUS or before == "_")
+
+
+def _quantity(text: str, number: re.Match[str], unit_match: re.Match[str]) -> Quantity:
+    unit = _unit_for(unit_match.group("unit") or unit_match.group("short"))
+    is_negative = _has_sign(text, number.start())
+    start = number.start() - 1 if is_negative else number.start()
+    value = parse_number(number.group(0)) * (-1 if is_negative else 1)
     measured = _registry().Quantity(value, unit.pint_name)
     dimension = str(measured.dimensionality)
     targets = TARGETS[dimension]
@@ -161,16 +173,19 @@ def _quantity(match: re.Match[str]) -> Quantity:
     displays = {system: as_written if system == unit.system else _display(measured, targets[system])
                 for system in UnitSystem}
     return Quantity(
-        text=match.group(0), start=match.start(), end=match.end(), dimension=dimension,
+        text=text[start:unit_match.end()], start=start, end=unit_match.end(), dimension=dimension,
         system=unit.system, metric=displays[_M], imperial=displays[_I],
         base=measured.to(targets[_M][0].pint_name).magnitude,
     )
 
 
 def quantities_in(text: str) -> list[Quantity]:
-    return [_quantity(match) for match in _QUANTITY.finditer(text)
-            if not _is_money(text, match.start())
-            and math.isfinite(parse_number(match.group("number")))]
+    found = []
+    for number in number_matches(text):
+        unit_match = _UNIT_AFTER.match(text, number.end())
+        if unit_match and not _is_money(text, number.start()) and math.isfinite(parse_number(number.group(0))):
+            found.append(_quantity(text, number, unit_match))
+    return found
 
 
 # Converting and rounding moves a figure a little ("4,409 lb" for 2,000 kg is 1999.9 kg); a

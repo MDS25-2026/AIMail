@@ -85,9 +85,12 @@ def test_server_errors_are_retried_then_the_fallback_answers(monkeypatch):
     assert asked == [PRIMARY] * gemini_client.ATTEMPTS_PER_MODEL + [FALLBACK]
 
 
+BAD_INPUT = {"error": {"status": "INVALID_ARGUMENT", "message": "invalid argument"}}
+
+
 def test_a_client_error_is_not_retried(monkeypatch):
     monkeypatch.setenv("GEMINI_FALLBACK_MODEL", "")
-    asked = route(monkeypatch, lambda model: httpx.Response(400))
+    asked = route(monkeypatch, lambda model: httpx.Response(400, json=BAD_INPUT))
     with pytest.raises(GeminiError) as caught:
         run(generate("hi"))
     assert caught.value.code == GeminiErrorCode.REJECTED
@@ -189,7 +192,7 @@ def test_a_long_retry_after_moves_to_the_fallback_instead_of_waiting(monkeypatch
 
 
 def test_a_rejected_request_does_not_open_the_breaker_or_try_the_fallback(monkeypatch):
-    asked = route(monkeypatch, lambda model: httpx.Response(400))
+    asked = route(monkeypatch, lambda model: httpx.Response(400, json=BAD_INPUT))
     for _ in range(gemini_client.BREAKER_THRESHOLD + 1):
         with pytest.raises(GeminiError) as caught:
             run(generate("hi"))
@@ -225,3 +228,23 @@ def test_a_hung_attempt_is_cut_at_the_deadline(monkeypatch):
     with pytest.raises(GeminiError) as caught:
         run(bounded())
     assert caught.value.code in (GeminiErrorCode.DEADLINE_EXCEEDED, GeminiErrorCode.UNAVAILABLE)
+
+
+@pytest.mark.parametrize("body, expected", [
+    ({"error": {"status": "INVALID_ARGUMENT", "message": "Request contains an invalid argument."}}, True),
+    ({"error": {"status": "INVALID_ARGUMENT", "message": "API key not valid.",
+                "details": [{"reason": "API_KEY_INVALID"}]}}, False),
+    ({"error": {"status": "FAILED_PRECONDITION", "message": "User location is not supported."}}, False),
+])
+def test_only_a_fault_in_the_input_counts_as_rejected(body, expected):
+    """A bad key must stay retryable, or one config slip marks every message undraftable."""
+    assert gemini_client.is_input_rejected(httpx.Response(400, json=body)) is expected
+
+
+def test_a_bad_api_key_is_unavailable_not_rejected(monkeypatch):
+    monkeypatch.setenv("GEMINI_FALLBACK_MODEL", "")
+    bad_key = {"error": {"status": "INVALID_ARGUMENT", "details": [{"reason": "API_KEY_INVALID"}]}}
+    route(monkeypatch, lambda model: httpx.Response(400, json=bad_key))
+    with pytest.raises(GeminiError) as caught:
+        run(generate("hi"))
+    assert caught.value.code == GeminiErrorCode.UNAVAILABLE

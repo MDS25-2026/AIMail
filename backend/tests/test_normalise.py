@@ -95,3 +95,24 @@ def test_a_run_of_digit_groups_is_linear_not_quadratic():
     started = time.perf_counter()
     quantities_in("111 " * 32_000)
     assert time.perf_counter() - started < 1.0
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("Invoice 12345 500 kg", [12345.0, 500.0]),
+    ("Order 2026 1500 units", [2026.0, 1500.0]),
+    ("1 2 3", [1.0, 2.0, 3.0]),
+    ("21 577 kg", [21577.0]),
+])
+def test_a_figure_after_another_number_is_still_read(text, expected):
+    """A regression the quadratic-regex fix first introduced: '500' after '12345 ' was dropped."""
+    assert numbers_in(text) == expected
+
+
+def test_a_quantity_after_another_number_is_found():
+    (found,) = quantities_in("Invoice 12345 500 kg")
+    assert found.text == "500 kg"
+
+
+def test_a_signed_quantity_keeps_its_span():
+    (found,) = quantities_in("Store at -5 °C.")
+    assert found.text == "-5 °C" and found.metric.value == -5.0

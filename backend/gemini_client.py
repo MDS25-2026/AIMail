@@ -57,8 +57,30 @@ CONTENT_ERRORS = frozenset({
     GeminiErrorCode.OUTPUT_TRUNCATED, GeminiErrorCode.NO_CANDIDATE,
     GeminiErrorCode.MALFORMED_JSON, GeminiErrorCode.REJECTED,
 })
-# The request was malformed or too large; the model is fine.
-INPUT_REJECTED_STATUS = frozenset({400, 413, 422})
+# Payload too large: always the input's fault.
+PAYLOAD_TOO_LARGE = 413
+INVALID_ARGUMENT = "INVALID_ARGUMENT"
+# Gemini also answers 400 INVALID_ARGUMENT for a bad key; that is configuration, not the input.
+API_KEY_REASONS = frozenset({"API_KEY_INVALID", "API_KEY_EXPIRED"})
+
+
+def is_input_rejected(response: httpx.Response) -> bool:
+    """The request itself was at fault, so no retry and no other model would help.
+
+    Only a 413, or a 400 INVALID_ARGUMENT that is not about the API key. A bad key, an expired
+    one, an unsupported location (400 FAILED_PRECONDITION) or a 403 is configuration: it must stay
+    retryable later, or a config slip would mark every pending message undraftable.
+    """
+    if response.status_code == PAYLOAD_TOO_LARGE:
+        return True
+    if response.status_code != 400:
+        return False
+    try:
+        error = response.json().get("error") or {}
+    except ValueError:
+        return False
+    reasons = {detail.get("reason") for detail in error.get("details") or [] if isinstance(detail, dict)}
+    return error.get("status") == INVALID_ARGUMENT and not reasons & API_KEY_REASONS
 FINISH_STOP = "STOP"
 
 
@@ -262,7 +284,7 @@ async def call_model(model: str, payload: dict) -> dict:
                     started)
             if response.is_success:
                 return response.json()
-            if response.status_code in INPUT_REJECTED_STATUS:
+            if is_input_rejected(response):
                 raise GeminiError(GeminiErrorCode.REJECTED,
                                   f"{model} rejected the request: {response.status_code}")
             if response.status_code not in RETRYABLE_STATUS:

@@ -6,6 +6,7 @@ against real shipping documents.
 
 import math
 import re
+from collections.abc import Iterator
 
 THOUSANDS_GROUP_DIGITS = 3
 
@@ -13,9 +14,7 @@ THOUSANDS_GROUP_DIGITS = 3
 # "1.234.567" and "21 577,5", then "40,326", "21 577" and "40,326.5". Each alternative is
 # anchored by fixed-width groups, so matching is linear on text an outside party controls.
 NUMBER = (
-    # Never start inside another number, including one grouped by spaces ("21 577"): a start after
-    # "digit + space" made quantity matching quadratic on a run of digit groups.
-    r"(?<![\d.,])(?<!\d )(?:\d{1,3}(?:\.\d{3})+,\d+|\d{1,3}(?:\.\d{3}){2,}|\d{1,3}(?: \d{3})+,\d+"
+    r"(?<![\d.,])(?:\d{1,3}(?:\.\d{3})+,\d+|\d{1,3}(?:\.\d{3}){2,}|\d{1,3}(?: \d{3})+,\d+"
     r"|\d{1,3}(?:[ ,]\d{3})+(?:\.\d+)?|\d+(?:[.,]\d+)?)"
 )
 _NUMBER = re.compile(NUMBER)
@@ -32,6 +31,11 @@ def parse_number(written: str) -> float:
     if compact.count(".") > 1:
         return float(compact.replace(".", "").replace(",", ""))
     return float(compact.replace(",", ""))
+
+
+def number_matches(text: str) -> Iterator[re.Match[str]]:
+    """Each written number once, left to right. Linear: the matches do not overlap."""
+    return _NUMBER.finditer(text)
 
 
 def numbers_in(text: str) -> list[float]:

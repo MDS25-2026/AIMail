@@ -200,3 +200,22 @@ def test_a_failed_send_releases_its_claim_so_it_can_be_approved_again(monkeypatc
     with pytest.raises(SendError):
         asyncio.run(dashboard.approve_and_send(str(message.id), "Thanks"))
     assert calls == {"sent": 1, "released": 1}
+
+
+def test_a_regenerate_that_fails_for_content_keeps_the_existing_draft(monkeypatch):
+    import asyncio
+
+    from app import dashboard
+    from app.db.models import MaskingStatus
+
+    async def not_drafted(message, tone, thread):
+        return dashboard._not_drafted("gemini_output_truncated")
+
+    async def must_not_write(pk, fields):
+        raise AssertionError("a failed regenerate must not overwrite the draft")
+
+    monkeypatch.setattr(dashboard, "_generate", not_drafted)
+    monkeypatch.setattr(dashboard, "_update_unsent", must_not_write)
+    message = Message(id=uuid4(), masking_status=MaskingStatus.COMPLETE, draft_reply="Reviewed draft")
+    assert asyncio.run(dashboard._generate_and_store(message, tone="casual")) is False
+    assert message.draft_reply == "Reviewed draft"

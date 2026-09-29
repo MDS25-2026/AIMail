@@ -357,3 +357,12 @@ def test_a_content_failure_is_not_worth_retrying(monkeypatch, code, status):
         "thread_context": "", "email_body": "Hi", "rag_context": ""})
     assert response.status_code == status
 
+
+
+def test_a_changed_figure_after_another_number_is_caught_in_translation():
+    problems = email_agent.translation_problems("Invoice 12345 500 kg", "Invois 12345 900 kg")
+    assert any("500" in problem for problem in problems)
+
+
+def test_a_correct_figure_after_another_number_is_supported():
+    assert unsupported_specifics("We will ship the 500 kg today.", "Invoice 12345 500 kg please") == []

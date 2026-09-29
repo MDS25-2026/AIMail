@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -41,6 +42,9 @@ func messageStored(ctx context.Context, msgID string) (bool, error) {
 	return len(rows) > 0, nil
 }
 
+// errRowRejected marks a 4xx from PostgREST: the row itself is refused, so retrying cannot help.
+var errRowRejected = errors.New("supabase rejected the messages row")
+
 // insertMessage inserts a messages row unless one already exists for its Gmail id, and reports
 // which happened. PostgREST returns the inserted rows; an ignored duplicate returns none, so an
 // audit entry can say "stored" only when something was.
@@ -66,6 +70,9 @@ func insertMessage(ctx context.Context, row interface{}) (bool, error) {
 		return false, fmt.Errorf("do request: %w", err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode >= 400 && resp.StatusCode < 500 {
+		return false, fmt.Errorf("%w: status %d", errRowRejected, resp.StatusCode)
+	}
 	if resp.StatusCode >= 300 {
 		return false, fmt.Errorf("supabase insert into messages failed: status %d", resp.StatusCode)
 	}

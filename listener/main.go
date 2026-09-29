@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"io"
@@ -551,6 +552,9 @@ func listenToPubSub(ctx context.Context, ts oauth2.TokenSource, srv *gmail.Servi
 				writeAuditLog(ctx, "ingest_abandoned",
 					fmt.Sprintf("history %d abandoned after %d attempts: %v",
 						payload.HistoryID, *msg.DeliveryAttempt, err), false)
+				// Past this range, or every later notification would list it again, hit the same
+				// failure first, and no newer mail would arrive until a restart.
+				advanceBaseline(payload.HistoryID)
 				msg.Ack()
 				return
 			}
@@ -607,7 +611,14 @@ func ingestHistory(ctx context.Context, srv *gmail.Service, historyID uint64) er
 	}
 
 	for _, msgID := range ids {
-		if err := ingestMessage(ctx, srv, msgID); err != nil {
+		err := ingestMessage(ctx, srv, msgID)
+		if isPermanentIngestFailure(err) {
+			// Retrying cannot help (deleted before the fetch, or a row the database refuses), and
+			// failing the range would hold every newer message behind this one.
+			writeAuditLog(ctx, "ingest_skipped", fmt.Sprintf("msg %s: %v", msgID, err), false)
+			continue
+		}
+		if err != nil {
 			// The baseline stays put, so the redelivery lists this range again and retries the
 			// message; the ones already stored are skipped by messageStored.
 			return fmt.Errorf("message %s: %w", msgID, err)
@@ -615,6 +626,12 @@ func ingestHistory(ctx context.Context, srv *gmail.Service, historyID uint64) er
 	}
 	advanceBaseline(historyID)
 	return nil
+}
+
+// isPermanentIngestFailure is a failure that will recur on every retry: the message is gone from
+// Gmail, or the database refused the row itself (a 4xx, not an outage).
+func isPermanentIngestFailure(err error) bool {
+	return err != nil && (isGone(err) || errors.Is(err, errRowRejected))
 }
 
 // advanceBaseline moves lastHistoryID forward only. Notifications are handled concurrently, and a
