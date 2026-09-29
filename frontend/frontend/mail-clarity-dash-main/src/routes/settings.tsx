@@ -4,7 +4,7 @@ import { Trans, useTranslation } from "react-i18next";
 
 import AppShell from "../components/AppShell";
 import { PageError, PageLoading } from "../components/PageState";
-import { usePreferences } from "../components/PreferencesProvider";
+import { usePreferences } from "../lib/usePreferences";
 import { Language, Theme, UnitSystem } from "../lib/preferences";
 import { useSystemInfo } from "../lib/queries";
 import { CRITIC_CONFIDENCE_THRESHOLD } from "../types/email";

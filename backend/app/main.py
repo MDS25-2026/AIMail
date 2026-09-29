@@ -44,7 +44,7 @@ from app.gmail_send import SendError
 from app.rag.chunk import extract_pdf_bytes
 from app.rag.embed import EmbeddingError
 from app.rag.generate import GenerationError, answer
-from app.rag.ingest import ingest_text
+from app.rag.ingest import embed_pending, ingest_text
 from app.rag.library import DocumentSummary, list_documents
 from app.rag.retrieve import ContextChunk, retrieve
 
@@ -69,6 +69,8 @@ _STATIC = Path(__file__).parent / "static"
 logger = logging.getLogger(__name__)
 
 _pregen_task: asyncio.Task | None = None
+# Held so the task is not garbage-collected mid-run (asyncio keeps only weak references).
+_embed_task: asyncio.Task | None = None
 
 
 async def _pregen_loop() -> None:
@@ -86,6 +88,24 @@ async def _pregen_loop() -> None:
             break
         except Exception:
             logger.exception("pre-generation poll failed")
+
+
+async def _embed_missing() -> None:
+    """Chunks without a vector under the current EMBEDDING_TAG get one. Free when none are
+    pending; after a tag bump or on a fresh database it stops retrieval silently returning nothing."""
+    try:
+        count = await embed_pending()
+    except Exception:
+        logger.exception("startup embedding of pending chunks failed; retrieval may be empty")
+        return
+    if count:
+        logger.info("embedded %d pending chunk(s) under the current tag", count)
+
+
+@app.on_event("startup")
+async def _start_embedding() -> None:
+    global _embed_task
+    _embed_task = asyncio.create_task(_embed_missing())
 
 
 @app.on_event("startup")

@@ -4,6 +4,7 @@ Ported from the hackathon comparator (compare/normalise.py), where these rules w
 against real shipping documents.
 """
 
+import math
 import re
 
 THOUSANDS_GROUP_DIGITS = 3
@@ -32,7 +33,8 @@ def parse_number(written: str) -> float:
 
 
 def numbers_in(text: str) -> list[float]:
-    return [parse_number(match) for match in _NUMBER.findall(text)]
+    """Finite values only: a 400-digit run parses to inf, which is no figure anyone wrote."""
+    return [value for value in map(parse_number, _NUMBER.findall(text)) if math.isfinite(value)]
 
 
 def canonical(value: float) -> str:

@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { UnitSystem } from "../lib/preferences";
 import { useFormat } from "../lib/useFormat";
 import type { Measure, Quantity } from "../types/email";
-import { usePreferences } from "./PreferencesProvider";
+import { usePreferences } from "../lib/usePreferences";
 
 /** Conversions for the measurements the sender wrote in the other unit system. Figures already in
  *  the reader's system are left alone: converting them to themselves would only add noise. */

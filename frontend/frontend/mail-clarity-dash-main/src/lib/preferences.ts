@@ -62,7 +62,13 @@ export function parsePreferences(read: (name: string) => string | undefined): Pr
 
 function browserCookie(name: string): string | undefined {
   const match = document.cookie.split("; ").find((pair) => pair.startsWith(`${name}=`));
-  return match ? decodeURIComponent(match.slice(name.length + 1)) : undefined;
+  if (!match) return undefined;
+  try {
+    return decodeURIComponent(match.slice(name.length + 1));
+  } catch {
+    // A malformed value (cookies on localhost are shared across ports) is just "not set".
+    return undefined;
+  }
 }
 
 export const readPreferences = createIsomorphicFn()

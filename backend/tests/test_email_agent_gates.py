@@ -310,3 +310,17 @@ def test_an_unfaithful_translation_is_refused_with_422(monkeypatch):
 def test_an_unsupported_language_is_rejected_before_any_call():
     response = TestClient(email_agent.app).post("/translate", json={"text": "hi", "language": "fr"})
     assert response.status_code == 422
+
+
+def test_a_hostile_huge_number_does_not_crash_the_figures_gate():
+    assert unsupported_specifics("1" + "0" * 400 + " kg shipped.", SOURCE) == []
+
+
+def test_a_failing_second_opinion_degrades_to_none(monkeypatch):
+    monkeypatch.setenv("GEMINI_FALLBACK_MODEL", "missing-model")
+
+    async def failing(*_args, **_kwargs):
+        raise GeminiError(GeminiErrorCode.UNAVAILABLE, "404")
+
+    monkeypatch.setattr(email_agent, "call_gemini", failing)
+    assert asyncio.run(email_agent.second_opinion(_request(), is_phishing=True)) is None

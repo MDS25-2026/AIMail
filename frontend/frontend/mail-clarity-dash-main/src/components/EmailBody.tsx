@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import { useEmailTranslation } from "../lib/queries";
 import type { Email } from "../types/email";
-import { usePreferences } from "./PreferencesProvider";
+import { usePreferences } from "../lib/usePreferences";
 import QuantitiesList from "./QuantitiesList";
 
 const LOOKS_LIKE_HTML = /^\s*<[a-z!]/i;

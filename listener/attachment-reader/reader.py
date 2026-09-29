@@ -3,9 +3,10 @@
 Runs beside the listener on 127.0.0.1 and never calls out. For each attachment:
 - a PDF page with a text layer, a .docx or an .xlsx gives back plain text, which the listener
   masks like any body text, so it needs no vision model at all;
-- a scanned page or an image is redacted here, and returned only if the local OCR read its text
-  confidently. Text the local OCR cannot read cannot be checked for PII, so that page is skipped
-  rather than handed to a stronger remote reader that would see what was never masked.
+- a scanned page or an image is redacted here, and returned only if the local OCR read the text
+  it found confidently. A page with low-confidence words is skipped rather than handed to a
+  stronger remote reader that would see what was never masked. Text the OCR never detects at all
+  (handwriting, rotated or tiny print) cannot be gated this way: see docs/known-issues.md.
 """
 
 from __future__ import annotations

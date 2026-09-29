@@ -43,3 +43,15 @@ def _reset_limit():
     rate_limit_generation.reset()
     yield
     rate_limit_generation.reset()
+
+
+@pytest.mark.parametrize("body, expected", [
+    (b"not json", "agent_error"),
+    (b'{"detail": {"code": "translation_unfaithful"}}', "translation_unfaithful"),
+    (b'{"detail": "gemini_deadline_exceeded"}', "gemini_deadline_exceeded"),
+    (b'{"detail": [{"msg": "too long", "input": "the whole masked body"}]}', "agent_error"),
+])
+def test_agent_errors_become_codes_and_never_echo_the_body(body, expected):
+    import httpx
+
+    assert dashboard._agent_error_code(httpx.Response(422, content=body)) == expected

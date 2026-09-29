@@ -1,4 +1,4 @@
-import { usePreferences } from "../components/PreferencesProvider";
+import { usePreferences } from "../lib/usePreferences";
 import { formatNumber, formatTimestamp } from "./formatTimestamp";
 
 /** Formatters bound to the reader's language, so no component passes the language by hand. */

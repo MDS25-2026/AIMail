@@ -271,6 +271,23 @@ async def _refine(message: Message, draft: str, instruction: str) -> str | None:
         return None
 
 
+# Mirrors the agent's own bound (email_agent.MAX_TRANSLATE_CHARS), checked here first so an
+# over-long body gets a clear answer instead of a validation error that echoes the body back.
+MAX_TRANSLATE_CHARS = 20_000
+AGENT_ERROR = "agent_error"
+
+
+def _agent_error_code(response: httpx.Response) -> str:
+    """A code only, never the agent's detail text: a validation error echoes the request body."""
+    try:
+        detail = response.json().get("detail")
+    except ValueError:
+        return AGENT_ERROR
+    if isinstance(detail, dict):
+        return str(detail.get("code", AGENT_ERROR))
+    return detail if isinstance(detail, str) and detail.startswith("gemini_") else AGENT_ERROR
+
+
 class TranslationError(RuntimeError):
     """Translation was refused (unfaithful) or the agent could not produce one."""
 
@@ -293,14 +310,14 @@ async def translate_email(message_id: str, language: str) -> dict | None:
         message = await session.get(Message, pk)
     if message is None:
         return None
-    payload = {"text": plain_text(message.body_masked or ""), "language": language}
+    text = plain_text(message.body_masked or "")
+    if len(text) > MAX_TRANSLATE_CHARS:
+        raise TranslationError("email_too_long_to_translate", 413)
     try:
-        translated = await _call_agent("/translate", payload)
+        translated = await _call_agent("/translate", {"text": text, "language": language})
     except httpx.HTTPStatusError as exc:
         await audit("translate_email", f"message={message_id} language={language}", success=False)
-        detail = exc.response.json().get("detail") if exc.response.content else None
-        code = detail.get("code") if isinstance(detail, dict) else str(detail or "agent_error")
-        raise TranslationError(code, exc.response.status_code) from exc
+        raise TranslationError(_agent_error_code(exc.response), exc.response.status_code) from exc
     except httpx.HTTPError as exc:
         raise TranslationError("agent_unreachable", 502) from exc
     await audit("translate_email", f"message={message_id} language={language}")

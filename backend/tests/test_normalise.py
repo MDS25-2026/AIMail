@@ -5,7 +5,7 @@ from datetime import date
 import pytest
 
 from app.normalise.dates import dates_in, slash_date
-from app.normalise.numbers import canonical, parse_number
+from app.normalise.numbers import canonical, numbers_in, parse_number
 from app.normalise.quantities import converted_figures, quantities_in
 
 
@@ -79,3 +79,10 @@ def test_an_ambiguous_slash_date_follows_the_configured_order(monkeypatch):
 def test_an_unknown_date_order_falls_back_to_day_first(monkeypatch):
     monkeypatch.setenv("DATE_ORDER", "YMD?")
     assert slash_date(5, 9, 2026) == date(2026, 9, 5)
+
+
+def test_an_absurdly_long_number_is_skipped_not_a_crash():
+    """One hostile email must not 500 the whole inbox list, which builds every row."""
+    huge = "1" + "0" * 400
+    assert quantities_in(f"{huge} kg") == []
+    assert numbers_in(huge) == []

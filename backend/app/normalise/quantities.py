@@ -168,7 +168,8 @@ def _quantity(match: re.Match[str]) -> Quantity:
 
 def quantities_in(text: str) -> list[Quantity]:
     return [_quantity(match) for match in _QUANTITY.finditer(text)
-            if not _is_money(text, match.start())]
+            if not _is_money(text, match.start())
+            and math.isfinite(parse_number(match.group("number")))]
 
 
 # Converting and rounding moves a figure a little ("4,409 lb" for 2,000 kg is 1999.9 kg); a

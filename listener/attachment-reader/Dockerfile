@@ -15,4 +15,6 @@ ENV PYTHONPATH=/reader
 WORKDIR /reader
 EXPOSE 3000
 # One worker: each loads spaCy en_core_web_lg (~800 MB). Threads share it; per-call state is not shared.
-ENTRYPOINT ["gunicorn", "-w", "1", "--threads", "2", "--timeout", "120", "-b", "0.0.0.0:3000", "reader:create_app()"]
+# 170 s: inside the listener's 180 s client timeout, so a slow scan fails here with an answer
+# rather than the listener giving up on a worker that is then killed mid-page.
+ENTRYPOINT ["gunicorn", "-w", "1", "--threads", "2", "--timeout", "170", "-b", "0.0.0.0:3000", "reader:create_app()"]
