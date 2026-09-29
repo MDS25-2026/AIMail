@@ -211,3 +211,47 @@ def test_a_gemini_failure_reaches_the_caller_as_a_coded_status(monkeypatch, code
         "thread_context": "", "email_body": "Hi", "rag_context": ""})
     assert response.status_code == status
     assert response.json()["detail"] == code
+
+
+# ---------- Signals from the email itself ----------
+
+@pytest.mark.parametrize("body, expected", [
+    ("Your mailbox is full. Verify your account at https://mail-fix.example to keep it.", True),
+    ("Please send your OTP to www.secure-pay.example today.", True),
+    ("Please reset your password before Friday.", False),  # no link
+    ("The agenda is at https://intranet.example/agenda", False),  # no credential ask
+])
+def test_phishing_needs_a_credential_ask_beside_a_link(body, expected):
+    assert email_agent.phishing_signal(body) is expected
+
+
+def _request(rag_context: str = "Refunds take 14 days.") -> email_agent.ProcessEmailRequest:
+    return email_agent.ProcessEmailRequest(thread_context="", email_body="Hi", rag_context=rag_context)
+
+
+def test_an_ungrounded_reply_is_a_review_reason():
+    reasons = email_agent.input_reasons(_request(rag_context="  "), False, None, "STANDARD")
+    assert any("not grounded" in reason for reason in reasons)
+
+
+def test_router_disagreement_is_a_review_reason():
+    reasons = email_agent.input_reasons(_request(), True, "NA", "STANDARD")
+    assert "routing models disagree: STANDARD vs NA" in reasons
+
+
+def test_no_second_opinion_without_doubt(monkeypatch):
+    monkeypatch.setenv("GEMINI_FALLBACK_MODEL", "other-model")
+    assert asyncio.run(email_agent.second_opinion(_request(), is_phishing=False)) is None
+
+
+def test_doubt_asks_the_other_model(monkeypatch):
+    monkeypatch.setenv("GEMINI_FALLBACK_MODEL", "other-model")
+    asked = []
+
+    async def fake(*_args, models=None, **_kwargs):
+        asked.append(models)
+        return {"category": "NA"}
+
+    monkeypatch.setattr(email_agent, "call_gemini", fake)
+    assert asyncio.run(email_agent.second_opinion(_request(), is_phishing=True)) == "NA"
+    assert asked == [["other-model"]]

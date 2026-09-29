@@ -165,3 +165,23 @@ def test_breaker_half_opens_after_cooldown():
 def test_fallback_equal_to_primary_is_ignored(monkeypatch):
     monkeypatch.setenv("GEMINI_FALLBACK_MODEL", PRIMARY)
     assert models_in_order() == [PRIMARY]
+
+
+def test_every_attempt_is_tracked_with_its_outcome(monkeypatch):
+    answers = iter([httpx.Response(503), httpx.Response(200, json=reply("ok"))])
+    route(monkeypatch, lambda model: next(answers))
+
+    async def tracked() -> list[dict]:
+        with gemini_client.track_calls() as calls:
+            await generate("hi")
+        return calls
+
+    calls = run(tracked())
+    assert [(c["model"], c["outcome"]) for c in calls] == [(PRIMARY, "http_503"), (PRIMARY, "ok")]
+    assert all(isinstance(c["ms"], int) for c in calls)
+
+
+def test_a_models_override_asks_only_that_model(monkeypatch):
+    asked = route(monkeypatch, lambda model: httpx.Response(200, json=reply("x")))
+    run(generate("hi", models=[FALLBACK]))
+    assert asked == [FALLBACK]

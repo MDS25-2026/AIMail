@@ -9,7 +9,14 @@ from pydantic import BaseModel, Field
 
 from app.core.logging_setup import configure_logging
 from app.core.middleware import request_context
-from gemini_client import GeminiError, GeminiErrorCode, deadline, generate
+from gemini_client import (
+    GeminiError,
+    GeminiErrorCode,
+    deadline,
+    generate,
+    second_opinion_model,
+    track_calls,
+)
 
 load_dotenv()
 
@@ -57,14 +64,17 @@ class ProcessEmailResponse(BaseModel):
     unsupported_specifics: list[str] = Field(default_factory=list)
     unaddressed_requests: list[str] = Field(default_factory=list)
     review_reasons: list[str] = Field(default_factory=list)
+    # Every Gemini attempt this draft made: model, outcome, milliseconds.
+    model_calls: list[dict] = Field(default_factory=list)
 
 
 # ---------- LLM helpers (Gemini-backed, see gemini_client.py) ----------
 
 async def call_gemini(prompt: str, response_schema: dict | None = None,
-                      max_output_tokens: int | None = None) -> dict | str:
+                      max_output_tokens: int | None = None,
+                      models: list[str] | None = None) -> dict | str:
     return await generate(prompt, response_schema=response_schema,
-                          max_output_tokens=max_output_tokens)
+                          max_output_tokens=max_output_tokens, models=models)
 
 
 async def call_llm(system_prompt: str, user_prompt: str, max_tokens: int = 1020) -> str:
@@ -114,7 +124,8 @@ def fence(tag: str, text: str) -> str:
 
 # ---------- Stage 1: Router ----------
 
-async def route_email(thread_context: str, email_body: str) -> str:
+async def route_email(thread_context: str, email_body: str,
+                      model: str | None = None) -> str:
     prompt = f"""You are a routing classifier for an email assistant.
 
 {_ISOLATION_RULE}
@@ -139,7 +150,8 @@ Respond with the category."""
         "properties": {"category": {"type": "string", "enum": list(ROUTER_CATEGORIES)}},
         "required": ["category"],
     }
-    result = await call_gemini(prompt, response_schema=schema, max_output_tokens=50)
+    result = await call_gemini(prompt, response_schema=schema, max_output_tokens=50,
+                               models=[model] if model else None)
     category = result.get("category") if isinstance(result, dict) else None
     return category if category in ROUTER_CATEGORIES else "NA"
 
@@ -416,6 +428,46 @@ def unsupported_specifics(draft: str, *sources: str) -> list[str]:
     return sorted(v for v in _numbers_in(draft) if len(v.lstrip("0")) >= 2 and v not in known)
 
 
+# ---------- Input signals: reasons for review that come from the email, not the draft ----------
+
+# A request for credentials or payment details beside a link is the shape of phishing. Checked on
+# the masked body: masking removes names and addresses, never URLs or these words. Deterministic
+# on purpose, so an email cannot talk its way past it.
+_CREDENTIAL_ASK = re.compile(
+    r"\b(?:password|passcode|log ?in|sign ?in|verify your (?:account|identity)|one[- ]time"
+    r" (?:password|code)|otp|pin|security code|bank details|card details|credentials)\b",
+    re.IGNORECASE,
+)
+_LINK = re.compile(r"\bhttps?://|\bwww\.", re.IGNORECASE)
+
+
+def phishing_signal(email_body: str) -> bool:
+    return bool(_CREDENTIAL_ASK.search(email_body) and _LINK.search(email_body))
+
+
+def input_reasons(req: "ProcessEmailRequest", is_phishing: bool,
+                  second_category: str | None, category: str) -> list[str]:
+    reasons = []
+    if is_phishing:
+        reasons.append("possible phishing: asks for credentials beside a link")
+    if second_category and second_category != category:
+        reasons.append(f"routing models disagree: {category} vs {second_category}")
+    if not req.rag_context.strip():
+        reasons.append("no policy context retrieved: reply is not grounded")
+    return reasons
+
+
+async def second_opinion(req: "ProcessEmailRequest", is_phishing: bool) -> str | None:
+    """A different model's routing, asked only when something about the email raises doubt.
+
+    Costs one call on the rare email that needs it, rather than doubling every draft.
+    """
+    model = second_opinion_model()
+    if not (is_phishing and model):
+        return None
+    return await route_email(req.thread_context, req.email_body, model=model)
+
+
 # ---------- Orchestrator endpoint ----------
 
 MAX_REFINE_ATTEMPTS = 3
@@ -491,14 +543,17 @@ def _unavailable(error: GeminiError) -> HTTPException:
 @app.post("/process-email", response_model=ProcessEmailResponse)
 async def process_email(req: ProcessEmailRequest) -> ProcessEmailResponse:
     try:
-        with deadline():
-            return await _process_email(req)
+        with deadline(), track_calls() as calls:
+            response = await _process_email(req)
     except GeminiError as error:
         raise _unavailable(error) from error
+    return response.model_copy(update={"model_calls": calls})
 
 
 async def _process_email(req: ProcessEmailRequest) -> ProcessEmailResponse:
     category = await route_email(req.thread_context, req.email_body)
+    is_phishing = phishing_signal(req.email_body)
+    signals = input_reasons(req, is_phishing, await second_opinion(req, is_phishing), category)
 
     summary = await extract_summary(req.email_body, req.thread_context, req.rag_context)
     action_items = await extract_actions(req.email_body)
@@ -512,7 +567,7 @@ async def _process_email(req: ProcessEmailRequest) -> ProcessEmailResponse:
             action_items=action_items,
             attempts=0,
             needs_human_review=True,
-            review_reasons=["no reply drafted"],
+            review_reasons=["no reply drafted", *signals],
         )
 
     draft = await generate_reply(category, req.thread_context, req.rag_context, req.email_body, req.tone)
@@ -531,7 +586,8 @@ async def _process_email(req: ProcessEmailRequest) -> ProcessEmailResponse:
     pii_findings = await scan_draft_pii(draft)
     specifics = unsupported_specifics(draft, req.email_body, req.thread_context, req.rag_context)
     unaddressed = unaddressed_requests(evaluation, action_items)
-    reasons = build_review_reasons(evaluation, confidence, attempts, pii_findings, specifics, unaddressed)
+    reasons = [*signals, *build_review_reasons(evaluation, confidence, attempts, pii_findings,
+                                               specifics, unaddressed)]
 
     return ProcessEmailResponse(
         category=category,

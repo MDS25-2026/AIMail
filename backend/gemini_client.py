@@ -16,7 +16,7 @@ import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from enum import StrEnum
 
 import httpx
@@ -83,8 +83,41 @@ class CircuitBreaker:
             self.opened_at = self.clock()
 
 
+@dataclass(frozen=True)
+class ModelCall:
+    """One attempt, kept per draft so a slow or rescued draft shows why."""
+
+    model: str
+    outcome: str  # "ok", "http_<status>", "transport_error" or "circuit_open"
+    ms: int
+
+
+OUTCOME_OK = "ok"
+OUTCOME_TRANSPORT_ERROR = "transport_error"
+OUTCOME_CIRCUIT_OPEN = "circuit_open"
+
 _breakers: dict[str, CircuitBreaker] = {}
 _deadline: ContextVar[float | None] = ContextVar("gemini_deadline", default=None)
+_calls: ContextVar[list[ModelCall] | None] = ContextVar("gemini_calls", default=None)
+
+
+@contextmanager
+def track_calls() -> Iterator[list[dict]]:
+    """Collect every attempt made inside the block, as JSON-ready dicts once it exits."""
+    calls: list[ModelCall] = []
+    report: list[dict] = []
+    token = _calls.set(calls)
+    try:
+        yield report
+    finally:
+        _calls.reset(token)
+        report.extend(asdict(call) for call in calls)
+
+
+def _record(model: str, outcome: str, started: float) -> None:
+    calls = _calls.get()
+    if calls is not None:
+        calls.append(ModelCall(model, outcome, round((time.monotonic() - started) * 1000)))
 
 
 @contextmanager
@@ -117,6 +150,12 @@ def models_in_order() -> list[str]:
     primary = os.getenv("GEMINI_AGENT_MODEL") or DEFAULT_MODEL
     fallback = os.getenv("GEMINI_FALLBACK_MODEL") or ""
     return [primary, fallback] if fallback and fallback != primary else [primary]
+
+
+def second_opinion_model() -> str | None:
+    """A model other than the primary, when one is configured."""
+    models = models_in_order()
+    return models[1] if len(models) > 1 else None
 
 
 def breaker_for(model: str) -> CircuitBreaker:
@@ -187,12 +226,16 @@ async def _wait_before_retry(model: str, attempt: int, retry_after: str | None) 
 async def call_model(model: str, payload: dict) -> dict:
     """One model, retried on transient failures within the shared deadline."""
     for attempt in range(ATTEMPTS_PER_MODEL):
+        started = time.monotonic()
         try:
             response = await _post(model, payload, _attempt_timeout())
         except httpx.TransportError as error:
+            _record(model, OUTCOME_TRANSPORT_ERROR, started)
             logger.warning("gemini %s attempt %d failed: %r", model, attempt + 1, error)
             retry_after = None
         else:
+            _record(model, OUTCOME_OK if response.is_success else f"http_{response.status_code}",
+                    started)
             if response.is_success:
                 return response.json()
             if response.status_code not in RETRYABLE_STATUS:
@@ -207,15 +250,20 @@ async def call_model(model: str, payload: dict) -> dict:
 
 
 async def generate(prompt: str, response_schema: dict | None = None,
-                   max_output_tokens: int | None = None) -> dict | str:
-    """Ask the primary model, then the fallback; parsed JSON when a schema is given."""
+                   max_output_tokens: int | None = None,
+                   models: list[str] | None = None) -> dict | str:
+    """Ask the primary model, then the fallback; parsed JSON when a schema is given.
+
+    `models` replaces the configured order, for a caller that wants one specific model's view.
+    """
     payload = gemini_payload(prompt, response_schema, max_output_tokens)
-    models = models_in_order()
+    models = models or models_in_order()
     failure: GeminiError | None = None
     for position, model in enumerate(models):
         breaker = breaker_for(model)
         # The last model is always tried: skipping it would leave nothing to answer.
         if breaker.is_open() and position < len(models) - 1:
+            _record(model, OUTCOME_CIRCUIT_OPEN, time.monotonic())
             logger.warning("gemini %s skipped: circuit open", model)
             continue
         try:

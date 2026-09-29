@@ -146,6 +146,8 @@ async def _generate_and_store(message: Message, tone: str = "professional") -> b
         "completeness": generated.get("completeness"),
         "pii_findings": generated.get("pii_findings") or [],
         "review_reasons": generated.get("review_reasons") or [],
+        # Which models answered and how many retries it took; no content, only outcomes and ms.
+        "model_calls": generated.get("model_calls") or [],
     }
     message.needs_human_review = bool(generated.get("needs_human_review"))
     message.generated_at = datetime.now(timezone.utc)
