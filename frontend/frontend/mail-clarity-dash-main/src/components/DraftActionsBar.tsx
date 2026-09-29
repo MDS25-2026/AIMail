@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 import ApproveSendButton from "./ApproveSendButton";
 
 type DraftActionsBarProps = {
@@ -21,6 +23,7 @@ export default function DraftActionsBar({
 }: DraftActionsBarProps) {
   // Every mutation blocks the others: the draft must not change under a send, and a send must
   // not go out mid-change. Sending is the irreversible one, so it is the one guarded hardest.
+  const { t } = useTranslation();
   const isDraftChanging = isRegenerating || isRefining;
   return (
     <div className="flex items-center justify-end gap-2">
@@ -28,9 +31,9 @@ export default function DraftActionsBar({
         type="button"
         disabled={emailId === null || isRegenerating || isRefining || isSending}
         onClick={() => emailId && onRegenerate(emailId)}
-        className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+        className="rounded-md border border-line-strong bg-surface px-4 py-2 text-sm font-medium text-fg-body hover:bg-surface-muted disabled:cursor-not-allowed disabled:text-fg-subtle"
       >
-        {isRegenerating ? "Regenerating…" : "Regenerate"}
+        {isRegenerating ? t("draft.regenerating") : t("draft.regenerate")}
       </button>
       <ApproveSendButton
         emailId={emailId}

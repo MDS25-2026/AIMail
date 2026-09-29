@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 
 type RefineInputProps = {
   emailId: string;
@@ -6,9 +7,11 @@ type RefineInputProps = {
   disabled?: boolean;
 };
 
-const SUGGESTIONS = ["Make it more direct", "Add a deadline"];
+// Keys, not text: the suggestion is sent to the model in the reader's language.
+const SUGGESTIONS = ["refine.suggestionDirect", "refine.suggestionDeadline"] as const;
 
 export default function RefineInput({ emailId, onRefine, disabled = false }: RefineInputProps) {
+  const { t } = useTranslation();
   const [instruction, setInstruction] = useState("");
 
   const handleSubmit = (event: FormEvent) => {
@@ -27,15 +30,16 @@ export default function RefineInput({ emailId, onRefine, disabled = false }: Ref
           value={instruction}
           disabled={disabled}
           onChange={(event) => setInstruction(event.target.value)}
-          placeholder="Ask AI to refine reply..."
-          className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 disabled:bg-slate-50"
+          placeholder={t("refine.placeholder")}
+          aria-label={t("refine.placeholder")}
+          className="flex-1 rounded-md border border-line-strong px-3 py-2 text-sm text-fg placeholder:text-fg-subtle disabled:bg-surface-muted"
         />
         <button
           type="submit"
           disabled={disabled}
-          className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+          className="rounded-md border border-line-strong bg-surface px-3 py-2 text-sm font-medium text-fg-body hover:bg-surface-muted disabled:cursor-not-allowed disabled:text-fg-subtle"
         >
-          {disabled ? "Refining…" : "Refine"}
+          {disabled ? t("refine.pending") : t("refine.submit")}
         </button>
       </form>
 
@@ -45,10 +49,10 @@ export default function RefineInput({ emailId, onRefine, disabled = false }: Ref
             key={suggestion}
             type="button"
             disabled={disabled}
-            onClick={() => onRefine(emailId, suggestion)}
-            className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+            onClick={() => onRefine(emailId, t(suggestion))}
+            className="rounded-full border border-line bg-surface px-2.5 py-1 text-xs text-fg-body hover:bg-surface-muted disabled:cursor-not-allowed disabled:text-fg-subtle"
           >
-            {suggestion}
+            {t(suggestion)}
           </button>
         ))}
       </div>

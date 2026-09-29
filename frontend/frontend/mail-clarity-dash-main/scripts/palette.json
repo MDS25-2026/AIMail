@@ -1,0 +1,187 @@
+{
+  "_why": "One source for the semantic colours; styles.css carries the same values and scripts/check-palette.py verifies them: WCAG 2.1 contrast, and at least dE 20 between status colours under normal, protan, deutan and tritan vision (Machado et al. 2009). Success and danger were chosen by searching within their hue families for the largest worst-case separation, because dark orange and dark red (the obvious warning/danger pair) collapse to one colour for red-green colour-blind readers. Info reuses the brand blue: a second blue merged with green under tritan vision.",
+  "light": {
+    "app": "#eef1f5",
+    "surface": "#ffffff",
+    "surface-muted": "#f6f8fa",
+    "surface-sunken": "#e4e8ee",
+    "fg": "#14213a",
+    "fg-body": "#334155",
+    "fg-muted": "#526077",
+    "fg-subtle": "#606e84",
+    "line": "#d5dbe3",
+    "line-subtle": "#e7ebf0",
+    "line-strong": "#838fa1",
+    "brand": "#1e3a6e",
+    "brand-strong": "#16294d",
+    "brand-soft": "#e9f0fb",
+    "brand-line": "#c9d8ef",
+    "on-brand": "#ffffff",
+    "rail": "#0f1f3d",
+    "rail-hover": "#16294d",
+    "rail-active": "#1d3157",
+    "rail-fg": "#b9c6e2",
+    "on-rail": "#ffffff",
+    "success": "#007551",
+    "success-soft": "#e2f4ec",
+    "success-line": "#8fcdb3",
+    "warning": "#7a4a00",
+    "warning-soft": "#fdf1d8",
+    "warning-line": "#e6b85c",
+    "danger": "#bd00ab",
+    "danger-soft": "#fbe8f7",
+    "danger-line": "#e7a3de",
+    "info": "#1e3a6e",
+    "info-soft": "#e9f0fb",
+    "info-line": "#c9d8ef"
+  },
+  "dark": {
+    "app": "#0b1220",
+    "surface": "#131c2e",
+    "surface-muted": "#18233a",
+    "surface-sunken": "#0f1728",
+    "fg": "#eef2f8",
+    "fg-body": "#cfd7e3",
+    "fg-muted": "#a3afc2",
+    "fg-subtle": "#8c99ae",
+    "line": "#2a3650",
+    "line-subtle": "#1f2a40",
+    "line-strong": "#6a7a96",
+    "brand": "#8fb3ef",
+    "brand-strong": "#b3cbf5",
+    "brand-soft": "#1b2a47",
+    "brand-line": "#34507f",
+    "on-brand": "#0b1220",
+    "rail": "#070d19",
+    "rail-hover": "#131c2e",
+    "rail-active": "#1b2a47",
+    "rail-fg": "#a9b8d6",
+    "on-rail": "#ffffff",
+    "success": "#51fcd8",
+    "success-soft": "#0d2f28",
+    "success-line": "#1f6b5a",
+    "warning": "#f2c46b",
+    "warning-soft": "#332508",
+    "warning-line": "#7a5a17",
+    "danger": "#e1636c",
+    "danger-soft": "#3a1519",
+    "danger-line": "#823640",
+    "info": "#8fb3ef",
+    "info-soft": "#1b2a47",
+    "info-line": "#34507f"
+  },
+  "text_pairs": [
+    [
+      "fg",
+      "surface"
+    ],
+    [
+      "fg",
+      "app"
+    ],
+    [
+      "fg-body",
+      "surface"
+    ],
+    [
+      "fg-muted",
+      "surface"
+    ],
+    [
+      "fg-muted",
+      "surface-muted"
+    ],
+    [
+      "fg-subtle",
+      "surface"
+    ],
+    [
+      "fg-muted",
+      "app"
+    ],
+    [
+      "brand",
+      "surface"
+    ],
+    [
+      "on-brand",
+      "brand"
+    ],
+    [
+      "rail-fg",
+      "rail"
+    ],
+    [
+      "on-rail",
+      "rail-active"
+    ],
+    [
+      "success",
+      "success-soft"
+    ],
+    [
+      "warning",
+      "warning-soft"
+    ],
+    [
+      "danger",
+      "danger-soft"
+    ],
+    [
+      "info",
+      "info-soft"
+    ],
+    [
+      "brand",
+      "brand-soft"
+    ],
+    [
+      "success",
+      "surface"
+    ],
+    [
+      "danger",
+      "surface"
+    ],
+    [
+      "fg",
+      "warning-soft"
+    ],
+    [
+      "fg-body",
+      "surface-sunken"
+    ],
+    [
+      "fg-subtle",
+      "surface-muted"
+    ]
+  ],
+  "non_text_pairs": [
+    [
+      "line-strong",
+      "surface"
+    ],
+    [
+      "brand",
+      "surface"
+    ],
+    [
+      "success",
+      "surface"
+    ],
+    [
+      "warning",
+      "surface"
+    ],
+    [
+      "danger",
+      "surface"
+    ]
+  ],
+  "must_differ": [
+    "success",
+    "warning",
+    "danger",
+    "brand"
+  ]
+}

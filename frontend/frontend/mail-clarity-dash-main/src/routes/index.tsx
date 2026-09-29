@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import InboxList from "../components/InboxList";
 import EmailDetailPanel from "../components/EmailDetailPanel";
@@ -11,6 +12,7 @@ import {
   useRegenerateEmail,
   useSendEmail,
 } from "../lib/queries";
+import { useInboxKeyboard } from "../lib/useInboxKeyboard";
 import type { Tone } from "../types/email";
 
 export const Route = createFileRoute("/")({
@@ -36,7 +38,10 @@ export const Route = createFileRoute("/")({
 });
 
 function DashboardPage() {
+  const { t } = useTranslation();
   const emails = useEmails();
+  // Read out by screen readers when a slow action finishes, since the result appears elsewhere.
+  const [announcement, setAnnouncement] = useState("");
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
   const selected = useEmail(selectedEmailId);
 
@@ -60,22 +65,30 @@ function DashboardPage() {
   // two regenerates for the SAME email resolve into the same cache entry, so a slow first
   // response could still overwrite a newer one.
   const requestSeqRef = useRef(0);
-  const runDraftMutation = (run: () => Promise<unknown>) => {
+  const runDraftMutation = (run: () => Promise<unknown>, done: string) => {
     const seq = ++requestSeqRef.current;
     void run()
       .then(() => {
-        if (seq === requestSeqRef.current) setDraftOverride(null);
+        if (seq !== requestSeqRef.current) return;
+        setDraftOverride(null);
+        setAnnouncement(done);
       })
       .catch(() => {
         // Keep whatever is on screen; the mutation's error state drives the UI.
       });
   };
 
-  const handleSelectEmail = (emailId: string) => {
+  const handleSelectEmail = useCallback((emailId: string) => {
     setSelectedEmailId(emailId);
     setDraftOverride(null);
     setToneOverride(null);
-  };
+  }, []);
+
+  useInboxKeyboard(
+    (emails.data ?? []).map((item) => item.id),
+    selectedEmailId,
+    handleSelectEmail,
+  );
 
   const didAutoSelectRef = useRef(false);
   useEffect(() => {
@@ -88,25 +101,33 @@ function DashboardPage() {
   }, [emails.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onRegenerate = (emailId: string) => {
-    runDraftMutation(() => regenerate.mutateAsync({ emailId, tone }));
+    runDraftMutation(() => regenerate.mutateAsync({ emailId, tone }), t("announce.regenerated"));
   };
 
   const onRefine = (emailId: string, instruction: string) => {
-    runDraftMutation(() => refine.mutateAsync({ emailId, instruction, draft }));
+    runDraftMutation(
+      () => refine.mutateAsync({ emailId, instruction, draft }),
+      t("announce.refined"),
+    );
   };
 
   const onToneChange = (emailId: string, nextTone: Tone) => {
     setToneOverride(nextTone);
-    runDraftMutation(() => regenerate.mutateAsync({ emailId, tone: nextTone }));
+    runDraftMutation(
+      () => regenerate.mutateAsync({ emailId, tone: nextTone }),
+      t("announce.regenerated"),
+    );
   };
 
   const onApproveSend = (emailId: string) => {
     send.mutate(
       { emailId, draft },
       {
-        onSuccess: () => setDraftOverride(null),
-        onError: () =>
-          window.alert("Send failed — check the backend and email agent, then try again."),
+        onSuccess: () => {
+          setDraftOverride(null);
+          setAnnouncement(t("announce.sent"));
+        },
+        onError: () => window.alert(t("draft.sendFailed")),
       },
     );
   };
@@ -114,7 +135,10 @@ function DashboardPage() {
   return (
     <AppShell>
       <>
-        <aside className="w-80 shrink-0 border-r border-slate-200 bg-white">
+        <p role="status" aria-live="polite" className="sr-only">
+          {announcement}
+        </p>
+        <aside className="w-80 shrink-0 border-r border-line bg-surface">
           <InboxList
             emails={emails.data ?? []}
             selectedEmailId={selectedEmailId}
@@ -122,7 +146,7 @@ function DashboardPage() {
           />
         </aside>
 
-        <section className="min-w-0 flex-1 bg-slate-50">
+        <section className="min-w-0 flex-1 bg-surface-muted">
           <EmailDetailPanel
             email={email}
             draft={draft}

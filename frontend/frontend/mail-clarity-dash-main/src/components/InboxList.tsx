@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 import type { Email } from "../types/email";
 import EmailListItem from "./EmailListItem";
 
@@ -8,13 +10,15 @@ type InboxListProps = {
 };
 
 export default function InboxList({ emails, selectedEmailId, onSelectEmail }: InboxListProps) {
+  const { t } = useTranslation();
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-slate-200 px-4 py-3">
-        <h2 className="text-sm font-semibold text-slate-800">Inbox</h2>
-        <p className="text-xs text-slate-500">{emails.length} messages</p>
+      <div className="border-b border-line px-4 py-3">
+        <h2 className="text-sm font-semibold text-fg">{t("inbox.heading")}</h2>
+        <p className="text-xs text-fg-muted">{t("inbox.count", { count: emails.length })}</p>
+        <p className="mt-0.5 text-[11px] text-fg-subtle">{t("inbox.keyboardHint")}</p>
       </div>
-      <ul className="flex-1 divide-y divide-slate-100 overflow-y-auto">
+      <ul className="flex-1 divide-y divide-line-subtle overflow-y-auto">
         {emails.map((email) => (
           <EmailListItem
             key={email.id}

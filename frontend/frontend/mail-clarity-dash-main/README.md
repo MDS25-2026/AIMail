@@ -104,3 +104,20 @@ cd <repository-name>
 npm i
 npm run dev
 ```
+
+## Colours, themes and languages
+
+- **Never use raw Tailwind colours** (`bg-white`, `text-slate-700`, `bg-red-50`). Use the semantic
+  classes: `bg-app`, `bg-surface`, `bg-surface-muted`, `text-fg`, `text-fg-body`, `text-fg-muted`,
+  `text-fg-subtle`, `border-line`, `bg-brand` / `text-on-brand`, and for status `success`,
+  `warning`, `danger`, `info` (each with `-soft` and `-line`). Dark mode is then one class on
+  `<html>` and needs nothing per component.
+- **Colours live in `scripts/palette.json`.** `python3 scripts/check-palette.py` verifies WCAG 2.1
+  contrast in both themes and that status colours stay distinguishable under protan, deutan and
+  tritan colour blindness; `--write` regenerates `src/palette.css`. Never edit that file by hand.
+- **Status never rests on colour alone** (WCAG 1.4.1): pair it with an icon and words.
+- **Every visible string comes from `src/locales/`** via `useTranslation()`. `en.ts` is the master;
+  `ms.ts` and `zh.ts` are typed against it, so a missing key fails `tsc`. Malay and Chinese need a
+  native reviewer before release.
+- Theme, language and unit system are cookies (`src/lib/preferences.ts`), read on the server so the
+  first paint is already right. The reader changes them in Settings.

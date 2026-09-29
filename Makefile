@@ -21,8 +21,9 @@ test:  ## backend unit tests
 lint:  ## backend lint
 	cd backend && ../$(VENV)/ruff check app tests scripts email_agent.py gemini_client.py
 
-typecheck:  ## dashboard strict typecheck
+typecheck:  ## dashboard strict typecheck, and the palette's contrast and colour-blind checks
 	cd frontend/frontend/mail-clarity-dash-main && npx tsc --noEmit
+	cd frontend/frontend/mail-clarity-dash-main && python3 scripts/check-palette.py > /dev/null
 
 dev:  ## run ALL services (backend, agent, web, listener) in one terminal; Ctrl+C stops all
 	./dev.sh

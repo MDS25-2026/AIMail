@@ -1,4 +1,4 @@
-import type { Email } from "../types/email";
+import type { Email, Translation } from "../types/email";
 import type { PolicyDocument, SystemInfo } from "../types/knowledge";
 
 /** Backend base URL. Defaults to the local backend; override with VITE_BACKEND_URL for other envs. */
@@ -45,6 +45,17 @@ export async function refineEmail(id: string, instruction: string, draft: string
     body: JSON.stringify({ instruction, draft }),
   });
   if (!res.ok) throw new Error(`POST /emails/${id}/refine failed (${res.status})`);
+  return res.json();
+}
+
+/** The masked body in another language. 422 means the translation failed its faithfulness checks. */
+export async function translateEmail(id: string, language: string): Promise<Translation> {
+  const res = await fetch(`${BASE}/emails/${id}/translate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ language }),
+  });
+  if (!res.ok) throw new Error(`POST /emails/${id}/translate failed (${res.status})`);
   return res.json();
 }
 

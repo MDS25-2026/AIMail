@@ -21,6 +21,7 @@ import {
   refineEmail,
   regenerateEmail,
   sendEmail,
+  translateEmail,
   uploadDocument,
 } from "./api";
 import type { Email, Tone } from "../types/email";
@@ -30,6 +31,7 @@ export const queryKeys = {
   email: (id: string) => ["email", id] as const,
   documents: ["documents"] as const,
   systemInfo: ["system-info"] as const,
+  translation: (id: string, language: string) => ["translation", id, language] as const,
 };
 
 export function useEmails() {
@@ -72,6 +74,26 @@ function useDraftMutation<TVariables>(mutationFn: (variables: TVariables) => Pro
       queryClient.setQueryData(queryKeys.email(updated.id), updated);
       queryClient.invalidateQueries({ queryKey: queryKeys.emails });
     },
+  });
+}
+
+/**
+ * A translation is a query, not a mutation: keyed by email and language, and never stale, so
+ * switching back and forth between original and translation costs one model call, not one per
+ * click. Idle until the reader asks. No retry: a 422 means the text failed its faithfulness
+ * checks, and asking again would only spend quota on the same refusal.
+ */
+export function useEmailTranslation(
+  emailId: string | null,
+  language: string,
+  isRequested: boolean,
+) {
+  return useQuery({
+    queryKey: queryKeys.translation(emailId ?? "", language),
+    queryFn: () => translateEmail(emailId as string, language),
+    enabled: emailId !== null && isRequested,
+    staleTime: Infinity,
+    retry: false,
   });
 }
 

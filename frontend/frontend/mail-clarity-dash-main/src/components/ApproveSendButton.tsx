@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 type ApproveSendButtonProps = {
   emailId: string | null;
   onApproveSend: (emailId: string) => void;
@@ -19,14 +21,20 @@ export default function ApproveSendButton({
   isSent = false,
   isDraftChanging = false,
 }: ApproveSendButtonProps) {
+  const { t } = useTranslation();
   const disabled = emailId === null || isSending || isSent || isDraftChanging;
-  const label = isSent ? "Sent" : isSending ? "Sending…" : "Approve & Send";
+  const label = isSent ? t("draft.sent") : isSending ? t("draft.sending") : t("draft.approveSend");
   const className = isSent
-    ? "rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-default"
-    : "rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300";
+    ? "rounded-md bg-success px-4 py-2 text-sm font-semibold text-surface disabled:cursor-default"
+    : "rounded-md bg-brand px-4 py-2 text-sm font-semibold text-on-brand hover:bg-brand-strong disabled:cursor-not-allowed disabled:bg-surface-sunken disabled:text-fg-subtle";
 
   return (
-    <button type="button" disabled={disabled} onClick={() => emailId && onApproveSend(emailId)} className={className}>
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={() => emailId && onApproveSend(emailId)}
+      className={className}
+    >
       {label}
     </button>
   );
