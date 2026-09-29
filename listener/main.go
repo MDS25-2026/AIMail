@@ -612,6 +612,16 @@ func ingestNewestInbox(ctx context.Context, srv *gmail.Service) error {
 
 // ingestMessage fetches one message by ID, masks its PII, and persists it plus an audit entry.
 func ingestMessage(ctx context.Context, srv *gmail.Service, msgID string) error {
+	// A failed lookup falls through to a normal ingest: dropping a message is worse than paying
+	// for OCR twice, and the insert's on_conflict still keeps the row single.
+	isStored, err := messageStored(ctx, msgID)
+	if err != nil {
+		log.Printf("could not check whether %s is stored, ingesting anyway: %v", msgID, err)
+	}
+	if isStored {
+		return nil
+	}
+
 	msg, err := srv.Users.Messages.Get("me", msgID).Format("full").Do()
 	if err != nil {
 		log.Printf("Could not retrieve message details: %v", err)
