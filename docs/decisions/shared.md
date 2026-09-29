@@ -6,6 +6,21 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-09-29 — Masking fails closed; admin console on Supabase Auth
+- Decision (#109): a message whose NER masking cannot complete is quarantined
+  (`messages.masking_status = 'pending'`, no content) and completed by the listener when Presidio
+  recovers. Lane B never drafts, refines, translates or scores a pending row; Lane D shows it as
+  awaiting masking. Migration 0012 applied.
+- Decision (ADR 0004): the admin console authenticates Supabase users with
+  `app_metadata.role = "admin"`, tokens held in HttpOnly cookies by the backend. The rest of the
+  API keeps the shared token until it moves to the same JWTs.
+- Why: the previous "degrade to regex-only" policy stored real names (observed, #109; the admin
+  console shows 5 such stores in the last 30 days). The shared token is compiled into the browser
+  bundle, so it cannot gate operator data.
+- Affects: Lane A (`listener/quarantine.go`, `main.go`), Lane B (`app/admin/`, `app/dashboard.py`,
+  `app/main.py` CORS credentials, migration 0012), Lane D (`/admin`, quarantine notice), CI.
+- Status: implemented; needs JiaJun's review of the quarantine loop and Elyesa's of the admin API.
+
 ### 2026-09-29 — One PR across all four lanes: resilience, reading, normalisation, surfaces
 - Decision: a single bundled PR (branch `feat/hackathon-reuse`, stacked on #113) carries work in
   every lane, approved by the mailbox owner on 2026-09-29 as one reviewable unit. The cross-lane
