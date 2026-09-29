@@ -7,6 +7,8 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
+from app.core.logging_setup import configure_logging
+from app.core.middleware import request_context
 from gemini_client import GeminiError, GeminiErrorCode, deadline, generate
 
 load_dotenv()
@@ -20,7 +22,11 @@ _SERVICE_UNAVAILABLE = 503
 
 ROUTER_CATEGORIES = ("STANDARD", "COMPLEX", "NA")
 
+configure_logging()
+
 app = FastAPI()
+# Same request id as the backend call that asked for the draft, so both logs line up.
+app.middleware("http")(request_context)
 
 
 # ---------- Pydantic schemas: request/response contract ----------

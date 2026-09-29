@@ -17,6 +17,8 @@ from sqlalchemy import select
 from app.audit import audit
 from app.contracts import DashboardEmail
 from app.core.config import get_settings
+from app.core.logging_setup import request_id
+from app.core.middleware import REQUEST_ID_HEADER
 from app.db.models import Message
 from app.db.session import get_sessionmaker
 from app.gmail_send import SendError, send_reply
@@ -26,6 +28,8 @@ from app.rag.retrieve import retrieve
 from app.rag.utils import format_rag_context
 
 logger = logging.getLogger(__name__)
+
+AGENT_TIMEOUT_SECONDS = 120
 
 
 def _to_email(message: Message, policy: Policy = DEFAULT_POLICY) -> DashboardEmail:
@@ -84,6 +88,18 @@ _TONE_PROMPTS = {
 }
 
 
+async def _call_agent(path: str, payload: dict) -> dict:
+    """POST to Lane C, carrying this request's id so both services' logs line up."""
+    url = get_settings().email_agent_url.rstrip("/") + path
+    # Lane C runs a multi-step pipeline under its own 100 s deadline; this sits just above it.
+    async with httpx.AsyncClient(timeout=AGENT_TIMEOUT_SECONDS) as client:
+        response = await client.post(
+            url, json=payload, headers={REQUEST_ID_HEADER: request_id.get()}
+        )
+        response.raise_for_status()
+        return response.json()
+
+
 async def _generate(message: Message, tone: str = "professional") -> dict:
     """Retrieve policy context (Lane B) and call Lane C's /process-email. Returns {} on any failure."""
     try:
@@ -94,12 +110,7 @@ async def _generate(message: Message, tone: str = "professional") -> dict:
             "rag_context": format_rag_context(chunks),
             "tone": _TONE_PROMPTS.get(tone, _TONE_PROMPTS["professional"]),
         }
-        url = get_settings().email_agent_url.rstrip("/") + "/process-email"
-        # Lane C runs a multi-step pipeline; keep a generous timeout so a slow run isn't dropped.
-        async with httpx.AsyncClient(timeout=120) as client:
-            response = await client.post(url, json=payload)
-            response.raise_for_status()
-            return response.json()
+        return await _call_agent("/process-email", payload)
     except (httpx.HTTPError, EmbeddingError, ValueError) as exc:
         logger.warning("draft generation failed for message %s: %s", message.id, exc)
         return {}
@@ -215,11 +226,7 @@ async def _refine(message: Message, draft: str, instruction: str) -> str | None:
     """Call Lane C's /refine to revise a draft per a user instruction. None on failure."""
     try:
         payload = {"email_body": message.body_masked or "", "draft": draft, "instruction": instruction}
-        url = get_settings().email_agent_url.rstrip("/") + "/refine"
-        async with httpx.AsyncClient(timeout=120) as client:
-            response = await client.post(url, json=payload)
-            response.raise_for_status()
-            return response.json().get("draft")
+        return (await _call_agent("/refine", payload)).get("draft")
     except (httpx.HTTPError, ValueError) as exc:
         logger.warning("refine failed for message %s: %s", message.id, exc)
         return None

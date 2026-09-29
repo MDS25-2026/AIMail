@@ -19,3 +19,7 @@ PDF_MAGIC = b"%PDF-"  # a .pdf extension is a claim; the header is evidence
 # uploading a folder of policy PDFs never trips it.
 INGEST_RATE_LIMIT = 20
 INGEST_RATE_WINDOW_SECONDS = 60
+# Each request on these routes costs Gemini calls (a regenerate is ~6). Ten a minute is far above
+# a person clicking and far below what drains the free tier.
+GENERATION_RATE_LIMIT = 10
+GENERATION_RATE_WINDOW_SECONDS = 60

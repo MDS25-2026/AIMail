@@ -28,7 +28,7 @@ DEFAULT_MODEL = "gemini-3.5-flash-lite"
 # Greedy decoding for reproducibility. Reduces sampling randomness; does not guarantee determinism.
 TEMPERATURE = 0.0
 ATTEMPT_TIMEOUT_SECONDS = 30.0
-# Below the dashboard's 120 s client timeout (app/dashboard.py), with room for retrieval before it.
+# Below the dashboard's AGENT_TIMEOUT_SECONDS (app/dashboard.py), with room for retrieval first.
 DEFAULT_DEADLINE_SECONDS = 100.0
 ATTEMPTS_PER_MODEL = 3
 BACKOFF_BASE_SECONDS = 2.0

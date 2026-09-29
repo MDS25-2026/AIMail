@@ -29,6 +29,18 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
 - Ingestion routes (`POST /documents`, `POST /documents/upload`) are rate limited to 20
   requests per 60s per client IP; over that returns `429` with `Retry-After`. Uploads are
   capped at 10 MB (`413`) and must carry a real `%PDF-` header (`400`).
+- Model-spending routes (`POST /search`, `POST /ask`, `POST /emails/{id}/regenerate`,
+  `POST /emails/{id}/refine`) are rate limited to 10 requests per 60s per client IP; over that
+  returns `429` with `Retry-After`.
+- Every response carries `X-Request-ID` (a caller-supplied one is kept when it is 1-64 chars of
+  `[A-Za-z0-9._-]`, otherwise replaced), and the backend forwards it to Lane C so both logs share
+  it. Every response also carries `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`,
+  `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer` and a `default-src 'none'` CSP (the
+  demo page at `/` gets a CSP that allows its inline script). Implementation:
+  `backend/app/core/middleware.py`.
+- Lane C's `/process-email` and `/refine` answer `503` (or `504` when the draft's deadline ran
+  out) with `{"detail": "<gemini error code>"}` when Gemini fails. See
+  [`../features/llm-resilience.md`](../features/llm-resilience.md).
 - The Lane C agent (`:8001`) carries no token of its own and is bound to `127.0.0.1`; it is
   reachable only by the backend on the same host.
 - Errors follow this shape:

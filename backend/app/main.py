@@ -26,7 +26,9 @@ from app.core.constants import (
     PDF_MAGIC,
     UPLOAD_CHUNK_BYTES,
 )
-from app.core.ratelimit import rate_limit_ingest
+from app.core.logging_setup import configure_logging
+from app.core.middleware import request_context
+from app.core.ratelimit import rate_limit_generation, rate_limit_ingest
 from app.dashboard import (
     approve_and_send,
     email_detail,
@@ -43,7 +45,10 @@ from app.rag.ingest import ingest_text
 from app.rag.library import DocumentSummary, list_documents
 from app.rag.retrieve import ContextChunk, retrieve
 
+configure_logging()
+
 app = FastAPI(title="AImail backend", dependencies=[Depends(require_auth)])
+app.middleware("http")(request_context)
 
 # Dev CORS so the Next.js frontend can call this API cross-origin. The regex covers any
 # localhost/127.0.0.1 port (they are distinct origins to the browser); FRONTEND_ORIGIN adds
@@ -177,12 +182,12 @@ async def demo_page() -> FileResponse:
     return FileResponse(_STATIC / "demo.html")
 
 
-@app.post("/search")
+@app.post("/search", dependencies=[Depends(rate_limit_generation)])
 async def search(request: SearchRequest) -> list[ContextChunk]:
     return await retrieve(request.query, request.k)
 
 
-@app.post("/ask")
+@app.post("/ask", dependencies=[Depends(rate_limit_generation)])
 async def ask(request: AskRequest) -> AskResponse:
     # Full RAG loop demo: retrieve policy chunks, then generate a grounded answer from them.
     chunks = await retrieve(request.question, request.k)
@@ -209,7 +214,7 @@ class RegenerateRequest(BaseModel):
     tone: str = "professional"  # "professional" | "casual"
 
 
-@app.post("/emails/{message_id}/regenerate")
+@app.post("/emails/{message_id}/regenerate", dependencies=[Depends(rate_limit_generation)])
 async def regenerate_email_route(
     message_id: str, body: RegenerateRequest | None = None
 ) -> DashboardEmail:
@@ -225,7 +230,7 @@ class RefineRequest(BaseModel):
     draft: str  # the current draft to revise
 
 
-@app.post("/emails/{message_id}/refine")
+@app.post("/emails/{message_id}/refine", dependencies=[Depends(rate_limit_generation)])
 async def refine_email_route(message_id: str, body: RefineRequest) -> DashboardEmail:
     # Revise the current draft per the user's instruction (dashboard's Refine box).
     email = await refine_email(message_id, body.instruction, body.draft)
