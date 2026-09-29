@@ -6,6 +6,25 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-09-29 — One PR across all four lanes: resilience, reading, normalisation, surfaces
+- Decision: a single bundled PR (branch `feat/hackathon-reuse`, stacked on #113) carries work in
+  every lane, approved by the mailbox owner on 2026-09-29 as one reviewable unit. The cross-lane
+  seams it changes:
+  - `DashboardEmail` gains `sources` fields (`chunkId`, `excerpt`, `score`) and `quantities`;
+    both additive. `POST /emails/{id}/translate` is new (Lane B route, Lane C `/translate`).
+  - Lane C (`email_agent.py`) now imports shared backend modules: `app.core.logging_setup`,
+    `app.core.middleware` and `app.normalise`, instead of keeping private copies. The figures gate
+    and the translation checks read numbers through the same layer the dashboard does.
+  - Lane A's attachment reader is a new local container replacing `presidio-image-redactor`.
+  - Migrations 0009 (thread identity) and 0011 (`rag_sources`) are applied.
+- Why one PR: the owner's review queue is the bottleneck, and the pieces share contracts (the
+  normalisation layer feeds the gate, the dashboard and translation).
+- Why the agent imports `app.*` rather than copying: a second copy of number parsing is how the
+  gate and the dashboard would come to disagree about what "18.400,00" means.
+- Affects: all lanes. Owners to review their folders: JiaJun (`listener/`), Elyesa
+  (`backend/app/`), Hanif (`email_agent.py`, `gemini_client.py`), Han (the dashboard).
+- Status: implemented; awaiting each owner's review.
+
 ### 2026-09-29 — Replies read the original's headers from Gmail at send time
 - Decision: the send path reads Subject, From, Reply-To, Message-ID, References and threadId
   from Gmail (`format=metadata`, headers only) when the reply is approved, and sends with
