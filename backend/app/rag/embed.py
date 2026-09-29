@@ -4,11 +4,10 @@ import asyncio
 
 import httpx
 import numpy as np
-from google import genai
-from google.genai import types
+from google.genai import errors, types
 
-from app.core.config import get_settings
 from app.core.constants import EMBEDDING_DIM, EMBEDDING_MODEL
+from app.rag.gemini import gemini_client
 
 
 class EmbeddingError(RuntimeError):
@@ -22,14 +21,14 @@ def _l2_normalize(vectors: np.ndarray) -> np.ndarray:
 
 
 def _embed_sync(texts: list[str]) -> list[list[float]]:
-    client = genai.Client(api_key=get_settings().gemini_api_key)
+    client = gemini_client()
     try:
         result = client.models.embed_content(
             model=EMBEDDING_MODEL,
             contents=texts,
             config=types.EmbedContentConfig(output_dimensionality=EMBEDDING_DIM),
         )
-    except httpx.HTTPError as exc:
+    except (httpx.HTTPError, errors.APIError) as exc:
         raise EmbeddingError(
             "could not reach the Gemini embeddings API - check connectivity "
             "(generativelanguage.googleapis.com must resolve to a real IP, not 127.0.0.1) "

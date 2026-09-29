@@ -1,20 +1,25 @@
 """Offline tests for the review gate. No network: Presidio and Gemini are never called."""
 
+import asyncio
 import sys
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import email_agent
 from email_agent import (
     build_review_reasons,
     clamp_confidence,
+    has_redaction_placeholder,
     pii_verdict,
     strip_quoted,
     unaddressed_requests,
     unsupported_specifics,
 )
+from gemini_client import GeminiError, GeminiErrorCode
 
 
 @pytest.mark.parametrize("raw, expected", [
@@ -151,3 +156,58 @@ def test_pathological_numeric_input_stays_linear():
     started = time.perf_counter()
     unsupported_specifics(hostile, SOURCE)
     assert time.perf_counter() - started < 1.0
+
+
+# ---------- Redaction placeholders reaching a draft ----------
+
+@pytest.mark.parametrize("draft", [
+    "Please call [PHONE_REDACTED] tomorrow.",
+    "Dear [Redacted], thanks for your note.",
+    "The invoice shows [REDACTED] as the due date.",
+])
+def test_every_redaction_marker_in_a_draft_is_flagged(draft):
+    """The listener writes three marker shapes; a leak of any of them must reach review."""
+    assert has_redaction_placeholder(draft)
+
+
+def test_ordinary_brackets_are_not_a_redaction_marker():
+    assert not has_redaction_placeholder("See [attached] and [Appendix B].")
+
+
+
+# ---------- Router and extraction read structured replies ----------
+
+@pytest.mark.parametrize("reply, expected", [
+    ({"category": "COMPLEX"}, "COMPLEX"),
+    ({"category": "SOMETHING_ELSE"}, "NA"),
+    ("STANDARD", "NA"),
+])
+def test_router_trusts_only_a_known_category(monkeypatch, reply, expected):
+    async def fake(*_args, **_kwargs):
+        return reply
+
+    monkeypatch.setattr(email_agent, "call_gemini", fake)
+    assert asyncio.run(email_agent.route_email("", "Can we meet?")) == expected
+
+
+def test_action_items_drop_blank_and_non_text_entries(monkeypatch):
+    async def fake(*_args, **_kwargs):
+        return {"action_items": ["Send the invoice", "", 42, "  "]}
+
+    monkeypatch.setattr(email_agent, "call_gemini", fake)
+    assert asyncio.run(email_agent.extract_actions("Please send the invoice.")) == ["Send the invoice"]
+
+
+@pytest.mark.parametrize("code, status", [
+    (GeminiErrorCode.DEADLINE_EXCEEDED, 504),
+    (GeminiErrorCode.UNAVAILABLE, 503),
+])
+def test_a_gemini_failure_reaches_the_caller_as_a_coded_status(monkeypatch, code, status):
+    async def failing(*_args, **_kwargs):
+        raise GeminiError(code, "test")
+
+    monkeypatch.setattr(email_agent, "call_gemini", failing)
+    response = TestClient(email_agent.app).post("/process-email", json={
+        "thread_context": "", "email_body": "Hi", "rag_context": ""})
+    assert response.status_code == status
+    assert response.json()["detail"] == code

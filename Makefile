@@ -19,7 +19,7 @@ test:  ## backend unit tests
 	cd backend && ../$(VENV)/pytest -q
 
 lint:  ## backend lint
-	cd backend && ../$(VENV)/ruff check app tests scripts email_agent.py
+	cd backend && ../$(VENV)/ruff check app tests scripts email_agent.py gemini_client.py
 
 typecheck:  ## dashboard strict typecheck
 	cd frontend/frontend/mail-clarity-dash-main && npx tsc --noEmit
