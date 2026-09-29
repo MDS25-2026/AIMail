@@ -93,11 +93,26 @@ async def refresh_session(
 @admin_app.delete("/session", status_code=status.HTTP_204_NO_CONTENT,
                   dependencies=[Depends(require_admin_header)])
 async def delete_session(
-    response: Response, access_token: Annotated[str | None, Cookie(alias=ACCESS_COOKIE)] = None
+    response: Response,
+    access_token: Annotated[str | None, Cookie(alias=ACCESS_COOKIE)] = None,
+    refresh_token: Annotated[str | None, Cookie(alias=REFRESH_COOKIE)] = None,
 ) -> None:
-    if access_token:
-        await sign_out(access_token)
+    """Revoke the session at Supabase, then clear the cookies. Once the hour-long access cookie
+    has expired only the refresh token is left, so it is exchanged for one to revoke with; clearing
+    the cookies alone would leave the refresh token valid at Supabase for a week."""
+    token = access_token or await _access_from(refresh_token)
+    if token:
+        await sign_out(token)
     clear_session_cookies(response)
+
+
+async def _access_from(refresh_token: str | None) -> str | None:
+    if not refresh_token:
+        return None
+    try:
+        return (await refresh(refresh_token)).access_token
+    except HTTPException:
+        return None  # already revoked or expired: nothing left to revoke
 
 
 @admin_app.get("/session")

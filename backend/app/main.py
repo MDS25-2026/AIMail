@@ -13,7 +13,6 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Request, UploadFile, status
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import DBAPIError, InterfaceError, OperationalError
@@ -23,11 +22,14 @@ from app.contracts import DashboardEmail
 from app.core.auth import require_auth
 from app.core.config import get_settings
 from app.core.constants import (
+    ADMIN_PREFIX,
+    DEFAULT_ADMIN_ORIGINS,
     MAX_PASTE_CHARS,
     MAX_UPLOAD_BYTES,
     PDF_MAGIC,
     UPLOAD_CHUNK_BYTES,
 )
+from app.core.cors import PathScopedCORS, origins_from
 from app.core.logging_setup import configure_logging
 from app.core.middleware import request_context
 from app.core.ratelimit import rate_limit_generation, rate_limit_ingest
@@ -54,20 +56,18 @@ configure_logging()
 app = FastAPI(title="AImail backend", dependencies=[Depends(require_auth)])
 app.middleware("http")(request_context)
 # Its own app, so the shared token never applies there: admin is a Supabase session (ADR 0004).
-app.mount("/admin", admin_app)
+app.mount(ADMIN_PREFIX, admin_app)
 
-# Dev CORS so the Next.js frontend can call this API cross-origin. The regex covers any
+# Dev CORS so the dashboard can call this API cross-origin. The regex covers any
 # localhost/127.0.0.1 port (they are distinct origins to the browser); FRONTEND_ORIGIN adds
-# an explicit non-local origin for a real deployment.
+# an explicit non-local origin for a real deployment. Admin paths get their own, credentialed
+# policy for ADMIN_ORIGINS only (app/core/cors.py, ADR 0004).
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")],
-    allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
-    allow_methods=["*"],
-    allow_headers=["*"],
-    # The admin console's session travels in HttpOnly cookies (ADR 0004). Credentials are only
-    # ever echoed to the explicit and localhost origins above, never to a wildcard.
-    allow_credentials=True,
+    PathScopedCORS,
+    admin_prefix=ADMIN_PREFIX,
+    admin_origins=origins_from(os.environ.get("ADMIN_ORIGINS", DEFAULT_ADMIN_ORIGINS)),
+    public_origins=[os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")],
+    public_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
 )
 
 _STATIC = Path(__file__).parent / "static"

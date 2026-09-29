@@ -81,7 +81,9 @@ def thread_context(message: Message, thread: list[Message]) -> str:
     before = [m for m in thread if m.received_at and message.received_at
               and m.received_at < message.received_at][-THREAD_CONTEXT_MESSAGES:]
     return "\n\n".join(
-        f"Earlier message {index}:\n{(m.body_masked or '')[:THREAD_CONTEXT_CHARS_EACH]}"
+        # plain_text first: many stored bodies are HTML (#108), and cutting markup first would hand
+        # the model 1500 characters of <style> instead of what was said.
+        f"Earlier message {index}:\n{plain_text(m.body_masked or '')[:THREAD_CONTEXT_CHARS_EACH]}"
         for index, m in enumerate(before, 1)
     )
 

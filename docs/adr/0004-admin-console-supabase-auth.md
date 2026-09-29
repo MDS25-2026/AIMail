@@ -37,9 +37,11 @@ and keeps the tokens in HttpOnly cookies. The rest of the API keeps the shared t
   role claim. No shared secret is stored on the server.
 - **Refresh and sign-out** use the refresh cookie and Supabase's own endpoints; sign-out also
   clears both cookies.
-- **CSRF:** `SameSite=Strict` stops cross-site requests carrying the cookies, and every
-  state-changing admin call must also send `X-AIMail-Admin: 1`, which a cross-origin form cannot
-  set without a CORS preflight the backend refuses.
+- **CSRF and cross-origin reads:** `SameSite=Strict` stops *cross-site* requests carrying the
+  cookies, but every localhost port is the same site. So `/admin` has its own CORS policy
+  (`app/core/cors.py`): credentials only for the exact `ADMIN_ORIGINS`, and every state-changing
+  call must send `X-AIMail-Admin: 1`, whose preflight no other origin passes. The rest of the API
+  keeps its any-local-port policy, without credentials.
 - **Brute force:** sign-in is rate limited per client (5 per 5 minutes) on top of Supabase's own
   limits.
 - **Accounts:** `backend/scripts/admin_accounts.py add|remove|list`, run with the service key.

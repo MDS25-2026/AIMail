@@ -9,6 +9,13 @@ import { BASE } from "./api";
 
 const ADMIN_HEADER = { "X-AIMail-Admin": "1" };
 const UNAUTHORIZED = 401;
+const FORBIDDEN = 403;
+const MAX_RETRIES = 2;
+
+/** React Query retry policy for admin calls: transient failures retry, auth failures never do. */
+export function retryUnlessAuth(failureCount: number, error: unknown): boolean {
+  return !isAuthError(error) && failureCount < MAX_RETRIES;
+}
 
 /** Carries the backend's error code ("invalid_credentials", "not_an_admin", ...) to the UI. */
 export class AdminApiError extends Error {
@@ -33,13 +40,31 @@ async function send(path: string, init: RequestInit = {}): Promise<Response> {
   return fetch(`${BASE}/admin${path}`, { ...init, credentials: "include" });
 }
 
+// Refresh tokens are single-use at Supabase: three panels expiring together must share one
+// refresh, or the second and third would present a token the first already spent.
+let refreshing: Promise<boolean> | null = null;
+
+function refreshOnce(): Promise<boolean> {
+  refreshing ??= send("/session/refresh", { method: "POST", headers: ADMIN_HEADER })
+    .then((res) => res.ok)
+    .catch(() => false)
+    .finally(() => {
+      refreshing = null;
+    });
+  return refreshing;
+}
+
+/** True for an error that means "not signed in as an admin": retrying cannot fix it. */
+export function isAuthError(error: unknown): boolean {
+  return (
+    error instanceof AdminApiError && (error.status === UNAUTHORIZED || error.status === FORBIDDEN)
+  );
+}
+
 /** An expired access cookie is renewed once from the refresh cookie before giving up. */
 async function getJson<T>(path: string): Promise<T> {
   let res = await send(path);
-  if (res.status === UNAUTHORIZED) {
-    const renewed = await send("/session/refresh", { method: "POST", headers: ADMIN_HEADER });
-    if (renewed.ok) res = await send(path);
-  }
+  if (res.status === UNAUTHORIZED && (await refreshOnce())) res = await send(path);
   if (!res.ok) throw await errorFrom(res);
   return res.json();
 }

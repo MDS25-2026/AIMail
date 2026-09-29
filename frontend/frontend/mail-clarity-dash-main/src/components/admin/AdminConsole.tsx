@@ -7,6 +7,7 @@ import {
   useAdminFlagged,
   useAdminOverview,
   useAdminSignOut,
+  useSignedOutRecovery,
 } from "../../lib/queries";
 import type { AdminIdentity, Overview } from "../../types/admin";
 import { PageError, PageLoading } from "../PageState";
@@ -28,6 +29,7 @@ export default function AdminConsole({ admin }: { admin: AdminIdentity }) {
   const flagged = useAdminFlagged(true);
   const audit = useAdminAudit(failuresOnly, true);
   const signOut = useAdminSignOut();
+  useSignedOutRecovery([overview.error, flagged.error, audit.error]);
 
   return (
     <div className="space-y-4">

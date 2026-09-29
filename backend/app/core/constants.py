@@ -32,3 +32,8 @@ GENERATION_RATE_WINDOW_SECONDS = 60
 # Supabase's own limits.
 ADMIN_SIGN_IN_LIMIT = 5
 ADMIN_SIGN_IN_WINDOW_SECONDS = 300
+
+# Admin console (docs/adr/0004). The dashboard as `make web` serves it; set ADMIN_ORIGINS for any
+# other host or port. Only these origins may carry the admin session cross-origin.
+ADMIN_PREFIX = "/admin"
+DEFAULT_ADMIN_ORIGINS = "http://localhost:8090,http://127.0.0.1:8090"

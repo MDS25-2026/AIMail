@@ -221,3 +221,71 @@ def test_model_health_counts_retries_fallbacks_and_latency():
     health = stats.model_health(checks)
     assert (health.drafts, health.attempts, health.drafts_using_fallback) == (2, 3, 1)
     assert (health.model_ms_p50, health.model_ms_p95) == (200, 400)
+
+
+# ---------- CORS: the admin session travels only to the dashboard's own origins ----------
+
+def _preflight(client, path: str, origin: str):
+    return client.options(path, headers={
+        "Origin": origin, "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": f"content-type,{auth.CSRF_HEADER.lower()}"})
+
+
+def test_the_dashboard_origin_may_carry_the_admin_session(client):
+    response = _preflight(client, "/admin/session", "http://localhost:8090")
+    assert response.headers.get("access-control-allow-origin") == "http://localhost:8090"
+    assert response.headers.get("access-control-allow-credentials") == "true"
+
+
+@pytest.mark.parametrize("origin", ["http://localhost:8080", "http://127.0.0.1:5173",
+                                    "https://evil.example"])
+def test_any_other_origin_cannot_pass_the_admin_preflight(client, origin):
+    """Every localhost port is the same site, so SameSite cookies still flow; CORS is the wall."""
+    response = _preflight(client, "/admin/session", origin)
+    assert response.headers.get("access-control-allow-origin") is None
+
+
+def test_the_rest_of_the_api_never_allows_credentials(client):
+    response = client.get("/", headers={"Origin": "http://localhost:8080"})
+    assert response.headers.get("access-control-allow-origin") == "http://localhost:8080"
+    assert response.headers.get("access-control-allow-credentials") is None
+
+
+def test_signing_out_after_the_access_cookie_expired_still_revokes(client, monkeypatch):
+    fresh = mint()
+    seen = supabase(monkeypatch, lambda request: session_reply(fresh)
+                    if "refresh_token" in (request.url.query.decode()) else httpx.Response(204))
+    response = client.delete("/admin/session",
+                             headers={**CSRF, "Cookie": f"{auth.REFRESH_COOKIE}=r1"})
+    assert response.status_code == 204
+    assert any(path.endswith("/logout") for path in seen)
+
+
+def test_a_forged_key_id_triggers_at_most_one_refetch(monkeypatch):
+    fetches = []
+
+    class _Client:
+        def get_signing_keys(self):
+            fetches.append(1)
+            return []
+
+    key_set = auth._KeySet.__new__(auth._KeySet)
+    key_set._client, key_set._keys, key_set._fetched_at = _Client(), {}, float("-inf")
+    forged = jwt.encode({"sub": "x"}, KEY, algorithm="ES256", headers={"kid": "forged"})
+    for _ in range(5):
+        with pytest.raises(jwt.InvalidTokenError):
+            key_set.get_signing_key_from_jwt(forged)
+    assert len(fetches) == 1
+
+
+def test_thread_context_is_prose_not_markup():
+    from datetime import datetime, timezone
+    from uuid import uuid4
+
+    from app.dashboard import thread_context
+    from app.db.models import Message
+
+    html = "<html><head><style>p{color:red}</style></head><body><p>Please send the Q3 figures.</p></body></html>"
+    earlier = Message(id=uuid4(), received_at=datetime(2026, 9, 1, 9, tzinfo=timezone.utc), body_masked=html)
+    current = Message(id=uuid4(), received_at=datetime(2026, 9, 1, 12, tzinfo=timezone.utc))
+    assert thread_context(current, [earlier]) == "Earlier message 1:\nPlease send the Q3 figures."

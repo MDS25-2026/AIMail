@@ -6,6 +6,8 @@ project's published ES256 keys and requires app_metadata.role == "admin".
 """
 
 import asyncio
+import math
+import time
 from dataclasses import dataclass
 from enum import StrEnum
 from functools import lru_cache
@@ -27,6 +29,7 @@ ADMIN_ROLE = "admin"
 AUDIENCE = "authenticated"
 ALGORITHMS = ["ES256"]
 JWKS_CACHE_SECONDS = 600
+JWKS_REFETCH_SECONDS = 60
 SUPABASE_TIMEOUT_SECONDS = 10.0
 
 # Tests swap this for httpx.MockTransport.
@@ -67,10 +70,41 @@ def _auth_base() -> str:
     return settings.supabase_url.rstrip("/") + "/auth/v1"
 
 
+class _KeySet:
+    """The project's signing keys by key id, refetched on an unknown id at most once a minute.
+
+    PyJWKClient refetches on every unknown kid, so a stream of forged cookies would each cost a
+    blocking fetch to Supabase. A real key rotation still lands within JWKS_REFETCH_SECONDS.
+    """
+
+    def __init__(self, auth_base: str) -> None:
+        self._client = jwt.PyJWKClient(f"{auth_base}/.well-known/jwks.json", cache_keys=False)
+        self._keys: dict[str, object] = {}
+        self._fetched_at = -math.inf
+
+    def _refresh(self) -> None:
+        self._keys = {key.key_id: key.key for key in self._client.get_signing_keys()}
+        self._fetched_at = time.monotonic()
+
+    def get_signing_key_from_jwt(self, token: str) -> "_Key":
+        kid = jwt.get_unverified_header(token).get("kid")
+        is_stale = time.monotonic() - self._fetched_at >= JWKS_CACHE_SECONDS
+        may_refetch = time.monotonic() - self._fetched_at >= JWKS_REFETCH_SECONDS
+        if is_stale or (kid not in self._keys and may_refetch):
+            self._refresh()
+        if kid not in self._keys:
+            raise jwt.InvalidTokenError("unknown signing key")
+        return _Key(self._keys[kid])
+
+
+@dataclass(frozen=True)
+class _Key:
+    key: object
+
+
 @lru_cache(maxsize=1)
-def _jwks(auth_base: str) -> jwt.PyJWKClient:
-    return jwt.PyJWKClient(f"{auth_base}/.well-known/jwks.json", cache_keys=True,
-                           lifespan=JWKS_CACHE_SECONDS)
+def _jwks(auth_base: str) -> _KeySet:
+    return _KeySet(auth_base)
 
 
 def _decode(token: str, auth_base: str) -> dict:
@@ -85,6 +119,9 @@ async def verify_admin(token: str) -> Admin:
     try:
         # The JWKS fetch is blocking the first time and every JWKS_CACHE_SECONDS after.
         claims = await asyncio.to_thread(_decode, token, auth_base)
+    except jwt.PyJWKClientConnectionError as exc:
+        # Supabase unreachable is an outage, not a signed-out admin.
+        raise _fail(status.HTTP_503_SERVICE_UNAVAILABLE, AdminAuthError.SUPABASE_UNAVAILABLE) from exc
     except (jwt.PyJWTError, jwt.PyJWKClientError) as exc:
         raise _fail(status.HTTP_401_UNAUTHORIZED, AdminAuthError.SESSION_INVALID) from exc
     if (claims.get("app_metadata") or {}).get("role") != ADMIN_ROLE:
@@ -103,8 +140,9 @@ async def require_admin(
 async def require_admin_header(
     marker: Annotated[str | None, Header(alias=CSRF_HEADER)] = None,
 ) -> None:
-    """A state-changing admin call must carry a custom header: a cross-site form cannot send one,
-    and a cross-origin script cannot without a preflight the CORS policy refuses."""
+    """A state-changing admin call must carry a custom header: a form cannot send one, and a
+    cross-origin script cannot without a preflight, which only ADMIN_ORIGINS pass (app/core/cors.py).
+    SameSite alone is not enough: every localhost port is the same site."""
     if marker != "1":
         raise _fail(status.HTTP_403_FORBIDDEN, AdminAuthError.CSRF_HEADER_MISSING)
 

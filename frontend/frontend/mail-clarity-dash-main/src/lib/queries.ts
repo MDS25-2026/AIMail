@@ -11,12 +11,15 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 
 import {
   fetchAdminSession,
   fetchAudit,
   fetchFlagged,
   fetchOverview,
+  isAuthError,
+  retryUnlessAuth,
   signIn,
   signOut,
 } from "./adminApi";
@@ -172,11 +175,17 @@ export function useAdminOverview(days: number, isEnabled: boolean) {
     queryKey: adminKeys.overview(days),
     queryFn: () => fetchOverview(days),
     enabled: isEnabled,
+    retry: retryUnlessAuth,
   });
 }
 
 export function useAdminFlagged(isEnabled: boolean) {
-  return useQuery({ queryKey: adminKeys.flagged, queryFn: fetchFlagged, enabled: isEnabled });
+  return useQuery({
+    queryKey: adminKeys.flagged,
+    queryFn: fetchFlagged,
+    enabled: isEnabled,
+    retry: retryUnlessAuth,
+  });
 }
 
 export function useAdminAudit(failuresOnly: boolean, isEnabled: boolean) {
@@ -184,6 +193,7 @@ export function useAdminAudit(failuresOnly: boolean, isEnabled: boolean) {
     queryKey: adminKeys.audit(failuresOnly),
     queryFn: () => fetchAudit(failuresOnly),
     enabled: isEnabled,
+    retry: retryUnlessAuth,
   });
 }
 
@@ -194,6 +204,19 @@ export function useAdminSignIn() {
       signIn(email, password),
     onSuccess: (identity) => queryClient.setQueryData(adminKeys.session, identity),
   });
+}
+
+/**
+ * When any console panel finds the session gone (after its one refresh), ask again who is signed
+ * in: the session query then fails too, and the page falls back to the sign-in form instead of
+ * showing error panels.
+ */
+export function useSignedOutRecovery(errors: unknown[]): void {
+  const queryClient = useQueryClient();
+  const isSignedOut = errors.some(isAuthError);
+  useEffect(() => {
+    if (isSignedOut) void queryClient.invalidateQueries({ queryKey: adminKeys.session });
+  }, [isSignedOut, queryClient]);
 }
 
 /** Signing out drops every admin query, so nothing from the session stays in the cache. */

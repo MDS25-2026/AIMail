@@ -45,7 +45,7 @@ test-reader:  ## attachment reader tests, inside its image against the real OCR 
 	docker build -q -t aimail-attachment-reader:test listener/attachment-reader
 	docker run --rm --user root --entrypoint sh aimail-attachment-reader:test -c 'pip install -q pytest && python -m pytest -q -p no:warnings tests'
 
-migrate:  ## create all tables (RAG + messages + audit_log) — first run
+migrate:  ## create all tables; run BEFORE starting a newer listener (it writes masking_status)
 	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0001_rag_tables.sql
 	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0002_messages.sql
 	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0003_messages_unique.sql
