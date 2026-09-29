@@ -236,8 +236,10 @@ func readAttachment(ctx context.Context, srv *gmail.Service, msgID string, part 
 	}
 	text := strings.TrimSpace(strings.Join(texts, "\n\n"))
 	writeAuditLog(ctx, "read_attachment", fmt.Sprintf(
-		"msg %s: %s, %d page(s), %d redacted image(s) sent for OCR, %d withheld locally, %d chars",
-		msgID, part.MimeType, result.Pages, len(result.Images), result.SkippedPages, len(text)), true)
+		// The key=value tail is read by the admin console; keep it stable if the prose changes.
+		"msg %s: %s, %d page(s), %d redacted image(s) sent for OCR, %d withheld locally, %d chars; withheld=%d",
+		msgID, part.MimeType, result.Pages, len(result.Images), result.SkippedPages, len(text),
+		result.SkippedPages), true)
 	return text
 }
 

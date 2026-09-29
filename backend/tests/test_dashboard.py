@@ -136,6 +136,11 @@ def test_a_draft_that_fails_for_content_is_stored_as_not_drafted_so_it_is_not_re
     monkeypatch.setattr(dashboard, "retrieve", no_chunks)
     monkeypatch.setattr(dashboard, "_call_agent", refuses)
     monkeypatch.setattr(dashboard, "audit", no_audit)
+
+    async def stored(pk, fields):
+        return True
+
+    monkeypatch.setattr(dashboard, "_update_unsent", stored)
     from app.db.models import MaskingStatus
 
     message = Message(id=uuid4(), body_masked="Hi", masking_status=MaskingStatus.COMPLETE)
@@ -143,3 +148,55 @@ def test_a_draft_that_fails_for_content_is_stored_as_not_drafted_so_it_is_not_re
     # Stored as handled (generated_at set), which is what stops the poller retrying it.
     assert message.generated_at is not None and message.needs_human_review is True
     assert message.critic_checks["review_reasons"] == ["no draft: gemini_output_truncated"]
+
+
+def _send_harness(monkeypatch, claim: bool, send_error: bool = False):
+    import asyncio
+
+    from app import dashboard
+    from app.gmail_send import SendError, SentReply
+
+    calls = {"sent": 0, "released": 0}
+    message = Message(id=uuid4(), from_addr="a@b.c", subject="Hi",
+                      created_at=datetime(2026, 9, 1, tzinfo=timezone.utc))
+
+    async def load(pk):
+        return message
+
+    async def claim_send(pk):
+        return claim
+
+    async def release(pk):
+        calls["released"] += 1
+
+    async def send_reply(*_args):
+        calls["sent"] += 1
+        if send_error:
+            raise SendError("gmail down")
+        return SentReply(gmail_id="g", thread_id="t", message_id="<m>")
+
+    async def no_audit(*_args, **_kwargs):
+        return None
+
+    for name, value in (("_load", load), ("_claim_send", claim_send),
+                        ("_release_send_claim", release), ("send_reply", send_reply),
+                        ("audit", no_audit)):
+        monkeypatch.setattr(dashboard, name, value)
+    return asyncio, dashboard, calls, message
+
+
+def test_a_second_approval_that_loses_the_claim_never_sends(monkeypatch):
+    asyncio, dashboard, calls, message = _send_harness(monkeypatch, claim=False)
+    asyncio.run(dashboard.approve_and_send(str(message.id), "Thanks"))
+    assert calls["sent"] == 0
+
+
+def test_a_failed_send_releases_its_claim_so_it_can_be_approved_again(monkeypatch):
+    import pytest
+
+    from app.gmail_send import SendError
+
+    asyncio, dashboard, calls, message = _send_harness(monkeypatch, claim=True, send_error=True)
+    with pytest.raises(SendError):
+        asyncio.run(dashboard.approve_and_send(str(message.id), "Thanks"))
+    assert calls == {"sent": 1, "released": 1}

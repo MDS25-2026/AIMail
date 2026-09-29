@@ -96,3 +96,10 @@ def test_a_reply_to_header_wins_over_from(gmail, monkeypatch):
     monkeypatch.setitem(ORIGINAL, "payload", {"headers": headers})
     _send()
     assert "To: billing@example.com" in _sent_mime(gmail)
+
+
+def test_a_deleted_original_never_sends_a_redaction_marker_in_the_subject(gmail):
+    gmail["original_status"] = 404
+    _send()  # the fallback subject is "Invoice for [Redacted]"
+    mime = _sent_mime(gmail)
+    assert "[Redacted]" not in mime and "Subject: Re: Your message" in mime

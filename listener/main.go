@@ -338,6 +338,7 @@ type MaskedContent struct {
 type StoredMessage struct {
 	GmailMessageID string    `json:"gmail_message_id"`
 	FromAddr       string    `json:"from_addr"`
+	ReplyTo        string    `json:"reply_to,omitempty"` // where an approved reply goes; shown to the approver
 	ReceivedAt     time.Time `json:"received_at"`
 	ThreadIdentity
 	MaskedContent
@@ -348,6 +349,7 @@ type StoredMessage struct {
 type QuarantinedMessage struct {
 	GmailMessageID string    `json:"gmail_message_id"`
 	FromAddr       string    `json:"from_addr"`
+	ReplyTo        string    `json:"reply_to,omitempty"`
 	ReceivedAt     time.Time `json:"received_at"`
 	MaskingStatus  string    `json:"masking_status"`
 	ThreadIdentity
@@ -648,12 +650,13 @@ func ingestMessage(ctx context.Context, srv *gmail.Service, msgID string) error 
 	identity := threadIdentity(msg)
 	content, isComplete := maskMessage(ctx, srv, msg)
 	if !isComplete {
-		return quarantine(ctx, msgID, headerValue(msg.Payload.Headers, "From"), identity)
+		return quarantine(ctx, msgID, msg.Payload.Headers, identity)
 	}
 
 	stored := StoredMessage{
 		GmailMessageID: msgID,
 		FromAddr:       headerValue(msg.Payload.Headers, "From"), // kept as-is for reply threading; a policy call for the team to confirm
+		ReplyTo:        headerValue(msg.Payload.Headers, "Reply-To"),
 		ReceivedAt:     time.Now().UTC(),
 		ThreadIdentity: identity,
 		MaskedContent:  content,

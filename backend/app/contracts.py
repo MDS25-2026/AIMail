@@ -95,6 +95,8 @@ class DashboardEmail(BaseModel):
     # "pending" while the listener holds the content back because NER masking was unavailable,
     # "abandoned" once it gave up (#109). Either way subject, body and preview are empty.
     masking: Literal["complete", "pending", "abandoned"] = "complete"
+    # Where an approved reply goes when the sender set a Reply-To; null means it goes to `sender`.
+    replyTo: str | None = None
 
 
 _PRIORITY_LABELS: dict[int, Literal["low", "medium", "high"]] = {0: "low", 1: "medium", 2: "high"}

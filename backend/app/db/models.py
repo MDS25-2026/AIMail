@@ -131,6 +131,10 @@ class Message(Base):
     # The policy chunks the cached draft was grounded on (migration 0011).
     rag_sources: Mapped[list[dict] | None] = mapped_column(JSONB)
     masking_status: Mapped[str] = mapped_column(Text, server_default=MaskingStatus.COMPLETE)
+    # Failed drafting attempts; the poller skips a message after MAX_GENERATION_ATTEMPTS (0014).
+    generation_attempts: Mapped[int] = mapped_column(server_default="0")
+    # Where an approved reply goes when the sender set Reply-To; shown to the approver (0014).
+    reply_to: Mapped[str | None] = mapped_column(Text)
 
     @property
     def is_masked(self) -> bool:

@@ -39,6 +39,12 @@ DEMO_PAGE_CSP = (
 DEMO_PAGE_PATH = "/"
 
 
+def printable(path: str) -> str:
+    """The path with control characters escaped. ASGI has already percent-decoded it, so a %0A in
+    the URL would otherwise start a forged log line; this runs before auth, for anyone."""
+    return path.encode("unicode_escape").decode("ascii")
+
+
 def incoming_request_id(value: str | None) -> str:
     return value if value and _SAFE_REQUEST_ID.match(value) else uuid.uuid4().hex
 
@@ -58,7 +64,7 @@ async def request_context(
         response = await call_next(request)
         apply_security_headers(response, request.url.path)
         response.headers[REQUEST_ID_HEADER] = request_id.get()
-        logger.info("%s %s -> %d in %.0f ms", request.method, request.url.path,
+        logger.info("%s %s -> %d in %.0f ms", request.method, printable(request.url.path),
                     response.status_code, (time.perf_counter() - started) * 1000)
         return response
     finally:

@@ -65,5 +65,7 @@ async def embed_documents(texts: list[str]) -> list[list[float]]:
 
 async def embed_query(text: str) -> list[float] | None:
     """The vector a search compares against stored chunks, or None for empty input."""
+    if not text.strip():
+        return None  # an empty body has nothing to search for, and the API rejects it
     vectors = await _embed([text], QUERY_TASK)
     return vectors[0] if vectors else None

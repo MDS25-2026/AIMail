@@ -30,7 +30,7 @@ def test_hit_rate_is_any_relevant():
 
 def test_latency_percentile_is_a_measured_value():
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-    from latency import percentile
+    from app.core.percentile import percentile
 
     assert percentile([5.0, 1.0, 3.0, 2.0, 4.0], 0.5) == 3.0
     assert percentile([5.0, 1.0, 3.0, 2.0, 4.0], 0.95) == 5.0

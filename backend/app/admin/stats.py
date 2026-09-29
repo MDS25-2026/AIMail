@@ -1,6 +1,5 @@
 """Read-only aggregates for the admin console. Nothing here returns email content."""
 
-import math
 import re
 from collections import Counter
 from datetime import datetime, timedelta, timezone
@@ -17,12 +16,16 @@ from app.admin.schemas import (
     Overview,
     PrivacyCounts,
 )
+from app.core.percentile import percentile
 from app.db.models import AuditLog, MaskingStatus, Message
 
 TOP_REASONS = 10
 AUDIT_DETAIL_CHARS = 240
 _NUMBER = re.compile(r"\d+(?:\.\d+)?")
-_WITHHELD = re.compile(r"(\d+) withheld locally")
+# The listener's stable token first; the prose form only for rows written before it existed.
+_WITHHELD = re.compile(r"withheld=(\d+)|(\d+) withheld locally")
+DROP_ATTACHMENT_ACTION = "drop_attachment_text"
+LEGACY_DROP_WORDING = "attachment text dropped"
 
 
 def reason_category(reason: str) -> str:
@@ -31,33 +34,31 @@ def reason_category(reason: str) -> str:
     return _NUMBER.sub("#", reason.split(":", 1)[0]).strip()
 
 
-def percentile(values: list[int], share: float) -> int | None:
-    if not values:
-        return None
-    ordered = sorted(values)
-    return ordered[max(0, math.ceil(share * len(ordered)) - 1)]
-
-
-async def _count(session: AsyncSession, *conditions: object) -> int:
-    return (await session.scalar(select(func.count()).select_from(Message).where(*conditions))) or 0
+def _counted(condition: object) -> object:
+    return func.count().filter(condition)
 
 
 async def mailbox_counts(session: AsyncSession) -> MailboxCounts:
-    return MailboxCounts(
-        total=await _count(session),
-        masking_pending=await _count(session, Message.masking_status == MaskingStatus.PENDING),
-        masking_abandoned=await _count(session, Message.masking_status == MaskingStatus.ABANDONED),
-        generated=await _count(session, Message.generated_at.is_not(None)),
-        awaiting_review=await _count(session, Message.needs_human_review.is_(True),
-                                     Message.sent_at.is_(None)),
-        sent=await _count(session, Message.sent_at.is_not(None)),
-        unread=await _count(session, Message.read_at.is_(None)),
-    )
+    """Every count in one round trip (COUNT ... FILTER), not one query each."""
+    row = (await session.execute(select(
+        func.count().label("total"),
+        _counted(Message.masking_status == MaskingStatus.PENDING).label("masking_pending"),
+        _counted(Message.masking_status == MaskingStatus.ABANDONED).label("masking_abandoned"),
+        _counted(Message.generated_at.is_not(None)).label("generated"),
+        _counted(Message.needs_human_review.is_(True) & Message.sent_at.is_(None)).label("awaiting_review"),
+        _counted(Message.sent_at.is_not(None)).label("sent"),
+        _counted(Message.read_at.is_(None)).label("unread"),
+    ).select_from(Message))).one()
+    return MailboxCounts(**row._mapping)
 
 
 async def _audit_rows(session: AsyncSession, since: datetime) -> list[AuditLog]:
     stmt = select(AuditLog).where(AuditLog.created_at >= since)
     return list((await session.scalars(stmt)).all())
+
+
+def _is_drop(row: AuditLog) -> bool:
+    return row.action == DROP_ATTACHMENT_ACTION or LEGACY_DROP_WORDING in (row.detail or "")
 
 
 def privacy_counts(rows: list[AuditLog]) -> PrivacyCounts:
@@ -68,12 +69,13 @@ def privacy_counts(rows: list[AuditLog]) -> PrivacyCounts:
         quarantined=sum(1 for r in rows if r.action == "quarantine_message" and r.success),
         released=sum(1 for r in rows if r.action == "remask_message" and r.success),
         degraded_before_fix=sum(1 for r in rows if "presidio degraded" in detail(r)),
-        attachment_text_dropped=sum(1 for r in rows if "attachment text dropped" in detail(r)),
-        pages_withheld=sum(int(m.group(1)) for r in rows if (m := _WITHHELD.search(detail(r)))),
+        attachment_text_dropped=sum(1 for r in rows if _is_drop(r)),
+        pages_withheld=sum(int(m.group(1) or m.group(2)) for r in rows
+                           if (m := _WITHHELD.search(detail(r)))),
         attachment_failures=sum(
             1 for r in rows
             if r.action in ("read_attachment", "ocr_attachment") and r.success is False
-            and "attachment text dropped" not in detail(r)
+            and not _is_drop(r)
         ),
     )
 

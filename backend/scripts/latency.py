@@ -11,7 +11,6 @@ Usage (from backend/, with the agent running on :8001):
 
 import argparse
 import asyncio
-import math
 import sys
 import time
 from pathlib import Path
@@ -28,15 +27,10 @@ from eval_critic import (
 )
 
 from app.core.config import get_settings
+from app.core.percentile import percentile
 from app.dashboard import AGENT_TIMEOUT_SECONDS
 
 OK = "ok"
-
-
-def percentile(values: list[float], share: float) -> float:
-    """Nearest-rank percentile: always a value that was actually measured."""
-    ordered = sorted(values)
-    return ordered[max(0, math.ceil(share * len(ordered)) - 1)]
 
 
 async def time_one(client: httpx.AsyncClient, url: str, body: str, with_rag: bool) -> dict:

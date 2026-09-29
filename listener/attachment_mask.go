@@ -52,7 +52,8 @@ func maskAttachmentText(ctx context.Context, msgID, text string) (masked string,
 	for _, chunk := range chunkText(text, attachmentMaskChunkChars) {
 		piece, e, p, degraded := maskText(ctx, chunk)
 		if degraded {
-			writeAuditLog(ctx, "read_attachment",
+			// Its own action name: the admin console counts these, and must not parse prose to do it.
+			writeAuditLog(ctx, "drop_attachment_text",
 				fmt.Sprintf("msg %s: attachment text dropped, NER masking unavailable", msgID), false)
 			return "", 0, 0
 		}

@@ -47,10 +47,11 @@ func remaskInterval() time.Duration {
 	return minutes
 }
 
-func quarantine(ctx context.Context, msgID, from string, identity ThreadIdentity) error {
+func quarantine(ctx context.Context, msgID string, headers []*gmail.MessagePartHeader, identity ThreadIdentity) error {
 	row := QuarantinedMessage{
 		GmailMessageID: msgID,
-		FromAddr:       from,
+		FromAddr:       headerValue(headers, "From"),
+		ReplyTo:        headerValue(headers, "Reply-To"),
 		ReceivedAt:     time.Now().UTC(),
 		MaskingStatus:  maskingPending,
 		ThreadIdentity: identity,

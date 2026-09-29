@@ -9,13 +9,14 @@ that belongs in specs/context/api-contracts.md with Lane D.
 import asyncio
 import logging
 import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Request, UploadFile, status
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
-from sqlalchemy.exc import DBAPIError, InterfaceError, OperationalError
 
 from app.admin.app import admin_app
 from app.contracts import DashboardEmail
@@ -30,10 +31,16 @@ from app.core.constants import (
     UPLOAD_CHUNK_BYTES,
 )
 from app.core.cors import PathScopedCORS, origins_from
+from app.core.db_errors import register_database_handlers
 from app.core.logging_setup import configure_logging
 from app.core.middleware import request_context
-from app.core.ratelimit import rate_limit_generation, rate_limit_ingest
+from app.core.ratelimit import (
+    rate_limit_detail,
+    rate_limit_generation,
+    rate_limit_ingest,
+)
 from app.dashboard import (
+    AlreadySentError,
     TranslationError,
     approve_and_send,
     email_detail,
@@ -53,7 +60,22 @@ from app.rag.retrieve import ContextChunk, retrieve
 
 configure_logging()
 
-app = FastAPI(title="AImail backend", dependencies=[Depends(require_auth)])
+@asynccontextmanager
+async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    """Background work for the life of the process: embed any pending chunks once, and poll for
+    drafts to pre-generate. Both are held (asyncio keeps only weak references to tasks) and both
+    are cancelled on shutdown."""
+    tasks = [asyncio.create_task(_embed_missing())]
+    if get_settings().auto_generate:
+        tasks.append(asyncio.create_task(_pregen_loop()))
+    try:
+        yield
+    finally:
+        for task in tasks:
+            task.cancel()
+
+
+app = FastAPI(title="AImail backend", dependencies=[Depends(require_auth)], lifespan=_lifespan)
 app.middleware("http")(request_context)
 # Its own app, so the shared token never applies there: admin is a Supabase session (ADR 0004).
 app.mount(ADMIN_PREFIX, admin_app)
@@ -74,9 +96,6 @@ _STATIC = Path(__file__).parent / "static"
 
 logger = logging.getLogger(__name__)
 
-_pregen_task: asyncio.Task | None = None
-# Held so the task is not garbage-collected mid-run (asyncio keeps only weak references).
-_embed_task: asyncio.Task | None = None
 
 
 async def _pregen_loop() -> None:
@@ -108,64 +127,9 @@ async def _embed_missing() -> None:
         logger.info("embedded %d pending chunk(s) under the current tag", count)
 
 
-@app.on_event("startup")
-async def _start_embedding() -> None:
-    global _embed_task
-    _embed_task = asyncio.create_task(_embed_missing())
 
 
-@app.on_event("startup")
-async def _start_pregen() -> None:
-    if get_settings().auto_generate:
-        global _pregen_task
-        _pregen_task = asyncio.create_task(_pregen_loop())
-
-
-@app.on_event("shutdown")
-async def _stop_pregen() -> None:
-    if _pregen_task is not None:
-        _pregen_task.cancel()
-
-
-async def _database_unreachable(request: Request, exc: Exception) -> JSONResponse:
-    # DB connection failures (raw OSError / SQLAlchemy connect errors) become a clean 503 instead
-    # of a raw 500 stack trace — usually a wrong DATABASE_URL or a paused Supabase project.
-    return JSONResponse(
-        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        content={
-            "error": {
-                "code": "DATABASE_UNREACHABLE",
-                "message": (
-                    "Cannot reach the database. Check DATABASE_URL (use the Supabase Session "
-                    "pooler, not the direct IPv6 host) and that the Supabase project is not paused."
-                ),
-            }
-        },
-    )
-
-
-async def _database_error(request: Request, exc: Exception) -> JSONResponse:
-    """Catch-all for DBAPI failures, split by whether the connection survived.
-
-    A connection dropped mid-query by the Supabase pooler surfaces as a bare `DBAPIError`, not
-    `OperationalError`, so the handler above never fired and the caller got a raw 500. Deciding on
-    `connection_invalidated` keeps that distinction honest: a lost connection is a 503 worth
-    retrying, while a genuine SQL fault is our bug and must not masquerade as an outage.
-    """
-    if getattr(exc, "connection_invalidated", False):
-        return await _database_unreachable(request, exc)
-    logger.exception("database error on %s", request.url.path)
-    return JSONResponse(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"error": {"code": "DATABASE_ERROR", "message": "The database rejected a query."}},
-    )
-
-
-for _db_exc in (OSError, OperationalError, InterfaceError):
-    app.add_exception_handler(_db_exc, _database_unreachable)
-
-# Registered after the specific handlers so those still win for their own types.
-app.add_exception_handler(DBAPIError, _database_error)
+register_database_handlers(app)
 
 
 async def _ai_service_unreachable(request: Request, exc: Exception) -> JSONResponse:
@@ -230,7 +194,7 @@ async def emails() -> list[DashboardEmail]:
     return await list_dashboard_emails()
 
 
-@app.get("/emails/{message_id}")
+@app.get("/emails/{message_id}", dependencies=[Depends(rate_limit_detail)])
 async def email_detail_route(message_id: str) -> DashboardEmail:
     # Detail view: adds Lane C generation (retrieve + /process-email) for one opened email.
     email = await email_detail(message_id)
@@ -248,7 +212,10 @@ async def regenerate_email_route(
     message_id: str, body: RegenerateRequest | None = None
 ) -> DashboardEmail:
     # Force a fresh draft in the requested tone (Regenerate button / tone toggle). Body optional.
-    email = await regenerate_email(message_id, body.tone if body else "professional")
+    try:
+        email = await regenerate_email(message_id, body.tone if body else "professional")
+    except AlreadySentError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, "already_sent") from exc
     if email is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "email not found")
     return email
@@ -262,7 +229,10 @@ class RefineRequest(BaseModel):
 @app.post("/emails/{message_id}/refine", dependencies=[Depends(rate_limit_generation)])
 async def refine_email_route(message_id: str, body: RefineRequest) -> DashboardEmail:
     # Revise the current draft per the user's instruction (dashboard's Refine box).
-    email = await refine_email(message_id, body.instruction, body.draft)
+    try:
+        email = await refine_email(message_id, body.instruction, body.draft)
+    except AlreadySentError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, "already_sent") from exc
     if email is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "email not found")
     return email
@@ -301,7 +271,9 @@ async def send_email_route(message_id: str, body: SendRequest) -> DashboardEmail
     try:
         email = await approve_and_send(message_id, body.draft)
     except SendError as exc:
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"send failed: {exc}") from exc
+        # The reason stays in the log: it can name local credential paths.
+        logger.warning("send failed for %s: %s", message_id, exc)
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "send_failed") from exc
     if email is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "email not found")
     return email

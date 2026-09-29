@@ -51,12 +51,15 @@ migrate:  ## create all tables; run BEFORE starting a newer listener (it writes 
 	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0003_messages_unique.sql
 	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0004_message_generation.sql
 	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0005_message_sent.sql
+	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0006_message_read.sql
+	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0007_personalisation.sql
 	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0008_critic_attempts.sql
 	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0009_thread_identity.sql
 	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0010_critic_checks.sql
 	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0011_rag_sources.sql
 	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0012_masking_status.sql
 	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0013_masking_attempts.sql
+	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0014_generation_attempts_reply_to.sql
 
 seed:  ## load sample policy chunks
 	cd backend && ../$(VENV)/python scripts/seed_demo.py

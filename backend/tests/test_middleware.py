@@ -58,3 +58,9 @@ def test_idle_clients_are_evicted():
     limiter._hits["old"] = deque([0.0])
     limiter._evict_idle(cutoff=5.0)
     assert "old" not in limiter._hits
+
+
+def test_a_decoded_newline_in_the_path_cannot_forge_a_log_line():
+    from app.core.middleware import printable
+
+    assert "\n" not in printable("/emails/x\nINFO forged admin login")

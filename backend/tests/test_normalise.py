@@ -86,3 +86,12 @@ def test_an_absurdly_long_number_is_skipped_not_a_crash():
     huge = "1" + "0" * 400
     assert quantities_in(f"{huge} kg") == []
     assert numbers_in(huge) == []
+
+
+def test_a_run_of_digit_groups_is_linear_not_quadratic():
+    """An email of "111 222 333 ..." took 7.6 s at 16 KB, freezing GET /emails for everyone."""
+    import time
+
+    started = time.perf_counter()
+    quantities_in("111 " * 32_000)
+    assert time.perf_counter() - started < 1.0

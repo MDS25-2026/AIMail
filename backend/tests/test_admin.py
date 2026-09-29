@@ -67,6 +67,11 @@ def client(monkeypatch):
 
     monkeypatch.setattr(stats, "overview", fake_overview)
     admin_routes.rate_limit_sign_in.reset()
+
+    async def no_audit(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(admin_routes, "audit", no_audit)
     yield TestClient(app)
     get_settings.cache_clear()
 
@@ -144,7 +149,8 @@ def test_a_non_admin_sign_in_is_refused_and_its_session_ended(client, monkeypatc
     seen = supabase(monkeypatch, lambda request: session_reply(mint(role=None))
                     if "token" in request.url.path else httpx.Response(204))
     response = client.post("/admin/session", json={"email": "a@b.c", "password": "x"}, headers=CSRF)
-    assert response.status_code == 403
+    # Told the same as a wrong password, so the form cannot confirm a valid one.
+    assert response.status_code == 401 and response.json()["detail"] == "invalid_credentials"
     assert "set-cookie" not in response.headers
     assert any(path.endswith("/logout") for path in seen)
 
@@ -202,12 +208,13 @@ def test_privacy_counts_read_the_audit_trail():
         AuditLog(action="remask_message", success=True, detail="msg a released"),
         AuditLog(action="read_attachment", success=True,
                  detail="msg b: application/pdf, 3 page(s), 1 redacted image(s) sent for OCR, 2 withheld locally, 90 chars"),
-        AuditLog(action="read_attachment", success=False, detail="msg c: attachment text dropped, NER masking unavailable"),
+        AuditLog(action="drop_attachment_text", success=False, detail="msg c: dropped"),
+        AuditLog(action="read_attachment", success=True, detail="msg f: image/png, 1 page(s); withheld=3"),
         AuditLog(action="ocr_attachment", success=False, detail="msg d: read locally failed"),
         AuditLog(action="store_message", success=True, detail="msg e stored (presidio degraded: regex-only)"),
     ]
     counts = stats.privacy_counts(rows)
-    assert (counts.quarantined, counts.released, counts.pages_withheld) == (1, 1, 2)
+    assert (counts.quarantined, counts.released, counts.pages_withheld) == (1, 1, 5)
     assert (counts.attachment_text_dropped, counts.attachment_failures, counts.degraded_before_fix) == (1, 1, 1)
 
 

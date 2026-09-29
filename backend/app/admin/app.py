@@ -13,12 +13,9 @@ from fastapi import (
     FastAPI,
     HTTPException,
     Query,
-    Request,
     Response,
     status,
 )
-from fastapi.responses import JSONResponse
-from sqlalchemy.exc import DBAPIError, InterfaceError, OperationalError
 
 from app.admin import stats
 from app.admin.auth import (
@@ -26,6 +23,7 @@ from app.admin.auth import (
     REFRESH_COOKIE,
     Admin,
     AdminAuthError,
+    Session,
     clear_session_cookies,
     refresh,
     require_admin,
@@ -42,7 +40,9 @@ from app.admin.schemas import (
     Overview,
     SignInRequest,
 )
+from app.audit import audit
 from app.core.constants import ADMIN_SIGN_IN_LIMIT, ADMIN_SIGN_IN_WINDOW_SECONDS
+from app.core.db_errors import register_database_handlers
 from app.core.ratelimit import RateLimiter
 from app.db.session import get_sessionmaker
 
@@ -55,26 +55,32 @@ rate_limit_sign_in = RateLimiter("admin sign-in", ADMIN_SIGN_IN_LIMIT, ADMIN_SIG
 AdminUser = Annotated[Admin, Depends(require_admin)]
 
 
-async def _database_unreachable(request: Request, exc: Exception) -> JSONResponse:
-    return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                        content={"detail": "database_unreachable"})
-
-
-for _error in (OSError, OperationalError, InterfaceError, DBAPIError):
-    admin_app.add_exception_handler(_error, _database_unreachable)
+# The same split as the main app: an outage is a 503, a real SQL fault is logged and a 500.
+register_database_handlers(admin_app)
 
 
 @admin_app.post("/session", dependencies=[Depends(rate_limit_sign_in), Depends(require_admin_header)])
 async def create_session(body: SignInRequest, response: Response) -> AdminIdentity:
-    session = await sign_in(body.email, body.password)
     try:
-        admin = await verify_admin(session.access_token)
+        session = await sign_in(body.email, body.password)
+        admin = await _admin_or_revoke(session)
     except HTTPException:
-        # A real account without the admin role: end the session it was just given.
-        await sign_out(session.access_token)
+        await audit("admin_sign_in", "refused", success=False)
         raise
     set_session_cookies(response, session)
+    await audit("admin_sign_in", f"admin={admin.user_id}")
     return AdminIdentity(email=admin.email)
+
+
+async def _admin_or_revoke(session: Session) -> Admin:
+    """The admin behind a fresh session. A real account without the role has the session it was
+    just given revoked, and is told the same as a wrong password: the form must not confirm which
+    passwords are valid."""
+    try:
+        return await verify_admin(session.access_token)
+    except HTTPException as exc:
+        await sign_out(session.access_token)
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, AdminAuthError.BAD_CREDENTIALS) from exc
 
 
 @admin_app.post("/session/refresh", dependencies=[Depends(require_admin_header)])

@@ -159,7 +159,9 @@ async def _gmail_request(
     return response
 
 
-async def _headers_of(client: httpx.AsyncClient, gmail_id: str, names: tuple[str, ...]) -> dict:
+async def message_headers(
+    client: httpx.AsyncClient, gmail_id: str, names: tuple[str, ...]
+) -> dict:
     """The named headers of a message, keyed lower-case, plus its threadId. Headers only, no body."""
     response = await _gmail_request(
         client, "GET", f"{_MESSAGES_URL}/{gmail_id}",
@@ -171,15 +173,25 @@ async def _headers_of(client: httpx.AsyncClient, gmail_id: str, names: tuple[str
     return headers | {"threadid": payload.get("threadId")}
 
 
+# The stored subject is masked; with the original gone from Gmail it is all there is. A subject
+# carrying a redaction marker would show "[Redacted]" to the recipient, so it is not used.
+_MARKER = re.compile(r"\[(?:[A-Z_]+_REDACTED|Redacted|REDACTED)\]")
+NEUTRAL_SUBJECT = "Your message"
+
+
+def _sendable_subject(masked_subject: str) -> str:
+    return NEUTRAL_SUBJECT if _MARKER.search(masked_subject) or not masked_subject.strip() else masked_subject
+
+
 async def _reply_target(
     client: httpx.AsyncClient, gmail_id: str | None, fallback_to: str, fallback_subject: str
 ) -> ReplyTarget:
     """Thread identity and real subject from the original; standalone if it no longer exists."""
-    fallback = ReplyTarget(to_addr=fallback_to, subject=fallback_subject)
+    fallback = ReplyTarget(to_addr=fallback_to, subject=_sendable_subject(fallback_subject))
     if not gmail_id:
         return fallback
     try:
-        headers = await _headers_of(client, gmail_id, _ORIGINAL_HEADERS)
+        headers = await message_headers(client, gmail_id, _ORIGINAL_HEADERS)
     except httpx.HTTPStatusError as exc:
         if exc.response.status_code == httpx.codes.NOT_FOUND:
             return fallback
@@ -201,7 +213,7 @@ async def _sent_message_id(client: httpx.AsyncClient, gmail_id: str | None) -> s
     if not gmail_id:
         return None
     try:
-        return (await _headers_of(client, gmail_id, ("Message-ID",))).get("message-id")
+        return (await message_headers(client, gmail_id, ("Message-ID",))).get("message-id")
     except (httpx.HTTPError, KeyError, ValueError) as exc:
         logger.warning("sent reply %s: could not read back its Message-ID: %s", gmail_id, exc)
         return None

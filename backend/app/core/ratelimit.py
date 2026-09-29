@@ -16,6 +16,8 @@ from collections import deque
 from fastapi import HTTPException, Request, status
 
 from app.core.constants import (
+    DETAIL_RATE_LIMIT,
+    DETAIL_RATE_WINDOW_SECONDS,
     GENERATION_RATE_LIMIT,
     GENERATION_RATE_WINDOW_SECONDS,
     INGEST_RATE_LIMIT,
@@ -62,3 +64,6 @@ rate_limit_ingest = RateLimiter("ingestion", INGEST_RATE_LIMIT, INGEST_RATE_WIND
 rate_limit_generation = RateLimiter(
     "generation", GENERATION_RATE_LIMIT, GENERATION_RATE_WINDOW_SECONDS
 )
+# Opening an email drafts it the first time, so the detail view spends quota too; its limit sits
+# well above anyone reading their mail.
+rate_limit_detail = RateLimiter("email detail", DETAIL_RATE_LIMIT, DETAIL_RATE_WINDOW_SECONDS)
