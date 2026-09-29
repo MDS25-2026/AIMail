@@ -17,8 +17,11 @@
   `EMBEDDING_TAG = "gemini-embedding-001/retrieval-task"` in `embedding.model_name`.
 - Why: measured on `scripts/eval_set.json`, same corpus, same day: precision@5 0.600 -> 0.700,
   MRR 0.900 -> 0.906, hit rate 1.000 both. All 53 chunks re-embedded.
-- Why a new tag rather than overwriting: the table is append-only, so the untyped vectors stay
-  under `gemini-embedding-001` and rolling back is a one-line constant change.
+- Why a new tag rather than overwriting: the table is append-only, so the switch was measured
+  side by side. The untyped vectors were then deleted (2026-09-29, after the audit): both tags
+  shared one HNSW index and `retrieve` filters by tag after the index scan, so stale rows could
+  return fewer than k chunks. Eval unchanged after the delete. Rolling back now means reverting
+  the constant and letting `embed_pending` re-embed at startup (53 chunks, seconds).
 - Affects: `app/rag/{embed,retrieve,ingest}.py`, `app/core/constants.py`, `scripts/seed_demo.py`,
   `scripts/smoke_primitive.py`.
 
