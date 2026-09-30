@@ -55,6 +55,12 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer` and a `default-src 'none'` CSP (the
   demo page at `/` gets a CSP that allows its inline script). Implementation:
   `backend/app/core/middleware.py`.
+- `POST /emails/{id}/regenerate` and `POST /emails/{id}/refine` no longer answer `200` with the
+  old draft when nothing changed (2026-09-30). They answer `502` `agent_unavailable` (the agent
+  or retrieval failed; retry later), `422` `draft_refused` (regenerate only: the model failed on
+  this content and the reviewed draft is kept), `409` `masking_pending` (quarantined) or `409`
+  `already_sent`, each as `{"detail": "<code>"}`. A regenerate the router judges needs no reply
+  is still `200`, with an empty draft.
 - Lane C's `/process-email` and `/refine` answer `503` (or `504` when the draft's deadline ran
   out) with `{"detail": "<gemini error code>"}` when Gemini fails. See
   [`../features/llm-resilience.md`](../features/llm-resilience.md).

@@ -6,6 +6,17 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-09-30 — Regenerate and refine report failure instead of returning the old draft
+- Decision: both routes raise `DraftNotUpdatedError` when the draft did not change, answered as
+  `502 agent_unavailable`, `422 draft_refused` or `409 masking_pending` (see
+  `specs/context/api-contracts.md`). `_generate_and_store` returns a `GenerationOutcome` instead
+  of a bool, so the caller can tell "no reply needed" from "the agent failed".
+- Why: with the agent down, both answered `200` with the unchanged email, so the dashboard said
+  "Draft refined" when nothing had happened. Found while verifying the Lane D draft-error fix.
+- Affects: Lane B (`app/dashboard.py`, `app/main.py`) and its one consumer, Lane D (already
+  handles non-2xx on both routes). No schema change.
+- Status: implemented by veyroxie, approved by the mailbox owner 2026-09-30.
+
 ### 2026-09-29 — Masking fails closed; admin console on Supabase Auth
 - Decision (#109): a message whose NER masking cannot complete is quarantined
   (`messages.masking_status = 'pending'`, no content) and completed by the listener when Presidio

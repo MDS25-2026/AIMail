@@ -9,6 +9,7 @@ unreachable the email still returns with its Lane A/B fields and stays uncached 
 
 import logging
 from datetime import datetime, timezone
+from enum import Enum, StrEnum
 from uuid import UUID
 
 import httpx
@@ -137,6 +138,29 @@ class AlreadySentError(RuntimeError):
     """The draft of a sent message is the record of what went out; it is never replaced."""
 
 
+class DraftErrorCode(StrEnum):
+    AGENT_UNAVAILABLE = "agent_unavailable"  # the agent or retrieval failed; try again later
+    DRAFT_REFUSED = "draft_refused"  # the model failed on this content; the old draft stays
+    MASKING_PENDING = "masking_pending"  # quarantined: there is nothing masked to draft from
+
+
+class DraftNotUpdatedError(RuntimeError):
+    """A regenerate or refine that changed nothing. Answering 200 with the old draft hid it."""
+
+    def __init__(self, code: DraftErrorCode, status_code: int) -> None:
+        super().__init__(code)
+        self.code = code
+        self.status_code = status_code
+
+
+class GenerationOutcome(Enum):
+    STORED = "stored"  # a new draft is in place
+    NO_REPLY = "no_reply"  # stored with no draft: routed NA, or refused with no draft to keep
+    KEPT = "kept"  # refused for content; the reviewer's existing draft stays
+    FAILED = "failed"  # the agent or retrieval failed; an attempt was counted
+    SKIPPED = "skipped"  # quarantined, or sent while the draft was being written
+
+
 async def generate_pending(limit: int | None = None) -> int:
     """Generate + cache drafts for messages without one; return how many were generated.
 
@@ -160,7 +184,7 @@ async def generate_pending(limit: int | None = None) -> int:
     generated = 0
     for pk in pending:
         loaded = await _load_with_thread(pk)
-        if loaded and await _generate_and_store(*loaded):
+        if loaded and await _generate_and_store(*loaded) is GenerationOutcome.STORED:
             generated += 1
     return generated
 
@@ -285,28 +309,29 @@ def _generation_fields(generated: dict) -> dict:
 
 async def _generate_and_store(
     message: Message, thread: list[Message] | None = None, tone: str = "professional"
-) -> bool:
-    """Generate the Lane C draft and store it; return True if a draft was stored.
+) -> GenerationOutcome:
+    """Generate the Lane C draft and store it.
 
     An "NA" result (no reply needed) is stored too, so the poller stops retrying it. A failure
     counts an attempt and leaves the message for a later try. Nothing is written to a sent message.
     """
     if not message.is_masked:
-        return False  # quarantined (#109): there is no masked content to draft from yet
+        return GenerationOutcome.SKIPPED  # quarantined (#109): no masked content to draft from yet
     generated = await _generate(message, tone, thread or [])
     if generated.get(NOT_DRAFTED) and message.draft_reply:
-        return False  # a regenerate that failed for content keeps the draft the reviewer has
+        return GenerationOutcome.KEPT  # a regenerate failed for content keeps the reviewed draft
     is_usable = bool(generated) and (bool(generated.get("draft")) or generated.get("category") == "NA")
     fields = (_generation_fields(generated) if is_usable
               else {"generation_attempts": (message.generation_attempts or 0) + 1})
     if not await _update_unsent(message.id, fields):
-        return False
+        return GenerationOutcome.SKIPPED
     for column, value in fields.items():
         setattr(message, column, value)
-    if is_usable:
-        await audit("generate_draft", f"message={message.id} tone={tone} "
-                    f"confidence={message.critic_confidence} review={message.needs_human_review}")
-    return bool(fields.get("draft_reply"))
+    if not is_usable:
+        return GenerationOutcome.FAILED
+    await audit("generate_draft", f"message={message.id} tone={tone} "
+                f"confidence={message.critic_confidence} review={message.needs_human_review}")
+    return GenerationOutcome.STORED if fields.get("draft_reply") else GenerationOutcome.NO_REPLY
 
 
 async def _mark_read(pk: UUID) -> None:
@@ -337,7 +362,11 @@ async def email_detail(message_id: str) -> DashboardEmail | None:
 
 
 async def regenerate_email(message_id: str, tone: str = "professional") -> DashboardEmail | None:
-    """A fresh draft in the given tone (Regenerate / tone change). The old one stays if it fails."""
+    """A fresh draft in the given tone (Regenerate / tone change).
+
+    The old draft stays if it fails, and the failure is raised as DraftNotUpdatedError so the
+    reader is told rather than shown the old draft as if it were new.
+    """
     try:
         pk = UUID(message_id)
     except ValueError:
@@ -348,8 +377,21 @@ async def regenerate_email(message_id: str, tone: str = "professional") -> Dashb
     message, thread = loaded
     if message.sent_at is not None:
         raise AlreadySentError(message_id)
-    await _generate_and_store(message, thread, tone)
+    outcome = await _generate_and_store(message, thread, tone)
+    _raise_unless_updated(message, outcome)
     return _to_email(message, thread=thread)
+
+
+def _raise_unless_updated(message: Message, outcome: GenerationOutcome) -> None:
+    if outcome in (GenerationOutcome.STORED, GenerationOutcome.NO_REPLY):
+        return
+    if outcome is GenerationOutcome.KEPT:
+        raise DraftNotUpdatedError(DraftErrorCode.DRAFT_REFUSED, 422)
+    if outcome is GenerationOutcome.FAILED:
+        raise DraftNotUpdatedError(DraftErrorCode.AGENT_UNAVAILABLE, 502)
+    if not message.is_masked:
+        raise DraftNotUpdatedError(DraftErrorCode.MASKING_PENDING, 409)
+    raise AlreadySentError(str(message.id))  # SKIPPED on a masked row: sent while generating
 
 
 async def _claim_send(pk: UUID) -> bool:
@@ -493,8 +535,13 @@ async def refine_email(message_id: str, instruction: str, draft: str) -> Dashboa
         return None
     if message.sent_at is not None:
         raise AlreadySentError(message_id)
-    refined = await _refine(message, draft, instruction) if message.is_masked else None
-    if refined and await _update_unsent(pk, {"draft_reply": refined}):
-        message.draft_reply = refined
+    if not message.is_masked:
+        raise DraftNotUpdatedError(DraftErrorCode.MASKING_PENDING, 409)
+    refined = await _refine(message, draft, instruction)
     await audit("refine_draft", f"message={message_id}", success=bool(refined))
+    if not refined:
+        raise DraftNotUpdatedError(DraftErrorCode.AGENT_UNAVAILABLE, 502)
+    if not await _update_unsent(pk, {"draft_reply": refined}):
+        raise AlreadySentError(message_id)
+    message.draft_reply = refined
     return _to_email(message)

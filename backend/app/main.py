@@ -41,6 +41,7 @@ from app.core.ratelimit import (
 )
 from app.dashboard import (
     AlreadySentError,
+    DraftNotUpdatedError,
     TranslationError,
     approve_and_send,
     email_detail,
@@ -216,6 +217,8 @@ async def regenerate_email_route(
         email = await regenerate_email(message_id, body.tone if body else "professional")
     except AlreadySentError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, "already_sent") from exc
+    except DraftNotUpdatedError as exc:
+        raise HTTPException(exc.status_code, exc.code) from exc
     if email is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "email not found")
     return email
@@ -233,6 +236,8 @@ async def refine_email_route(message_id: str, body: RefineRequest) -> DashboardE
         email = await refine_email(message_id, body.instruction, body.draft)
     except AlreadySentError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, "already_sent") from exc
+    except DraftNotUpdatedError as exc:
+        raise HTTPException(exc.status_code, exc.code) from exc
     if email is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "email not found")
     return email

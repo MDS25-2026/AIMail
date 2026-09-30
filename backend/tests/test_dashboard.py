@@ -88,7 +88,7 @@ def test_a_quarantined_message_is_never_drafted(monkeypatch):
     monkeypatch.setattr(dashboard, "_generate", must_not_run)
     for status in (MaskingStatus.PENDING, MaskingStatus.ABANDONED):
         message = Message(id=uuid4(), masking_status=status)
-        assert asyncio.run(dashboard._generate_and_store(message)) is False
+        assert asyncio.run(dashboard._generate_and_store(message)) is dashboard.GenerationOutcome.SKIPPED
 
 
 def _at(hour: int) -> datetime:
@@ -217,5 +217,6 @@ def test_a_regenerate_that_fails_for_content_keeps_the_existing_draft(monkeypatc
     monkeypatch.setattr(dashboard, "_generate", not_drafted)
     monkeypatch.setattr(dashboard, "_update_unsent", must_not_write)
     message = Message(id=uuid4(), masking_status=MaskingStatus.COMPLETE, draft_reply="Reviewed draft")
-    assert asyncio.run(dashboard._generate_and_store(message, tone="casual")) is False
+    outcome = asyncio.run(dashboard._generate_and_store(message, tone="casual"))
+    assert outcome is dashboard.GenerationOutcome.KEPT
     assert message.draft_reply == "Reviewed draft"
