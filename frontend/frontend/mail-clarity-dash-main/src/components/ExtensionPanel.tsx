@@ -9,6 +9,7 @@ import DraftReplyEditor from "./DraftReplyEditor";
 import SourcesChips from "./SourcesChips";
 import RefineInput from "./RefineInput";
 import DraftActionsBar from "./DraftActionsBar";
+import DraftStatus, { type DraftStatusProps } from "./DraftStatus";
 
 type ExtensionPanelProps = {
   email: Email;
@@ -17,10 +18,12 @@ type ExtensionPanelProps = {
   onDraftChange: (draft: string) => void;
   onToneChange: (emailId: string, tone: Tone) => void;
   onRegenerate: (emailId: string) => void;
-  onRefine: (emailId: string, instruction: string) => void;
+  onRefine: (emailId: string, instruction: string) => Promise<void>;
   onApproveSend: (emailId: string) => void;
   isRegenerating?: boolean;
   isRefining?: boolean;
+  isSending?: boolean;
+  status: DraftStatusProps;
 };
 
 /**
@@ -38,9 +41,12 @@ export default function ExtensionPanel({
   onApproveSend,
   isRegenerating = false,
   isRefining = false,
+  isSending = false,
+  status,
 }: ExtensionPanelProps) {
   const { t } = useTranslation();
   const format = useFormat();
+  const isDraftBusy = isRegenerating || isRefining || isSending || status.isGenerating;
   return (
     <div className="flex h-full w-[390px] flex-col border border-line bg-surface-muted">
       <header className="flex items-center justify-between border-b border-line bg-surface px-3 py-2">
@@ -68,10 +74,11 @@ export default function ExtensionPanel({
             rows={6}
             onDraftChange={onDraftChange}
             onToneChange={onToneChange}
-            disabled={isRegenerating || isRefining}
+            disabled={isDraftBusy}
           />
           <SourcesChips sources={email.sources} draft={draft} />
-          <RefineInput emailId={email.id} onRefine={onRefine} disabled={isRefining} />
+          <RefineInput emailId={email.id} onRefine={onRefine} disabled={isDraftBusy} />
+          <DraftStatus {...status} />
         </div>
       </div>
 
@@ -81,6 +88,10 @@ export default function ExtensionPanel({
           onRegenerate={onRegenerate}
           onApproveSend={onApproveSend}
           isRegenerating={isRegenerating}
+          isRefining={isRefining}
+          isSending={isSending}
+          isSent={Boolean(email.sentAt)}
+          isGenerating={status.isGenerating}
         />
       </footer>
     </div>

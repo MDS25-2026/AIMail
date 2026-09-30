@@ -20,6 +20,8 @@ export const zh: Translations = {
     count_other: "{{count}} 封邮件",
     unread: "（未读）",
     keyboardHint: "在列表中，按 J/K 或方向键在邮件之间切换。",
+    emptyTitle: "暂无邮件",
+    emptyHint: "新邮件到达您的 Gmail 收件箱几秒后会显示在这里。",
   },
   priority: { high: "紧急", medium: "中等", low: "低" },
   detail: {
@@ -38,7 +40,6 @@ export const zh: Translations = {
     approveSend: "批准并发送",
     sending: "正在发送…",
     sent: "已发送",
-    sendFailed: "发送失败。请检查后端和邮件代理后重试。",
   },
   tone: { label: "语气", professional: "正式", casual: "随和" },
   refine: {
@@ -83,6 +84,7 @@ export const zh: Translations = {
     errorTitle: "无法加载{{label}}",
     errorHint: "请确认后端在配置的地址上运行，且 API 令牌匹配。",
     unknownError: "未知错误",
+    retry: "重试",
     notFoundTitle: "找不到页面",
     notFoundBody: "您要查找的页面不存在或已被移动。",
     goHome: "返回首页",
@@ -249,6 +251,24 @@ export const zh: Translations = {
     unknown: "未知",
     needsAttention: "需要关注",
     loading: "管理数据",
+  },
+  draftStatus: {
+    generating: "正在撰写草稿，最多可能需要 20 秒。",
+    loadFailed: "无法加载这封邮件的最新版本，当前显示的是收件箱预览。",
+    retry: "重试",
+    failed: {
+      regenerate: "无法生成新草稿。您的文字没有改变，请稍后重试。",
+      refine: "无法润色草稿。您的文字和指令都没有改变，请稍后重试。",
+      send: "回复未发送。您的草稿没有改变，请稍后重试。",
+    },
+    replaceEdits: "新草稿将替换您输入的修改。",
+    replaceConfirm: "替换我的修改",
+    sendMarkers_one:
+      "这封回复仍有 {{count}} 处隐藏信息，例如 [Redacted]。收件人会原样看到。发送前请填入真实信息。",
+    sendMarkers_other:
+      "这封回复仍有 {{count}} 处隐藏信息，例如 [Redacted]。收件人会原样看到。发送前请填入真实信息。",
+    sendAnyway: "仍然发送",
+    keepEditing: "继续编辑",
   },
   announce: {
     regenerated: "草稿已重新生成",

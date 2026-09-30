@@ -62,6 +62,12 @@ COMPONENTS
 
    duplicate their logic
 
+ - DraftStatus + lib/useDraftWorkflow — regenerate, refine and send for both the inbox and
+
+   the extension panel: asks before a regenerate replaces typed edits, warns before a reply
+
+   containing a redaction marker is sent, and keeps failures on screen
+
 BEHAVIOR
 
  - Selecting an email in InboxList updates EmailDetailPanel via props/state, not global 

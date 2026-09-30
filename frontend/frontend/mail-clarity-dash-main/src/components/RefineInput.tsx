@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 
 type RefineInputProps = {
   emailId: string;
-  onRefine: (emailId: string, instruction: string) => void;
+  /** Rejects when the refine fails. */
+  onRefine: (emailId: string, instruction: string) => Promise<void>;
   disabled?: boolean;
 };
 
@@ -18,8 +19,11 @@ export default function RefineInput({ emailId, onRefine, disabled = false }: Ref
     event.preventDefault();
     const trimmed = instruction.trim();
     if (!trimmed) return;
-    onRefine(emailId, trimmed);
-    setInstruction("");
+    // Cleared only once the refine lands: a failed one keeps the instruction for the retry.
+    onRefine(emailId, trimmed).then(
+      () => setInstruction(""),
+      () => undefined,
+    );
   };
 
   return (
@@ -49,7 +53,7 @@ export default function RefineInput({ emailId, onRefine, disabled = false }: Ref
             key={suggestion}
             type="button"
             disabled={disabled}
-            onClick={() => onRefine(emailId, t(suggestion))}
+            onClick={() => void onRefine(emailId, t(suggestion)).catch(() => undefined)}
             className="rounded-full border border-line bg-surface px-2.5 py-1 text-xs text-fg-body hover:bg-surface-muted disabled:cursor-not-allowed disabled:text-fg-subtle"
           >
             {t(suggestion)}

@@ -10,6 +10,8 @@ type DraftActionsBarProps = {
   isRefining?: boolean;
   isSending?: boolean;
   isSent?: boolean;
+  /** The first draft is still being written; acting now would act on the preview. */
+  isGenerating?: boolean;
 };
 
 export default function DraftActionsBar({
@@ -20,16 +22,17 @@ export default function DraftActionsBar({
   isRefining = false,
   isSending = false,
   isSent = false,
+  isGenerating = false,
 }: DraftActionsBarProps) {
   // Every mutation blocks the others: the draft must not change under a send, and a send must
   // not go out mid-change. Sending is the irreversible one, so it is the one guarded hardest.
   const { t } = useTranslation();
-  const isDraftChanging = isRegenerating || isRefining;
+  const isDraftChanging = isRegenerating || isRefining || isGenerating;
   return (
     <div className="flex items-center justify-end gap-2">
       <button
         type="button"
-        disabled={emailId === null || isRegenerating || isRefining || isSending}
+        disabled={emailId === null || isDraftChanging || isSending}
         onClick={() => emailId && onRegenerate(emailId)}
         className="rounded-md border border-line-strong bg-surface px-4 py-2 text-sm font-medium text-fg-body hover:bg-surface-muted disabled:cursor-not-allowed disabled:text-fg-subtle"
       >

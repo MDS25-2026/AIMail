@@ -11,6 +11,7 @@ import DraftReplyEditor from "./DraftReplyEditor";
 import SourcesChips from "./SourcesChips";
 import RefineInput from "./RefineInput";
 import DraftActionsBar from "./DraftActionsBar";
+import DraftStatus, { type DraftStatusProps } from "./DraftStatus";
 import PriorityBadge from "./PriorityBadge";
 
 type EmailDetailPanelProps = {
@@ -20,11 +21,12 @@ type EmailDetailPanelProps = {
   onDraftChange: (draft: string) => void;
   onToneChange: (emailId: string, tone: Tone) => void;
   onRegenerate: (emailId: string) => void;
-  onRefine: (emailId: string, instruction: string) => void;
+  onRefine: (emailId: string, instruction: string) => Promise<void>;
   onApproveSend: (emailId: string) => void;
   isRegenerating?: boolean;
   isRefining?: boolean;
   isSending?: boolean;
+  status: DraftStatusProps;
 };
 
 export default function EmailDetailPanel({
@@ -39,9 +41,11 @@ export default function EmailDetailPanel({
   isRegenerating = false,
   isRefining = false,
   isSending = false,
+  status,
 }: EmailDetailPanelProps) {
   const { t } = useTranslation();
   const format = useFormat();
+  const isDraftBusy = isRegenerating || isRefining || isSending || status.isGenerating;
   if (!email) {
     return (
       <div className="flex h-full items-center justify-center p-8 text-sm text-fg-subtle">
@@ -93,16 +97,14 @@ export default function EmailDetailPanel({
             onDraftChange={onDraftChange}
             onToneChange={onToneChange}
             // A tone change regenerates the draft, so it is blocked mid-send like the rest.
-            disabled={isRegenerating || isRefining || isSending}
+            disabled={isDraftBusy}
           />
 
           <SourcesChips key={email.id} sources={email.sources} draft={draft} />
 
-          <RefineInput
-            emailId={email.id}
-            onRefine={onRefine}
-            disabled={isRefining || isRegenerating || isSending}
-          />
+          <RefineInput emailId={email.id} onRefine={onRefine} disabled={isDraftBusy} />
+
+          <DraftStatus {...status} />
 
           <div className="flex items-center justify-between gap-3 border-t border-line-subtle pt-4">
             <p className="text-xs text-fg-subtle">
@@ -118,6 +120,7 @@ export default function EmailDetailPanel({
               isRefining={isRefining}
               isSending={isSending}
               isSent={Boolean(email.sentAt)}
+              isGenerating={status.isGenerating}
             />
           </div>
         </section>

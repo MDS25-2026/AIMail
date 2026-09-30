@@ -16,7 +16,9 @@ export function PageLoading({ label }: { label: string }) {
   );
 }
 
-export function PageError({ label, error }: { label: string; error: unknown }) {
+type PageErrorProps = { label: string; error: unknown; onRetry?: () => void };
+
+export function PageError({ label, error, onRetry }: PageErrorProps) {
   const { t } = useTranslation();
   const detail = error instanceof Error ? error.message : t("page.unknownError");
   return (
@@ -29,6 +31,15 @@ export function PageError({ label, error }: { label: string; error: unknown }) {
         <p className="text-sm font-semibold text-danger">{t("page.errorTitle", { label })}</p>
         <p className="mt-1 text-sm text-danger">{detail}</p>
         <p className="mt-2 text-xs text-danger">{t("page.errorHint")}</p>
+        {onRetry ? (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="mt-3 rounded-md border border-danger-line bg-surface px-3 py-1.5 text-xs font-semibold text-danger"
+          >
+            {t("page.retry")}
+          </button>
+        ) : null}
       </div>
     </div>
   );

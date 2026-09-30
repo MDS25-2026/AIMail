@@ -24,6 +24,9 @@ export const ms: Translations = {
     count_other: "{{count}} mesej",
     unread: "(belum dibaca)",
     keyboardHint: "Dalam senarai, J/K atau kekunci anak panah beralih antara e-mel.",
+    emptyTitle: "Belum ada e-mel",
+    emptyHint:
+      "E-mel baharu dipaparkan di sini beberapa saat selepas tiba di peti masuk Gmail anda.",
   },
   priority: { high: "Segera", medium: "Sederhana", low: "Rendah" },
   detail: {
@@ -42,7 +45,6 @@ export const ms: Translations = {
     approveSend: "Lulus & Hantar",
     sending: "Menghantar…",
     sent: "Dihantar",
-    sendFailed: "Penghantaran gagal. Semak pelayan belakang dan ejen e-mel, kemudian cuba lagi.",
   },
   tone: { label: "Nada", professional: "Profesional", casual: "Santai" },
   refine: {
@@ -90,6 +92,7 @@ export const ms: Translations = {
     errorHint:
       "Pastikan pelayan belakang berjalan pada URL yang dikonfigurasi dan token API sepadan.",
     unknownError: "Ralat tidak diketahui",
+    retry: "Cuba lagi",
     notFoundTitle: "Halaman tidak ditemui",
     notFoundBody: "Halaman yang anda cari tidak wujud atau telah dipindahkan.",
     goHome: "Ke laman utama",
@@ -263,6 +266,27 @@ export const ms: Translations = {
     unknown: "Tidak diketahui",
     needsAttention: "perlu perhatian",
     loading: "data pentadbir",
+  },
+  draftStatus: {
+    generating: "Sedang menulis draf. Ini boleh mengambil masa sehingga 20 saat.",
+    loadFailed:
+      "Versi terkini e-mel ini tidak dapat dimuatkan, jadi anda sedang melihat pratonton peti masuk.",
+    retry: "Cuba lagi",
+    failed: {
+      regenerate:
+        "Draf baharu tidak dapat ditulis. Teks anda tidak berubah, jadi cuba lagi sebentar lagi.",
+      refine:
+        "Draf tidak dapat diperhalusi. Teks dan arahan anda tidak berubah, jadi cuba lagi sebentar lagi.",
+      send: "Balasan tidak dihantar. Draf anda tidak berubah, jadi cuba lagi sebentar lagi.",
+    },
+    replaceEdits: "Draf baharu akan menggantikan perubahan yang anda taip.",
+    replaceConfirm: "Gantikan perubahan saya",
+    sendMarkers_one:
+      "Balasan ini masih mengandungi {{count}} butiran tersembunyi, seperti [Redacted]. Penerima akan melihatnya begitu sahaja. Taip butiran sebenar sebelum menghantar.",
+    sendMarkers_other:
+      "Balasan ini masih mengandungi {{count}} butiran tersembunyi, seperti [Redacted]. Penerima akan melihatnya begitu sahaja. Taip butiran sebenar sebelum menghantar.",
+    sendAnyway: "Hantar juga",
+    keepEditing: "Teruskan menyunting",
   },
   announce: {
     regenerated: "Draf dijana semula",

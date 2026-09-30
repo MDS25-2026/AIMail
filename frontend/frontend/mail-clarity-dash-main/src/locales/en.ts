@@ -21,6 +21,8 @@ export const en = {
     count_other: "{{count}} messages",
     unread: "(unread)",
     keyboardHint: "In the list, J/K or the arrow keys move between emails.",
+    emptyTitle: "No emails yet",
+    emptyHint: "New emails show up here a few seconds after they reach your Gmail inbox.",
   },
   priority: { high: "Urgent", medium: "Medium", low: "Low" },
   detail: {
@@ -39,7 +41,6 @@ export const en = {
     approveSend: "Approve & Send",
     sending: "Sending…",
     sent: "Sent",
-    sendFailed: "Send failed. Check the backend and email agent, then try again.",
   },
   tone: { label: "Tone", professional: "Professional", casual: "Casual" },
   refine: {
@@ -85,6 +86,7 @@ export const en = {
     errorTitle: "Could not load {{label}}",
     errorHint: "Check the backend is running on the configured URL and that the API token matches.",
     unknownError: "Unknown error",
+    retry: "Try again",
     notFoundTitle: "Page not found",
     notFoundBody: "The page you're looking for doesn't exist or has been moved.",
     goHome: "Go home",
@@ -259,6 +261,26 @@ export const en = {
     unknown: "Unknown",
     needsAttention: "needs attention",
     loading: "admin data",
+  },
+  draftStatus: {
+    generating: "Writing a draft. This can take up to 20 seconds.",
+    loadFailed:
+      "Couldn't load the latest version of this email, so you're seeing the inbox preview.",
+    retry: "Try again",
+    failed: {
+      regenerate: "Couldn't write a new draft. Your text is unchanged, so try again in a moment.",
+      refine:
+        "Couldn't refine the draft. Your text and instruction are unchanged, so try again in a moment.",
+      send: "The reply was not sent. Your draft is unchanged, so try again in a moment.",
+    },
+    replaceEdits: "A new draft will replace the changes you typed.",
+    replaceConfirm: "Replace my changes",
+    sendMarkers_one:
+      "This reply still has {{count}} hidden detail, such as [Redacted]. The recipient will see it exactly like that. Type the real detail in before sending.",
+    sendMarkers_other:
+      "This reply still has {{count}} hidden details, such as [Redacted]. The recipient will see them exactly like that. Type the real details in before sending.",
+    sendAnyway: "Send anyway",
+    keepEditing: "Keep editing",
   },
   announce: {
     regenerated: "Draft regenerated",
