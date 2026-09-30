@@ -26,6 +26,18 @@ export async function fetchEmail(id: string): Promise<Email> {
   return res.json();
 }
 
+/** The model failed on this email's content (422 draft_refused); retrying cannot change that. */
+export class DraftRefusedError extends Error {}
+
+const DRAFT_REFUSED = "draft_refused";
+
+async function regenerateError(res: Response, message: string): Promise<Error> {
+  const body: unknown = await res.json().catch(() => null);
+  const isRefused =
+    typeof body === "object" && body !== null && "detail" in body && body.detail === DRAFT_REFUSED;
+  return isRefused ? new DraftRefusedError(message) : new Error(message);
+}
+
 /** Force a fresh draft in the given tone, replacing the cached one. */
 export async function regenerateEmail(id: string, tone: string): Promise<Email> {
   const res = await fetch(`${BASE}/emails/${id}/regenerate`, {
@@ -33,7 +45,8 @@ export async function regenerateEmail(id: string, tone: string): Promise<Email> 
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ tone }),
   });
-  if (!res.ok) throw new Error(`POST /emails/${id}/regenerate failed (${res.status})`);
+  if (!res.ok)
+    throw await regenerateError(res, `POST /emails/${id}/regenerate failed (${res.status})`);
   return res.json();
 }
 

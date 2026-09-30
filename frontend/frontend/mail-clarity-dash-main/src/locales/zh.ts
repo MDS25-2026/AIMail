@@ -260,6 +260,8 @@ export const zh: Translations = {
       regenerate: "无法生成新草稿。您的文字没有改变，请稍后重试。",
       refine: "无法润色草稿。您的文字和指令都没有改变，请稍后重试。",
       send: "回复未发送。您的草稿没有改变，请稍后重试。",
+      refused:
+        "AI 无法为这封邮件撰写草稿，重试也不会改变结果。您的文字没有改变：请自行撰写回复，或尝试另一种语气。",
     },
     replaceEdits: "新草稿将替换您输入的修改。",
     replaceConfirm: "替换我的修改",

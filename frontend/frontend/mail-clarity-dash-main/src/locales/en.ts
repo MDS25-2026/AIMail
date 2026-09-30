@@ -272,6 +272,8 @@ export const en = {
       refine:
         "Couldn't refine the draft. Your text and instruction are unchanged, so try again in a moment.",
       send: "The reply was not sent. Your draft is unchanged, so try again in a moment.",
+      refused:
+        "The AI couldn't write a draft for this email, and trying again won't change that. Your text is unchanged: write the reply yourself, or try the other tone.",
     },
     replaceEdits: "A new draft will replace the changes you typed.",
     replaceConfirm: "Replace my changes",

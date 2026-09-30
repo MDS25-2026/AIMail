@@ -278,6 +278,8 @@ export const ms: Translations = {
       refine:
         "Draf tidak dapat diperhalusi. Teks dan arahan anda tidak berubah, jadi cuba lagi sebentar lagi.",
       send: "Balasan tidak dihantar. Draf anda tidak berubah, jadi cuba lagi sebentar lagi.",
+      refused:
+        "AI tidak dapat menulis draf untuk e-mel ini, dan mencuba lagi tidak akan mengubahnya. Teks anda tidak berubah: tulis balasan sendiri, atau cuba nada yang satu lagi.",
     },
     replaceEdits: "Draf baharu akan menggantikan perubahan yang anda taip.",
     replaceConfirm: "Gantikan perubahan saya",

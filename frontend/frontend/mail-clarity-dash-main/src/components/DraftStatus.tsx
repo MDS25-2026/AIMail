@@ -14,7 +14,7 @@ const BUTTON =
 
 /** Everything the reader must know before acting on the draft, directly above the actions. */
 export default function DraftStatus({
-  failedAction,
+  failure,
   pendingConfirm,
   onConfirm,
   onCancel,
@@ -60,13 +60,13 @@ export default function DraftStatus({
         </div>
       ) : null}
 
-      {failedAction ? (
+      {failure ? (
         <p
           role="alert"
           className="flex gap-2 rounded-md border border-danger-line bg-danger-soft p-3 text-sm text-danger"
         >
           <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
-          {t(`draftStatus.failed.${failedAction}`)}
+          {t(`draftStatus.failed.${failure}`)}
         </p>
       ) : null}
 

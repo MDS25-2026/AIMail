@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { DraftRefusedError } from "./api";
 import { findRedactionMarkers, hasUnsavedEdits } from "./draftGuards";
 import { useRefineEmail, useRegenerateEmail, useSendEmail } from "./queries";
 import type { Email, Tone } from "../types/email";
@@ -10,6 +11,20 @@ export enum DraftAction {
   Refine = "refine",
   Send = "send",
 }
+
+/** Why the last action failed; each value is a `draftStatus.failed.*` message. */
+export enum DraftFailure {
+  Regenerate = "regenerate",
+  Refine = "refine",
+  Send = "send",
+  Refused = "refused",
+}
+
+const FAILURE_BY_ACTION: Record<DraftAction, DraftFailure> = {
+  [DraftAction.Regenerate]: DraftFailure.Regenerate,
+  [DraftAction.Refine]: DraftFailure.Refine,
+  [DraftAction.Send]: DraftFailure.Send,
+};
 
 export enum ConfirmKind {
   ReplaceEdits = "replaceEdits",
@@ -24,7 +39,7 @@ type PendingAction = { kind: ConfirmKind; tone: Tone };
 
 /** What the reader is asked or told about the draft, rendered by DraftStatus. */
 export type DraftWorkflowStatus = {
-  failedAction: DraftAction | null;
+  failure: DraftFailure | null;
   pendingConfirm: PendingConfirm | null;
   onConfirm: () => void;
   onCancel: () => void;
@@ -38,7 +53,7 @@ function forEmail<T>(scoped: Scoped<T> | null, emailId: string | null): T | null
   return scoped !== null && scoped.emailId === emailId ? scoped.value : null;
 }
 
-// The failure is already on screen through `failedAction`; nothing is left to handle.
+// The failure is already on screen through `failure`; nothing is left to handle.
 const shownOnScreen = () => undefined;
 
 /**
@@ -53,7 +68,7 @@ export function useDraftWorkflow(email: Email | null) {
 
   const [typed, setTyped] = useState<Scoped<string> | null>(null);
   const [chosenTone, setChosenTone] = useState<Scoped<Tone> | null>(null);
-  const [failed, setFailed] = useState<Scoped<DraftAction> | null>(null);
+  const [failed, setFailed] = useState<Scoped<DraftFailure> | null>(null);
   const [pending, setPending] = useState<Scoped<PendingAction> | null>(null);
   const [announcement, setAnnouncement] = useState("");
 
@@ -87,7 +102,9 @@ export function useDraftWorkflow(email: Email | null) {
     try {
       await run();
     } catch (error) {
-      if (seq === requestSeqRef.current) setFailed({ emailId: id, value: action });
+      const failure =
+        error instanceof DraftRefusedError ? DraftFailure.Refused : FAILURE_BY_ACTION[action];
+      if (seq === requestSeqRef.current) setFailed({ emailId: id, value: failure });
       throw error;
     }
     if (seq !== requestSeqRef.current) return;
@@ -145,7 +162,7 @@ export function useDraftWorkflow(email: Email | null) {
   };
 
   const status: DraftWorkflowStatus = {
-    failedAction: forEmail(failed, emailId),
+    failure: forEmail(failed, emailId),
     pendingConfirm: pendingAction && {
       kind: pendingAction.kind,
       markerCount: findRedactionMarkers(draft).length,
