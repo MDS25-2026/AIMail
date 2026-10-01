@@ -1,9 +1,9 @@
 # Heavy deps for DistilBERT fine-tuning ONLY. Not needed to run the API — kept out of
 # requirements.txt so CI and everyday installs stay light. Install with: make ml-deps
 # CPU is fine (no GPU required); training ~959 rows takes a few minutes on CPU.
-torch>=2.13.0
-transformers>=5.16.1
+torch>=2.14.0
+transformers>=5.17.0
 datasets>=5.0.1
-accelerate>=1.14.0
+accelerate>=1.15.0
 sentencepiece>=0.2.2   # DeBERTa-v3's tokenizer needs it
 tiktoken>=0.14.0        # some fast tokenizers need it too
