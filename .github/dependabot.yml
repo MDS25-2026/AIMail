@@ -14,6 +14,13 @@ updates:
     groups:
       frontend:
         patterns: ["*"]
+    ignore:
+      # typescript-eslint caps its typescript peer at <6.1.0, and no released version supports
+      # TypeScript 7. Bumping typescript past that breaks `npm install` outright, which has now
+      # happened twice: fixed in #51, reintroduced by #56. Unignore when typescript-eslint
+      # publishes a release whose peer range includes the version being bumped to.
+      - dependency-name: typescript
+        versions: [">=6.1.0"]
   - package-ecosystem: gomod
     directory: /listener
     schedule:
