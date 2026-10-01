@@ -5,6 +5,7 @@ mirror it for querying and inserts. See specs/context/db-schema.md.
 """
 
 from datetime import datetime
+from enum import StrEnum
 from uuid import UUID, uuid4
 
 from pgvector.sqlalchemy import Vector
@@ -83,6 +84,15 @@ class AuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class MaskingStatus(StrEnum):
+    """#109: a pending row exists without content until the listener can mask it with NER."""
+
+    COMPLETE = "complete"
+    PENDING = "pending"
+    # The listener gave up (deleted from Gmail, or never maskable): content is never stored.
+    ABANDONED = "abandoned"
+
+
 class Message(Base):
     """Ingested email. Lane A writes the top block via PostgREST; Lane B writes the priority block."""
 
@@ -112,6 +122,24 @@ class Message(Base):
     generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Thread identity (migration 0009): Lane A writes the first three at ingest, the backend
+    # writes sent_message_id after a reply goes out.
+    thread_id: Mapped[str | None] = mapped_column(Text)
+    rfc822_message_id: Mapped[str | None] = mapped_column(Text)
+    thread_refs: Mapped[str | None] = mapped_column(Text)
+    sent_message_id: Mapped[str | None] = mapped_column(Text)
+    # The policy chunks the cached draft was grounded on (migration 0011).
+    rag_sources: Mapped[list[dict] | None] = mapped_column(JSONB)
+    masking_status: Mapped[str] = mapped_column(Text, server_default=MaskingStatus.COMPLETE)
+    # Failed drafting attempts; the poller skips a message after MAX_GENERATION_ATTEMPTS (0014).
+    generation_attempts: Mapped[int] = mapped_column(server_default="0")
+    # Where an approved reply goes when the sender set Reply-To; shown to the approver (0014).
+    reply_to: Mapped[str | None] = mapped_column(Text)
+
+    @property
+    def is_masked(self) -> bool:
+        """Content exists and was masked with NER. Nothing reads or drafts from a row that is not."""
+        return self.masking_status == MaskingStatus.COMPLETE
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

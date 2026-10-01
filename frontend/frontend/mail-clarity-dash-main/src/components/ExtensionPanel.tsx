@@ -1,5 +1,7 @@
+import { useTranslation } from "react-i18next";
+
 import type { Email, Tone } from "../types/email";
-import { formatTimestamp } from "../lib/formatTimestamp";
+import { useFormat } from "../lib/useFormat";
 import AISummaryCard from "./AISummaryCard";
 import ActionItemsList from "./ActionItemsList";
 import ThreadContextToggle from "./ThreadContextToggle";
@@ -7,6 +9,7 @@ import DraftReplyEditor from "./DraftReplyEditor";
 import SourcesChips from "./SourcesChips";
 import RefineInput from "./RefineInput";
 import DraftActionsBar from "./DraftActionsBar";
+import DraftStatus, { type DraftStatusProps } from "./DraftStatus";
 
 type ExtensionPanelProps = {
   email: Email;
@@ -15,10 +18,12 @@ type ExtensionPanelProps = {
   onDraftChange: (draft: string) => void;
   onToneChange: (emailId: string, tone: Tone) => void;
   onRegenerate: (emailId: string) => void;
-  onRefine: (emailId: string, instruction: string) => void;
+  onRefine: (emailId: string, instruction: string) => Promise<void>;
   onApproveSend: (emailId: string) => void;
   isRegenerating?: boolean;
   isRefining?: boolean;
+  isSending?: boolean;
+  status: DraftStatusProps;
 };
 
 /**
@@ -36,19 +41,24 @@ export default function ExtensionPanel({
   onApproveSend,
   isRegenerating = false,
   isRefining = false,
+  isSending = false,
+  status,
 }: ExtensionPanelProps) {
+  const { t } = useTranslation();
+  const format = useFormat();
+  const isDraftBusy = isRegenerating || isRefining || isSending || status.isGenerating;
   return (
-    <div className="flex h-full w-[390px] flex-col border border-slate-200 bg-slate-50">
-      <header className="flex items-center justify-between border-b border-slate-200 bg-white px-3 py-2">
-        <span className="text-sm font-semibold text-slate-900">AIMail</span>
-        <span className="text-xs text-slate-400">Extension panel</span>
+    <div className="flex h-full w-[390px] flex-col border border-line bg-surface-muted">
+      <header className="flex items-center justify-between border-b border-line bg-surface px-3 py-2">
+        <span className="text-sm font-semibold text-fg">{t("app.name")}</span>
+        <span className="text-xs text-fg-subtle">{t("extension.panel")}</span>
       </header>
 
-      <div className="flex-1 space-y-3 overflow-y-auto p-3">
+      <div className="relative flex-1 space-y-3 overflow-y-auto p-3">
         <div>
-          <p className="truncate text-sm font-medium text-slate-800">{email.subject}</p>
-          <p className="text-xs text-slate-500">
-            {email.sender} &middot; {formatTimestamp(email.timestamp)}
+          <p className="truncate text-sm font-medium text-fg">{email.subject}</p>
+          <p className="text-xs text-fg-muted">
+            {email.sender} &middot; {format.timestamp(email.timestamp)}
           </p>
         </div>
 
@@ -56,7 +66,7 @@ export default function ExtensionPanel({
         <ActionItemsList items={email.actionItems} />
         <ThreadContextToggle messages={email.threadContext} defaultOpen={false} />
 
-        <div className="space-y-3 rounded-lg border border-slate-200 bg-white p-3">
+        <div className="space-y-3 rounded-lg border border-line bg-surface p-3">
           <DraftReplyEditor
             email={email}
             draft={draft}
@@ -64,19 +74,24 @@ export default function ExtensionPanel({
             rows={6}
             onDraftChange={onDraftChange}
             onToneChange={onToneChange}
-            disabled={isRegenerating || isRefining}
+            disabled={isDraftBusy}
           />
-          <SourcesChips sources={email.sources} />
-          <RefineInput emailId={email.id} onRefine={onRefine} disabled={isRefining} />
+          <SourcesChips sources={email.sources} draft={draft} />
+          <RefineInput emailId={email.id} onRefine={onRefine} disabled={isDraftBusy} />
+          <DraftStatus {...status} />
         </div>
       </div>
 
-      <footer className="border-t border-slate-200 bg-white p-3">
+      <footer className="border-t border-line bg-surface p-3">
         <DraftActionsBar
           emailId={email.id}
           onRegenerate={onRegenerate}
           onApproveSend={onApproveSend}
           isRegenerating={isRegenerating}
+          isRefining={isRefining}
+          isSending={isSending}
+          isSent={Boolean(email.sentAt)}
+          isGenerating={status.isGenerating}
         />
       </footer>
     </div>

@@ -48,6 +48,7 @@ Each ADR follows the structure used by ADRs 0001 onward:
 |------|--------------------------------------------------------------------------------|-------------------------------------|
 | 0001 | [No Chrome extension for AImail v1](0001-no-chrome-extension.md)               | Accepted                            |
 | 0002 | [Orchestration framework choice (LangChain vs. direct SDK)](0002-orchestration-framework.md) | Accepted                            |
+| 0004 | [Admin console behind Supabase Auth, tokens in HttpOnly cookies](0004-admin-console-supabase-auth.md) | Accepted (0003 is reserved for the extension ADR, #92) |
 
 ## Numbering
 

@@ -14,7 +14,11 @@ from app.core.config import get_settings
 
 @lru_cache
 def get_engine() -> AsyncEngine:
-    return create_async_engine(get_settings().async_database_url, pool_pre_ping=True)
+    # hide_parameters: a DB error's message otherwise carries the bound values, which here are
+    # email bodies, into every logged traceback.
+    return create_async_engine(
+        get_settings().async_database_url, pool_pre_ping=True, hide_parameters=True
+    )
 
 
 @lru_cache

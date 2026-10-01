@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 import type { Email, Tone } from "../types/email";
 import CriticConfidenceBadge from "./CriticConfidenceBadge";
 import PiiMaskedBadge from "./PiiMaskedBadge";
@@ -22,10 +24,11 @@ export default function DraftReplyEditor({
   rows = 10,
   disabled = false,
 }: DraftReplyEditorProps) {
+  const { t } = useTranslation();
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-slate-800">Draft reply</h3>
+        <h3 className="text-sm font-semibold text-fg">{t("draft.title")}</h3>
         <ToneToggle emailId={email.id} tone={tone} onToneChange={onToneChange} />
       </div>
 
@@ -38,9 +41,9 @@ export default function DraftReplyEditor({
         value={draft}
         rows={rows}
         disabled={disabled}
-        aria-label="Draft reply"
+        aria-label={t("draft.title")}
         onChange={(event) => onDraftChange(event.target.value)}
-        className="mt-2 w-full resize-y rounded-md border border-slate-300 p-3 text-sm leading-relaxed text-slate-800 disabled:bg-slate-50 disabled:text-slate-400"
+        className="mt-2 w-full resize-y rounded-md border border-line-strong p-3 text-sm leading-relaxed text-fg disabled:bg-surface-muted disabled:text-fg-subtle"
       />
     </div>
   );

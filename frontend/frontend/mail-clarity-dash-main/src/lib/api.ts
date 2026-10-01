@@ -1,8 +1,8 @@
-import type { Email } from "../types/email";
+import type { Email, Translation } from "../types/email";
 import type { PolicyDocument, SystemInfo } from "../types/knowledge";
 
 /** Backend base URL. Defaults to the local backend; override with VITE_BACKEND_URL for other envs. */
-const BASE = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:8000";
+export const BASE = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:8000";
 
 /** Shared bearer token the backend requires on every route (backend/app/core/auth.py). */
 const TOKEN = import.meta.env.VITE_BACKEND_API_TOKEN ?? "";
@@ -26,6 +26,18 @@ export async function fetchEmail(id: string): Promise<Email> {
   return res.json();
 }
 
+/** The model failed on this email's content (422 draft_refused); retrying cannot change that. */
+export class DraftRefusedError extends Error {}
+
+const DRAFT_REFUSED = "draft_refused";
+
+async function regenerateError(res: Response, message: string): Promise<Error> {
+  const body: unknown = await res.json().catch(() => null);
+  const isRefused =
+    typeof body === "object" && body !== null && "detail" in body && body.detail === DRAFT_REFUSED;
+  return isRefused ? new DraftRefusedError(message) : new Error(message);
+}
+
 /** Force a fresh draft in the given tone, replacing the cached one. */
 export async function regenerateEmail(id: string, tone: string): Promise<Email> {
   const res = await fetch(`${BASE}/emails/${id}/regenerate`, {
@@ -33,7 +45,8 @@ export async function regenerateEmail(id: string, tone: string): Promise<Email> 
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ tone }),
   });
-  if (!res.ok) throw new Error(`POST /emails/${id}/regenerate failed (${res.status})`);
+  if (!res.ok)
+    throw await regenerateError(res, `POST /emails/${id}/regenerate failed (${res.status})`);
   return res.json();
 }
 
@@ -45,6 +58,17 @@ export async function refineEmail(id: string, instruction: string, draft: string
     body: JSON.stringify({ instruction, draft }),
   });
   if (!res.ok) throw new Error(`POST /emails/${id}/refine failed (${res.status})`);
+  return res.json();
+}
+
+/** The masked body in another language. 422 means the translation failed its faithfulness checks. */
+export async function translateEmail(id: string, language: string): Promise<Translation> {
+  const res = await fetch(`${BASE}/emails/${id}/translate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ language }),
+  });
+  if (!res.ok) throw new Error(`POST /emails/${id}/translate failed (${res.status})`);
   return res.json();
 }
 
@@ -73,7 +97,7 @@ export async function addDocument(title: string, text: string): Promise<number> 
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ title, text }),
   });
-  if (!res.ok) throw new Error(await uploadErrorMessage(res, "POST /documents"));
+  if (!res.ok) throw uploadError(res);
   const body: { chunks: number } = await res.json();
   return body.chunks;
 }
@@ -88,18 +112,30 @@ export async function uploadDocument(file: File): Promise<number> {
     headers: authHeaders(),
     body: form,
   });
-  if (!res.ok) throw new Error(await uploadErrorMessage(res, "POST /documents/upload"));
+  if (!res.ok) throw uploadError(res);
   const body: { chunks: number } = await res.json();
   return body.chunks;
 }
 
 /** Turn the backend's guard responses into something a person can act on. */
-async function uploadErrorMessage(res: Response, route: string): Promise<string> {
-  if (res.status === 413) return "That file is over the 10 MB limit.";
-  if (res.status === 429) return "Too many uploads just now — wait a minute and retry.";
-  if (res.status === 400) return "That file was rejected: it must be a real PDF.";
-  if (res.status === 401) return "Not authorised — check VITE_BACKEND_API_TOKEN.";
-  return `${route} failed (${res.status})`;
+/** Why an upload was refused, as a code the page translates; the page owns the wording. */
+export type UploadFailure = "too_large" | "rate_limited" | "not_pdf" | "unauthorized" | "failed";
+
+const UPLOAD_FAILURE_BY_STATUS: Record<number, UploadFailure> = {
+  413: "too_large",
+  429: "rate_limited",
+  400: "not_pdf",
+  401: "unauthorized",
+};
+
+export class UploadError extends Error {
+  constructor(readonly failure: UploadFailure) {
+    super(failure);
+  }
+}
+
+function uploadError(res: Response): UploadError {
+  return new UploadError(UPLOAD_FAILURE_BY_STATUS[res.status] ?? "failed");
 }
 
 /** Non-secret runtime configuration, for the Settings view. */

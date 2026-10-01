@@ -7,7 +7,7 @@ alternative lets the reader's client choose the measure instead.
 
 import base64
 
-from app.gmail_send import _build_raw
+from app.gmail_send import ReplyTarget, _build_raw
 
 BODY = (
     "Subject: Re: Invoice INV-2026-0914 - License Count\n\n"
@@ -18,7 +18,8 @@ BODY = (
 
 
 def _decoded(body: str = BODY, subject: str = "Invoice INV-2026-0914") -> str:
-    return base64.urlsafe_b64decode(_build_raw("someone@example.com", subject, body)).decode()
+    target = ReplyTarget(to_addr="someone@example.com", subject=subject)
+    return base64.urlsafe_b64decode(_build_raw(target, body)).decode()
 
 
 def test_the_generators_subject_line_is_not_repeated_in_the_body():

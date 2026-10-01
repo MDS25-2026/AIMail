@@ -1,16 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import ExtensionPanel from "../components/ExtensionPanel";
 import { PageEmpty, PageError, PageLoading } from "../components/PageState";
-import {
-  useEmail,
-  useEmails,
-  useRefineEmail,
-  useRegenerateEmail,
-  useSendEmail,
-} from "../lib/queries";
-import type { Tone } from "../types/email";
+import { useEmail, useEmails } from "../lib/queries";
+import { useDraftWorkflow } from "../lib/useDraftWorkflow";
 
 export const Route = createFileRoute("/extension")({
   head: () => ({
@@ -41,6 +35,7 @@ export const Route = createFileRoute("/extension")({
  * on screen during demos. Same page, same layout — the data and the buttons are now real.
  */
 function ExtensionPage() {
+  const { t } = useTranslation();
   const emails = useEmails();
   // Prefer an email that already has a draft, so the panel previews a filled-in state rather
   // than an empty one; fall back to the newest email when nothing has been generated yet.
@@ -48,63 +43,41 @@ function ExtensionPage() {
   const selected = useEmail(candidate?.id ?? null);
   const email = selected.data ?? candidate;
 
-  const [draftOverride, setDraftOverride] = useState<string | null>(null);
-  const [toneOverride, setToneOverride] = useState<Tone | null>(null);
-  const draft = draftOverride ?? email?.draftReply ?? "";
-  const tone = toneOverride ?? email?.tone ?? "professional";
-
-  const regenerate = useRegenerateEmail();
-  const refine = useRefineEmail();
-  const send = useSendEmail();
-
-  const clearOverrideOnSuccess = { onSuccess: () => setDraftOverride(null) };
-
-  const onRegenerate = (emailId: string) => {
-    regenerate.mutate({ emailId, tone }, clearOverrideOnSuccess);
-  };
-
-  const onRefine = (emailId: string, instruction: string) => {
-    refine.mutate({ emailId, instruction, draft }, clearOverrideOnSuccess);
-  };
-
-  const onToneChange = (emailId: string, nextTone: Tone) => {
-    setToneOverride(nextTone);
-    regenerate.mutate({ emailId, tone: nextTone }, clearOverrideOnSuccess);
-  };
-
-  const onApproveSend = (emailId: string) => {
-    send.mutate({ emailId, draft }, clearOverrideOnSuccess);
-  };
+  const workflow = useDraftWorkflow(email);
 
   return (
-    <div className="min-h-screen bg-slate-100 p-8">
+    <div className="min-h-screen bg-app p-8">
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-sm font-semibold text-slate-700">Extension panel preview</h1>
-        <Link to="/" className="text-sm font-medium text-blue-600 hover:text-blue-700">
-          Back to dashboard
+        <h1 className="text-sm font-semibold text-fg-body">{t("extension.heading")}</h1>
+        <Link to="/" className="text-sm font-medium text-brand hover:text-brand-strong">
+          {t("extension.back")}
         </Link>
       </div>
       <div className="h-[720px]">
-        {emails.isPending ? <PageLoading label="the panel preview" /> : null}
-        {emails.isError ? <PageError label="the panel preview" error={emails.error} /> : null}
+        {emails.isPending ? <PageLoading label={t("extension.label")} /> : null}
+        {emails.isError ? <PageError label={t("extension.label")} error={emails.error} /> : null}
         {emails.data && !email ? (
-          <PageEmpty
-            title="No emails to preview"
-            hint="Send a message to the connected mailbox and it will appear here."
-          />
+          <PageEmpty title={t("extension.emptyTitle")} hint={t("extension.emptyHint")} />
         ) : null}
         {email ? (
           <ExtensionPanel
             email={email}
-            draft={draft}
-            tone={tone}
-            onDraftChange={setDraftOverride}
-            onToneChange={onToneChange}
-            onRegenerate={onRegenerate}
-            onRefine={onRefine}
-            onApproveSend={onApproveSend}
-            isRegenerating={regenerate.isPending}
-            isRefining={refine.isPending}
+            draft={workflow.draft}
+            tone={workflow.tone}
+            onDraftChange={workflow.setDraft}
+            onToneChange={(_emailId, tone) => workflow.regenerate(tone)}
+            onRegenerate={() => workflow.regenerate()}
+            onRefine={(_emailId, instruction) => workflow.refine(instruction)}
+            onApproveSend={workflow.send}
+            isRegenerating={workflow.isRegenerating}
+            isRefining={workflow.isRefining}
+            isSending={workflow.isSending}
+            status={{
+              ...workflow.status,
+              isGenerating: selected.isLoading,
+              isLoadFailed: selected.isError,
+              onRetryLoad: () => void selected.refetch(),
+            }}
           />
         ) : null}
       </div>

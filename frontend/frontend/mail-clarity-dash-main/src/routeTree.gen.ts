@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as DraftsRouteImport } from './routes/drafts'
 import { Route as ExtensionRouteImport } from './routes/extension'
 import { Route as KnowledgeRouteImport } from './routes/knowledge'
@@ -19,6 +20,11 @@ import { Route as SettingsRouteImport } from './routes/settings'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DraftsRoute = DraftsRouteImport.update({
@@ -49,6 +55,7 @@ const SettingsRoute = SettingsRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/drafts': typeof DraftsRoute
   '/extension': typeof ExtensionRoute
   '/knowledge': typeof KnowledgeRoute
@@ -57,6 +64,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/drafts': typeof DraftsRoute
   '/extension': typeof ExtensionRoute
   '/knowledge': typeof KnowledgeRoute
@@ -66,6 +74,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/drafts': typeof DraftsRoute
   '/extension': typeof ExtensionRoute
   '/knowledge': typeof KnowledgeRoute
@@ -75,12 +84,26 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/drafts' | '/extension' | '/knowledge' | '/sent' | '/settings'
+    | '/'
+    | '/admin'
+    | '/drafts'
+    | '/extension'
+    | '/knowledge'
+    | '/sent'
+    | '/settings'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/drafts' | '/extension' | '/knowledge' | '/sent' | '/settings'
+  to:
+    | '/'
+    | '/admin'
+    | '/drafts'
+    | '/extension'
+    | '/knowledge'
+    | '/sent'
+    | '/settings'
   id:
     | '__root__'
     | '/'
+    | '/admin'
     | '/drafts'
     | '/extension'
     | '/knowledge'
@@ -90,6 +113,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRoute
   DraftsRoute: typeof DraftsRoute
   ExtensionRoute: typeof ExtensionRoute
   KnowledgeRoute: typeof KnowledgeRoute
@@ -104,6 +128,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/drafts': {
@@ -146,6 +177,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRoute,
   DraftsRoute: DraftsRoute,
   ExtensionRoute: ExtensionRoute,
   KnowledgeRoute: KnowledgeRoute,
