@@ -20,7 +20,7 @@ class _RateLimitedClient:
 
 
 @pytest.fixture
-def rate_limited(monkeypatch):
+def rate_limited(monkeypatch, test_settings):
     for module in (embed, generate, reformulate):
         monkeypatch.setattr(module, "gemini_client", _RateLimitedClient)
 
