@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.1](https://github.com/MDS25-2026/AIMail/compare/v1.2.0...v1.2.1) (2026-10-01)
+
+
+### Bug Fixes
+
+* **frontend:** unbreak CI, and stop the typescript bump recurring ([#114](https://github.com/MDS25-2026/AIMail/issues/114)) ([26c8679](https://github.com/MDS25-2026/AIMail/commit/26c867927eee944d3c7867107a2ca7b2c80fd0b6))
+* **listener:** reliability fixes, and OCR attachments without breaking mask-before-transit ([#113](https://github.com/MDS25-2026/AIMail/issues/113)) ([b642b72](https://github.com/MDS25-2026/AIMail/commit/b642b72216da2f2da538affca2ba25a67583a501))
+
 ## [1.2.0](https://github.com/MDS25-2026/AIMail/compare/v1.1.0...v1.2.0) (2026-09-18)
 
 
