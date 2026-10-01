@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"cloud.google.com/go/pubsub"
@@ -39,6 +40,19 @@ var (
 	supabaseURL string
 	supabaseKey string
 )
+
+// #86: http.DefaultClient has no deadline, so a hung PostgREST connection blocked the receive
+// callback forever. DNS here resolves through Tailscale, which makes that a routine failure
+// rather than a theoretical one.
+var supabaseClient = &http.Client{Timeout: supabaseTimeout()}
+
+func supabaseTimeout() time.Duration {
+	seconds, err := strconv.Atoi(getEnvOrDefault("SUPABASE_TIMEOUT_SECONDS", "10"))
+	if err != nil || seconds <= 0 {
+		return 10 * time.Second
+	}
+	return time.Duration(seconds) * time.Second
+}
 
 // --- PII masking -----------------------------------------------------------
 //
@@ -357,7 +371,7 @@ func supabaseInsert(ctx context.Context, table string, row interface{}, onConfli
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Prefer", prefer)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := supabaseClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("do request: %w", err)
 	}
@@ -443,6 +457,34 @@ func setupWatch(ctx context.Context, srv *gmail.Service) {
 	}
 	fmt.Printf("Gmail Watch established! Expiration: %d, HistoryId: %d\n", res.Expiration, res.HistoryId)
 	writeAuditLog(ctx, "setup_watch", fmt.Sprintf("watch established, expiration %d, historyId %d", res.Expiration, res.HistoryId), true)
+	atomic.StoreUint64(&lastHistoryID, res.HistoryId)
+}
+
+// Gmail expires a watch after roughly seven days. #83: nothing renewed it, so a listener left
+// running for a week stopped receiving mail with no error and no log line — restarting masked it
+// during development, which is why it went unnoticed.
+const watchRenewInterval = 24 * time.Hour
+
+func renewWatchPeriodically(ctx context.Context, srv *gmail.Service) {
+	ticker := time.NewTicker(watchRenewInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			req := &gmail.WatchRequest{TopicName: TopicName, LabelIds: []string{"INBOX"}}
+			res, err := srv.Users.Watch("me", req).Do()
+			if err != nil {
+				// Loud on purpose: a silent renewal failure is the original bug wearing a hat.
+				log.Printf("WATCH RENEWAL FAILED: %v — mail will stop arriving when the current watch expires", err)
+				writeAuditLog(ctx, "renew_watch", fmt.Sprintf("renewal failed: %v", err), false)
+				continue
+			}
+			fmt.Printf("Gmail Watch renewed. Expiration: %d, HistoryId: %d\n", res.Expiration, res.HistoryId)
+			writeAuditLog(ctx, "renew_watch", fmt.Sprintf("renewed, expiration %d", res.Expiration), true)
+		}
+	}
 }
 
 // Listens to GCP Pub/Sub subscription using your OAuth token source
@@ -457,19 +499,38 @@ func listenToPubSub(ctx context.Context, ts oauth2.TokenSource, srv *gmail.Servi
 	fmt.Println("Listening for incoming emails on Pub/Sub...")
 
 	err = sub.Receive(ctx, func(ctx context.Context, msg *pubsub.Message) {
-		msg.Ack()
-
 		var payload struct {
 			EmailAddress string `json:"emailAddress"`
 			HistoryID    uint64 `json:"historyId"`
 		}
 		if err := json.Unmarshal(msg.Data, &payload); err != nil {
+			// Unparseable payload will never parse on redelivery, so ack it rather than loop.
 			log.Printf("Error unmarshalling Pub/Sub data: %v", err)
+			msg.Ack()
 			return
 		}
 
 		fmt.Printf("\nNew email event received for: %s (History ID: %d)\n", payload.EmailAddress, payload.HistoryID)
-		fetchLatestMessage(ctx, srv)
+
+		// #84: acking first meant a failure during masking or storage lost the email silently,
+		// with no redelivery. Acking after success risks a poison message redelivering forever,
+		// so the two are separated: a message that fails repeatedly is acked and recorded rather
+		// than left to loop. Pub/Sub's own delivery count is what distinguishes them.
+		if err := ingestHistory(ctx, srv, payload.HistoryID); err != nil {
+			if msg.DeliveryAttempt != nil && *msg.DeliveryAttempt >= maxDeliveryAttempts {
+				log.Printf("GIVING UP on history %d after %d attempts: %v",
+					payload.HistoryID, *msg.DeliveryAttempt, err)
+				writeAuditLog(ctx, "ingest_abandoned",
+					fmt.Sprintf("history %d abandoned after %d attempts: %v",
+						payload.HistoryID, *msg.DeliveryAttempt, err), false)
+				msg.Ack()
+				return
+			}
+			log.Printf("Ingest failed for history %d, will retry: %v", payload.HistoryID, err)
+			msg.Nack()
+			return
+		}
+		msg.Ack()
 	})
 
 	if err != nil {
@@ -477,26 +538,85 @@ func listenToPubSub(ctx context.Context, ts oauth2.TokenSource, srv *gmail.Servi
 	}
 }
 
-// Fetches the most recent message, masks PII, and persists it + an audit
-// log entry to Supabase.
-func fetchLatestMessage(ctx context.Context, srv *gmail.Service) {
+// Pub/Sub gives a history ID naming exactly what changed. #85: this used to ignore it and fetch
+// whatever was newest, so two emails arriving close together both fetched the second one and the
+// first was never ingested. The unique constraint on gmail_message_id hid it — the failure was a
+// missing row, not a duplicate one, which is invisible unless you go looking.
+const maxDeliveryAttempts = 5
+
+// The last history ID successfully processed. history.list needs a starting point, and the
+// notification's own ID is the *end* of the range, not the start.
+var lastHistoryID uint64
+
+func ingestHistory(ctx context.Context, srv *gmail.Service, historyID uint64) error {
+	start := atomic.LoadUint64(&lastHistoryID)
+	if start == 0 {
+		// No baseline yet — first notification after startup. Fall back to the newest INBOX
+		// message so nothing is dropped, then let the baseline advance from here.
+		atomic.StoreUint64(&lastHistoryID, historyID)
+		return ingestNewestInbox(ctx, srv)
+	}
+
+	call := srv.Users.History.List("me").StartHistoryId(start).HistoryTypes("messageAdded").LabelId("INBOX")
+	var ids []string
+	err := call.Pages(ctx, func(page *gmail.ListHistoryResponse) error {
+		for _, record := range page.History {
+			for _, added := range record.MessagesAdded {
+				if added.Message != nil {
+					ids = append(ids, added.Message.Id)
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		// An expired or pruned history ID is not retryable — Gmail drops history beyond a week.
+		// Fall back rather than fail the message forever.
+		log.Printf("history.list from %d failed (%v); falling back to newest INBOX message", start, err)
+		writeAuditLog(ctx, "fetch_history", fmt.Sprintf("history %d: %v (fell back)", start, err), false)
+		atomic.StoreUint64(&lastHistoryID, historyID)
+		return ingestNewestInbox(ctx, srv)
+	}
+
+	atomic.StoreUint64(&lastHistoryID, historyID)
+	if len(ids) == 0 {
+		fmt.Println("No new INBOX messages in this history range.")
+		return nil
+	}
+
+	for _, msgID := range ids {
+		if err := ingestMessage(ctx, srv, msgID); err != nil {
+			return fmt.Errorf("message %s: %w", msgID, err)
+		}
+	}
+	return nil
+}
+
+// ingestNewestInbox is the fallback for when history is unusable: the pre-#85 behaviour, kept
+// because dropping the notification entirely would be worse than occasionally re-fetching.
+func ingestNewestInbox(ctx context.Context, srv *gmail.Service) error {
 	// INBOX only, matching the label the watch is registered against (setupWatch). Without it
 	// this fetches the newest message anywhere in the mailbox — including a reply the system
 	// just sent, which Gmail files in the same mailbox. That made AImail ingest its own outgoing
 	// mail and generate replies to itself.
 	list, err := srv.Users.Messages.List("me").LabelIds("INBOX").MaxResults(1).Do()
-	if err != nil || len(list.Messages) == 0 {
-		log.Printf("Could not fetch messages: %v", err)
+	if err != nil {
 		writeAuditLog(ctx, "fetch_message", fmt.Sprintf("list error: %v", err), false)
-		return
+		return fmt.Errorf("list messages: %w", err)
 	}
+	if len(list.Messages) == 0 {
+		return nil
+	}
+	return ingestMessage(ctx, srv, list.Messages[0].Id)
+}
 
-	msgID := list.Messages[0].Id
+// ingestMessage fetches one message by ID, masks its PII, and persists it plus an audit entry.
+func ingestMessage(ctx context.Context, srv *gmail.Service, msgID string) error {
 	msg, err := srv.Users.Messages.Get("me", msgID).Format("full").Do()
 	if err != nil {
 		log.Printf("Could not retrieve message details: %v", err)
 		writeAuditLog(ctx, "fetch_message", fmt.Sprintf("get error for %s: %v", msgID, err), false)
-		return
+		return fmt.Errorf("get message %s: %w", msgID, err)
 	}
 
 	var subject, from string
@@ -510,6 +630,11 @@ func fetchLatestMessage(ctx context.Context, srv *gmail.Service) {
 	}
 
 	body := getBody(msg.Payload)
+
+	// #82: text inside image attachments. The image is redacted by Presidio before anything reads
+	// it, so this arrives already free of PII — but it still goes through maskText below like any
+	// other untrusted text, because a second net costs nothing and OCR can misread a redaction box.
+	body += ocrAttachments(ctx, srv, msgID, msg.Payload)
 
 	// Mask PII before anything touches storage or logs: regex floor first, then Presidio NER.
 	maskedBody, bodyEmails, bodyPhones, degradedBody := maskText(ctx, body)
@@ -540,7 +665,7 @@ func fetchLatestMessage(ctx context.Context, srv *gmail.Service) {
 	if err := supabaseInsert(ctx, "messages", stored, "gmail_message_id"); err != nil {
 		log.Printf("Could not store message: %v", err)
 		writeAuditLog(ctx, "store_message", fmt.Sprintf("msg %s: %v", msgID, err), false)
-		return
+		return fmt.Errorf("store message %s: %w", msgID, err)
 	}
 
 	detail := fmt.Sprintf("msg %s stored, %d emails / %d phones masked", msgID, totalEmails, totalPhones)
@@ -548,6 +673,7 @@ func fetchLatestMessage(ctx context.Context, srv *gmail.Service) {
 		detail += " (presidio degraded: regex-only)"
 	}
 	writeAuditLog(ctx, "store_message", detail, true)
+	return nil
 }
 
 // getBody prefers the text/html part so the dashboard can render the email like a normal inbox;
@@ -661,6 +787,9 @@ func main() {
 
 	// 1. Establish Watch hook on Gmail API
 	setupWatch(ctx, srv)
+
+	// #83: keep the watch alive. Gmail expires it after about a week and nothing renewed it.
+	go renewWatchPeriodically(ctx, srv)
 
 	// 2. Start live Pub/Sub listener loop
 	listenToPubSub(ctx, tokenSource, srv)

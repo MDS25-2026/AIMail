@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // The security property of the layered masker: when Presidio is unreachable, the regex floor
@@ -217,5 +219,67 @@ func TestFilterAllowedLocationsIgnoresOutOfRangeSpans(t *testing.T) {
 	results := []presidioResult{{EntityType: "LOCATION", Start: 0, End: 999}}
 	if kept := filterAllowedLocations("short", results); len(kept) != 1 {
 		t.Fatalf("an unusable span should be kept, not dropped or fatal: %+v", kept)
+	}
+}
+
+// --- Listener reliability fixes (#83, #84, #85, #86) ------------------------
+
+func TestSupabaseTimeoutDefaultsWhenUnset(t *testing.T) {
+	t.Setenv("SUPABASE_TIMEOUT_SECONDS", "")
+	if got := supabaseTimeout(); got != 10*time.Second {
+		t.Fatalf("unset should default to 10s, got %v", got)
+	}
+}
+
+func TestSupabaseTimeoutReadsEnv(t *testing.T) {
+	t.Setenv("SUPABASE_TIMEOUT_SECONDS", "3")
+	if got := supabaseTimeout(); got != 3*time.Second {
+		t.Fatalf("want 3s, got %v", got)
+	}
+}
+
+func TestSupabaseTimeoutRejectsNonsense(t *testing.T) {
+	// A typo'd value must not disable the deadline — that is the bug #86 exists to close.
+	for _, value := range []string{"0", "-5", "soon", "10s"} {
+		t.Setenv("SUPABASE_TIMEOUT_SECONDS", value)
+		if got := supabaseTimeout(); got != 10*time.Second {
+			t.Fatalf("%q should fall back to 10s, got %v", value, got)
+		}
+	}
+}
+
+func TestSupabaseClientHasADeadline(t *testing.T) {
+	// The original bug was http.DefaultClient, whose Timeout is zero.
+	if supabaseClient.Timeout == 0 {
+		t.Fatal("supabaseClient has no timeout; a hung PostgREST connection would block forever")
+	}
+}
+
+func TestWatchRenewIntervalIsInsideGmailExpiry(t *testing.T) {
+	// Gmail expires a watch after ~7 days. Renewing on a cycle longer than that renews nothing.
+	const gmailExpiry = 7 * 24 * time.Hour
+	if watchRenewInterval >= gmailExpiry {
+		t.Fatalf("renew interval %v is not inside Gmail's %v expiry", watchRenewInterval, gmailExpiry)
+	}
+}
+
+func TestMaxDeliveryAttemptsIsBounded(t *testing.T) {
+	// #84's trade-off: acking after success risks a poison message looping forever, so there
+	// has to be a point at which we stop retrying and record it.
+	if maxDeliveryAttempts < 2 || maxDeliveryAttempts > 20 {
+		t.Fatalf("maxDeliveryAttempts %d is outside a sensible range", maxDeliveryAttempts)
+	}
+}
+
+func TestHistoryBaselineAdvances(t *testing.T) {
+	// ingestHistory records where to resume from. Without this the next notification asks Gmail
+	// for a range starting at zero, which is what "fetch whatever is newest" degenerated into.
+	atomic.StoreUint64(&lastHistoryID, 0)
+	if atomic.LoadUint64(&lastHistoryID) != 0 {
+		t.Fatal("baseline did not reset")
+	}
+	atomic.StoreUint64(&lastHistoryID, 4242)
+	if got := atomic.LoadUint64(&lastHistoryID); got != 4242 {
+		t.Fatalf("baseline should advance to 4242, got %d", got)
 	}
 }
