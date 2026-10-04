@@ -6,6 +6,17 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-04 — Row-level security on every table
+- Decision: migration 0015 enables RLS on all nine application tables with no policies, so the
+  REST API answers nothing to the publishable key or a user's token. New tables enable it in the
+  same migration that creates them.
+- Why: found while starting per-user mailboxes. With RLS off, a request using only the publishable
+  key returned rows from `messages`, `audit_log` and `document`; verified, then verified blocked
+  (0 rows) after applying. The backend (`postgres`) and listener (`service_role`) bypass RLS and
+  were checked to still read and write.
+- Affects: the database only; no code change. Applied to Supabase 2026-10-04.
+- Status: applied by veyroxie.
+
 ### 2026-10-04 — Sender name and address are stored unmasked, on purpose
 - Decision: `messages.from_addr` and `reply_to` keep the sender's display name and address as
   Gmail gives them. They are personal data under the PDPA, but storing them is necessary for the
