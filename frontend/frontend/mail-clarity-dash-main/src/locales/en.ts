@@ -293,7 +293,6 @@ export const en = {
     keepEditing: "Keep editing",
   },
   signIn: {
-    subtitle: "Your work email, with every personal detail hidden before AI sees it.",
     google: "Sign in with Google",
     privacy:
       "Google only confirms who you are. Nothing is sent from your account without your approval.",
@@ -301,6 +300,46 @@ export const en = {
       sign_in_failed: "Sign-in didn't finish. Please try again.",
       sign_in_unavailable: "Sign-in isn't available right now. Try again in a few minutes.",
     },
+  },
+  landing: {
+    headline: "Answer work email faster, without handing your customers' details to AI.",
+    lede: "AIMail drafts replies to your work email. Names, phone numbers and IC numbers are hidden before any AI reads a word, and nothing is sent until you approve it.",
+    whyTitle: "Why teams choose AIMail",
+    pillars: {
+      private: {
+        title: "Private by design",
+        body: "Personal details are hidden on our side before the AI sees anything, attachments included. Photos of ID cards never leave at all.",
+      },
+      approve: {
+        title: "You approve every send",
+        body: "AIMail writes the draft; you decide. It warns you about anything left hidden in a reply, and it never sends on its own.",
+      },
+      local: {
+        title: "Built for Malaysian offices",
+        body: "Use it in English, Bahasa Melayu or Chinese, with colours that work for colour-blind readers and a dark mode for late nights.",
+      },
+    },
+    howTitle: "How it works",
+    steps: {
+      arrives: {
+        title: "An email arrives",
+        body: "AIMail picks it up from your Gmail inbox.",
+      },
+      hidden: {
+        title: "Personal details are hidden",
+        body: "Before anything else, names, numbers and addresses are replaced.",
+      },
+      drafted: {
+        title: "A draft is written",
+        body: "Using the conversation and your company's own documents, which it shows you.",
+      },
+      approved: {
+        title: "You review and send",
+        body: "Edit it, refine it, or start over. It goes out only when you say so.",
+      },
+    },
+    footer:
+      "Your Google account is only used to sign you in. AIMail is a final-year project at Monash University Malaysia.",
   },
   account: {
     signOut: "Sign out",

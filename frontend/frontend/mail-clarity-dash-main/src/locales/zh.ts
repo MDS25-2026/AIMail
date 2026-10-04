@@ -279,13 +279,51 @@ export const zh: Translations = {
     keepEditing: "继续编辑",
   },
   signIn: {
-    subtitle: "您的工作邮件，在 AI 看到之前已隐藏所有个人信息。",
     google: "使用 Google 登录",
     privacy: "Google 仅用于确认您的身份。未经您批准，不会从您的账户发送任何内容。",
     errors: {
       sign_in_failed: "登录未完成，请重试。",
       sign_in_unavailable: "登录暂时不可用，请几分钟后再试。",
     },
+  },
+  landing: {
+    headline: "更快回复工作邮件，而无需把客户信息交给 AI。",
+    lede: "AIMail 为您的工作邮件起草回复。在 AI 读取任何内容之前，姓名、电话号码和身份证号码都会被隐藏，未经您批准不会发送任何内容。",
+    whyTitle: "团队为何选择 AIMail",
+    pillars: {
+      private: {
+        title: "从设计上保护隐私",
+        body: "在 AI 看到任何内容之前，我们会先隐藏个人信息，附件也不例外。身份证照片根本不会发送出去。",
+      },
+      approve: {
+        title: "每次发送都由您批准",
+        body: "AIMail 撰写草稿，由您决定。若回复中仍留有隐藏信息，它会提醒您，并且从不自行发送。",
+      },
+      local: {
+        title: "为马来西亚办公室打造",
+        body: "支持英文、马来文和中文，配色照顾色盲读者，并提供适合深夜使用的深色模式。",
+      },
+    },
+    howTitle: "运作方式",
+    steps: {
+      arrives: {
+        title: "收到邮件",
+        body: "AIMail 从您的 Gmail 收件箱获取邮件。",
+      },
+      hidden: {
+        title: "隐藏个人信息",
+        body: "首先替换姓名、号码和地址。",
+      },
+      drafted: {
+        title: "撰写草稿",
+        body: "依据对话内容和您公司的文件，并向您展示所用的来源。",
+      },
+      approved: {
+        title: "您审阅并发送",
+        body: "可以编辑、润色或重新生成。只有在您同意后才会发送。",
+      },
+    },
+    footer: "您的 Google 账户仅用于登录。AIMail 是马来西亚莫纳什大学的毕业项目。",
   },
   account: {
     signOut: "退出登录",
