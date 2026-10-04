@@ -348,9 +348,9 @@ def create_app(analyzer: AnalyzerEngine | None = None) -> Flask:
         try:
             reading = read_attachment(upload.read(), mime_type, redactor)
         except ReaderError as error:
-            # The reason only: never the file name or any content, which may carry PII.
+            # The reason stays in our log: some carry library exception text we do not control.
             logger.warning("attachment unreadable: %s", error)
-            return jsonify(error=str(error)), 422
+            return jsonify(error="attachment unreadable"), 422
         return jsonify(reading.as_json()), 200
 
     return app
