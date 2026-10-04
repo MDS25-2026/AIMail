@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 
 from app.admin.app import admin_app
 from app.contracts import DashboardEmail
-from app.core.auth import require_auth
+from app.core.auth import principal_of, require_auth, require_mailbox
 from app.core.config import get_settings
 from app.core.constants import (
     ADMIN_PREFIX,
@@ -62,6 +62,7 @@ from app.rag.ingest import embed_pending, ingest_text
 from app.rag.library import DocumentSummary, list_documents
 from app.rag.mask import DocumentMaskingError
 from app.rag.retrieve import ContextChunk, retrieve
+from app.sign_in import router as sign_in_router
 
 configure_logging()
 
@@ -84,6 +85,7 @@ app = FastAPI(title="AImail backend", dependencies=[Depends(require_auth)], life
 app.middleware("http")(request_context)
 # Its own app, so the shared token never applies there: admin is a Supabase session (ADR 0004).
 app.mount(ADMIN_PREFIX, admin_app)
+app.include_router(sign_in_router)
 
 # Dev CORS so the dashboard can call this API cross-origin. The regex covers any
 # localhost/127.0.0.1 port (they are distinct origins to the browser); FRONTEND_ORIGIN adds
@@ -188,13 +190,13 @@ async def demo_page() -> FileResponse:
     return FileResponse(_STATIC / "demo.html")
 
 
-@app.post("/search", dependencies=[Depends(rate_limit_generation)])
+@app.post("/search", dependencies=[Depends(rate_limit_generation), Depends(require_mailbox)])
 async def search(request: SearchRequest) -> list[ContextChunk]:
     # A typed query is embedded by Gemini, so fixed-format details are masked first.
     return await retrieve(mask_typed_text(request.query), request.k)
 
 
-@app.post("/ask", dependencies=[Depends(rate_limit_generation)])
+@app.post("/ask", dependencies=[Depends(rate_limit_generation), Depends(require_mailbox)])
 async def ask(request: AskRequest) -> AskResponse:
     # Full RAG loop demo: retrieve policy chunks, then generate a grounded answer from them.
     question = mask_typed_text(request.question)
@@ -204,12 +206,15 @@ async def ask(request: AskRequest) -> AskResponse:
 
 
 @app.get("/emails")
-async def emails() -> list[DashboardEmail]:
+async def emails(request: Request) -> list[DashboardEmail]:
     # Fast list: Han's Email shape from ingested messages + Lane B priority (no generation).
+    # Someone with no connected mailbox sees an empty inbox, not an error.
+    if not principal_of(request).has_mailbox:
+        return []
     return await list_dashboard_emails()
 
 
-@app.get("/emails/{message_id}", dependencies=[Depends(rate_limit_detail)])
+@app.get("/emails/{message_id}", dependencies=[Depends(rate_limit_detail), Depends(require_mailbox)])
 async def email_detail_route(message_id: str) -> DashboardEmail:
     # Detail view: adds Lane C generation (retrieve + /process-email) for one opened email.
     email = await email_detail(message_id)
@@ -222,7 +227,7 @@ class RegenerateRequest(BaseModel):
     tone: str = "professional"  # "professional" | "casual"
 
 
-@app.post("/emails/{message_id}/regenerate", dependencies=[Depends(rate_limit_generation)])
+@app.post("/emails/{message_id}/regenerate", dependencies=[Depends(rate_limit_generation), Depends(require_mailbox)])
 async def regenerate_email_route(
     message_id: str, body: RegenerateRequest | None = None
 ) -> DashboardEmail:
@@ -243,7 +248,7 @@ class RefineRequest(BaseModel):
     draft: str  # the current draft to revise
 
 
-@app.post("/emails/{message_id}/refine", dependencies=[Depends(rate_limit_generation)])
+@app.post("/emails/{message_id}/refine", dependencies=[Depends(rate_limit_generation), Depends(require_mailbox)])
 async def refine_email_route(message_id: str, body: RefineRequest) -> DashboardEmail:
     # Revise the current draft per the user's instruction (dashboard's Refine box).
     try:
@@ -267,7 +272,8 @@ class TranslateResponse(BaseModel):
 
 
 @app.post(
-    "/emails/{message_id}/translate", dependencies=[Depends(rate_limit_generation)]
+    "/emails/{message_id}/translate",
+    dependencies=[Depends(rate_limit_generation), Depends(require_mailbox)],
 )
 async def translate_email_route(message_id: str, body: TranslateRequest) -> TranslateResponse:
     # The masked body in the reader's language; refused (422) if the result is unfaithful.
@@ -284,7 +290,7 @@ class SendRequest(BaseModel):
     draft: str = Field(min_length=1, max_length=MAX_DRAFT_CHARS)  # the approved, possibly edited draft
 
 
-@app.post("/emails/{message_id}/send")
+@app.post("/emails/{message_id}/send", dependencies=[Depends(require_mailbox)])
 async def send_email_route(message_id: str, body: SendRequest) -> DashboardEmail:
     # Human-approved send: reply to the original sender with the draft, then mark it sent.
     try:
@@ -339,11 +345,14 @@ async def system_info() -> SystemInfo:
 
 
 @app.get("/documents")
-async def get_documents() -> list[DocumentSummary]:
+async def get_documents(request: Request) -> list[DocumentSummary]:
+    # The knowledge base belongs to the mailbox it grounds replies for.
+    if not principal_of(request).has_mailbox:
+        return []
     return await list_documents()
 
 
-@app.post("/documents", dependencies=[Depends(rate_limit_ingest)])
+@app.post("/documents", dependencies=[Depends(rate_limit_ingest), Depends(require_mailbox)])
 async def add_document(request: DocumentRequest) -> dict[str, int]:
     # Interim persist path: paste text -> chunk/embed/store.
     count = await ingest_text(f"paste://{request.title}", request.title, request.text)
@@ -365,7 +374,7 @@ async def _read_capped(file: UploadFile) -> bytes:
     return b"".join(chunks)
 
 
-@app.post("/documents/upload", dependencies=[Depends(rate_limit_ingest)])
+@app.post("/documents/upload", dependencies=[Depends(rate_limit_ingest), Depends(require_mailbox)])
 async def upload_document(file: UploadFile) -> dict[str, int]:
     filename = file.filename or ""
     if not filename.lower().endswith(".pdf"):

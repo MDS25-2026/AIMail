@@ -22,6 +22,8 @@ export const zh: Translations = {
     keyboardHint: "在列表中，按 J/K 或方向键在邮件之间切换。",
     emptyTitle: "暂无邮件",
     emptyHint: "新邮件到达您的 Gmail 收件箱几秒后会显示在这里。",
+    noMailboxTitle: "未连接邮箱",
+    noMailboxHint: "此账户尚未关联邮箱。请让邮箱所有者为您连接。",
   },
   priority: { high: "紧急", medium: "中等", low: "低" },
   detail: {
@@ -135,7 +137,6 @@ export const zh: Translations = {
       too_large: "该文件超过 10 MB 限制。",
       rate_limited: "上传次数过多。请稍等一分钟后重试。",
       not_pdf: "该文件被拒绝：必须是真正的 PDF。",
-      unauthorized: "未授权。请检查 VITE_BACKEND_API_TOKEN。",
       failed: "上传失败。",
     },
   },
@@ -276,6 +277,19 @@ export const zh: Translations = {
       "这封回复仍有 {{count}} 处隐藏信息，例如 [Redacted]。收件人会原样看到。发送前请填入真实信息。",
     sendAnyway: "仍然发送",
     keepEditing: "继续编辑",
+  },
+  signIn: {
+    subtitle: "您的工作邮件，在 AI 看到之前已隐藏所有个人信息。",
+    google: "使用 Google 登录",
+    privacy: "Google 仅用于确认您的身份。未经您批准，不会从您的账户发送任何内容。",
+    errors: {
+      sign_in_failed: "登录未完成，请重试。",
+      sign_in_unavailable: "登录暂时不可用，请几分钟后再试。",
+    },
+  },
+  account: {
+    signOut: "退出登录",
+    signingOut: "正在退出…",
   },
   announce: {
     regenerated: "草稿已重新生成",

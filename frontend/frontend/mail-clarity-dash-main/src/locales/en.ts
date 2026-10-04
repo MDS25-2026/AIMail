@@ -23,6 +23,9 @@ export const en = {
     keyboardHint: "In the list, J/K or the arrow keys move between emails.",
     emptyTitle: "No emails yet",
     emptyHint: "New emails show up here a few seconds after they reach your Gmail inbox.",
+    noMailboxTitle: "No mailbox connected",
+    noMailboxHint:
+      "This account isn't linked to a mailbox yet. Ask the mailbox owner to connect yours.",
   },
   priority: { high: "Urgent", medium: "Medium", low: "Low" },
   detail: {
@@ -141,7 +144,6 @@ export const en = {
       too_large: "That file is over the 10 MB limit.",
       rate_limited: "Too many uploads just now. Wait a minute and retry.",
       not_pdf: "That file was rejected: it must be a real PDF.",
-      unauthorized: "Not authorised. Check VITE_BACKEND_API_TOKEN.",
       failed: "The upload failed.",
     },
   },
@@ -289,6 +291,20 @@ export const en = {
       "This reply still has {{count}} hidden details, such as [Redacted]. The recipient will see them exactly like that. Type the real details in before sending.",
     sendAnyway: "Send anyway",
     keepEditing: "Keep editing",
+  },
+  signIn: {
+    subtitle: "Your work email, with every personal detail hidden before AI sees it.",
+    google: "Sign in with Google",
+    privacy:
+      "Google only confirms who you are. Nothing is sent from your account without your approval.",
+    errors: {
+      sign_in_failed: "Sign-in didn't finish. Please try again.",
+      sign_in_unavailable: "Sign-in isn't available right now. Try again in a few minutes.",
+    },
+  },
+  account: {
+    signOut: "Sign out",
+    signingOut: "Signing out…",
   },
   announce: {
     regenerated: "Draft regenerated",

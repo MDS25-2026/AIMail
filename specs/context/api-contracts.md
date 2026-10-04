@@ -10,15 +10,22 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
 
 ## Conventions
 
-- Base URL: `${NEXT_PUBLIC_BACKEND_URL}` (configurable per environment).
+- Base URL: `${VITE_BACKEND_URL}` (configurable per environment).
 - All requests/responses are JSON.
-- Auth: **shared bearer token, required on every endpoint except `GET /`.** Send
-  `Authorization: Bearer <BACKEND_API_TOKEN>`; the value lives in the repo-root `.env`
-  (frontend reads the same value as `VITE_BACKEND_API_TOKEN`). Missing or wrong token returns
-  `401`; if the server has no token configured it returns `503` and serves nothing — auth is
-  never silently disabled. Implementation: `backend/app/core/auth.py`. Per-user Supabase JWTs
-  are the planned upgrade and replace only that file; AImail serves one shared mailbox, so
-  per-user identity is deferred, not forgotten.
+- Auth (ADR 0005, 2026-10-04): **every endpoint except `GET /` and the `/auth` sign-in routes needs
+  one of** the dashboard's `aimail_session` cookie (set by Google sign-in), a Supabase access token
+  as `Authorization: Bearer`, or the server-side `BACKEND_API_TOKEN` as a bearer (scripts and tests
+  only; never in the browser). No credential returns `401` `signed_out`, a bad one `401`
+  `session_invalid`, and a cookie request that changes state without `X-AIMail-Client: 1` returns
+  `403` `client_header_missing`. An unset `BACKEND_API_TOKEN` never matches. Implementation:
+  `backend/app/core/auth.py`.
+- Mailbox scope: a signed-in user sees mail only for a mailbox they own (`MAILBOX_OWNER_EMAIL` in
+  stage 1). Anyone else gets `[]` from `GET /emails` and `GET /documents`, and `404` from every
+  route about one email, `/search`, `/ask` and document ingestion.
+- Sign-in: `GET /auth/google/start` redirects to Supabase; `GET /auth/callback` sets the session
+  and redirects to the dashboard (or to `/signin?error=sign_in_failed|sign_in_unavailable`);
+  `GET /auth/session` answers `{email, hasMailbox}`; `POST /auth/session/refresh` and
+  `DELETE /auth/session` need `X-AIMail-Client: 1`.
 - `DashboardEmail` carries `isRead` (opened at least once; anything new is unread) and a
   `priority` that is the classifier's prediction **after** the per-user policy layer has been
   applied — see the Personalisation section of `db-schema.md`. Consumers should treat `priority`

@@ -6,7 +6,7 @@ import InboxList from "../components/InboxList";
 import EmailDetailPanel from "../components/EmailDetailPanel";
 import AppShell from "../components/AppShell";
 import { PageEmpty, PageError, PageLoading } from "../components/PageState";
-import { useEmail, useEmails } from "../lib/queries";
+import { useEmail, useEmails, useSession } from "../lib/queries";
 import { useDraftWorkflow } from "../lib/useDraftWorkflow";
 
 type InboxSearch = { email?: string };
@@ -41,6 +41,7 @@ function DashboardPage() {
   const { t } = useTranslation();
   const { email: requestedId } = Route.useSearch();
   const emails = useEmails();
+  const session = useSession();
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
   const selected = useEmail(selectedEmailId);
 
@@ -77,7 +78,10 @@ function DashboardPage() {
               onRetry={() => void emails.refetch()}
             />
           ) : null}
-          {emails.data?.length === 0 ? (
+          {emails.data?.length === 0 && session.data?.hasMailbox === false ? (
+            <PageEmpty title={t("inbox.noMailboxTitle")} hint={t("inbox.noMailboxHint")} />
+          ) : null}
+          {emails.data?.length === 0 && session.data?.hasMailbox !== false ? (
             <PageEmpty title={t("inbox.emptyTitle")} hint={t("inbox.emptyHint")} />
           ) : null}
           {emails.data && emails.data.length > 0 ? (

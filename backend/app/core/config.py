@@ -24,14 +24,18 @@ class Settings(BaseSettings):
     embedding_dim: int = EMBEDDING_DIM
     gemini_chat_model: str = CHAT_MODEL
     email_agent_url: str = "http://localhost:8001"  # Lane C /process-email service
+    # Dashboard sign-in (docs/adr/0005): Supabase sends the user back to BACKEND_PUBLIC_URL, which
+    # sends them on to DASHBOARD_URL once the session cookies are set.
+    backend_public_url: str = "http://localhost:8000"
+    dashboard_url: str = "http://localhost:8090"
     # Masks uploaded documents before storage (app/rag/mask.py); shared with the listener and agent.
     presidio_analyzer_url: str = "http://localhost:5001/analyze"
     # Reuse the listener's OAuth creds (gmail.send scope) to send approved replies. Best-practice
     # upgrade: a service account + domain-wide delegation so the backend has its own credentials.
     gmail_credentials_path: str = str(_REPO_ROOT / "listener" / "credentials.json")
     gmail_token_path: str = str(_REPO_ROOT / "listener" / "token.json")
-    # Keys the per-user policy. One mailbox today; the lookup is per-user so multi-user
-    # becomes configuration rather than a rewrite.
+    # Keys the per-user policy, and (ADR 0005, stage 1) the one signed-in user who sees the mail the
+    # listener ingests. Empty means no signed-in user sees any mail; scripts still do.
     mailbox_owner_email: str = ""
     auto_generate: bool = True  # background poller pre-generates drafts so opens are instant
     generate_poll_seconds: int = 60

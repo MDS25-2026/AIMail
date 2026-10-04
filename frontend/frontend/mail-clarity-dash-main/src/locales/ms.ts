@@ -27,6 +27,9 @@ export const ms: Translations = {
     emptyTitle: "Belum ada e-mel",
     emptyHint:
       "E-mel baharu dipaparkan di sini beberapa saat selepas tiba di peti masuk Gmail anda.",
+    noMailboxTitle: "Tiada peti mel disambungkan",
+    noMailboxHint:
+      "Akaun ini belum dipautkan kepada peti mel. Minta pemilik peti mel menyambungkan peti mel anda.",
   },
   priority: { high: "Segera", medium: "Sederhana", low: "Rendah" },
   detail: {
@@ -147,7 +150,6 @@ export const ms: Translations = {
       too_large: "Fail itu melebihi had 10 MB.",
       rate_limited: "Terlalu banyak muat naik sekarang. Tunggu seminit dan cuba lagi.",
       not_pdf: "Fail itu ditolak: ia mesti PDF sebenar.",
-      unauthorized: "Tidak dibenarkan. Semak VITE_BACKEND_API_TOKEN.",
       failed: "Muat naik gagal.",
     },
   },
@@ -296,6 +298,21 @@ export const ms: Translations = {
       "Balasan ini masih mengandungi {{count}} butiran tersembunyi, seperti [Redacted]. Penerima akan melihatnya begitu sahaja. Taip butiran sebenar sebelum menghantar.",
     sendAnyway: "Hantar juga",
     keepEditing: "Teruskan menyunting",
+  },
+  signIn: {
+    subtitle:
+      "E-mel kerja anda, dengan setiap butiran peribadi disembunyikan sebelum AI melihatnya.",
+    google: "Log masuk dengan Google",
+    privacy:
+      "Google hanya mengesahkan siapa anda. Tiada apa-apa dihantar dari akaun anda tanpa kelulusan anda.",
+    errors: {
+      sign_in_failed: "Log masuk tidak selesai. Sila cuba lagi.",
+      sign_in_unavailable: "Log masuk tidak tersedia sekarang. Cuba lagi dalam beberapa minit.",
+    },
+  },
+  account: {
+    signOut: "Log keluar",
+    signingOut: "Sedang log keluar…",
   },
   announce: {
     regenerated: "Draf dijana semula",
