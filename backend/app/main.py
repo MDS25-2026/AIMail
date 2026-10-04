@@ -60,6 +60,7 @@ from app.rag.embed import EmbeddingError
 from app.rag.generate import GenerationError, answer
 from app.rag.ingest import embed_pending, ingest_text
 from app.rag.library import DocumentSummary, list_documents
+from app.rag.mask import DocumentMaskingError
 from app.rag.retrieve import ContextChunk, retrieve
 
 configure_logging()
@@ -151,6 +152,14 @@ async def _ai_service_unreachable(request: Request, exc: Exception) -> JSONRespo
 
 for _ai_exc in (EmbeddingError, GenerationError):
     app.add_exception_handler(_ai_exc, _ai_service_unreachable)
+
+
+@app.exception_handler(DocumentMaskingError)
+async def _masking_unavailable(request: Request, exc: DocumentMaskingError) -> JSONResponse:
+    # Refused, not stored unmasked: the same fail-closed rule the listener follows for email.
+    logger.warning("document masking unavailable: %s", exc)
+    return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                        content={"detail": "masking_unavailable"})
 
 
 class SearchRequest(BaseModel):

@@ -88,12 +88,13 @@ until the overflow appears, then names the deepest element that no ancestor clip
 })()
 ```
 
-### Uploaded documents are never masked — Lane B
-`ingest_text` chunks and embeds directly with no masking step, and those chunks become the RAG
-context sent to the model. A policy PDF containing personal data reaches the LLM unmasked. The
-mitigating argument is that uploaded documents are company policy chosen by the user rather than
-third-party correspondence — but the privacy claim should be phrased as "no email body reaches
-the model unmasked", not "nothing unmasked reaches the model".
+### Uploaded documents are never masked — Lane B — FIXED 2026-10-04 for new uploads
+`ingest_text` now masks every document before chunking (`app/rag/mask.py`): the fixed-format floor,
+then Presidio for names, emails, phones, cards and IBANs. If Presidio is down the upload is refused
+with `503 masking_unavailable`, never stored unmasked. Locations are kept on purpose.
+
+**Still open:** documents ingested before this fix are stored as they were uploaded. Re-upload them
+(or run `make ingest` again) so their chunks are replaced with masked ones.
 
 ### The refine instruction is unfenced user text — Lanes B/C
 `/refine` interpolates a free-text instruction typed by the user straight into a prompt. It is the
