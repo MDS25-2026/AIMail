@@ -374,6 +374,7 @@ type MaskedContent struct {
 
 // StoredMessage is what we persist for each processed email, post-masking.
 type StoredMessage struct {
+	UserID         string    `json:"user_id,omitempty"` // the mailbox owner; omitted (NULL) for token.json
 	GmailMessageID string    `json:"gmail_message_id"`
 	FromAddr       string    `json:"from_addr"`
 	ReplyTo        string    `json:"reply_to,omitempty"` // where an approved reply goes; shown to the approver
@@ -385,6 +386,7 @@ type StoredMessage struct {
 // QuarantinedMessage is the row for a message whose masking could not complete (#109): enough to
 // show it exists and to finish it later, and no content at all.
 type QuarantinedMessage struct {
+	UserID         string    `json:"user_id,omitempty"`
 	GmailMessageID string    `json:"gmail_message_id"`
 	FromAddr       string    `json:"from_addr"`
 	ReplyTo        string    `json:"reply_to,omitempty"`
@@ -503,20 +505,28 @@ func saveToken(path string, token *oauth2.Token) {
 	json.NewEncoder(f).Encode(token)
 }
 
-// Registers Gmail Watch request to route mailbox changes to GCP Pub/Sub
-func setupWatch(ctx context.Context, srv *gmail.Service) {
-	req := &gmail.WatchRequest{
-		TopicName: TopicName,
-		LabelIds:  []string{"INBOX"},
-	}
-	res, err := srv.Users.Watch("me", req).Do()
+// startTokenFileMailbox watches the original token.json mailbox, unless its account has connected
+// with Google, in which case that connection already serves it. A failure is logged, not fatal:
+// every connected user's mailbox still works without it.
+func startTokenFileMailbox(ctx context.Context, srv *gmail.Service) {
+	profile, err := srv.Users.GetProfile("me").Context(ctx).Do()
 	if err != nil {
-		writeAuditLog(ctx, "setup_watch", fmt.Sprintf("watch registration failed: %v", err), false)
-		log.Fatalf("Unable to set up Gmail Watch: %v", err)
+		log.Printf("token.json mailbox not started: %v", err)
+		writeAuditLog(ctx, "setup_watch", fmt.Sprintf("token.json profile failed: %v", err), false)
+		return
 	}
-	fmt.Printf("Gmail Watch established! Expiration: %d, HistoryId: %d\n", res.Expiration, res.HistoryId)
-	writeAuditLog(ctx, "setup_watch", fmt.Sprintf("watch established, expiration %d, historyId %d", res.Expiration, res.HistoryId), true)
-	atomic.StoreUint64(&lastHistoryID, res.HistoryId)
+	if existing := lookupMailbox(profile.EmailAddress); existing != nil {
+		log.Printf("token.json mailbox is connected as user %s; using the connection", existing.ownerID)
+		return
+	}
+	mb := &mailbox{email: strings.ToLower(profile.EmailAddress), srv: srv}
+	if err := watchMailbox(ctx, mb); err != nil {
+		log.Printf("token.json mailbox not started: %v", err)
+		writeAuditLog(ctx, "setup_watch", fmt.Sprintf("watch registration failed: %v", err), false)
+		return
+	}
+	registerMailbox(mb)
+	writeAuditLog(ctx, "setup_watch", "token.json mailbox watch established", true)
 }
 
 // Gmail expires a watch after roughly seven days. #83: nothing renewed it, so a listener left
@@ -524,7 +534,7 @@ func setupWatch(ctx context.Context, srv *gmail.Service) {
 // during development, which is why it went unnoticed.
 const watchRenewInterval = 24 * time.Hour
 
-func renewWatchPeriodically(ctx context.Context, srv *gmail.Service) {
+func renewWatchPeriodically(ctx context.Context) {
 	ticker := time.NewTicker(watchRenewInterval)
 	defer ticker.Stop()
 	for {
@@ -532,22 +542,27 @@ func renewWatchPeriodically(ctx context.Context, srv *gmail.Service) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			req := &gmail.WatchRequest{TopicName: TopicName, LabelIds: []string{"INBOX"}}
-			res, err := srv.Users.Watch("me", req).Do()
-			if err != nil {
-				// Loud on purpose: a silent renewal failure is the original bug wearing a hat.
-				log.Printf("WATCH RENEWAL FAILED: %v — mail will stop arriving when the current watch expires", err)
-				writeAuditLog(ctx, "renew_watch", fmt.Sprintf("renewal failed: %v", err), false)
-				continue
+			for _, mb := range allMailboxes() {
+				renewWatch(ctx, mb)
 			}
-			fmt.Printf("Gmail Watch renewed. Expiration: %d, HistoryId: %d\n", res.Expiration, res.HistoryId)
-			writeAuditLog(ctx, "renew_watch", fmt.Sprintf("renewed, expiration %d", res.Expiration), true)
 		}
 	}
 }
 
-// Listens to GCP Pub/Sub subscription using your OAuth token source
-func listenToPubSub(ctx context.Context, ts oauth2.TokenSource, srv *gmail.Service) {
+func renewWatch(ctx context.Context, mb *mailbox) {
+	if err := watchMailbox(ctx, mb); err != nil {
+		// Loud on purpose: a silent renewal failure is the original bug wearing a hat.
+		log.Printf("WATCH RENEWAL FAILED for user %q: %v — this mailbox stops receiving mail when the current watch expires",
+			mb.ownerID, err)
+		writeAuditLog(ctx, "renew_watch", fmt.Sprintf("user %q: renewal failed: %v", mb.ownerID, err), false)
+		return
+	}
+	writeAuditLog(ctx, "renew_watch", fmt.Sprintf("user %q: renewed", mb.ownerID), true)
+}
+
+// Listens to the Pub/Sub subscription. Interim: it authenticates as the token.json account (pubsub
+// scope); a service account replaces that before token.json retires (audit finding 4).
+func listenToPubSub(ctx context.Context, ts oauth2.TokenSource) {
 	client, err := pubsub.NewClient(ctx, ProjectID, option.WithTokenSource(ts))
 	if err != nil {
 		log.Fatalf("Failed to create Pub/Sub client: %v", err)
@@ -569,13 +584,21 @@ func listenToPubSub(ctx context.Context, ts oauth2.TokenSource, srv *gmail.Servi
 			return
 		}
 
-		fmt.Printf("\nNew email event received for: %s (History ID: %d)\n", payload.EmailAddress, payload.HistoryID)
+		mb := lookupMailbox(payload.EmailAddress)
+		if mb == nil {
+			// A mailbox that disconnected, or one connected since the last sync; nothing to do
+			// with it now, and redelivering would not change that.
+			log.Printf("notification for a mailbox that is not connected (history %d); ignored", payload.HistoryID)
+			msg.Ack()
+			return
+		}
+		log.Printf("new mail event for user %q (history %d)", mb.ownerID, payload.HistoryID)
 
 		// #84: acking first meant a failure during masking or storage lost the email silently,
 		// with no redelivery. Acking after success risks a poison message redelivering forever,
 		// so the two are separated: a message that fails repeatedly is acked and recorded rather
 		// than left to loop. Pub/Sub's own delivery count is what distinguishes them.
-		if err := ingestHistory(ctx, srv, payload.HistoryID); err != nil {
+		if err := ingestHistory(ctx, mb, payload.HistoryID); err != nil {
 			if msg.DeliveryAttempt != nil && *msg.DeliveryAttempt >= maxDeliveryAttempts {
 				log.Printf("GIVING UP on history %d after %d attempts: %v",
 					payload.HistoryID, *msg.DeliveryAttempt, err)
@@ -584,7 +607,7 @@ func listenToPubSub(ctx context.Context, ts oauth2.TokenSource, srv *gmail.Servi
 						payload.HistoryID, *msg.DeliveryAttempt, err), false)
 				// Past this range, or every later notification would list it again, hit the same
 				// failure first, and no newer mail would arrive until a restart.
-				advanceBaseline(payload.HistoryID)
+				advanceBaseline(mb, payload.HistoryID)
 				msg.Ack()
 				return
 			}
@@ -616,20 +639,19 @@ const maxDeliveryAttempts = 5
 // on every failure.
 var warnNoDeadLetter sync.Once
 
-// The last history ID successfully processed. history.list needs a starting point, and the
-// notification's own ID is the *end* of the range, not the start.
-var lastHistoryID uint64
-
-func ingestHistory(ctx context.Context, srv *gmail.Service, historyID uint64) error {
-	start := atomic.LoadUint64(&lastHistoryID)
+// ingestHistory stores what a notification announced. mb.lastHistoryID is the last history ID
+// successfully processed: history.list needs a starting point, and the notification's own ID is
+// the *end* of the range, not the start.
+func ingestHistory(ctx context.Context, mb *mailbox, historyID uint64) error {
+	start := atomic.LoadUint64(&mb.lastHistoryID)
 	if start == 0 {
-		// No baseline yet — first notification after startup. Fall back to the newest INBOX
-		// message so nothing is dropped, then let the baseline advance from here.
-		atomic.StoreUint64(&lastHistoryID, historyID)
-		return ingestNewestInbox(ctx, srv)
+		// No baseline yet. Fall back to the newest INBOX message so nothing is dropped, then let
+		// the baseline advance from here.
+		advanceBaseline(mb, historyID)
+		return ingestNewestInbox(ctx, mb)
 	}
 
-	call := srv.Users.History.List("me").StartHistoryId(start).HistoryTypes("messageAdded").LabelId("INBOX")
+	call := mb.srv.Users.History.List("me").StartHistoryId(start).HistoryTypes("messageAdded").LabelId("INBOX")
 	var ids []string
 	err := call.Pages(ctx, func(page *gmail.ListHistoryResponse) error {
 		for _, record := range page.History {
@@ -646,12 +668,12 @@ func ingestHistory(ctx context.Context, srv *gmail.Service, historyID uint64) er
 		// Fall back rather than fail the message forever.
 		log.Printf("history.list from %d failed (%v); falling back to newest INBOX message", start, err)
 		writeAuditLog(ctx, "fetch_history", fmt.Sprintf("history %d: %v (fell back)", start, err), false)
-		atomic.StoreUint64(&lastHistoryID, historyID)
-		return ingestNewestInbox(ctx, srv)
+		advanceBaseline(mb, historyID)
+		return ingestNewestInbox(ctx, mb)
 	}
 
 	for _, msgID := range ids {
-		err := ingestMessage(ctx, srv, msgID)
+		err := ingestMessage(ctx, mb, msgID)
 		if isPermanentIngestFailure(err) {
 			// Retrying cannot help (deleted before the fetch, or a row the database refuses), and
 			// failing the range would hold every newer message behind this one.
@@ -664,7 +686,7 @@ func ingestHistory(ctx context.Context, srv *gmail.Service, historyID uint64) er
 			return fmt.Errorf("message %s: %w", msgID, err)
 		}
 	}
-	advanceBaseline(historyID)
+	advanceBaseline(mb, historyID)
 	return nil
 }
 
@@ -674,25 +696,37 @@ func isPermanentIngestFailure(err error) bool {
 	return err != nil && (isGone(err) || errors.Is(err, errRowRejected))
 }
 
-// advanceBaseline moves lastHistoryID forward only. Notifications are handled concurrently, and a
-// slower, older one must not move the baseline back and make a newer range be listed twice.
-func advanceBaseline(historyID uint64) {
+// advanceBaseline moves a mailbox's baseline forward only, and saves it so a restart resumes there.
+// Notifications are handled concurrently, and a slower, older one must not move the baseline back
+// and make a newer range be listed twice.
+func advanceBaseline(mb *mailbox, historyID uint64) {
+	if !raiseBaseline(mb, historyID) {
+		return
+	}
+	saveConnectionState(context.Background(), mb, map[string]interface{}{"history_id": historyID})
+}
+
+// raiseBaseline reports whether historyID was newer and is now the baseline.
+func raiseBaseline(mb *mailbox, historyID uint64) bool {
 	for {
-		current := atomic.LoadUint64(&lastHistoryID)
-		if historyID <= current || atomic.CompareAndSwapUint64(&lastHistoryID, current, historyID) {
-			return
+		current := atomic.LoadUint64(&mb.lastHistoryID)
+		if historyID <= current {
+			return false
+		}
+		if atomic.CompareAndSwapUint64(&mb.lastHistoryID, current, historyID) {
+			return true
 		}
 	}
 }
 
 // ingestNewestInbox is the fallback for when history is unusable: the pre-#85 behaviour, kept
 // because dropping the notification entirely would be worse than occasionally re-fetching.
-func ingestNewestInbox(ctx context.Context, srv *gmail.Service) error {
+func ingestNewestInbox(ctx context.Context, mb *mailbox) error {
 	// INBOX only, matching the label the watch is registered against (setupWatch). Without it
 	// this fetches the newest message anywhere in the mailbox — including a reply the system
 	// just sent, which Gmail files in the same mailbox. That made AImail ingest its own outgoing
 	// mail and generate replies to itself.
-	list, err := srv.Users.Messages.List("me").LabelIds("INBOX").MaxResults(1).Do()
+	list, err := mb.srv.Users.Messages.List("me").LabelIds("INBOX").MaxResults(1).Do()
 	if err != nil {
 		writeAuditLog(ctx, "fetch_message", fmt.Sprintf("list error: %v", err), false)
 		return fmt.Errorf("list messages: %w", err)
@@ -700,14 +734,14 @@ func ingestNewestInbox(ctx context.Context, srv *gmail.Service) error {
 	if len(list.Messages) == 0 {
 		return nil
 	}
-	return ingestMessage(ctx, srv, list.Messages[0].Id)
+	return ingestMessage(ctx, mb, list.Messages[0].Id)
 }
 
 // ingestMessage fetches one message by ID, masks its PII, and persists it plus an audit entry.
-func ingestMessage(ctx context.Context, srv *gmail.Service, msgID string) error {
+func ingestMessage(ctx context.Context, mb *mailbox, msgID string) error {
 	// A failed lookup falls through to a normal ingest: dropping a message is worse than paying
 	// for OCR twice, and the insert's on_conflict still keeps the row single.
-	isStored, err := messageStored(ctx, msgID)
+	isStored, err := messageStored(ctx, mb.ownerID, msgID)
 	if err != nil {
 		log.Printf("could not check whether %s is stored, ingesting anyway: %v", msgID, err)
 	}
@@ -715,7 +749,7 @@ func ingestMessage(ctx context.Context, srv *gmail.Service, msgID string) error 
 		return nil
 	}
 
-	msg, err := fetchMessage(ctx, srv, msgID)
+	msg, err := fetchMessage(ctx, mb.srv, msgID)
 	if err != nil {
 		return err
 	}
@@ -725,12 +759,13 @@ func ingestMessage(ctx context.Context, srv *gmail.Service, msgID string) error 
 		return nil
 	}
 	identity := threadIdentity(msg)
-	content, isComplete := maskMessage(ctx, srv, msg)
+	content, isComplete := maskMessage(ctx, mb.srv, msg)
 	if !isComplete {
-		return quarantine(ctx, msgID, msg.Payload.Headers, identity)
+		return quarantine(ctx, mb.ownerID, msgID, msg.Payload.Headers, identity)
 	}
 
 	stored := StoredMessage{
+		UserID:         mb.ownerID,
 		GmailMessageID: msgID,
 		FromAddr:       headerValue(msg.Payload.Headers, "From"), // kept unmasked on purpose: docs/decisions/shared.md, 2026-10-04
 		ReplyTo:        headerValue(msg.Payload.Headers, "Reply-To"),
@@ -901,14 +936,16 @@ func main() {
 		log.Println("WARNING: SUPABASE_URL / SUPABASE_SERVICE_KEY not set — storage and audit log writes will fail. Set these env vars before running.")
 	}
 
-	// 1. Establish Watch hook on Gmail API
-	setupWatch(ctx, srv)
+	// 1. Watch every connected user's mailbox, then the token.json one unless it is among them.
+	syncConnections(ctx)
+	startTokenFileMailbox(ctx, srv)
+	go syncConnectionsPeriodically(ctx)
 
-	// #83: keep the watch alive. Gmail expires it after about a week and nothing renewed it.
-	go renewWatchPeriodically(ctx, srv)
+	// #83: keep the watches alive. Gmail expires them after about a week.
+	go renewWatchPeriodically(ctx)
 	// #109: finish messages quarantined while Presidio was down.
-	go remaskQuarantinedPeriodically(ctx, srv)
+	go remaskQuarantinedPeriodically(ctx)
 
 	// 2. Start live Pub/Sub listener loop
-	listenToPubSub(ctx, tokenSource, srv)
+	listenToPubSub(ctx, tokenSource)
 }

@@ -35,6 +35,7 @@ const (
 )
 
 type quarantinedRow struct {
+	UserID          string `json:"user_id"` // null (token.json mailbox) decodes as ""
 	GmailMessageID  string `json:"gmail_message_id"`
 	MaskingAttempts int    `json:"masking_attempts"`
 }
@@ -47,8 +48,9 @@ func remaskInterval() time.Duration {
 	return minutes
 }
 
-func quarantine(ctx context.Context, msgID string, headers []*gmail.MessagePartHeader, identity ThreadIdentity) error {
+func quarantine(ctx context.Context, ownerID, msgID string, headers []*gmail.MessagePartHeader, identity ThreadIdentity) error {
 	row := QuarantinedMessage{
+		UserID:         ownerID,
 		GmailMessageID: msgID,
 		FromAddr:       headerValue(headers, "From"),
 		ReplyTo:        headerValue(headers, "Reply-To"),
@@ -100,7 +102,7 @@ func serviceHealthy(ctx context.Context, target string) bool {
 // quarantinedRows lists pending rows, fewest attempts first, so a message that keeps failing
 // sinks behind newer ones instead of holding the head of the queue.
 func quarantinedRows(ctx context.Context) ([]quarantinedRow, error) {
-	query := fmt.Sprintf("select=gmail_message_id,masking_attempts&masking_status=eq.%s"+
+	query := fmt.Sprintf("select=user_id,gmail_message_id,masking_attempts&masking_status=eq.%s"+
 		"&order=masking_attempts.asc,received_at.asc&limit=%d", maskingPending, remaskBatchSize)
 	body, err := supabaseGet(ctx, "messages", query)
 	if err != nil {
@@ -113,14 +115,15 @@ func quarantinedRows(ctx context.Context) ([]quarantinedRow, error) {
 	return rows, nil
 }
 
-func messageFilter(msgID string) string {
-	return "gmail_message_id=eq." + url.QueryEscape(msgID)
+// messageFilter selects one message of one mailbox; Gmail ids are only unique per mailbox.
+func messageFilter(ownerID, msgID string) string {
+	return ownerFilter(ownerID) + "&gmail_message_id=eq." + url.QueryEscape(msgID)
 }
 
 // abandon marks a message that can never be masked: its content is never stored.
 func abandon(ctx context.Context, row quarantinedRow, reason string) {
 	fields := map[string]interface{}{"masking_status": maskingAbandoned, "masking_attempts": row.MaskingAttempts + 1}
-	if err := supabasePatch(ctx, "messages", messageFilter(row.GmailMessageID), fields); err != nil {
+	if err := supabasePatch(ctx, "messages", messageFilter(row.UserID, row.GmailMessageID), fields); err != nil {
 		log.Printf("could not abandon %s: %v", row.GmailMessageID, err)
 		return
 	}
@@ -134,7 +137,7 @@ func recordFailure(ctx context.Context, row quarantinedRow, reason string) {
 		return
 	}
 	fields := map[string]int{"masking_attempts": row.MaskingAttempts + 1}
-	if err := supabasePatch(ctx, "messages", messageFilter(row.GmailMessageID), fields); err != nil {
+	if err := supabasePatch(ctx, "messages", messageFilter(row.UserID, row.GmailMessageID), fields); err != nil {
 		log.Printf("could not count attempt for %s: %v", row.GmailMessageID, err)
 	}
 }
@@ -157,7 +160,7 @@ func isGmailTrouble(err error) bool {
 // remaskQuarantined completes quarantined rows while NER is available. A row that fails is counted
 // and skipped, so it cannot stall the rows behind it; if Presidio itself has gone down again the
 // pass stops, since every remaining row would fail for the same reason.
-func remaskQuarantined(ctx context.Context, srv *gmail.Service) {
+func remaskQuarantined(ctx context.Context) {
 	if !presidioHealthy(ctx) {
 		return
 	}
@@ -167,7 +170,11 @@ func remaskQuarantined(ctx context.Context, srv *gmail.Service) {
 		return
 	}
 	for _, row := range rows {
-		if !remaskOne(ctx, srv, row) {
+		mb := mailboxByOwner(row.UserID)
+		if mb == nil {
+			continue // its mailbox is not connected right now; nothing is charged
+		}
+		if !remaskOne(ctx, mb.srv, row) {
 			return
 		}
 	}
@@ -195,7 +202,7 @@ func remaskOne(ctx context.Context, srv *gmail.Service, row quarantinedRow) bool
 		recordFailure(ctx, row, "masking did not complete")
 		return true
 	}
-	if err := supabasePatch(ctx, "messages", messageFilter(row.GmailMessageID), content); err != nil {
+	if err := supabasePatch(ctx, "messages", messageFilter(row.UserID, row.GmailMessageID), content); err != nil {
 		// Counted like any failure: a PATCH that always fails would otherwise re-read and re-OCR
 		// the attachments every pass, forever.
 		writeAuditLog(ctx, "remask_message", fmt.Sprintf("msg %s: %v", row.GmailMessageID, err), false)
@@ -206,7 +213,7 @@ func remaskOne(ctx context.Context, srv *gmail.Service, row quarantinedRow) bool
 	return true
 }
 
-func remaskQuarantinedPeriodically(ctx context.Context, srv *gmail.Service) {
+func remaskQuarantinedPeriodically(ctx context.Context) {
 	ticker := time.NewTicker(remaskInterval())
 	defer ticker.Stop()
 	for {
@@ -214,7 +221,7 @@ func remaskQuarantinedPeriodically(ctx context.Context, srv *gmail.Service) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			remaskQuarantined(ctx, srv)
+			remaskQuarantined(ctx)
 		}
 	}
 }

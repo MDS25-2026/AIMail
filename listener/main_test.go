@@ -274,12 +274,9 @@ func TestMaxDeliveryAttemptsIsBounded(t *testing.T) {
 func TestHistoryBaselineAdvances(t *testing.T) {
 	// ingestHistory records where to resume from. Without this the next notification asks Gmail
 	// for a range starting at zero, which is what "fetch whatever is newest" degenerated into.
-	atomic.StoreUint64(&lastHistoryID, 0)
-	if atomic.LoadUint64(&lastHistoryID) != 0 {
-		t.Fatal("baseline did not reset")
-	}
-	atomic.StoreUint64(&lastHistoryID, 4242)
-	if got := atomic.LoadUint64(&lastHistoryID); got != 4242 {
+	mb := &mailbox{}
+	advanceBaseline(mb, 4242)
+	if got := atomic.LoadUint64(&mb.lastHistoryID); got != 4242 {
 		t.Fatalf("baseline should advance to 4242, got %d", got)
 	}
 }

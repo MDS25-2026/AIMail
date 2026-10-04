@@ -28,7 +28,7 @@ func TestMessageStoredFindsAnExistingRow(t *testing.T) {
 	withSupabase(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte(`[{"gmail_message_id":"abc"}]`))
 	})
-	stored, err := messageStored(context.Background(), "abc")
+	stored, err := messageStored(context.Background(), "", "abc")
 	if err != nil || !stored {
 		t.Fatalf("want stored, got stored=%v err=%v", stored, err)
 	}
@@ -38,7 +38,7 @@ func TestMessageStoredIsFalseForANewMessage(t *testing.T) {
 	withSupabase(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte(`[]`))
 	})
-	stored, err := messageStored(context.Background(), "new")
+	stored, err := messageStored(context.Background(), "", "new")
 	if err != nil || stored {
 		t.Fatalf("want not stored, got stored=%v err=%v", stored, err)
 	}
@@ -48,10 +48,10 @@ func TestMessageStoredEscapesTheID(t *testing.T) {
 	queries := withSupabase(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte(`[]`))
 	})
-	if _, err := messageStored(context.Background(), "a&select=*"); err != nil {
+	if _, err := messageStored(context.Background(), "", "a&select=*"); err != nil {
 		t.Fatal(err)
 	}
-	if got := (*queries)[0]; got != "select=gmail_message_id&gmail_message_id=eq.a%26select%3D%2A&limit=1" {
+	if got := (*queries)[0]; got != "select=gmail_message_id&user_id=is.null&gmail_message_id=eq.a%26select%3D%2A&limit=1" {
 		t.Fatalf("id not escaped into the filter: %s", got)
 	}
 }
@@ -60,7 +60,7 @@ func TestMessageStoredReportsAnErrorRatherThanGuessing(t *testing.T) {
 	withSupabase(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	})
-	if _, err := messageStored(context.Background(), "abc"); err == nil {
+	if _, err := messageStored(context.Background(), "", "abc"); err == nil {
 		t.Fatal("a failed lookup must be an error, not a silent 'not stored'")
 	}
 }
@@ -89,15 +89,13 @@ func TestOversizeAttachmentsAreCounted(t *testing.T) {
 }
 
 func TestTheHistoryBaselineOnlyMovesForward(t *testing.T) {
-	old := lastHistoryID
-	t.Cleanup(func() { lastHistoryID = old })
-	lastHistoryID = 100
-	advanceBaseline(90)
-	if lastHistoryID != 100 {
+	mb := &mailbox{lastHistoryID: 100}
+	advanceBaseline(mb, 90)
+	if mb.lastHistoryID != 100 {
 		t.Fatal("an older notification moved the baseline back")
 	}
-	advanceBaseline(120)
-	if lastHistoryID != 120 {
+	advanceBaseline(mb, 120)
+	if mb.lastHistoryID != 120 {
 		t.Fatal("a newer notification did not advance the baseline")
 	}
 }

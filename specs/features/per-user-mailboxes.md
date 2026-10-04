@@ -162,5 +162,11 @@ A code audit of every single-mailbox assumption found these, each checked in cod
    same day: each reply uses the owner's own sealed token, refreshed with the Google web client
    (`GOOGLE_OAUTH_CLIENT_ID/SECRET`), cached per mailbox; a read-only grant answers `403
    send_not_granted` before anything is claimed. Rows with no owner still send via `token.json`.
-4. Listener multi-mailbox ingest with per-mailbox baselines (Lane A).
+4. ~~Listener multi-mailbox ingest with per-mailbox baselines (Lane A).~~ Done 2026-10-05, for
+   JiaJun's review: `listener/mailboxes.go` loads every connection, watches each on the shared
+   topic, routes notifications by address (unknown ones acked and dropped), seeds a first-time
+   inbox with its newest 10 emails, saves each baseline and watch expiry on the connection row,
+   and picks up new sign-ups every two minutes. A failing mailbox is logged and retried, never
+   fatal. Rows carry `user_id`; duplicates are judged per mailbox (`on_conflict=user_id,gmail_message_id`).
+   Interim: Pub/Sub still authenticates as the `token.json` account (finding 4).
 5. Backfill, delete `app/core/mailbox.py`, disconnect flow and its UI.
