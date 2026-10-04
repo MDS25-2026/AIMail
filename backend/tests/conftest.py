@@ -20,10 +20,16 @@ AUTH_HEADERS = {"Authorization": f"Bearer {API_TOKEN}"}
 
 
 @pytest.fixture
-def api_client(monkeypatch):
+def test_settings(monkeypatch):
+    """Required settings for any test that reads `get_settings()`, so it passes without a `.env`."""
     monkeypatch.setenv("BACKEND_API_TOKEN", API_TOKEN)
     monkeypatch.setenv("DATABASE_URL", "postgresql://unused:unused@127.0.0.1:5432/unused")
     monkeypatch.setenv("GEMINI_API_KEY", "unused-in-tests")
     get_settings.cache_clear()
-    yield TestClient(app)
+    yield
     get_settings.cache_clear()
+
+
+@pytest.fixture
+def api_client(test_settings):
+    return TestClient(app)

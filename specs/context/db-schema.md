@@ -89,11 +89,16 @@ listener — a migration must create `messages` + `audit_log` in Supabase before
 | `action_items` | `JSONB NULL` | Lane C | cached generation |
 | `critic_confidence` | `REAL NULL` | Lane C | cached generation |
 | `critic_attempts` | `SMALLINT NULL` | Lane C | how many refine rounds the critic forced before the draft passed. The only observable evidence the review gate ever engages — a draft rescued by refinement is indistinguishable from a first-pass success without it (migration 0008) |
+| `critic_checks` | `JSONB NULL` | Lane C | the review gate's result: `grounding_ok`, `pii_clean`, `tone_match`, `completeness`, `pii_findings`, `review_reasons`, and `model_calls` (one `{model, outcome, ms}` per Gemini attempt; outcomes and timings only, never content) (migration 0010) |
+| `needs_human_review` | `BOOLEAN NULL` | Lane C | true when `review_reasons` is non-empty; stored so the dashboard filters without unpacking JSON (migration 0010) |
+| `rag_sources` | `JSONB NULL` | backend | the policy chunks the cached draft was grounded on, `[{label, chunkId, excerpt, score}]`, captured at generation so the reviewer sees what the model saw (migration 0011) |
 | `generated_at` | `TIMESTAMPTZ NULL` | Lane C | when cached; NULL = not generated yet |
 | `sent_at` | `TIMESTAMPTZ NULL` | backend | when the approved reply was sent (migration 0005) |
 | `read_at` | `TIMESTAMPTZ NULL` | backend | first time the detail view was opened; NULL = unread. Set once, so it records first read rather than latest (migration 0006) |
 | `user_id` | `UUID NULL FK` | backend | mailbox owner. Nullable: one mailbox today, so multi-user is a backfill rather than schema surgery (migration 0007) |
-| `sent_message_id` | `TEXT NULL` | backend | the `Message-ID` the backend generated for its own outgoing reply. Without it the thread graph breaks at every AImail hop — an incoming reply's `In-Reply-To` points here and matches nothing (migration 0009) |
+| `sent_message_id` | `TEXT NULL` | backend | the `Message-ID` Gmail assigned to the backend's outgoing reply, read back after `messages.send` rather than assumed. Without it the thread graph breaks at every AImail hop — an incoming reply's `In-Reply-To` points here and matches nothing (migration 0009) |
+| `masking_status` | `TEXT NOT NULL DEFAULT 'complete'` | Lane A | `complete`; `pending` for a quarantined row with no content because NER masking was unavailable (#109), completed by the listener when Presidio recovers; `abandoned` when it gave up. Nothing reads or drafts from a row that is not complete (migrations 0012, 0013) |
+| `masking_attempts` | `INT NOT NULL DEFAULT 0` | Lane A | failed re-mask attempts; the loop works fewest-first and abandons a row at 12 (migration 0013) |
 | `created_at` | `TIMESTAMPTZ DEFAULT now()` | default | |
 
 Index `thread_id` — every planned consumer (thread view, sent-mail indexing, the extension's
@@ -158,7 +163,8 @@ lowercased.
 - [ ] `conversation` — one row per LLM generation event (subtable of `chat`). Stores: prompt sent, context window included, model used, raw AI response, rubric score, version label. Multiple rows per `chat` allow self-evaluation loop (2–3 revisions before user sees output) and multi-version offerings (showing the user 2–3 drafts to pick from). FK → `chat`.
 - [ ] `draft` — generated reply drafts surfaced to the user, status, audit trail. FK → `chat` and the chosen `conversation` row.
 - [ ] `draft_feedback` — user thumbs up/down + which version they picked + their final edited text. Drives model-selection learning. FK → `draft`.
-- [ ] `style_profile` — per-user writing-style features and embeddings.
+- [ ] `style_profile` — per-user writing-style entries; proposed as `style_entry` in [`../features/writing-profile.md`](../features/writing-profile.md).
+- [ ] `holding_reply_settings`, `holding_reply`, `messages.is_automated` — proposed in [`../features/holding-reply.md`](../features/holding-reply.md).
 - [ ] `email_embedding` — pgvector index over historical replies for retrieval.
 
 > The `chat` → `conversation` parent/child shape is the memory backbone: each new email in a thread reuses the prior `conversation` rows as context, which is what gives the agent its "attention span" across replies. See [`../agent-pipeline.md`](../agent-pipeline.md) for how these tables are read and written during a generation.

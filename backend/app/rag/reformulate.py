@@ -9,9 +9,10 @@ reformulation can never make retrieval worse than the baseline by erroring.
 import asyncio
 
 import httpx
-from google import genai
+from google.genai import errors
 
 from app.core.config import get_settings
+from app.rag.gemini import gemini_client
 
 _PROMPT = """Rewrite the user's question into a concise search query that matches formal
 company-policy wording. Expand it with likely synonyms and policy terms (e.g. "relatives" ->
@@ -23,13 +24,13 @@ Search query:"""
 
 async def reformulate(question: str) -> str:
     settings = get_settings()
-    client = genai.Client(api_key=settings.gemini_api_key)
+    client = gemini_client()
     try:
         response = await asyncio.to_thread(
             client.models.generate_content,
             model=settings.gemini_chat_model,
             contents=_PROMPT.format(question=question),
         )
-    except httpx.HTTPError:
+    except (httpx.HTTPError, errors.APIError):
         return question
     return (response.text or question).strip()

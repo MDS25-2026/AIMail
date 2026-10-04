@@ -1,42 +1,69 @@
-"""Per-IP rate limit for the ingestion routes (audit OWASP API8).
+"""Per-client sliding-window rate limits (audit OWASP API8).
 
-Size caps stop one huge upload; this stops many small ones. Deliberately hand-rolled rather
+Size caps stop one huge request; this stops many small ones. Deliberately hand-rolled rather
 than adding slowapi: it is a sliding window over a deque of timestamps, and a new dependency
 for that is not worth the supply-chain surface.
 
-Known limits, all acceptable for a single-host deployment and all fixed by moving the counter
-to Redis if this ever runs multi-worker: state is per process, so N uvicorn workers allow N
-times the quota; the client IP is taken from the socket, so a reverse proxy would need
-X-Forwarded-For handling before this means anything in production; and the map holds one entry
-per IP seen since start, which is fine for a known client set and would need eviction if this
-were ever public.
+Known limits, acceptable for a single-host deployment and fixed by moving the counter to Redis
+if this ever runs multi-worker: state is per process, so N uvicorn workers allow N times the
+quota; and the client is the socket IP, so a reverse proxy needs X-Forwarded-For handling
+before this means anything in production. Idle clients are evicted, so memory stays bounded.
 """
 
 import time
-from collections import defaultdict, deque
+from collections import deque
 
 from fastapi import HTTPException, Request, status
 
-from app.core.constants import INGEST_RATE_LIMIT, INGEST_RATE_WINDOW_SECONDS
+from app.core.constants import (
+    DETAIL_RATE_LIMIT,
+    DETAIL_RATE_WINDOW_SECONDS,
+    GENERATION_RATE_LIMIT,
+    GENERATION_RATE_WINDOW_SECONDS,
+    INGEST_RATE_LIMIT,
+    INGEST_RATE_WINDOW_SECONDS,
+)
 
-_hits: dict[str, deque[float]] = defaultdict(deque)
+
+class RateLimiter:
+    """A FastAPI dependency: at most `limit` requests per `window` seconds per client."""
+
+    def __init__(self, name: str, limit: int, window: int) -> None:
+        self.name = name
+        self.limit = limit
+        self.window = window
+        self._hits: dict[str, deque[float]] = {}
+
+    def reset(self) -> None:
+        self._hits.clear()
+
+    def _evict_idle(self, cutoff: float) -> None:
+        idle = [client for client, hits in self._hits.items() if not hits or hits[-1] < cutoff]
+        for client in idle:
+            del self._hits[client]
+
+    async def __call__(self, request: Request) -> None:
+        client = request.client.host if request.client else "unknown"
+        now = time.monotonic()
+        cutoff = now - self.window
+        self._evict_idle(cutoff)
+        hits = self._hits.setdefault(client, deque())
+        while hits and hits[0] < cutoff:
+            hits.popleft()
+        if len(hits) >= self.limit:
+            raise HTTPException(
+                status.HTTP_429_TOO_MANY_REQUESTS,
+                f"rate limit: at most {self.limit} {self.name} requests per {self.window}s",
+                headers={"Retry-After": str(self.window)},
+            )
+        hits.append(now)
 
 
-async def rate_limit_ingest(request: Request) -> None:
-    client = request.client.host if request.client else "unknown"
-    now = time.monotonic()
-    window = _hits[client]
-
-    cutoff = now - INGEST_RATE_WINDOW_SECONDS
-    while window and window[0] < cutoff:
-        window.popleft()
-
-    if len(window) >= INGEST_RATE_LIMIT:
-        raise HTTPException(
-            status.HTTP_429_TOO_MANY_REQUESTS,
-            f"rate limit: at most {INGEST_RATE_LIMIT} ingestion requests per"
-            f" {INGEST_RATE_WINDOW_SECONDS}s",
-            headers={"Retry-After": str(INGEST_RATE_WINDOW_SECONDS)},
-        )
-
-    window.append(now)
+rate_limit_ingest = RateLimiter("ingestion", INGEST_RATE_LIMIT, INGEST_RATE_WINDOW_SECONDS)
+# Every route that spends Gemini quota on request, so a stuck client cannot drain the free tier.
+rate_limit_generation = RateLimiter(
+    "generation", GENERATION_RATE_LIMIT, GENERATION_RATE_WINDOW_SECONDS
+)
+# Opening an email drafts it the first time, so the detail view spends quota too; its limit sits
+# well above anyone reading their mail.
+rate_limit_detail = RateLimiter("email detail", DETAIL_RATE_LIMIT, DETAIL_RATE_WINDOW_SECONDS)

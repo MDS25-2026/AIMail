@@ -3,10 +3,10 @@
 from sqlalchemy import select
 
 from app.contracts import ContextChunk
-from app.core.constants import EMBEDDING_MODEL
+from app.core.constants import EMBEDDING_TAG
 from app.db.models import Chunk, Document, Embedding
 from app.db.session import get_sessionmaker
-from app.rag.embed import embed_texts
+from app.rag.embed import embed_query
 
 
 async def retrieve(masked_email: str, k: int) -> list[ContextChunk]:
@@ -15,15 +15,15 @@ async def retrieve(masked_email: str, k: int) -> list[ContextChunk]:
     The masked email is used directly as the query here (the S3 baseline). Query
     reformulation (R03.1) is a later slice that must beat this number on the eval set.
     """
-    query_vectors = await embed_texts([masked_email])
-    if not query_vectors:
+    query_vector = await embed_query(masked_email)
+    if query_vector is None:
         return []
-    distance = Embedding.embedding.cosine_distance(query_vectors[0])
+    distance = Embedding.embedding.cosine_distance(query_vector)
     stmt = (
         select(Chunk.id, Chunk.content, Document.title, distance.label("distance"))
         .join(Embedding, Embedding.chunk_id == Chunk.id)
         .join(Document, Document.id == Chunk.document_id)
-        .where(Embedding.model_name == EMBEDDING_MODEL)
+        .where(Embedding.model_name == EMBEDDING_TAG)
         .order_by(distance)
         .limit(k)
     )

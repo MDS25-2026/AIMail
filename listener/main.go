@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"io"
@@ -230,14 +231,21 @@ func filterAllowedLocations(text string, results []presidioResult) []presidioRes
 // NER on the floored text. On any Presidio error it degrades to the regex result — raw text
 // is never returned. emails/phones counts come from the regex pass so they stay honest in
 // both modes; degraded reports whether Presidio ran, for the audit log.
+// maskText runs the regex floor over the whole text, then NER over it in pieces. The floor is never
+// chunked: an email address cut across two pieces would match in neither. NER is, because one
+// Presidio call on a long body or a 20-page PDF can outrun presidioClient's timeout.
 func maskText(ctx context.Context, text string) (masked string, emailsMasked, phonesMasked int, degraded bool) {
 	masked, emailsMasked, phonesMasked = maskPII(text)
-	presidioMasked, err := maskWithPresidio(ctx, masked)
-	if err != nil {
-		log.Printf("presidio degraded, regex-only for this field: %v", err)
-		return masked, emailsMasked, phonesMasked, true
+	var pieces []string
+	for _, chunk := range chunkText(masked, nerChunkChars) {
+		piece, err := maskWithPresidio(ctx, chunk)
+		if err != nil {
+			log.Printf("presidio degraded, regex-only for this field: %v", err)
+			return masked, emailsMasked, phonesMasked, true
+		}
+		pieces = append(pieces, piece)
 	}
-	return presidioMasked, emailsMasked, phonesMasked, false
+	return strings.Join(pieces, ""), emailsMasked, phonesMasked, false
 }
 
 // maskWithPresidio detects PII via the analyzer container and redacts it via the anonymizer
@@ -253,9 +261,10 @@ func maskWithPresidio(ctx context.Context, text string) (string, error) {
 		Text:           text,
 		Language:       "en",
 		ScoreThreshold: 0.6,
-		// CREDIT_CARD is Presidio's built-in recogniser and validates the Luhn checksum, so it
-		// cannot fire on an invoice or order number that merely looks card-shaped.
-		Entities:         []string{"PERSON", "LOCATION", "ORGANIZATION", "ACCOUNT_NUMBER", "CREDIT_CARD"},
+		// CREDIT_CARD and IBAN_CODE are Presidio built-ins that validate their checksums, so they
+		// cannot fire on an invoice or order number that merely looks card- or IBAN-shaped. SWIFT/BIC
+		// is left out on purpose: it names a bank, which is public, not a person.
+		Entities:         []string{"PERSON", "LOCATION", "ORGANIZATION", "ACCOUNT_NUMBER", "CREDIT_CARD", "IBAN_CODE"},
 		AdHocRecognizers: localeRecognizers,
 	})
 	if err != nil {
@@ -322,16 +331,36 @@ func getEnvOrDefault(key, fallback string) string {
 
 // --- Supabase storage + audit log -------------------------------------------
 
+// MaskedContent is every content column, all of it masked. It is written whole or not at all:
+// a quarantined row has none of it, and completing that row later patches exactly these fields.
+type MaskedContent struct {
+	Subject       string `json:"subject"`
+	BodyMasked    string `json:"body_masked"`
+	SnippetMasked string `json:"snippet_masked"`
+	EmailsMasked  int    `json:"emails_masked"`
+	PhonesMasked  int    `json:"phones_masked"`
+	MaskingStatus string `json:"masking_status"`
+}
+
 // StoredMessage is what we persist for each processed email, post-masking.
 type StoredMessage struct {
 	GmailMessageID string    `json:"gmail_message_id"`
 	FromAddr       string    `json:"from_addr"`
-	Subject        string    `json:"subject"`
-	BodyMasked     string    `json:"body_masked"`
-	SnippetMasked  string    `json:"snippet_masked"`
-	EmailsMasked   int       `json:"emails_masked"`
-	PhonesMasked   int       `json:"phones_masked"`
+	ReplyTo        string    `json:"reply_to,omitempty"` // where an approved reply goes; shown to the approver
 	ReceivedAt     time.Time `json:"received_at"`
+	ThreadIdentity
+	MaskedContent
+}
+
+// QuarantinedMessage is the row for a message whose masking could not complete (#109): enough to
+// show it exists and to finish it later, and no content at all.
+type QuarantinedMessage struct {
+	GmailMessageID string    `json:"gmail_message_id"`
+	FromAddr       string    `json:"from_addr"`
+	ReplyTo        string    `json:"reply_to,omitempty"`
+	ReceivedAt     time.Time `json:"received_at"`
+	MaskingStatus  string    `json:"masking_status"`
+	ThreadIdentity
 }
 
 // AuditLogEntry records every pipeline action for traceability — required
@@ -523,6 +552,9 @@ func listenToPubSub(ctx context.Context, ts oauth2.TokenSource, srv *gmail.Servi
 				writeAuditLog(ctx, "ingest_abandoned",
 					fmt.Sprintf("history %d abandoned after %d attempts: %v",
 						payload.HistoryID, *msg.DeliveryAttempt, err), false)
+				// Past this range, or every later notification would list it again, hit the same
+				// failure first, and no newer mail would arrive until a restart.
+				advanceBaseline(payload.HistoryID)
 				msg.Ack()
 				return
 			}
@@ -578,18 +610,39 @@ func ingestHistory(ctx context.Context, srv *gmail.Service, historyID uint64) er
 		return ingestNewestInbox(ctx, srv)
 	}
 
-	atomic.StoreUint64(&lastHistoryID, historyID)
-	if len(ids) == 0 {
-		fmt.Println("No new INBOX messages in this history range.")
-		return nil
-	}
-
 	for _, msgID := range ids {
-		if err := ingestMessage(ctx, srv, msgID); err != nil {
+		err := ingestMessage(ctx, srv, msgID)
+		if isPermanentIngestFailure(err) {
+			// Retrying cannot help (deleted before the fetch, or a row the database refuses), and
+			// failing the range would hold every newer message behind this one.
+			writeAuditLog(ctx, "ingest_skipped", fmt.Sprintf("msg %s: %v", msgID, err), false)
+			continue
+		}
+		if err != nil {
+			// The baseline stays put, so the redelivery lists this range again and retries the
+			// message; the ones already stored are skipped by messageStored.
 			return fmt.Errorf("message %s: %w", msgID, err)
 		}
 	}
+	advanceBaseline(historyID)
 	return nil
+}
+
+// isPermanentIngestFailure is a failure that will recur on every retry: the message is gone from
+// Gmail, or the database refused the row itself (a 4xx, not an outage).
+func isPermanentIngestFailure(err error) bool {
+	return err != nil && (isGone(err) || errors.Is(err, errRowRejected))
+}
+
+// advanceBaseline moves lastHistoryID forward only. Notifications are handled concurrently, and a
+// slower, older one must not move the baseline back and make a newer range be listed twice.
+func advanceBaseline(historyID uint64) {
+	for {
+		current := atomic.LoadUint64(&lastHistoryID)
+		if historyID <= current || atomic.CompareAndSwapUint64(&lastHistoryID, current, historyID) {
+			return
+		}
+	}
 }
 
 // ingestNewestInbox is the fallback for when history is unusable: the pre-#85 behaviour, kept
@@ -612,68 +665,87 @@ func ingestNewestInbox(ctx context.Context, srv *gmail.Service) error {
 
 // ingestMessage fetches one message by ID, masks its PII, and persists it plus an audit entry.
 func ingestMessage(ctx context.Context, srv *gmail.Service, msgID string) error {
-	msg, err := srv.Users.Messages.Get("me", msgID).Format("full").Do()
+	// A failed lookup falls through to a normal ingest: dropping a message is worse than paying
+	// for OCR twice, and the insert's on_conflict still keeps the row single.
+	isStored, err := messageStored(ctx, msgID)
 	if err != nil {
-		log.Printf("Could not retrieve message details: %v", err)
-		writeAuditLog(ctx, "fetch_message", fmt.Sprintf("get error for %s: %v", msgID, err), false)
-		return fmt.Errorf("get message %s: %w", msgID, err)
+		log.Printf("could not check whether %s is stored, ingesting anyway: %v", msgID, err)
+	}
+	if isStored {
+		return nil
 	}
 
-	var subject, from string
-	for _, h := range msg.Payload.Headers {
-		if h.Name == "Subject" {
-			subject = h.Value
-		}
-		if h.Name == "From" {
-			from = h.Value
-		}
+	msg, err := fetchMessage(ctx, srv, msgID)
+	if err != nil {
+		return err
 	}
-
-	body := getBody(msg.Payload)
-
-	// #82: text inside image attachments. The image is redacted by Presidio before anything reads
-	// it, so this arrives already free of PII — but it still goes through maskText below like any
-	// other untrusted text, because a second net costs nothing and OCR can misread a redaction box.
-	body += ocrAttachments(ctx, srv, msgID, msg.Payload)
-
-	// Mask PII before anything touches storage or logs: regex floor first, then Presidio NER.
-	maskedBody, bodyEmails, bodyPhones, degradedBody := maskText(ctx, body)
-	maskedSnippet, snipEmails, snipPhones, degradedSnip := maskText(ctx, msg.Snippet)
-	maskedSubject, subEmails, subPhones, degradedSubj := maskText(ctx, subject)
-	totalEmails := bodyEmails + snipEmails + subEmails
-	totalPhones := bodyPhones + snipPhones + subPhones
-	presidioDegraded := degradedBody || degradedSnip || degradedSubj
-
-	fmt.Println("-------------------------------------------")
-	fmt.Printf("FROM: %s\n", from)
-	fmt.Printf("SUBJECT (masked): %s\n", maskedSubject)
-	fmt.Printf("BODY SNIPPET (masked): %s\n", maskedSnippet)
-	fmt.Printf("FULL BODY LENGTH: %d bytes | masked %d emails, %d phones\n", len(body), totalEmails, totalPhones)
-	fmt.Println("-------------------------------------------")
+	if msg.Payload == nil {
+		// Nothing to read or mask; a nil payload must not panic the Pub/Sub callback.
+		writeAuditLog(ctx, "fetch_message", fmt.Sprintf("msg %s: no payload", msgID), false)
+		return nil
+	}
+	identity := threadIdentity(msg)
+	content, isComplete := maskMessage(ctx, srv, msg)
+	if !isComplete {
+		return quarantine(ctx, msgID, msg.Payload.Headers, identity)
+	}
 
 	stored := StoredMessage{
 		GmailMessageID: msgID,
-		FromAddr:       from, // sender address kept as-is for reply threading; masking here is a policy call for the team to confirm
-		Subject:        maskedSubject,
-		BodyMasked:     maskedBody,
-		SnippetMasked:  maskedSnippet,
-		EmailsMasked:   totalEmails,
-		PhonesMasked:   totalPhones,
+		FromAddr:       headerValue(msg.Payload.Headers, "From"), // kept as-is for reply threading; a policy call for the team to confirm
+		ReplyTo:        headerValue(msg.Payload.Headers, "Reply-To"),
 		ReceivedAt:     time.Now().UTC(),
+		ThreadIdentity: identity,
+		MaskedContent:  content,
 	}
-
-	if err := supabaseInsert(ctx, "messages", stored, "gmail_message_id"); err != nil {
-		log.Printf("Could not store message: %v", err)
+	isInserted, err := insertMessage(ctx, stored)
+	if err != nil {
+		log.Printf("could not store message %s: %v", msgID, err)
 		writeAuditLog(ctx, "store_message", fmt.Sprintf("msg %s: %v", msgID, err), false)
 		return fmt.Errorf("store message %s: %w", msgID, err)
 	}
-
-	detail := fmt.Sprintf("msg %s stored, %d emails / %d phones masked", msgID, totalEmails, totalPhones)
-	if presidioDegraded {
-		detail += " (presidio degraded: regex-only)"
+	if !isInserted {
+		log.Printf("%s already stored; the insert was ignored", msgID)
+		return nil
 	}
-	writeAuditLog(ctx, "store_message", detail, true)
+	// Counts only: the sender, subject and body are never written to stdout.
+	log.Printf("stored %s: %d bytes, %d emails / %d phones masked", msgID, len(content.BodyMasked),
+		content.EmailsMasked, content.PhonesMasked)
+	writeAuditLog(ctx, "store_message", fmt.Sprintf("msg %s stored, %d emails / %d phones masked",
+		msgID, content.EmailsMasked, content.PhonesMasked), true)
 	return nil
+}
+
+func fetchMessage(ctx context.Context, srv *gmail.Service, msgID string) (*gmail.Message, error) {
+	msg, err := srv.Users.Messages.Get("me", msgID).Format("full").Context(ctx).Do()
+	if err != nil {
+		log.Printf("could not retrieve message %s: %v", msgID, err)
+		writeAuditLog(ctx, "fetch_message", fmt.Sprintf("get error for %s: %v", msgID, err), false)
+		return nil, fmt.Errorf("get message %s: %w", msgID, err)
+	}
+	return msg, nil
+}
+
+// maskMessage masks every content field. isComplete is false when NER was unavailable for any
+// of them: the caller must then store nothing of the content (#109). Attachment text is masked on
+// its own and dropped rather than degraded, so it never decides the outcome.
+func maskMessage(ctx context.Context, srv *gmail.Service, msg *gmail.Message) (MaskedContent, bool) {
+	maskedBody, bodyEmails, bodyPhones, degradedBody := maskText(ctx, getBody(msg.Payload))
+	maskedSnippet, snipEmails, snipPhones, degradedSnip := maskText(ctx, msg.Snippet)
+	maskedSubject, subEmails, subPhones, degradedSubj := maskText(ctx, headerValue(msg.Payload.Headers, "Subject"))
+	if degradedBody || degradedSnip || degradedSubj {
+		return MaskedContent{}, false
+	}
+	attachments, attachEmails, attachPhones := maskAttachmentText(ctx, msg.Id,
+		ocrAttachments(ctx, srv, msg.Id, msg.Payload))
+	return MaskedContent{
+		Subject:       maskedSubject,
+		BodyMasked:    maskedBody + attachments,
+		SnippetMasked: maskedSnippet,
+		EmailsMasked:  bodyEmails + snipEmails + subEmails + attachEmails,
+		PhonesMasked:  bodyPhones + snipPhones + subPhones + attachPhones,
+		MaskingStatus: maskingComplete,
+	}, true
 }
 
 // getBody prefers the text/html part so the dashboard can render the email like a normal inbox;
@@ -700,6 +772,9 @@ var (
 	htmlDropRegex  = regexp.MustCompile(`(?is)<(script|style)[^>]*>.*?</(script|style)>`)
 	htmlBreakRegex = regexp.MustCompile(`(?i)<(br\s*/?|/p|/div|/tr|/li|/h[1-6])>`)
 	htmlTagRegex   = regexp.MustCompile(`<[^>]*>`)
+	// A link's target is kept as text: stripping tags would otherwise erase the only sign that a
+	// "verify your account" email points somewhere, which the agent's phishing check reads.
+	htmlLinkRegex  = regexp.MustCompile(`(?is)<a\b[^>]*\bhref\s*=\s*["'](https?://[^"'\s]+)["'][^>]*>(.*?)</a>`)
 	blankLineRegex = regexp.MustCompile(`\n{3,}`)
 )
 
@@ -709,6 +784,7 @@ var (
 // together, which would confuse NER as much as the tags did.
 func htmlToText(markup string) string {
 	text := htmlDropRegex.ReplaceAllString(markup, " ")
+	text = htmlLinkRegex.ReplaceAllString(text, "$2 ($1)")
 	text = htmlBreakRegex.ReplaceAllString(text, "\n")
 	text = htmlTagRegex.ReplaceAllString(text, "")
 	text = html.UnescapeString(text)
@@ -790,6 +866,8 @@ func main() {
 
 	// #83: keep the watch alive. Gmail expires it after about a week and nothing renewed it.
 	go renewWatchPeriodically(ctx, srv)
+	// #109: finish messages quarantined while Presidio was down.
+	go remaskQuarantinedPeriodically(ctx, srv)
 
 	// 2. Start live Pub/Sub listener loop
 	listenToPubSub(ctx, tokenSource, srv)
