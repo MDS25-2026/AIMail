@@ -1,10 +1,10 @@
-import DOMPurify from "dompurify";
-import { Languages } from "lucide-react";
-import { useState } from "react";
+import { ImageOff, Languages } from "lucide-react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useEmailTranslation } from "../lib/queries";
 import type { Email } from "../types/email";
+import { sanitizeEmailHtml } from "../lib/sanitizeEmail";
 import { usePreferences } from "../lib/usePreferences";
 import QuantitiesList from "./QuantitiesList";
 
@@ -18,6 +18,12 @@ export default function EmailBody({ email }: { email: Email }) {
   const [isShowingTranslation, setIsShowingTranslation] = useState(false);
   const translation = useEmailTranslation(email.id, language, isShowingTranslation);
   const translated = isShowingTranslation ? translation.data?.text : undefined;
+  const [isAllowingImages, setIsAllowingImages] = useState(false);
+  const isHtml = LOOKS_LIKE_HTML.test(email.body);
+  const sanitized = useMemo(
+    () => (isHtml ? sanitizeEmailHtml(email.body, isAllowingImages) : null),
+    [email.body, isHtml, isAllowingImages],
+  );
 
   return (
     <section className="rounded-lg border border-line bg-surface p-4">
@@ -56,15 +62,29 @@ export default function EmailBody({ email }: { email: Email }) {
             {t("translate.notice")}
           </p>
         </>
-      ) : LOOKS_LIKE_HTML.test(email.body) ? (
-        <div
-          // contain:paint makes this the containing block even for position:fixed, and clips to
-          // it: sanitised email HTML keeps inline styles, and a fixed element must not be able to
-          // draw over the dashboard (a fake button over Approve & Send).
-          className="relative max-w-none overflow-x-auto text-sm text-fg-body [contain:paint] [&_a]:text-brand [&_a]:underline [&_img]:max-w-full"
-          // Email HTML is untrusted — sanitize to strip scripts/handlers before rendering.
-          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(email.body) }}
-        />
+      ) : sanitized ? (
+        <>
+          {sanitized.blockedImages > 0 ? (
+            <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md bg-surface-muted px-3 py-2 text-xs text-fg-muted">
+              <ImageOff aria-hidden className="size-3.5 shrink-0" />
+              <span className="min-w-0 flex-1">{t("emailBody.imagesBlocked")}</span>
+              <button
+                type="button"
+                onClick={() => setIsAllowingImages(true)}
+                className="font-medium text-brand hover:text-brand-strong"
+              >
+                {t("emailBody.loadImages")}
+              </button>
+            </div>
+          ) : null}
+          <div
+            // contain:paint makes this the containing block even for position:fixed, and clips to
+            // it: sanitised email HTML keeps inline styles, and a fixed element must not be able to
+            // draw over the dashboard (a fake button over Approve & Send).
+            className="relative max-w-none overflow-x-auto text-sm text-fg-body [contain:paint] [&_a]:text-brand [&_a]:underline [&_img]:max-w-full"
+            dangerouslySetInnerHTML={{ __html: sanitized.html }}
+          />
+        </>
       ) : (
         <p className="whitespace-pre-wrap text-sm text-fg-body">{email.body}</p>
       )}

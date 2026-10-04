@@ -72,6 +72,10 @@ export const zh: Translations = {
     title: "度量",
     approx: "{{written}} ≈ {{converted}}",
   },
+  emailBody: {
+    imagesBlocked: "已阻止远程图片，发件人无法得知您何时打开了这封邮件。",
+    loadImages: "加载图片",
+  },
   translate: {
     action: "翻译成{{language}}",
     pending: "正在翻译…",

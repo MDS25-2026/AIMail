@@ -78,6 +78,11 @@ export const ms: Translations = {
     title: "Ukuran",
     approx: "{{written}} ≈ {{converted}}",
   },
+  emailBody: {
+    imagesBlocked:
+      "Imej jauh disekat, jadi pengirim tidak dapat melihat bila anda membuka e-mel ini.",
+    loadImages: "Muatkan imej",
+  },
   translate: {
     action: "Terjemah ke {{language}}",
     pending: "Menterjemah…",

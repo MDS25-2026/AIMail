@@ -74,6 +74,10 @@ export const en = {
     title: "Measurements",
     approx: "{{written}} ≈ {{converted}}",
   },
+  emailBody: {
+    imagesBlocked: "Remote images are blocked, so the sender cannot see when you opened this.",
+    loadImages: "Load images",
+  },
   translate: {
     action: "Translate to {{language}}",
     pending: "Translating…",
