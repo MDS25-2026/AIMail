@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { DraftRefusedError, SendOutcomeUnknownError } from "./api";
+import { DraftRefusedError, SendNotGrantedError, SendOutcomeUnknownError } from "./api";
 import { findRedactionMarkers, hasUnsavedEdits } from "./draftGuards";
 import { useRefineEmail, useRegenerateEmail, useSendEmail } from "./queries";
 import type { Email, Tone } from "../types/email";
@@ -19,6 +19,7 @@ export enum DraftFailure {
   Send = "send",
   Refused = "refused",
   SendUnknown = "sendUnknown",
+  SendNotGranted = "sendNotGranted",
 }
 
 const FAILURE_BY_ACTION: Record<DraftAction, DraftFailure> = {
@@ -30,6 +31,7 @@ const FAILURE_BY_ACTION: Record<DraftAction, DraftFailure> = {
 function failureFor(error: unknown, action: DraftAction): DraftFailure {
   if (error instanceof DraftRefusedError) return DraftFailure.Refused;
   if (error instanceof SendOutcomeUnknownError) return DraftFailure.SendUnknown;
+  if (error instanceof SendNotGrantedError) return DraftFailure.SendNotGranted;
   return FAILURE_BY_ACTION[action];
 }
 

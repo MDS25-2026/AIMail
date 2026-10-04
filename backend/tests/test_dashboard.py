@@ -173,7 +173,7 @@ def _send_harness(monkeypatch, claim: bool, send_error: bool = False):
     async def release(pk):
         calls["released"] += 1
 
-    async def send_reply(*_args):
+    async def send_reply(*_args, **_kwargs):
         calls["sent"] += 1
         if send_error:
             raise SendError("gmail down")

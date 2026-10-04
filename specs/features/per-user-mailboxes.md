@@ -158,6 +158,9 @@ A code audit of every single-mailbox assumption found these, each checked in cod
    and never block sign-in. Verified against Supabase with a throwaway row.
 3. Backend scoping by `user_id`, and sending with the user's token. Scoping done 2026-10-05:
    `app/core/ownership.py` (one `Scope` used by every email and document query), migration 0017,
-   and the original mailbox's rows hand over to its account when it connects.
+   and the original mailbox's rows hand over to its account when it connects. Sending done the
+   same day: each reply uses the owner's own sealed token, refreshed with the Google web client
+   (`GOOGLE_OAUTH_CLIENT_ID/SECRET`), cached per mailbox; a read-only grant answers `403
+   send_not_granted` before anything is claimed. Rows with no owner still send via `token.json`.
 4. Listener multi-mailbox ingest with per-mailbox baselines (Lane A).
 5. Backfill, delete `app/core/mailbox.py`, disconnect flow and its UI.

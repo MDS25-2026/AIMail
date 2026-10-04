@@ -26,7 +26,7 @@ ORIGINAL = {"threadId": "t-1", "payload": {"headers": [
 
 def _gmail(monkeypatch, on_send):
     """Serve the original from Gmail and let `on_send` decide what the POST does."""
-    monkeypatch.setattr(gmail_send, "_cached_token", ("token", float("inf")))
+    monkeypatch.setattr(gmail_send, "_cached_tokens", {None: ("token", float("inf"))})
 
     def handle(request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith("/send"):
@@ -39,7 +39,7 @@ def _gmail(monkeypatch, on_send):
 
 
 def _send():
-    return asyncio.run(gmail_send.send_reply("orig-1", "a@example.com", "Invoice", "Thanks."))
+    return asyncio.run(gmail_send.send_reply("orig-1", "a@example.com", "Invoice", "Thanks.", owner_id=None))
 
 
 def _raise(error):
@@ -93,7 +93,7 @@ def harness(monkeypatch):
     async def release(pk):
         state["released"] += 1
 
-    async def send_reply(*_args):
+    async def send_reply(*_args, **_kwargs):
         state["sent"] += 1
         if state["send_error"]:
             raise state["send_error"]

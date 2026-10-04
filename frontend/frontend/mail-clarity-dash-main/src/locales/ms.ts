@@ -29,7 +29,7 @@ export const ms: Translations = {
       "E-mel baharu dipaparkan di sini beberapa saat selepas tiba di peti masuk Gmail anda.",
     noMailboxTitle: "Tiada peti mel disambungkan",
     noMailboxHint:
-      "Akaun ini belum dipautkan kepada peti mel. Minta pemilik peti mel menyambungkan peti mel anda.",
+      "Log keluar, kemudian log masuk dengan Google semula dan benarkan AIMail membaca Gmail anda.",
   },
   priority: { high: "Segera", medium: "Sederhana", low: "Rendah" },
   detail: {
@@ -289,6 +289,8 @@ export const ms: Translations = {
         "AI tidak dapat menulis draf untuk e-mel ini, dan mencuba lagi tidak akan mengubahnya. Teks anda tidak berubah: tulis balasan sendiri, atau cuba nada yang satu lagi.",
       sendUnknown:
         "Kami tidak dapat mengesahkan sama ada balasan telah dihantar. Semak folder Dihantar Gmail anda sebelum menghantar semula.",
+      sendNotGranted:
+        "AIMail tidak dibenarkan menghantar daripada Gmail anda. Log keluar, log masuk semula dan tandakan kotak yang membenarkan AIMail menghantar e-mel. Draf anda tidak berubah.",
     },
     replaceEdits: "Draf baharu akan menggantikan perubahan yang anda taip.",
     replaceConfirm: "Gantikan perubahan saya",

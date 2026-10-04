@@ -24,8 +24,7 @@ export const en = {
     emptyTitle: "No emails yet",
     emptyHint: "New emails show up here a few seconds after they reach your Gmail inbox.",
     noMailboxTitle: "No mailbox connected",
-    noMailboxHint:
-      "This account isn't linked to a mailbox yet. Ask the mailbox owner to connect yours.",
+    noMailboxHint: "Sign out, then sign in with Google again and allow AIMail to read your Gmail.",
   },
   priority: { high: "Urgent", medium: "Medium", low: "Low" },
   detail: {
@@ -282,6 +281,8 @@ export const en = {
         "The AI couldn't write a draft for this email, and trying again won't change that. Your text is unchanged: write the reply yourself, or try the other tone.",
       sendUnknown:
         "We couldn't confirm whether the reply was sent. Check your Gmail Sent folder before sending again.",
+      sendNotGranted:
+        "AIMail isn't allowed to send from your Gmail. Sign out, sign in again, and tick the box that lets AIMail send email. Your draft is unchanged.",
     },
     replaceEdits: "A new draft will replace the changes you typed.",
     replaceConfirm: "Replace my changes",

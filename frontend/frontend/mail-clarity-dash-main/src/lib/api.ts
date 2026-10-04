@@ -61,9 +61,13 @@ export class DraftRefusedError extends Error {}
 /** Gmail may have sent the reply but the answer was lost (504 send_outcome_unknown). Never retry blind. */
 export class SendOutcomeUnknownError extends Error {}
 
+/** The owner let AIMail read their Gmail but not send from it (403 send_not_granted). */
+export class SendNotGrantedError extends Error {}
+
 const ERROR_BY_DETAIL: Record<string, new (message: string) => Error> = {
   draft_refused: DraftRefusedError,
   send_outcome_unknown: SendOutcomeUnknownError,
+  send_not_granted: SendNotGrantedError,
 };
 
 /** The typed error for a failed call, chosen by the backend's `detail` code. */

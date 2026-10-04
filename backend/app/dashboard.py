@@ -16,6 +16,7 @@ import httpx
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import connections
 from app.audit import audit
 from app.contracts import (
     ContextChunk,
@@ -162,6 +163,7 @@ class DraftNotUpdatedError(RuntimeError):
 class SendErrorCode(StrEnum):
     REDACTION_MARKERS = "redaction_markers"  # "[Redacted]" would reach the recipient as written
     MASKING_PENDING = "masking_pending"  # quarantined: there is nothing safe to reply to yet
+    SEND_NOT_GRANTED = "send_not_granted"  # the owner allowed AIMail to read their Gmail, not send
 
 
 class SendRejectedError(RuntimeError):
@@ -474,11 +476,14 @@ async def approve_and_send(message_id: str, draft: str, *, scope: Scope) -> Dash
         raise SendRejectedError(SendErrorCode.MASKING_PENDING, 409)
     if has_redaction_marker(draft):
         raise SendRejectedError(SendErrorCode.REDACTION_MARKERS, 422)
+    if message.user_id is not None and not await connections.can_send(message.user_id):
+        raise SendRejectedError(SendErrorCode.SEND_NOT_GRANTED, 403)
     if message.sent_at is not None or not await _claim_send(pk):
         return _to_email(await _load(pk, scope) or message)
     try:
         sent = await send_reply(
-            message.gmail_message_id, message.from_addr or "", message.subject or "", draft
+            message.gmail_message_id, message.from_addr or "", message.subject or "", draft,
+            owner_id=message.user_id,
         )
     except SendOutcomeUnknownError:
         # The claim stays: Gmail may have sent, and releasing it would invite a second copy.

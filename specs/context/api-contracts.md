@@ -80,6 +80,9 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   `504` `send_outcome_unknown` means Gmail may have sent the reply but its answer was lost; the email
   stays marked sent so it is never sent twice, and the reader should check Gmail's Sent folder.
   `502` `send_failed` still means Gmail never accepted it, and it can be approved again.
+  Per-user mailboxes (2026-10-05): the reply goes out from the Gmail account the email arrived in,
+  with that user's own token; `403` `send_not_granted` means the owner let AIMail read their Gmail
+  but not send, and nothing was claimed (signing in again and ticking "send" fixes it).
 - `POST /emails/{id}/regenerate` and `POST /emails/{id}/refine` no longer answer `200` with the
   old draft when nothing changed (2026-09-30). They answer `502` `agent_unavailable` (the agent
   or retrieval failed; retry later), `422` `draft_refused` (regenerate only: the model failed on

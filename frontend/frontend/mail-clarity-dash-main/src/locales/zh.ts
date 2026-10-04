@@ -23,7 +23,7 @@ export const zh: Translations = {
     emptyTitle: "暂无邮件",
     emptyHint: "新邮件到达您的 Gmail 收件箱几秒后会显示在这里。",
     noMailboxTitle: "未连接邮箱",
-    noMailboxHint: "此账户尚未关联邮箱。请让邮箱所有者为您连接。",
+    noMailboxHint: "请退出，然后重新使用 Google 登录，并允许 AIMail 读取您的 Gmail。",
   },
   priority: { high: "紧急", medium: "中等", low: "低" },
   detail: {
@@ -268,6 +268,8 @@ export const zh: Translations = {
       refused:
         "AI 无法为这封邮件撰写草稿，重试也不会改变结果。您的文字没有改变：请自行撰写回复，或尝试另一种语气。",
       sendUnknown: "无法确认回复是否已发送。请先检查您的 Gmail 已发送邮件，再决定是否重新发送。",
+      sendNotGranted:
+        "AIMail 无权从您的 Gmail 发送邮件。请退出并重新登录，并勾选允许 AIMail 发送电子邮件的选项。您的草稿未更改。",
     },
     replaceEdits: "新草稿将替换您输入的修改。",
     replaceConfirm: "替换我的修改",

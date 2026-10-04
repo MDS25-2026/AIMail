@@ -6,9 +6,10 @@ of this may block sign-in: a user without a connection simply sees "No mailbox c
 """
 
 import logging
+from uuid import UUID
 
 import httpx
-from sqlalchemy import func, update
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -62,6 +63,14 @@ async def store_connection(user_id: str, email: str, refresh_token: str, scopes:
                 await _hand_over_unowned_rows(session, user_id)
     except (SQLAlchemyError, OSError) as exc:
         raise ConnectionStoreError(f"database refused the connection: {type(exc).__name__}") from exc
+
+
+async def can_send(user_id: UUID) -> bool:
+    """Whether the user granted Gmail send; Google lets people grant reading alone."""
+    async with get_sessionmaker()() as session:
+        scopes = await session.scalar(select(MailboxConnection.scopes)
+                                      .where(MailboxConnection.user_id == user_id))
+    return GMAIL_SEND in (scopes or [])
 
 
 async def _hand_over_unowned_rows(session: AsyncSession, user_id: str) -> None:

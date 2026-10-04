@@ -29,9 +29,11 @@ typecheck:  ## dashboard typecheck, palette contrast/colour-blind checks, lint a
 dev:  ## run ALL services (backend, agent, web, listener) in one terminal; Ctrl+C stops all
 	./dev.sh
 
+# --no-access-log: app.request already logs each request without its query, which can carry the
+# one-time sign-in code (/auth/callback?code=...); uvicorn's own access line prints it.
 backend:  ## run the backend API on :8000 (frees the port first so restarts never clash)
 	-fuser -k 8000/tcp 2>/dev/null
-	cd backend && ../$(VENV)/uvicorn app.main:app --reload
+	cd backend && ../$(VENV)/uvicorn app.main:app --reload --no-access-log
 
 agent:  ## run the Lane C email agent on :8001 (localhost-only; frees the port first)
 	-fuser -k 8001/tcp 2>/dev/null

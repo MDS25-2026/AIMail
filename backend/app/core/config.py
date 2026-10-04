@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     # Encrypts stored Google refresh tokens (app/core/token_crypt.py): 32 random bytes, base64.
     # Empty means no token can be stored or read (fail closed). Shared with the listener.
     token_encryption_key: str = ""
+    # The Google OAuth client in Supabase's Google provider; refreshes connected users' tokens.
+    google_oauth_client_id: str = ""
+    google_oauth_client_secret: str = ""
     dashboard_url: str = "http://localhost:8090"
     # Masks uploaded documents before storage (app/rag/mask.py); shared with the listener and agent.
     presidio_analyzer_url: str = "http://localhost:5001/analyze"

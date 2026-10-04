@@ -32,7 +32,8 @@ async def main() -> None:
         )
         for message in (await session.scalars(stmt)).all():
             try:
-                headers = await message_headers(client, message.gmail_message_id, THREAD_HEADERS)
+                headers = await message_headers(client, message.gmail_message_id, THREAD_HEADERS,
+                                                message.user_id)
             except (httpx.HTTPError, KeyError, ValueError) as exc:
                 failed += 1
                 print(f"  skipped {message.id}: {type(exc).__name__}")

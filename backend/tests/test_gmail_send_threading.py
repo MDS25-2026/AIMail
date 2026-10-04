@@ -27,7 +27,7 @@ ORIGINAL = {
 
 @pytest.fixture(autouse=True)
 def gmail(monkeypatch):
-    monkeypatch.setattr(gmail_send, "_cached_token", ("token", float("inf")))
+    monkeypatch.setattr(gmail_send, "_cached_tokens", {None: ("token", float("inf"))})
     state: dict = {"sent": None, "original_status": 200}
 
     def handle(request: httpx.Request) -> httpx.Response:
@@ -51,7 +51,7 @@ def _sent_mime(state: dict) -> str:
 
 def _send() -> gmail_send.SentReply:
     return asyncio.run(gmail_send.send_reply("orig-1", "fallback@example.com",
-                                             "Invoice for [Redacted]", "Thanks, paid."))
+                                             "Invoice for [Redacted]", "Thanks, paid.", owner_id=None))
 
 
 def test_the_reply_carries_the_thread_id_and_references(gmail):
