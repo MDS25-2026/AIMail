@@ -108,8 +108,8 @@ rows; an index on `(user_id, created_at)` serves the inbox.
 
 - On disconnect, delete the user's stored (masked) mail, or keep it until a retention job runs?
   Recommendation: delete; the user expects disconnect to mean gone.
-- Does each user get their own knowledge base, or is it shared per company? Recommendation: per
-  user for now, matching the per-user mailbox; company-wide sharing is a later feature.
+- ~~Does each user get their own knowledge base, or is it shared per company?~~ **Decided
+  2026-10-04:** per user now; enterprise accounts later share one per company (ADR 0005).
 - The admin console: aggregates across all users, never one user's mail (unchanged rule).
 
 ## Audit findings that change the design (2026-10-04)

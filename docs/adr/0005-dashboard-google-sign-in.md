@@ -46,7 +46,9 @@ stays, server-side only, for scripts and tests; it is never in the browser again
 
 ## Stage 2: each user's own Gmail
 
-Not built here. The same Google consent requests `gmail.readonly` and `gmail.send`; Supabase hands
+Not built here. Each user's knowledge base (uploaded company documents) belongs to that user in
+stage 2; enterprise accounts later share one knowledge base per company (decided by the mailbox
+owner, 2026-10-04). The same Google consent requests `gmail.readonly` and `gmail.send`; Supabase hands
 back the provider refresh token, which the backend stores encrypted per user; the listener watches
 every connected mailbox and tags each row with `messages.user_id` (the column exists since
 migration 0007); sends use the owner's token; and the scope check becomes `user_id = signed-in
