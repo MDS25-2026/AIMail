@@ -1,6 +1,6 @@
 """The mailbox owner comes from the Gmail account AIMail is connected to, not a setting.
 
-Stage 1 of ADR 0005 reads one mailbox; whoever signs in with that Google account sees its mail.
+Rows from before per-user mailboxes have no owner; whoever signs in with that Google account sees them.
 The backend already holds that account's Gmail login (it sends replies with it), so it asks Gmail
 for the address instead of making someone type it into .env.
 """

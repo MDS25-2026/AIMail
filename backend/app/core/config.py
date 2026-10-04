@@ -40,8 +40,8 @@ class Settings(BaseSettings):
     # upgrade: a service account + domain-wide delegation so the backend has its own credentials.
     gmail_credentials_path: str = str(_REPO_ROOT / "listener" / "credentials.json")
     gmail_token_path: str = str(_REPO_ROOT / "listener" / "token.json")
-    # Keys the per-user policy, and (ADR 0005, stage 1) the one signed-in user who sees the mail the
-    # listener ingests. Empty means no signed-in user sees any mail; scripts still do.
+    # Fallback for the owner of the original token.json mailbox's unowned rows, if Gmail cannot be
+    # asked at startup (app/core/mailbox.py). Connected users never need it.
     mailbox_owner_email: str = ""
     auto_generate: bool = True  # background poller pre-generates drafts so opens are instant
     generate_poll_seconds: int = 60
