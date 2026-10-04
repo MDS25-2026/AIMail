@@ -1,5 +1,5 @@
 {
-  "_comment": "Labeled corpus for the R02 masking-recall harness (audit Goal 3: 80% identification accuracy). Each case lists the raw values that MUST disappear from the masked output. 'layer' records which mechanism is expected to catch it: regex holds offline, ner needs the Presidio containers. Extend this file rather than the harness \u2014 the harness just loops.",
+  "_comment": "Labeled corpus for the R02 masking-recall harness (audit Goal 3: 80% identification accuracy). Each case lists the raw values that MUST disappear from the masked output. 'layer' records which mechanism is expected to catch it: regex holds offline, ner needs the Presidio containers. Extend this file rather than the harness — the harness just loops.",
   "cases": [
     {
       "name": "plain email",
@@ -263,6 +263,47 @@
         "4471"
       ],
       "layer": "ner"
+    },
+    {
+      "name": "passport letter prefix",
+      "text": "Please verify passport A12345678 before travel.",
+      "must_mask": [
+        "A12345678"
+      ],
+      "layer": "regex"
+    },
+    {
+      "name": "singapore mobile",
+      "text": "Call our Singapore office on +65 9123 4567.",
+      "must_mask": [
+        "9123 4567"
+      ],
+      "layer": "regex"
+    },
+    {
+      "name": "uk landline",
+      "text": "London desk: +44 20 7946 0958.",
+      "must_mask": [
+        "7946 0958"
+      ],
+      "layer": "regex"
+    },
+    {
+      "name": "indonesia mobile",
+      "text": "WhatsApp +62 812-3456-7890 for Jakarta.",
+      "must_mask": [
+        "812-3456-7890"
+      ],
+      "layer": "regex"
+    },
+    {
+      "name": "reset link token",
+      "text": "Reset here: https://id.example.com/reset?token=Zx81kLq&u=jo%40corp.com",
+      "must_mask": [
+        "Zx81kLq",
+        "jo%40corp.com"
+      ],
+      "layer": "regex"
     }
   ],
   "negatives": [

@@ -214,3 +214,16 @@ def test_pages_past_the_cap_are_reported_not_silently_dropped(client, monkeypatc
     monkeypatch.setattr(reader, "MAX_PDF_PAGES", 0)
     body = _read(client, _text_pdf("Quarterly report"), reader.PDF_MIME).get_json()
     assert body["unread_pages"] == 1 and body["pages"] == 0
+
+
+# Faces, signatures and the machine-readable line cannot be boxed out by word, so an image that
+# reads as an identity document never leaves at all.
+ID_CARD = ["MYKAD  KAD PENGENALAN", "900101-14-5678", "SITI AMINAH BINTI ALI", "NO 12 JALAN MAWAR"]
+PASSPORT_PAGE = ["PASSPORT  PASPORT", "No. A12345678", "P<MYSAMINAH<<SITI<<<<<<<<<<<<<<<<<<<<"]
+
+
+@pytest.mark.parametrize("lines", [ID_CARD, PASSPORT_PAGE], ids=["mykad", "passport"])
+def test_an_identity_document_is_withheld_whole(client, lines):
+    body = _read(client, _png(_image(lines)), "image/png").get_json()
+    assert body["images"] == [] and body["skipped_pages"] == 1
+
