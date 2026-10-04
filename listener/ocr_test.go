@@ -15,7 +15,7 @@ func imagePart(mime, attachmentID string, size int64) *gmail.MessagePart {
 	}
 }
 
-func TestImageAttachmentsFindsNestedImages(t *testing.T) {
+func TestReadableAttachmentsFindsNestedImages(t *testing.T) {
 	tree := &gmail.MessagePart{
 		MimeType: "multipart/mixed",
 		Parts: []*gmail.MessagePart{
@@ -26,35 +26,38 @@ func TestImageAttachmentsFindsNestedImages(t *testing.T) {
 			imagePart("image/jpeg", "att-2", 2000),
 		},
 	}
-	got := imageAttachments(tree, 5_000_000)
+	got := readableAttachments(tree, 5_000_000)
 	if len(got) != 2 {
 		t.Fatalf("want 2 image attachments, got %d", len(got))
 	}
 }
 
-func TestImageAttachmentsIgnoresInlineImagesWithoutAttachmentID(t *testing.T) {
+func TestReadableAttachmentsIgnoresInlineImagesWithoutAttachmentID(t *testing.T) {
 	// An image with no attachment id cannot be fetched, so treating it as one would just produce
 	// a failed API call per message.
 	tree := imagePart("image/png", "", 1000)
-	if got := imageAttachments(tree, 5_000_000); len(got) != 0 {
+	if got := readableAttachments(tree, 5_000_000); len(got) != 0 {
 		t.Fatalf("want 0, got %d", len(got))
 	}
 }
 
-func TestImageAttachmentsRespectsSizeCap(t *testing.T) {
+func TestReadableAttachmentsRespectsSizeCap(t *testing.T) {
 	tree := imagePart("image/png", "att-1", 9_000_000)
-	if got := imageAttachments(tree, 5_000_000); len(got) != 0 {
+	if got := readableAttachments(tree, 5_000_000); len(got) != 0 {
 		t.Fatalf("oversized attachment should be skipped, got %d", len(got))
 	}
 }
 
-func TestImageAttachmentsIgnoresNonImages(t *testing.T) {
+func TestReadableAttachmentsTakeDocumentsAndSkipEverythingElse(t *testing.T) {
 	tree := &gmail.MessagePart{MimeType: "multipart/mixed", Parts: []*gmail.MessagePart{
 		{MimeType: "application/pdf", Body: &gmail.MessagePartBody{AttachmentId: "att-1", Size: 100}},
-		{MimeType: "text/html", Body: &gmail.MessagePartBody{AttachmentId: "att-2", Size: 100}},
+		{MimeType: docxMime, Body: &gmail.MessagePartBody{AttachmentId: "att-2", Size: 100}},
+		{MimeType: xlsxMime, Body: &gmail.MessagePartBody{AttachmentId: "att-3", Size: 100}},
+		{MimeType: "text/html", Body: &gmail.MessagePartBody{AttachmentId: "att-4", Size: 100}},
+		{MimeType: "application/zip", Body: &gmail.MessagePartBody{AttachmentId: "att-5", Size: 100}},
 	}}
-	if got := imageAttachments(tree, 5_000_000); len(got) != 0 {
-		t.Fatalf("want 0 non-image attachments, got %d", len(got))
+	if got := readableAttachments(tree, 5_000_000); len(got) != 3 {
+		t.Fatalf("want the PDF, docx and xlsx only, got %d", len(got))
 	}
 }
 
@@ -105,7 +108,7 @@ func TestOCRPromptDoesNotInviteInterpretation(t *testing.T) {
 func TestOCRMarkerIsDistinguishable(t *testing.T) {
 	// Stored text mixes body and attachment content; the boundary has to survive into the corpus
 	// or nobody can tell later which part the model actually read.
-	if !strings.Contains(ocrMarker, "attached image") {
+	if !strings.Contains(ocrMarker, "attachments") {
 		t.Fatalf("marker %q does not identify attachment text", ocrMarker)
 	}
 }

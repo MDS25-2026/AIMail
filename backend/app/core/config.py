@@ -34,6 +34,15 @@ class Settings(BaseSettings):
     auto_generate: bool = True  # background poller pre-generates drafts so opens are instant
     generate_poll_seconds: int = 60
     priority_model: str = "baseline"  # "baseline" (TF-IDF) or "distilbert" — which classifier backfill uses
+    # Admin console (docs/adr/0004). SUPABASE_URL is shared with the listener; the anon key is the
+    # project's publishable key, used server-side for the password grant. Empty means admin sign-in
+    # is refused (fail closed). The service key is read only by scripts/admin_accounts.py.
+    supabase_url: str = ""
+    supabase_anon_key: str = ""
+    supabase_service_key: str = ""
+    # Secure cookies need HTTPS, except on localhost, which browsers treat as secure. Turn off only
+    # to reach the backend over plain HTTP by LAN address.
+    admin_cookie_secure: bool = True
 
     @property
     def async_database_url(self) -> str:

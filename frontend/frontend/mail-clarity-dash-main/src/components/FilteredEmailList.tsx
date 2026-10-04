@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 
-import { formatTimestamp } from "../lib/formatTimestamp";
+import { useFormat } from "../lib/useFormat";
 import { useEmails } from "../lib/queries";
 import type { Email } from "../types/email";
 import PriorityBadge from "./PriorityBadge";
@@ -32,41 +33,40 @@ export default function FilteredEmailList({
   filter,
   timestampOf,
 }: FilteredEmailListProps) {
+  const { t } = useTranslation();
+  const format = useFormat();
   const emails = useEmails();
   const rows = (emails.data ?? []).filter(filter);
 
   return (
-    <section className="min-w-0 flex-1 overflow-y-auto bg-slate-50 p-6">
+    <section className="relative min-w-0 flex-1 overflow-y-auto bg-surface-muted p-6">
       <header className="mb-5">
-        <h1 className="text-xl font-semibold text-slate-800">{heading}</h1>
-        <p className="mt-1 text-sm text-slate-500">{description}</p>
+        <h1 className="text-xl font-semibold text-fg">{heading}</h1>
+        <p className="mt-1 text-sm text-fg-muted">{description}</p>
       </header>
 
       {emails.isPending ? <PageLoading label={label} /> : null}
       {emails.isError ? <PageError label={label} error={emails.error} /> : null}
-      {emails.data && rows.length === 0 ? (
-        <PageEmpty title={emptyTitle} hint={emptyHint} />
-      ) : null}
+      {emails.data && rows.length === 0 ? <PageEmpty title={emptyTitle} hint={emptyHint} /> : null}
 
       {rows.length > 0 ? (
-        <ul className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white">
+        <ul className="relative divide-y divide-line-subtle overflow-hidden rounded-lg border border-line bg-surface">
           {rows.map((email) => (
             <li key={email.id}>
               <Link
                 to="/"
-                className="block px-4 py-3 transition-colors hover:bg-slate-50"
-                aria-label={`Open ${email.subject} in the inbox`}
+                search={{ email: email.id }}
+                className="block px-4 py-3 transition-colors hover:bg-surface-muted"
+                aria-label={t("sent.open", { subject: email.subject })}
               >
                 <div className="flex items-baseline justify-between gap-3">
-                  <span className="truncate text-sm font-semibold text-slate-800">
-                    {email.sender}
-                  </span>
-                  <span className="shrink-0 text-xs text-slate-400">
-                    {formatTimestamp(timestampOf(email))}
+                  <span className="truncate text-sm font-semibold text-fg">{email.sender}</span>
+                  <span className="shrink-0 text-xs text-fg-subtle">
+                    {format.timestamp(timestampOf(email))}
                   </span>
                 </div>
-                <div className="mt-0.5 truncate text-sm text-slate-700">{email.subject}</div>
-                <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">
+                <div className="mt-0.5 truncate text-sm text-fg-body">{email.subject}</div>
+                <p className="mt-0.5 line-clamp-1 text-xs text-fg-muted">
                   {email.draftReply || email.preview}
                 </p>
                 <div className="mt-2">

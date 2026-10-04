@@ -10,7 +10,7 @@ RAG retrieval endpoints (`/search`, `/ask`, `/documents`).
 ```bash
 cd backend
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt -c constraints.txt   # the versions make check last passed with
 pytest                                # offline logic tests (no DB / network)
 
 # with DATABASE_URL + GEMINI_API_KEY set in the repo-root .env:

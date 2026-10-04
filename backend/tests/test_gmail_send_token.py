@@ -88,6 +88,6 @@ def test_a_revoked_token_costs_one_retry_not_every_send(fake_creds, monkeypatch)
         gmail_send.httpx, "AsyncClient", lambda **kw: real_client(transport=transport)
     )
 
-    asyncio.run(gmail_send.send_reply("a@b.com", "Subject", "Body"))
+    asyncio.run(gmail_send.send_reply(None, "a@b.com", "Subject", "Body"))
 
     assert len([p for p in seen if p.endswith("/send")]) == 2, "should retry exactly once"

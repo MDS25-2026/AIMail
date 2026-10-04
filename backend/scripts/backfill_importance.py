@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from sqlalchemy import select
 
 from app.core.config import get_settings
-from app.db.models import Message
+from app.db.models import MaskingStatus, Message
 from app.db.session import get_sessionmaker
 
 # Pick the predictor from config (PRIORITY_MODEL=baseline|distilbert). DistilBERT's predictor
@@ -36,7 +36,8 @@ else:
 
 
 async def main(rescore_all: bool) -> None:
-    stmt = select(Message)
+    # A quarantined row (#109) has no content; scoring it would store a verdict on nothing.
+    stmt = select(Message).where(Message.masking_status == MaskingStatus.COMPLETE)
     if not rescore_all:
         stmt = stmt.where(Message.importance.is_(None))
 

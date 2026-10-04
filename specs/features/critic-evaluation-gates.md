@@ -215,3 +215,9 @@ circulates via secondary summaries.
   number nobody can defend.
 - 2026-09-11: tone is advisory. Rationale: subjective, noisy to measure, low downstream risk given
   human approval. Alternatives: keep it as a gate, which blocks good drafts on style.
+8. **Input signals** — done 2026-09-29. Three review reasons come from the email rather than
+   the draft (`input_reasons` in `email_agent.py`): a credential request beside a link
+   (deterministic phishing signal, checked on the masked body, where URLs survive); routing
+   disagreement, when that signal fires and a second Gemini model routes the email differently
+   (one extra call, only on doubt); and an empty `rag_context`, so a reply with no policy
+   behind it is never presented as grounded.

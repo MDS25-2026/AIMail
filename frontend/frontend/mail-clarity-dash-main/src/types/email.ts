@@ -13,9 +13,26 @@ export type ThreadMessage = {
 };
 
 export type Source = {
-  /** Pre-formatted for display, e.g. "Past emails (8)". */
+  /** The policy document's title. */
   label: string;
+  chunkId?: string | null;
+  /** The passage exactly as the model saw it when drafting. */
+  excerpt?: string;
+  /** Cosine similarity, 0-1. */
+  score?: number | null;
 };
+
+export type Measure = { value: number; unit: string };
+
+/** A quantity in the body, in both systems; the side matching `system` is as the sender wrote it. */
+export type Quantity = {
+  text: string;
+  system: "metric" | "imperial";
+  metric: Measure;
+  imperial: Measure;
+};
+
+export type Translation = { language: string; text: string };
 
 export type Email = {
   id: string;
@@ -41,6 +58,9 @@ export type Email = {
   sentAt?: string | null;
   /** Opened at least once. Anything new is unread. */
   isRead?: boolean;
+  quantities?: Quantity[];
+  /** "pending": content withheld until it can be fully masked; "abandoned": it never will be (#109). */
+  masking?: "complete" | "pending" | "abandoned";
 };
 
 /** Below this the draft is flagged "review recommended". */
