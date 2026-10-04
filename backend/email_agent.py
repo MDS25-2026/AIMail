@@ -716,11 +716,31 @@ class RefineRequest(BaseModel):
     draft: str
     instruction: str
     tone: str = "professional, concise, and collaborative"
+    # What the critic needs to judge the revision the way it judged the original draft.
+    thread_context: str = ""
+    rag_context: str = ""
+    action_items: list[str] = Field(default_factory=list)
 
 
-@app.post("/refine")
-async def refine(req: RefineRequest) -> dict:
-    """Revise an existing draft per a free-text user instruction (dashboard's Refine box)."""
+class RefineResponse(BaseModel):
+    draft: str
+    confidence: float | None = None
+    issues: list[str] = Field(default_factory=list)
+    needs_human_review: bool = False
+    grounding_ok: bool | None = None
+    pii_clean: bool | None = None
+    tone_match: bool | None = None
+    completeness: bool | None = None
+    pii_findings: list[str] = Field(default_factory=list)
+    unsupported_specifics: list[str] = Field(default_factory=list)
+    unaddressed_requests: list[str] = Field(default_factory=list)
+    review_reasons: list[str] = Field(default_factory=list)
+    model_calls: list[dict] = Field(default_factory=list)
+
+
+@app.post("/refine", response_model=RefineResponse)
+async def refine(req: RefineRequest) -> RefineResponse:
+    """Revise a draft per a user instruction, then run the same gates a generated draft passes."""
     system_prompt = (
         "You revise an email reply following the user's instruction. "
         "Return only the revised reply, with no preamble. "
@@ -734,9 +754,33 @@ async def refine(req: RefineRequest) -> dict:
         f"{fence('user_instruction', req.instruction)}\n\n"
         f"Keep the tone {req.tone}."
     )
+    calls: list[dict] = []
     try:
-        with deadline():
+        with deadline(), track_calls() as calls:
             revised = await call_llm(system_prompt, user_prompt, max_tokens=DRAFT_MAX_TOKENS)
+            evaluation = await evaluate_reply(req.thread_context, req.rag_context, req.email_body,
+                                              revised, req.tone, req.action_items)
     except GeminiError as error:
         raise _unavailable(error) from error
-    return {"draft": revised}
+    confidence = clamp_confidence(evaluation.get("confidence"))
+    pii_findings = await scan_draft_pii(revised)
+    # The user's own draft is a source too: a figure they typed is theirs, not an invention.
+    specifics = unsupported_specifics(revised, req.email_body, req.thread_context, req.rag_context,
+                                      req.draft)
+    unaddressed = unaddressed_requests(evaluation, req.action_items)
+    reasons = build_review_reasons(evaluation, confidence, 0, pii_findings, specifics, unaddressed)
+    return RefineResponse(
+        draft=revised,
+        confidence=confidence,
+        issues=evaluation.get("issues", []),
+        needs_human_review=bool(reasons),
+        grounding_ok=evaluation.get("grounding_ok"),
+        pii_clean=pii_verdict(pii_findings),
+        tone_match=evaluation.get("tone_match"),
+        completeness=evaluation.get("completeness"),
+        pii_findings=pii_findings,
+        unsupported_specifics=specifics,
+        unaddressed_requests=unaddressed,
+        review_reasons=reasons,
+        model_calls=calls,
+    )

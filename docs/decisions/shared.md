@@ -6,6 +6,18 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-04 — Refined drafts are reviewed like generated ones; typed text is masked
+- Decision: Lane C's `/refine` runs the critic, the PII scan and the figures check on the revision
+  and returns the same review fields as `/process-email`; the backend stores them with the draft,
+  replacing the old verdict. The backend masks fixed formats (email, IC, passport, card with a Luhn
+  check, phone) in text the user typed before any model sees it; names stay, by the owner's choice,
+  since masking them would fill every refined draft with [Redacted].
+- Why: phase 0 of the 30 Sep audit, raised again at meeting 30. A refined draft skipped every check
+  while the previous "checked" badge stayed on screen, and typed phone numbers reached Gemini.
+- Affects: Lane C (`email_agent.py` `/refine`), Lane B (`app/dashboard.py`, `app/main.py`, new
+  `app/core/typed_text.py`). No dashboard change: it already re-reads the stored verdict.
+- Status: implemented by veyroxie, 2026-10-04.
+
 ### 2026-10-04 — A reply is sent at most once, and the server checks what it sends
 - Decision: `send_reply` splits failures by whether Gmail could have acted. Failing to connect, or an
   error status from Gmail, is `SendError` (claim released, can be approved again). A read timeout,

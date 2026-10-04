@@ -70,8 +70,8 @@ def test_a_regenerate_judged_to_need_no_reply_is_not_an_error(monkeypatch, loade
 
 
 def test_a_refine_the_agent_cannot_answer_is_an_error_not_the_old_draft(monkeypatch, loaded):
-    async def unavailable(message, draft, instruction):
-        return None
+    async def unavailable(*_args):
+        raise dashboard.DraftNotUpdatedError(dashboard.DraftErrorCode.AGENT_UNAVAILABLE, 502)
 
     monkeypatch.setattr(dashboard, "_refine", unavailable)
     with pytest.raises(dashboard.DraftNotUpdatedError) as caught:

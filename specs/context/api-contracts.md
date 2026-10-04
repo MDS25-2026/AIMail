@@ -67,6 +67,14 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   this content and the reviewed draft is kept), `409` `masking_pending` (quarantined) or `409`
   `already_sent`, each as `{"detail": "<code>"}`. A regenerate the router judges needs no reply
   is still `200`, with an empty draft.
+- Lane C's `/refine` (2026-10-04) takes `thread_context`, `rag_context` and `action_items` besides
+  `email_body`, `draft` and `instruction`, and runs the same critic and gates as `/process-email`.
+  It answers `{draft, confidence, issues, needs_human_review, grounding_ok, pii_clean, tone_match,
+  completeness, pii_findings, unsupported_specifics, unaddressed_requests, review_reasons,
+  model_calls}`, and the backend stores that verdict with the refined draft. The backend masks
+  emails, ICs, passports, card and phone numbers in the typed draft and instruction first (names
+  stay), and does the same for `/search` and `/ask` queries (`app/core/typed_text.py`). A refine
+  the model refuses answers `422` `draft_refused` through the backend.
 - Lane C's `/process-email` and `/refine` answer `503` (or `504` when the draft's deadline ran
   out) with `{"detail": "<gemini error code>"}` when Gemini fails. See
   [`../features/llm-resilience.md`](../features/llm-resilience.md).

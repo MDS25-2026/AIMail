@@ -40,6 +40,7 @@ from app.core.ratelimit import (
     rate_limit_generation,
     rate_limit_ingest,
 )
+from app.core.typed_text import mask_typed_text
 from app.dashboard import (
     AlreadySentError,
     DraftNotUpdatedError,
@@ -180,14 +181,16 @@ async def demo_page() -> FileResponse:
 
 @app.post("/search", dependencies=[Depends(rate_limit_generation)])
 async def search(request: SearchRequest) -> list[ContextChunk]:
-    return await retrieve(request.query, request.k)
+    # A typed query is embedded by Gemini, so fixed-format details are masked first.
+    return await retrieve(mask_typed_text(request.query), request.k)
 
 
 @app.post("/ask", dependencies=[Depends(rate_limit_generation)])
 async def ask(request: AskRequest) -> AskResponse:
     # Full RAG loop demo: retrieve policy chunks, then generate a grounded answer from them.
-    chunks = await retrieve(request.question, request.k)
-    text = await answer(request.question, chunks)
+    question = mask_typed_text(request.question)
+    chunks = await retrieve(question, request.k)
+    text = await answer(question, chunks)
     return AskResponse(answer=text, sources=chunks)
 
 
