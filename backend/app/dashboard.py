@@ -25,6 +25,7 @@ from app.contracts import (
     Source,
     ThreadMessage,
 )
+from app.core import mailbox
 from app.core.config import get_settings
 from app.core.logging_setup import request_id
 from app.core.middleware import REQUEST_ID_HEADER
@@ -127,7 +128,7 @@ async def list_dashboard_emails(limit: int = 50) -> list[DashboardEmail]:
     stmt = select(Message).order_by(Message.created_at.desc()).limit(limit)
     async with get_sessionmaker()() as session:
         rows = (await session.scalars(stmt)).all()
-        policy = await load_policy(session, get_settings().mailbox_owner_email)
+        policy = await load_policy(session, mailbox.owner())
     return [_to_email(message, policy) for message in rows]
 
 

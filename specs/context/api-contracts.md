@@ -19,8 +19,8 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   `session_invalid`, and a cookie request that changes state without `X-AIMail-Client: 1` returns
   `403` `client_header_missing`. An unset `BACKEND_API_TOKEN` never matches. Implementation:
   `backend/app/core/auth.py`.
-- Mailbox scope: a signed-in user sees mail only for a mailbox they own (`MAILBOX_OWNER_EMAIL` in
-  stage 1). Anyone else gets `[]` from `GET /emails` and `GET /documents`, and `404` from every
+- Mailbox scope: a signed-in user sees mail only for a mailbox they own (stage 1: the Gmail account
+  the backend is connected to, read at startup; `MAILBOX_OWNER_EMAIL` is a fallback). Anyone else gets `[]` from `GET /emails` and `GET /documents`, and `404` from every
   route about one email, `/search`, `/ask` and document ingestion.
 - Sign-in: `GET /auth/google/start` redirects to Supabase; `GET /auth/callback` sets the session
   and redirects to the dashboard (or to `/signin?error=sign_in_failed|sign_in_unavailable`);

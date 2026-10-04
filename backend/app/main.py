@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 
 from app.admin.app import admin_app
 from app.contracts import DashboardEmail
+from app.core import mailbox
 from app.core.auth import principal_of, require_auth, require_mailbox
 from app.core.config import get_settings
 from app.core.constants import (
@@ -71,6 +72,7 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Background work for the life of the process: embed any pending chunks once, and poll for
     drafts to pre-generate. Both are held (asyncio keeps only weak references to tasks) and both
     are cancelled on shutdown."""
+    await mailbox.resolve_owner()
     tasks = [asyncio.create_task(_embed_missing())]
     if get_settings().auto_generate:
         tasks.append(asyncio.create_task(_pregen_loop()))

@@ -14,7 +14,7 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from app.core import supabase_auth
+from app.core import mailbox, supabase_auth
 from app.core.config import get_settings
 
 SESSION_COOKIE = "aimail_session"
@@ -50,8 +50,8 @@ class Principal:
 
     @property
     def has_mailbox(self) -> bool:
-        """Stage 1 has one connected mailbox, MAILBOX_OWNER_EMAIL; stage 2 keys this by user id."""
-        owner = get_settings().mailbox_owner_email.strip().lower()
+        """Stage 1 has one connected mailbox (app/core/mailbox.py); stage 2 keys this by user id."""
+        owner = mailbox.owner()
         return self.is_service or (bool(owner) and self.email.lower() == owner)
 
 

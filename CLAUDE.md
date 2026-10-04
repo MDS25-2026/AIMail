@@ -25,7 +25,7 @@ Generation runs on **Google Gemini**, not Claude or Qwen.
 People sign in to the dashboard with Google through Supabase (`docs/adr/0005`); the backend keeps
 the session in HttpOnly cookies and checks it on every route except `GET /` and the `/auth` sign-in
 routes (`backend/app/core/auth.py`). A signed-in user sees mail only for the mailbox they own
-(`MAILBOX_OWNER_EMAIL` in stage 1). Scripts and tests use `Authorization: Bearer <BACKEND_API_TOKEN>`,
+(in stage 1, the Gmail account the backend is connected to, read at startup). Scripts and tests use `Authorization: Bearer <BACKEND_API_TOKEN>`,
 which stays server-side and must never be put in a `VITE_` variable. Cookie requests that change
 state carry `X-AIMail-Client: 1`. The admin console has its own sign-in (`docs/adr/0004`). The
 Lane C agent on :8001 has no token of its own and must stay bound to `127.0.0.1`.

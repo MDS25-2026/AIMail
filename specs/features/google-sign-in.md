@@ -48,8 +48,9 @@ a mailbox they own.
    client ID and secret.
 4. **Supabase dashboard:** Authentication, URL Configuration, Redirect URLs: add
    `http://localhost:8000/auth/callback` (and the deployed backend's URL later).
-5. **`.env`:** set `MAILBOX_OWNER_EMAIL` to your Google address, check `BACKEND_PUBLIC_URL` and
-   `DASHBOARD_URL`, and delete `VITE_BACKEND_API_TOKEN`.
+5. **`.env`:** check `SUPABASE_ANON_KEY` is this project's publishable (or legacy anon) key, check
+   `BACKEND_PUBLIC_URL` and `DASHBOARD_URL`, and delete `VITE_BACKEND_API_TOKEN`. The mailbox owner
+   is read from Gmail at startup; no setting needed.
 
 ## Security & privacy notes
 

@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 _TOKEN_URL = "https://oauth2.googleapis.com/token"
 _MESSAGES_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages"
+_PROFILE_URL = "https://gmail.googleapis.com/gmail/v1/users/me/profile"
 _SEND_URL = f"{_MESSAGES_URL}/send"
 # Read from Gmail at send time, never from the database: the stored subject is masked, and Gmail
 # threads a reply only when its Subject matches the original's.
@@ -226,6 +227,14 @@ async def _sent_message_id(client: httpx.AsyncClient, gmail_id: str | None) -> s
     except (httpx.HTTPError, KeyError, ValueError) as exc:
         logger.warning("sent reply %s: could not read back its Message-ID: %s", gmail_id, exc)
         return None
+
+
+async def profile_address() -> str:
+    """The address of the Gmail account this backend sends from, which is the mailbox it reads."""
+    async with httpx.AsyncClient(timeout=30) as client:
+        response = await _gmail_request(client, "GET", _PROFILE_URL)
+        response.raise_for_status()
+        return response.json()["emailAddress"]
 
 
 async def _post_send(client: httpx.AsyncClient, payload: dict[str, str]) -> dict:

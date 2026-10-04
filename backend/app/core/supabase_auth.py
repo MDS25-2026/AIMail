@@ -123,6 +123,9 @@ async def supabase_post(path: str, body: dict | None, bearer: str | None = None)
 
 
 def session_from(response: httpx.Response) -> Session:
+    # Supabase answers 401 for a wrong apikey too; that is our configuration, not the user's code.
+    if response.status_code == 401 and "api key" in response.text.lower():
+        raise SupabaseNotConfiguredError("Supabase rejected SUPABASE_ANON_KEY as an invalid API key")
     if response.status_code in INVALID_GRANT_STATUSES:
         raise InvalidGrantError(f"Supabase refused with {response.status_code}")
     if not response.is_success:

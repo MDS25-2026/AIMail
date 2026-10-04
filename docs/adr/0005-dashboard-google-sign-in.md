@@ -38,9 +38,11 @@ stays, server-side only, for scripts and tests; it is never in the browser again
   form cannot send it, and a cross-origin script cannot without a preflight, which only the
   dashboard origins pass (`app/core/cors.py`). Bearer requests need no header: a browser never
   attaches one by itself.
-- **Mailbox scope (stage 1):** the listener ingests one mailbox, `MAILBOX_OWNER_EMAIL`. A signed-in
-  user whose verified email matches it sees and acts on its mail; anyone else sees an empty inbox
-  and gets 404 for any email id. Scripts using the shared token see everything.
+- **Mailbox scope (stage 1):** the listener ingests one mailbox. At startup the backend asks Gmail
+  which address its own login belongs to (`app/core/mailbox.py`); a signed-in user whose verified
+  email matches it sees and acts on its mail, anyone else sees an empty inbox and gets 404 for any
+  email id. `MAILBOX_OWNER_EMAIL` is only a fallback if Gmail cannot be reached. Scripts using the
+  shared token see everything.
 
 ## Stage 2: each user's own Gmail
 
@@ -71,7 +73,7 @@ user`. Until Google verifies the app for restricted scopes, up to 100 listed tes
 ## Consequences
 
 - New settings: `BACKEND_PUBLIC_URL` (where Supabase sends the user back) and `DASHBOARD_URL`
-  (where the backend sends them next). `MAILBOX_OWNER_EMAIL` now decides whose mail a user sees.
+  (where the backend sends them next). The mailbox owner needs no setting (read from Gmail).
 - `VITE_BACKEND_API_TOKEN` is gone from the dashboard; remove it from `.env`.
 - **Operational:** a Google OAuth client, the Google provider enabled in Supabase, and the backend
   callback in Supabase's allowed redirect URLs. Steps in `specs/features/google-sign-in.md`.
@@ -81,5 +83,5 @@ user`. Until Google verifies the app for restricted scopes, up to 100 listed tes
 
 ## Revisit when
 
-- Stage 2 lands: the scope check moves from `MAILBOX_OWNER_EMAIL` to `messages.user_id`.
+- Stage 2 lands: the scope check moves from the one Gmail owner to `messages.user_id`.
 - Admin becomes a role on the same sign-in rather than a separate password login.
