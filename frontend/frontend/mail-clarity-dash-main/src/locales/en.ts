@@ -299,6 +299,8 @@ export const en = {
     errors: {
       sign_in_failed: "Sign-in didn't finish. Please try again.",
       sign_in_unavailable: "Sign-in isn't available right now. Try again in a few minutes.",
+      sign_in_not_allowed:
+        "This Google account can't sign up yet. Ask the AIMail owner to invite you.",
     },
   },
   landing: {

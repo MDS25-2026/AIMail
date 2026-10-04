@@ -306,6 +306,8 @@ export const ms: Translations = {
     errors: {
       sign_in_failed: "Log masuk tidak selesai. Sila cuba lagi.",
       sign_in_unavailable: "Log masuk tidak tersedia sekarang. Cuba lagi dalam beberapa minit.",
+      sign_in_not_allowed:
+        "Akaun Google ini belum boleh mendaftar. Minta pemilik AIMail menjemput anda.",
     },
   },
   landing: {

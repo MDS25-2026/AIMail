@@ -196,3 +196,19 @@ def test_the_dashboard_origin_may_send_its_session_with_the_client_header(client
 def test_any_other_origin_never_gets_credentials(client, origin):
     response = _preflight(client, origin)
     assert response.headers.get("access-control-allow-credentials") is None
+
+
+def test_a_refused_sign_up_says_so_instead_of_a_generic_failure(client):
+    response = client.get("/auth/callback?error=access_denied&error_description=Signups+not+allowed+for+this+instance",
+                          follow_redirects=False)
+    assert response.headers["location"] == "http://localhost:8090/signin?error=sign_in_not_allowed"
+
+
+def test_every_failed_callback_logs_why(client, caplog):
+    caplog.set_level("WARNING")
+    client.get("/auth/callback?code=abc", follow_redirects=False)
+    client.get("/auth/callback?error=server_error&error_description=Unable+to+exchange+external+code",
+               follow_redirects=False)
+    logged = " ".join(record.getMessage() for record in caplog.records)
+    assert "no PKCE verifier cookie" in logged
+    assert "Unable to exchange external code" in logged

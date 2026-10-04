@@ -6,6 +6,7 @@ verifier and the session both live in HttpOnly cookies.
 
 import base64
 import hashlib
+import logging
 import secrets
 from typing import Annotated
 from urllib.parse import urlencode
@@ -35,6 +36,7 @@ from app.core.config import get_settings
 from app.core.supabase_auth import Session
 
 router = APIRouter(prefix="/auth")
+logger = logging.getLogger(__name__)
 
 VERIFIER_COOKIE = "aimail_pkce"
 VERIFIER_PATH = "/auth"
@@ -44,6 +46,9 @@ REFRESH_PATH = "/auth/session"
 REFRESH_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
 SIGN_IN_FAILED = "sign_in_failed"
 SIGN_IN_UNAVAILABLE = "sign_in_unavailable"
+SIGN_IN_NOT_ALLOWED = "sign_in_not_allowed"
+# Supabase's own descriptions are short and carry no tokens; capped so a log line stays one line.
+MAX_LOGGED_DESCRIPTION = 200
 
 
 class SessionInfo(BaseModel):
@@ -106,15 +111,27 @@ async def start_google_sign_in() -> RedirectResponse:
 @router.get("/callback")
 async def finish_google_sign_in(
     code: str | None = None,
+    error: str | None = None,
+    error_description: str | None = None,
     verifier: Annotated[str | None, Cookie(alias=VERIFIER_COOKIE)] = None,
 ) -> RedirectResponse:
+    if error:
+        description = (error_description or "")[:MAX_LOGGED_DESCRIPTION]
+        logger.warning("Google sign-in refused by Supabase: %s: %s", error, description)
+        # Public sign-ups are off in Supabase, so a first-time Google user cannot be created.
+        is_sign_up_refused = "signup" in description.lower().replace(" ", "")
+        return _back_to_sign_in(SIGN_IN_NOT_ALLOWED if is_sign_up_refused else SIGN_IN_FAILED)
     if not code or not verifier:
+        reason = "no code" if not code else "no PKCE verifier cookie (started on another host or port?)"
+        logger.warning("Google sign-in callback with %s", reason)
         return _back_to_sign_in(SIGN_IN_FAILED)
     try:
         session = await supabase_auth.pkce_session(code, verifier)
-    except supabase_auth.InvalidGrantError:
+    except supabase_auth.InvalidGrantError as exc:
+        logger.warning("Supabase refused the Google sign-in code: %s", exc)
         return _back_to_sign_in(SIGN_IN_FAILED)
-    except (supabase_auth.SupabaseUnavailableError, supabase_auth.SupabaseNotConfiguredError):
+    except (supabase_auth.SupabaseUnavailableError, supabase_auth.SupabaseNotConfiguredError) as exc:
+        logger.warning("Google sign-in could not reach Supabase: %s", exc)
         return _back_to_sign_in(SIGN_IN_UNAVAILABLE)
     response = RedirectResponse(get_settings().dashboard_url, status_code=status.HTTP_303_SEE_OTHER)
     _set_session(response, session)

@@ -284,6 +284,7 @@ export const zh: Translations = {
     errors: {
       sign_in_failed: "登录未完成，请重试。",
       sign_in_unavailable: "登录暂时不可用，请几分钟后再试。",
+      sign_in_not_allowed: "此 Google 账户暂时无法注册。请联系 AIMail 所有者邀请您。",
     },
   },
   landing: {
