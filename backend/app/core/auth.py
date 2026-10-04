@@ -11,12 +11,14 @@ import secrets
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from app.core import mailbox, supabase_auth
+from app.core import ownership, supabase_auth
 from app.core.config import get_settings
+from app.core.ownership import Scope
 
 SESSION_COOKIE = "aimail_session"
 CLIENT_HEADER = "X-AIMail-Client"
@@ -47,16 +49,25 @@ class Principal:
     """The caller. A script holding the shared token is not a person and has no email."""
 
     email: str
+    user_id: UUID | None = None
     is_service: bool = False
-
-    @property
-    def has_mailbox(self) -> bool:
-        """Stage 1 has one connected mailbox (app/core/mailbox.py); stage 2 keys this by user id."""
-        owner = mailbox.owner()
-        return self.is_service or (bool(owner) and self.email.lower() == owner)
 
 
 SERVICE = Principal(email="", is_service=True)
+
+
+async def scope_of_principal(principal: Principal) -> Scope | None:
+    """Whose rows the caller may touch, or None when no mailbox is connected for them."""
+    if principal.is_service:
+        return ownership.EVERYTHING
+    return await ownership.scope_for(principal.user_id, principal.email)
+
+
+def _user_id(claims: dict) -> UUID | None:
+    try:
+        return UUID(claims.get("sub", ""))
+    except ValueError:
+        return None
 
 
 async def _user(token: str) -> Principal:
@@ -70,7 +81,7 @@ async def _user(token: str) -> Principal:
         raise _fail(status.HTTP_503_SERVICE_UNAVAILABLE, AuthError.SUPABASE_UNAVAILABLE) from exc
     except supabase_auth.InvalidTokenError as exc:
         raise _fail(status.HTTP_401_UNAUTHORIZED, AuthError.SESSION_INVALID) from exc
-    return Principal(email=claims.get("email", ""))
+    return Principal(email=claims.get("email", ""), user_id=_user_id(claims))
 
 
 async def current_principal(
@@ -111,5 +122,12 @@ def principal_of(request: Request) -> Principal:
 
 async def require_mailbox(request: Request) -> None:
     """404 rather than 403 for someone else's mail, so an id reveals nothing about what exists."""
-    if not principal_of(request).has_mailbox:
+    scope = await scope_of_principal(principal_of(request))
+    if scope is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "not found")
+    request.state.scope = scope
+
+
+def scope_of(request: Request) -> Scope:
+    """The scope require_mailbox attached; only valid on routes that depend on it."""
+    return request.state.scope

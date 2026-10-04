@@ -21,7 +21,9 @@ class Document(Base):
     __tablename__ = "document"
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    source: Mapped[str] = mapped_column(Text, unique=True)
+    source: Mapped[str] = mapped_column(Text)
+    # The owner's knowledge base (migration 0017); NULL is the original single mailbox's.
+    user_id: Mapped[UUID | None] = mapped_column(ForeignKey("user_profile.id"))
     title: Mapped[str | None] = mapped_column(Text)
     doc_type: Mapped[str | None] = mapped_column(Text)
     uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

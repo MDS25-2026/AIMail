@@ -25,10 +25,10 @@ from app.contracts import (
     Source,
     ThreadMessage,
 )
-from app.core import mailbox
 from app.core.config import get_settings
 from app.core.logging_setup import request_id
 from app.core.middleware import REQUEST_ID_HEADER
+from app.core.ownership import EVERYTHING, Scope
 from app.core.redaction import has_redaction_marker
 from app.core.typed_text import mask_typed_text
 from app.db.models import MaskingStatus, Message
@@ -71,6 +71,8 @@ async def _thread_of(session: AsyncSession, message: Message) -> list[Message]:
         select(Message)
         .where(
             Message.thread_id == message.thread_id,
+            # Thread ids are per mailbox; never pull another owner's messages into a prompt.
+            Scope(owner_id=message.user_id).where(Message.user_id),
             Message.id != message.id,
             Message.masking_status == MaskingStatus.COMPLETE,
         )
@@ -124,11 +126,12 @@ def _to_email(
     )
 
 
-async def list_dashboard_emails(limit: int = 50) -> list[DashboardEmail]:
-    stmt = select(Message).order_by(Message.created_at.desc()).limit(limit)
+async def list_dashboard_emails(scope: Scope, policy_email: str, limit: int = 50) -> list[DashboardEmail]:
+    stmt = (select(Message).where(scope.where(Message.user_id))
+            .order_by(Message.created_at.desc()).limit(limit))
     async with get_sessionmaker()() as session:
         rows = (await session.scalars(stmt)).all()
-        policy = await load_policy(session, mailbox.owner())
+        policy = await load_policy(session, policy_email)
     return [_to_email(message, policy) for message in rows]
 
 
@@ -200,16 +203,16 @@ async def generate_pending(limit: int | None = None) -> int:
         pending = (await session.scalars(stmt)).all()
     generated = 0
     for pk in pending:
-        loaded = await _load_with_thread(pk)
+        loaded = await _load_with_thread(pk, EVERYTHING)
         if loaded and await _generate_and_store(*loaded) is GenerationOutcome.STORED:
             generated += 1
     return generated
 
 
-async def _load_with_thread(pk: UUID) -> tuple[Message, list[Message]] | None:
+async def _load_with_thread(pk: UUID, scope: Scope) -> tuple[Message, list[Message]] | None:
     """The message and its thread, read in one short session that is closed before any agent call."""
     async with get_sessionmaker()() as session:
-        message = await session.get(Message, pk)
+        message = await _get(session, pk, scope)
         if message is None:
             return None
         return message, await _thread_of(session, message)
@@ -278,7 +281,7 @@ async def _generate(message: Message, tone: str, thread: list[Message]) -> dict:
     The chunks ride along under "rag_sources" so the caller stores what the draft was grounded on.
     """
     try:
-        chunks = await retrieve(message.body_masked or "", k=5)
+        chunks = await retrieve(message.body_masked or "", k=5, scope=Scope(owner_id=message.user_id))
         payload = {
             "thread_context": thread_context(message, thread),
             "email_body": message.body_masked or "",
@@ -368,12 +371,12 @@ async def _mark_read(pk: UUID) -> None:
         await session.commit()
 
 
-async def email_detail(message_id: str) -> DashboardEmail | None:
+async def email_detail(message_id: str, *, scope: Scope) -> DashboardEmail | None:
     try:
         pk = UUID(message_id)
     except ValueError:
         return None
-    loaded = await _load_with_thread(pk)
+    loaded = await _load_with_thread(pk, scope)
     if loaded is None:
         return None
     message, thread = loaded
@@ -385,7 +388,9 @@ async def email_detail(message_id: str) -> DashboardEmail | None:
     return _to_email(message, thread=thread)
 
 
-async def regenerate_email(message_id: str, tone: str = "professional") -> DashboardEmail | None:
+async def regenerate_email(
+    message_id: str, *, scope: Scope, tone: str = "professional"
+) -> DashboardEmail | None:
     """A fresh draft in the given tone (Regenerate / tone change).
 
     The old draft stays if it fails, and the failure is raised as DraftNotUpdatedError so the
@@ -395,7 +400,7 @@ async def regenerate_email(message_id: str, tone: str = "professional") -> Dashb
         pk = UUID(message_id)
     except ValueError:
         return None
-    loaded = await _load_with_thread(pk)
+    loaded = await _load_with_thread(pk, scope)
     if loaded is None:
         return None
     message, thread = loaded
@@ -442,12 +447,17 @@ async def _release_send_claim(pk: UUID) -> None:
         await session.commit()
 
 
-async def _load(pk: UUID) -> Message | None:
+async def _get(session: AsyncSession, pk: UUID, scope: Scope) -> Message | None:
+    """A message by id, only if it is in the caller's scope: anyone else's reads as missing."""
+    return await session.scalar(select(Message).where(Message.id == pk, scope.where(Message.user_id)))
+
+
+async def _load(pk: UUID, scope: Scope) -> Message | None:
     async with get_sessionmaker()() as session:
-        return await session.get(Message, pk)
+        return await _get(session, pk, scope)
 
 
-async def approve_and_send(message_id: str, draft: str) -> DashboardEmail | None:
+async def approve_and_send(message_id: str, draft: str, *, scope: Scope) -> DashboardEmail | None:
     """Send the approved (possibly edited) draft as a reply, then record what was sent.
 
     Idempotent: a message already sent (or being sent by another request) is returned unchanged.
@@ -457,7 +467,7 @@ async def approve_and_send(message_id: str, draft: str) -> DashboardEmail | None
         pk = UUID(message_id)
     except ValueError:
         return None
-    message = await _load(pk)
+    message = await _load(pk, scope)
     if message is None:
         return None
     if not message.is_masked:
@@ -465,7 +475,7 @@ async def approve_and_send(message_id: str, draft: str) -> DashboardEmail | None
     if has_redaction_marker(draft):
         raise SendRejectedError(SendErrorCode.REDACTION_MARKERS, 422)
     if message.sent_at is not None or not await _claim_send(pk):
-        return _to_email(await _load(pk) or message)
+        return _to_email(await _load(pk, scope) or message)
     try:
         sent = await send_reply(
             message.gmail_message_id, message.from_addr or "", message.subject or "", draft
@@ -552,7 +562,7 @@ class TranslationError(RuntimeError):
         self.status_code = status_code
 
 
-async def translate_email(message_id: str, language: str) -> dict | None:
+async def translate_email(message_id: str, language: str, *, scope: Scope) -> dict | None:
     """The masked body in another language. Not stored: it is a reading aid, regenerated on ask.
 
     Only masked text is sent, so this reaches the model with nothing drafting did not already send.
@@ -561,8 +571,7 @@ async def translate_email(message_id: str, language: str) -> dict | None:
         pk = UUID(message_id)
     except ValueError:
         return None
-    async with get_sessionmaker()() as session:
-        message = await session.get(Message, pk)
+    message = await _load(pk, scope)
     if message is None:
         return None
     if not message.is_masked:
@@ -581,13 +590,15 @@ async def translate_email(message_id: str, language: str) -> dict | None:
     return translated
 
 
-async def refine_email(message_id: str, instruction: str, draft: str) -> DashboardEmail | None:
+async def refine_email(
+    message_id: str, instruction: str, draft: str, *, scope: Scope
+) -> DashboardEmail | None:
     """Revise the draft per a user instruction and store it (dashboard's Refine box)."""
     try:
         pk = UUID(message_id)
     except ValueError:
         return None
-    loaded = await _load_with_thread(pk)
+    loaded = await _load_with_thread(pk, scope)
     if loaded is None:
         return None
     message, thread = loaded

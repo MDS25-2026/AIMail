@@ -22,6 +22,12 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
 - Mailbox scope: a signed-in user sees mail only for a mailbox they own (stage 1: the Gmail account
   the backend is connected to, read at startup; `MAILBOX_OWNER_EMAIL` is a fallback). Anyone else gets `[]` from `GET /emails` and `GET /documents`, and `404` from every
   route about one email, `/search`, `/ask` and document ingestion.
+- **Per-user scope (per-user mailboxes, step 3):** every email and document route answers only for
+  the signed-in user's own rows (`app/core/ownership.py`). Another user's email id answers `404`,
+  exactly like an unknown id; `GET /emails` and `GET /documents` return `[]` for a user with no
+  connected Gmail; `/search`, `/ask` and drafting ground only on the user's own documents;
+  `GET /auth/session`'s `hasMailbox` is true when the user has connected Gmail (or owns the
+  original single mailbox). The shared script token still sees everything.
 - Sign-in: `GET /auth/google/start` redirects to Supabase, asking Google for `gmail.readonly` and
   `gmail.send` offline with consent (per-user mailboxes, step 2); the callback stores the user's
   sealed Gmail connection if Gmail read access was granted, and never fails sign-in over it.

@@ -74,6 +74,18 @@ policies.
 
 `messages.user_id` (migration 0007) is now mapped in the ORM; it stays nullable until the backfill.
 
+### Owner scoping (migration 0017)
+
+- `document.user_id UUID NULL` (FK `user_profile`, cascade): each user's own knowledge base.
+  Uniqueness is `UNIQUE NULLS NOT DISTINCT (user_id, source)`; the global `document_source_key` is
+  dropped, so two users may both upload `policy.pdf`.
+- `messages`: `UNIQUE NULLS NOT DISTINCT (user_id, gmail_message_id)` added (Gmail ids are per
+  mailbox). The global `messages_gmail_message_id_key` stays until every listener upserts on the
+  new key; step 5 drops it.
+- Index `messages_user_created_idx (user_id, created_at DESC)` serves each user's inbox.
+- **NULL owner** means the original single mailbox (`app/core/mailbox.py`). Those rows are visible
+  only to that mailbox's account, and move to it (`user_id` set) when it connects with Google.
+
 ### Row-level security (migration 0015)
 
 Every application table has RLS **on with no policies** (2026-10-04). Supabase's REST API serves

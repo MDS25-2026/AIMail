@@ -15,7 +15,7 @@ from pydantic import BaseModel
 class ContextChunk(TypedDict):
     """Seam 2 — Lane B retrieval -> Lane C generation (in-process).
 
-    Returned by `retrieve(masked_email, k)`; Lane C builds its prompt from these.
+    Returned by `retrieve(masked_email, k, scope=...)`; Lane C builds its prompt from these.
     """
 
     chunk_id: UUID

@@ -21,7 +21,13 @@ from pydantic import BaseModel, Field
 from app.admin.app import admin_app
 from app.contracts import DashboardEmail
 from app.core import mailbox
-from app.core.auth import principal_of, require_auth, require_mailbox
+from app.core.auth import (
+    principal_of,
+    require_auth,
+    require_mailbox,
+    scope_of,
+    scope_of_principal,
+)
 from app.core.config import get_settings
 from app.core.constants import (
     ADMIN_PREFIX,
@@ -193,16 +199,16 @@ async def demo_page() -> FileResponse:
 
 
 @app.post("/search", dependencies=[Depends(rate_limit_generation), Depends(require_mailbox)])
-async def search(request: SearchRequest) -> list[ContextChunk]:
+async def search(request: SearchRequest, http: Request) -> list[ContextChunk]:
     # A typed query is embedded by Gemini, so fixed-format details are masked first.
-    return await retrieve(mask_typed_text(request.query), request.k)
+    return await retrieve(mask_typed_text(request.query), request.k, scope=scope_of(http))
 
 
 @app.post("/ask", dependencies=[Depends(rate_limit_generation), Depends(require_mailbox)])
-async def ask(request: AskRequest) -> AskResponse:
+async def ask(request: AskRequest, http: Request) -> AskResponse:
     # Full RAG loop demo: retrieve policy chunks, then generate a grounded answer from them.
     question = mask_typed_text(request.question)
-    chunks = await retrieve(question, request.k)
+    chunks = await retrieve(question, request.k, scope=scope_of(http))
     text = await answer(question, chunks)
     return AskResponse(answer=text, sources=chunks)
 
@@ -211,15 +217,17 @@ async def ask(request: AskRequest) -> AskResponse:
 async def emails(request: Request) -> list[DashboardEmail]:
     # Fast list: Han's Email shape from ingested messages + Lane B priority (no generation).
     # Someone with no connected mailbox sees an empty inbox, not an error.
-    if not principal_of(request).has_mailbox:
+    principal = principal_of(request)
+    scope = await scope_of_principal(principal)
+    if scope is None:
         return []
-    return await list_dashboard_emails()
+    return await list_dashboard_emails(scope, principal.email or mailbox.owner())
 
 
 @app.get("/emails/{message_id}", dependencies=[Depends(rate_limit_detail), Depends(require_mailbox)])
-async def email_detail_route(message_id: str) -> DashboardEmail:
+async def email_detail_route(message_id: str, request: Request) -> DashboardEmail:
     # Detail view: adds Lane C generation (retrieve + /process-email) for one opened email.
-    email = await email_detail(message_id)
+    email = await email_detail(message_id, scope=scope_of(request))
     if email is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "email not found")
     return email
@@ -231,11 +239,12 @@ class RegenerateRequest(BaseModel):
 
 @app.post("/emails/{message_id}/regenerate", dependencies=[Depends(rate_limit_generation), Depends(require_mailbox)])
 async def regenerate_email_route(
-    message_id: str, body: RegenerateRequest | None = None
+    message_id: str, request: Request, body: RegenerateRequest | None = None
 ) -> DashboardEmail:
     # Force a fresh draft in the requested tone (Regenerate button / tone toggle). Body optional.
     try:
-        email = await regenerate_email(message_id, body.tone if body else "professional")
+        email = await regenerate_email(message_id, scope=scope_of(request),
+                                       tone=body.tone if body else "professional")
     except AlreadySentError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, "already_sent") from exc
     except DraftNotUpdatedError as exc:
@@ -251,10 +260,10 @@ class RefineRequest(BaseModel):
 
 
 @app.post("/emails/{message_id}/refine", dependencies=[Depends(rate_limit_generation), Depends(require_mailbox)])
-async def refine_email_route(message_id: str, body: RefineRequest) -> DashboardEmail:
+async def refine_email_route(message_id: str, body: RefineRequest, request: Request) -> DashboardEmail:
     # Revise the current draft per the user's instruction (dashboard's Refine box).
     try:
-        email = await refine_email(message_id, body.instruction, body.draft)
+        email = await refine_email(message_id, body.instruction, body.draft, scope=scope_of(request))
     except AlreadySentError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, "already_sent") from exc
     except DraftNotUpdatedError as exc:
@@ -277,10 +286,12 @@ class TranslateResponse(BaseModel):
     "/emails/{message_id}/translate",
     dependencies=[Depends(rate_limit_generation), Depends(require_mailbox)],
 )
-async def translate_email_route(message_id: str, body: TranslateRequest) -> TranslateResponse:
+async def translate_email_route(
+    message_id: str, body: TranslateRequest, request: Request
+) -> TranslateResponse:
     # The masked body in the reader's language; refused (422) if the result is unfaithful.
     try:
-        translated = await translate_email(message_id, body.language)
+        translated = await translate_email(message_id, body.language, scope=scope_of(request))
     except TranslationError as exc:
         raise HTTPException(exc.status_code, exc.code) from exc
     if translated is None:
@@ -293,10 +304,10 @@ class SendRequest(BaseModel):
 
 
 @app.post("/emails/{message_id}/send", dependencies=[Depends(require_mailbox)])
-async def send_email_route(message_id: str, body: SendRequest) -> DashboardEmail:
+async def send_email_route(message_id: str, body: SendRequest, request: Request) -> DashboardEmail:
     # Human-approved send: reply to the original sender with the draft, then mark it sent.
     try:
-        email = await approve_and_send(message_id, body.draft)
+        email = await approve_and_send(message_id, body.draft, scope=scope_of(request))
     except SendRejectedError as exc:
         raise HTTPException(exc.status_code, exc.code) from exc
     except SendOutcomeUnknownError as exc:
@@ -330,9 +341,10 @@ class SystemInfo(BaseModel):
 
 
 @app.get("/system/info")
-async def system_info() -> SystemInfo:
+async def system_info(request: Request) -> SystemInfo:
     settings = get_settings()
-    documents = await list_documents()
+    scope = await scope_of_principal(principal_of(request))
+    documents = await list_documents(scope) if scope else []
     return SystemInfo(
         chat_model=settings.gemini_chat_model,
         embedding_model=settings.embedding_model,
@@ -349,15 +361,17 @@ async def system_info() -> SystemInfo:
 @app.get("/documents")
 async def get_documents(request: Request) -> list[DocumentSummary]:
     # The knowledge base belongs to the mailbox it grounds replies for.
-    if not principal_of(request).has_mailbox:
+    scope = await scope_of_principal(principal_of(request))
+    if scope is None:
         return []
-    return await list_documents()
+    return await list_documents(scope)
 
 
 @app.post("/documents", dependencies=[Depends(rate_limit_ingest), Depends(require_mailbox)])
-async def add_document(request: DocumentRequest) -> dict[str, int]:
+async def add_document(request: DocumentRequest, http: Request) -> dict[str, int]:
     # Interim persist path: paste text -> chunk/embed/store.
-    count = await ingest_text(f"paste://{request.title}", request.title, request.text)
+    count = await ingest_text(f"paste://{request.title}", request.title, request.text,
+                              scope=scope_of(http).owner_of_new_rows())
     return {"chunks": count}
 
 
@@ -377,7 +391,7 @@ async def _read_capped(file: UploadFile) -> bytes:
 
 
 @app.post("/documents/upload", dependencies=[Depends(rate_limit_ingest), Depends(require_mailbox)])
-async def upload_document(file: UploadFile) -> dict[str, int]:
+async def upload_document(file: UploadFile, request: Request) -> dict[str, int]:
     filename = file.filename or ""
     if not filename.lower().endswith(".pdf"):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "only .pdf files are supported")
@@ -391,5 +405,6 @@ async def upload_document(file: UploadFile) -> dict[str, int]:
         text = extract_pdf_bytes(data)
     except Exception as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "could not read the PDF") from exc
-    count = await ingest_text(f"upload://{filename}", filename, text)
+    count = await ingest_text(f"upload://{filename}", filename, text,
+                              scope=scope_of(request).owner_of_new_rows())
     return {"chunks": count}

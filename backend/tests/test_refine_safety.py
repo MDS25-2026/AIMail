@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import email_agent
 from app import dashboard
+from app.core.ownership import EVERYTHING
 from app.core.typed_text import mask_typed_text
 from app.db.models import MaskingStatus, Message
 from tests.conftest import AUTH_HEADERS
@@ -113,7 +114,7 @@ def backend(monkeypatch):
              "needs_human_review": True, "review_reasons": ["confidence 0.4 below 0.8"],
              "grounding_ok": True, "pii_findings": []}}
 
-    async def load_with_thread(pk):
+    async def load_with_thread(pk, scope):
         return message, []
 
     async def call_agent(path, payload):
@@ -138,7 +139,7 @@ def backend(monkeypatch):
 def test_typed_text_reaches_the_agent_masked_with_the_context_the_critic_needs(backend):
     message, state = backend
     asyncio.run(dashboard.refine_email(str(message.id), "add my number 012-345 6789",
-                                       "Reach me at a.b@corp.com"))
+                                       "Reach me at a.b@corp.com", scope=EVERYTHING))
     payload = state["payload"]
     assert "012-345 6789" not in payload["instruction"] and "a.b@corp.com" not in payload["draft"]
     assert payload["action_items"] == ["Confirm Friday"]
@@ -147,7 +148,7 @@ def test_typed_text_reaches_the_agent_masked_with_the_context_the_critic_needs(b
 
 def test_the_refined_drafts_own_verdict_replaces_the_old_one(backend):
     message, state = backend
-    asyncio.run(dashboard.refine_email(str(message.id), "shorter", "Old draft"))
+    asyncio.run(dashboard.refine_email(str(message.id), "shorter", "Old draft", scope=EVERYTHING))
     assert state["writes"]["draft_reply"] == "New draft"
     assert state["writes"]["critic_confidence"] == 0.4
     assert state["writes"]["needs_human_review"] is True
@@ -159,7 +160,7 @@ def test_a_refine_the_model_refused_is_reported_as_refused(backend):
     state["agent"] = httpx.HTTPStatusError("422", request=request,
                                            response=httpx.Response(422, request=request))
     with pytest.raises(dashboard.DraftNotUpdatedError) as caught:
-        asyncio.run(dashboard.refine_email(str(message.id), "shorter", "Old draft"))
+        asyncio.run(dashboard.refine_email(str(message.id), "shorter", "Old draft", scope=EVERYTHING))
     assert caught.value.code == dashboard.DraftErrorCode.DRAFT_REFUSED
 
 
@@ -170,7 +171,7 @@ def test_a_refine_the_model_refused_is_reported_as_refused(backend):
 def captured_query(monkeypatch):
     seen = {}
 
-    async def retrieve(query, k):
+    async def retrieve(query, k, scope):
         seen["query"] = query
         return []
 

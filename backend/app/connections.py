@@ -8,13 +8,14 @@ of this may block sign-in: a user without a connection simply sees "No mailbox c
 import logging
 
 import httpx
-from sqlalchemy import func
+from sqlalchemy import func, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core import token_crypt
+from app.core import mailbox, token_crypt
 from app.core.supabase_auth import Session
-from app.db.models import MailboxConnection, UserProfile
+from app.db.models import Document, MailboxConnection, Message, UserProfile
 from app.db.session import get_sessionmaker
 
 logger = logging.getLogger(__name__)
@@ -57,8 +58,17 @@ async def store_connection(user_id: str, email: str, refresh_token: str, scopes:
             await session.execute(insert(MailboxConnection).values(user_id=user_id, **values)
                                   .on_conflict_do_update(index_elements=["user_id"],
                                                          set_={**values, "updated_at": func.now()}))
+            if email.lower() == mailbox.owner():
+                await _hand_over_unowned_rows(session, user_id)
     except (SQLAlchemyError, OSError) as exc:
         raise ConnectionStoreError(f"database refused the connection: {type(exc).__name__}") from exc
+
+
+async def _hand_over_unowned_rows(session: AsyncSession, user_id: str) -> None:
+    """The original mailbox's account just connected: its unowned mail and documents become its own."""
+    for model in (Message, Document):
+        await session.execute(update(model).where(model.user_id.is_(None)).values(user_id=user_id))
+    logger.info("handed the original mailbox's unowned rows over to user %s", user_id)
 
 
 async def connect_mailbox(session: Session) -> None:

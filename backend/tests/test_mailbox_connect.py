@@ -5,6 +5,7 @@ backend checks which permissions were actually granted (Google lets people untic
 stores the token sealed. A failure here never blocks sign-in itself.
 """
 
+import asyncio
 import time
 from urllib.parse import parse_qs, urlparse
 
@@ -118,3 +119,40 @@ def test_a_failure_to_store_never_blocks_sign_in(client, monkeypatch, caplog):
     assert _callback(client).headers["location"] == "http://localhost:8090"
     assert "could not store the Gmail connection" in caplog.text
     assert "1//refresh" not in caplog.text
+
+
+class _RecordingSession:
+    def __init__(self):
+        self.statements = []
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_exc):
+        return False
+
+    def begin(self):
+        return self
+
+    async def execute(self, statement):
+        self.statements.append(str(statement))
+
+
+def _stored_statements(monkeypatch, email: str, owner: str) -> list[str]:
+    session = _RecordingSession()
+    monkeypatch.setattr(connections, "get_sessionmaker", lambda: lambda: session)
+    monkeypatch.setattr(connections.mailbox, "owner", lambda: owner)
+    asyncio.run(connections.store_connection(USER_ID, email, "1//refresh", [GMAIL_READ]))
+    return session.statements
+
+
+def test_the_original_mailbox_connecting_takes_over_its_unowned_mail_and_documents(client, monkeypatch):
+    statements = _stored_statements(monkeypatch, "Owner@Gmail.com", "owner@gmail.com")
+    handed_over = [s for s in statements if s.startswith("UPDATE")]
+    assert len(handed_over) == 2
+    assert all("user_id IS NULL" in s for s in handed_over)
+
+
+def test_anyone_else_connecting_never_touches_unowned_rows(client, monkeypatch):
+    statements = _stored_statements(monkeypatch, "new.user@gmail.com", "owner@gmail.com")
+    assert not [s for s in statements if s.startswith("UPDATE")]

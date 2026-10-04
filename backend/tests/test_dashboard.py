@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from app.contracts import priority_label
+from app.core.ownership import EVERYTHING
 from app.dashboard import _to_email
 from app.db.models import Message
 
@@ -37,7 +38,7 @@ def test_email_detail_returns_none_for_bad_uuid():
 
     from app.dashboard import email_detail
 
-    assert asyncio.run(email_detail("not-a-uuid")) is None
+    assert asyncio.run(email_detail("not-a-uuid", scope=EVERYTHING)) is None
 
 
 def test_quantities_in_the_body_reach_the_dashboard_in_both_systems():
@@ -163,7 +164,7 @@ def _send_harness(monkeypatch, claim: bool, send_error: bool = False):
                       masking_status=MaskingStatus.COMPLETE,
                       created_at=datetime(2026, 9, 1, tzinfo=timezone.utc))
 
-    async def load(pk):
+    async def load(pk, scope):
         return message
 
     async def claim_send(pk):
@@ -190,7 +191,7 @@ def _send_harness(monkeypatch, claim: bool, send_error: bool = False):
 
 def test_a_second_approval_that_loses_the_claim_never_sends(monkeypatch):
     asyncio, dashboard, calls, message = _send_harness(monkeypatch, claim=False)
-    asyncio.run(dashboard.approve_and_send(str(message.id), "Thanks"))
+    asyncio.run(dashboard.approve_and_send(str(message.id), "Thanks", scope=EVERYTHING))
     assert calls["sent"] == 0
 
 
@@ -201,7 +202,7 @@ def test_a_failed_send_releases_its_claim_so_it_can_be_approved_again(monkeypatc
 
     asyncio, dashboard, calls, message = _send_harness(monkeypatch, claim=True, send_error=True)
     with pytest.raises(SendError):
-        asyncio.run(dashboard.approve_and_send(str(message.id), "Thanks"))
+        asyncio.run(dashboard.approve_and_send(str(message.id), "Thanks", scope=EVERYTHING))
     assert calls == {"sent": 1, "released": 1}
 
 

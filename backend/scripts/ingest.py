@@ -13,6 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from app.core.ownership import LEGACY
 from app.rag.ingest import ingest_pdf
 
 
@@ -22,7 +23,7 @@ async def main() -> None:
         raise SystemExit(2)
     path = Path(sys.argv[1])
     title = sys.argv[2] if len(sys.argv) > 2 else None
-    count = await ingest_pdf(path, title=title)
+    count = await ingest_pdf(path, scope=LEGACY, title=title)
     print(f"ingested {path.name}: {count} chunks")
 
 

@@ -156,6 +156,8 @@ A code audit of every single-mailbox assumption found these, each checked in cod
    asks for Gmail read and send, offline, with consent; the callback checks the granted scopes with
    Google's tokeninfo and stores the sealed connection (`app/connections.py`); failures are logged
    and never block sign-in. Verified against Supabase with a throwaway row.
-3. Backend scoping by `user_id`, and sending with the user's token.
+3. Backend scoping by `user_id`, and sending with the user's token. Scoping done 2026-10-05:
+   `app/core/ownership.py` (one `Scope` used by every email and document query), migration 0017,
+   and the original mailbox's rows hand over to its account when it connects.
 4. Listener multi-mailbox ingest with per-mailbox baselines (Lane A).
 5. Backfill, delete `app/core/mailbox.py`, disconnect flow and its UI.

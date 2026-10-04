@@ -10,6 +10,7 @@ import json
 import httpx
 import pytest
 
+from app.core.ownership import EVERYTHING
 from app.rag import ingest, mask
 from tests.conftest import AUTH_HEADERS as AUTH
 
@@ -50,7 +51,7 @@ def test_a_document_is_refused_rather_than_stored_unmasked_when_presidio_is_down
 
     monkeypatch.setattr(ingest, "get_sessionmaker", must_not_store)
     with pytest.raises(mask.DocumentMaskingError):
-        asyncio.run(ingest.ingest_text("paste://leave", "Leave", POLICY))
+        asyncio.run(ingest.ingest_text("paste://leave", "Leave", POLICY, scope=EVERYTHING))
 
 
 def test_the_paste_route_answers_503_when_masking_is_unavailable(api_client, monkeypatch):

@@ -32,6 +32,7 @@ from app.core.auth import (
     AuthError,
     Principal,
     current_principal,
+    scope_of_principal,
 )
 from app.core.config import get_settings
 from app.core.supabase_auth import Session
@@ -148,7 +149,7 @@ async def finish_google_sign_in(
 
 @router.get("/session")
 async def current_session(principal: Annotated[Principal, Depends(current_principal)]) -> SessionInfo:
-    return SessionInfo(email=principal.email, hasMailbox=principal.has_mailbox)
+    return SessionInfo(email=principal.email, hasMailbox=await scope_of_principal(principal) is not None)
 
 
 @router.post("/session/refresh", dependencies=[Depends(_require_client_header)])
