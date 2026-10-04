@@ -9,8 +9,8 @@ from enum import StrEnum
 from uuid import UUID, uuid4
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import DateTime, ForeignKey, Text, func
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import BigInteger, DateTime, ForeignKey, LargeBinary, Text, func
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.constants import EMBEDDING_DIM
@@ -99,6 +99,8 @@ class Message(Base):
     __tablename__ = "messages"
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    # The mailbox owner (migration 0007); filled for every row once per-user mailboxes land.
+    user_id: Mapped[UUID | None] = mapped_column(ForeignKey("user_profile.id"))
     gmail_message_id: Mapped[str | None] = mapped_column(Text)
     from_addr: Mapped[str | None] = mapped_column(Text)
     subject: Mapped[str | None] = mapped_column(Text)
@@ -189,3 +191,19 @@ class KeywordRule(Base):
     keyword: Mapped[str] = mapped_column(Text, primary_key=True)
     priority: Mapped[int]
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class MailboxConnection(Base):
+    """A user's connected Gmail (migration 0016). The refresh token is only ever stored sealed."""
+
+    __tablename__ = "mailbox_connection"
+
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("user_profile.id"), primary_key=True)
+    provider: Mapped[str] = mapped_column(Text, default="gmail")
+    email: Mapped[str] = mapped_column(Text, unique=True)
+    refresh_token_encrypted: Mapped[bytes] = mapped_column(LargeBinary)
+    scopes: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
+    history_id: Mapped[int | None] = mapped_column(BigInteger)
+    watch_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

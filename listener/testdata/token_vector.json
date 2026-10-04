@@ -1,0 +1,7 @@
+{
+  "_comment": "Test-only key and token, generated for this vector; never used for real data.",
+  "key": "RO9FaPLp52KvKCy729cqbuAEbl1G+XlhdNOPIg5xVDc=",
+  "user_id": "11111111-2222-3333-4444-555555555555",
+  "plaintext": "1//test-refresh-token-not-real",
+  "sealed": "ATbra/nBF34TtCRx6/vbvsM8kNHmDwApPq7RfJTea6/p3VGngmBfApBJzJciFcSjfkG04pLmwMdSCxM="
+}

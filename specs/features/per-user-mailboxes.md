@@ -149,7 +149,9 @@ A code audit of every single-mailbox assumption found these, each checked in cod
 
 ## Implementation order (each step mergeable)
 
-1. Migration and `mailbox_connection`, encryption helpers in Python and Go, with tests.
+1. ~~Migration and `mailbox_connection`, encryption helpers in Python and Go, with tests.~~ Done
+   2026-10-05: migration 0016 (applied), `app/core/token_crypt.py`, `listener/tokencrypt.go`, one
+   shared test vector both suites decrypt.
 2. Sign-in requests the scopes and stores the connection.
 3. Backend scoping by `user_id`, and sending with the user's token.
 4. Listener multi-mailbox ingest with per-mailbox baselines (Lane A).

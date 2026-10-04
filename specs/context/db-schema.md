@@ -56,6 +56,24 @@ The canonical three-table split from [`../features/rag-retrieval.md`](../feature
 
 Index: `CREATE INDEX ON embedding USING hnsw (embedding vector_cosine_ops);`
 
+### Per-user mailboxes: mailbox_connection (migration 0016)
+
+One row per user who connected their Gmail (`specs/features/per-user-mailboxes.md`). RLS on, no
+policies.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `user_id` | `UUID PK` | Supabase auth user id; FK to `user_profile(id)`, which shares the same id; cascades on delete |
+| `provider` | `TEXT NOT NULL` | `gmail` (CHECK); room for `outlook` |
+| `email` | `TEXT UNIQUE NOT NULL` | the mailbox address Google reported |
+| `refresh_token_encrypted` | `BYTEA NOT NULL` | AES-256-GCM: version byte, 12-byte nonce, ciphertext+tag; user id bound as associated data (`app/core/token_crypt.py`, `listener/tokencrypt.go`) |
+| `scopes` | `TEXT[]` | as granted |
+| `history_id` | `BIGINT NULL` | per-mailbox `history.list` baseline |
+| `watch_expires_at` | `TIMESTAMPTZ NULL` | renew before Gmail's seven-day expiry |
+| `created_at` / `updated_at` | `TIMESTAMPTZ` | |
+
+`messages.user_id` (migration 0007) is now mapped in the ORM; it stays nullable until the backfill.
+
 ### Row-level security (migration 0015)
 
 Every application table has RLS **on with no policies** (2026-10-04). Supabase's REST API serves
