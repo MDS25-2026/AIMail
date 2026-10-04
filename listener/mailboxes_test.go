@@ -116,3 +116,34 @@ func TestADuplicateCheckOnlyLooksInTheSameMailbox(t *testing.T) {
 		t.Fatalf("lookup not scoped to the mailbox: %s", (*queries)[0])
 	}
 }
+
+// A connection that cannot start is retried every sync; repeating the same error must not write
+// an audit row each time.
+func TestARepeatedStartFailureIsAuditedOnce(t *testing.T) {
+	t.Setenv("GOOGLE_OAUTH_CLIENT_SECRET", "")
+	withMailboxes(t)
+	t.Cleanup(func() { clearFailure("user-a") })
+	var audits int
+	withSupabase(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/audit_log") {
+			audits++
+			return
+		}
+		w.Write([]byte(`[{"user_id":"user-a","email":"a@gmail.com","refresh_token_encrypted":"\\x01"}]`))
+	})
+	syncConnections(context.Background())
+	syncConnections(context.Background())
+	if audits != 1 {
+		t.Fatalf("want 1 audit row for a repeated failure, got %d", audits)
+	}
+}
+
+func TestSigningInAgainRestartsTheMailboxWithTheNewToken(t *testing.T) {
+	withMailboxes(t, &mailbox{ownerID: "user-a", email: "a@gmail.com", sealed: `\x01`})
+	if !isRunning(connectionRow{UserID: "user-a", Email: "a@gmail.com", Sealed: `\x01`}) {
+		t.Fatal("an unchanged connection was restarted")
+	}
+	if isRunning(connectionRow{UserID: "user-a", Email: "a@gmail.com", Sealed: `\x02`}) {
+		t.Fatal("a new token kept the old, possibly revoked, one running")
+	}
+}

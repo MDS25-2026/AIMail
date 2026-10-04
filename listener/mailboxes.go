@@ -38,8 +38,33 @@ const (
 type mailbox struct {
 	ownerID       string
 	email         string
+	sealed        string // the stored token it was started with; a reconnect changes it
 	srv           *gmail.Service
 	lastHistoryID uint64 // atomic: notifications for one mailbox are handled concurrently
+}
+
+// startFailures holds each connection's last start error, so one that keeps failing the same way
+// is logged and audited once rather than every sync.
+var startFailures = struct {
+	sync.Mutex
+	last map[string]string
+}{last: map[string]string{}}
+
+// isNewFailure records err for the user and reports whether it differs from the last one.
+func isNewFailure(userID string, err error) bool {
+	startFailures.Lock()
+	defer startFailures.Unlock()
+	if startFailures.last[userID] == err.Error() {
+		return false
+	}
+	startFailures.last[userID] = err.Error()
+	return true
+}
+
+func clearFailure(userID string) {
+	startFailures.Lock()
+	defer startFailures.Unlock()
+	delete(startFailures.last, userID)
 }
 
 var registry = struct {
@@ -143,14 +168,26 @@ func syncConnections(ctx context.Context) {
 		return
 	}
 	for _, row := range rows {
-		if existing := lookupMailbox(row.Email); existing != nil && existing.ownerID == row.UserID {
+		if isRunning(row) {
 			continue
 		}
-		if err := startConnection(ctx, row); err != nil {
-			log.Printf("mailbox for user %s not started, will retry: %v", row.UserID, err)
+		err := startConnection(ctx, row)
+		if err == nil {
+			clearFailure(row.UserID)
+			continue
+		}
+		if isNewFailure(row.UserID, err) {
+			log.Printf("mailbox for user %s not started, retrying every sync: %v", row.UserID, err)
 			writeAuditLog(ctx, "start_mailbox", fmt.Sprintf("user %s: %v", row.UserID, err), false)
 		}
 	}
+}
+
+// isRunning is true when this connection is already ingested with its current token. Signing in
+// again stores a new token, and the mailbox restarts with it.
+func isRunning(row connectionRow) bool {
+	existing := lookupMailbox(row.Email)
+	return existing != nil && existing.ownerID == row.UserID && existing.sealed == row.Sealed
 }
 
 func startConnection(ctx context.Context, row connectionRow) error {
@@ -158,7 +195,7 @@ func startConnection(ctx context.Context, row connectionRow) error {
 	if err != nil {
 		return err
 	}
-	mb := &mailbox{ownerID: row.UserID, email: strings.ToLower(row.Email), srv: srv}
+	mb := &mailbox{ownerID: row.UserID, email: strings.ToLower(row.Email), sealed: row.Sealed, srv: srv}
 	isFirstStart := row.HistoryID == nil
 	if !isFirstStart {
 		// Resume where the last run stopped, so mail that arrived while it was down is listed.

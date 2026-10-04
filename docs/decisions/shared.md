@@ -6,6 +6,37 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-05 — Per-user mailboxes: every row has an owner, every query is scoped to it
+- Decision: each user who signs in with Google and grants Gmail access gets a `mailbox_connection`
+  row (sealed refresh token, migration 0016). Every email and document query filters on the
+  owner (`app/core/ownership.py`); another user's email id answers `404`, like an unknown id.
+  `GET /auth/session`'s `hasMailbox` means "has connected Gmail, or owns the original mailbox".
+  Rows with no owner are the original `token.json` mailbox's, visible only to its account, and
+  move to it when it connects. Knowledge bases are per user (`document.user_id`, migration 0017).
+- Why: the owner asked that anyone can sign up and see their own Gmail, and that each user see
+  only their own mail (ADR 0005 stage 2; `specs/features/per-user-mailboxes.md`).
+- Affects: Lane B (every route), Lane C (none: payloads unchanged), Lane D (`hasMailbox` text,
+  `send_not_granted`), Lane A (rows carry `user_id`).
+- Status: built by veyroxie on `feat/per-user-mailboxes`; migrations 0016 and 0017 applied.
+
+### 2026-10-05 — `403 send_not_granted`; replies go out from the owner's own Gmail
+- Decision: a reply uses its email owner's own refresh token, refreshed with the Google web client
+  configured in Supabase (`GOOGLE_OAUTH_CLIENT_ID/SECRET`). A user who granted read but not send
+  gets `403 send_not_granted` before anything is claimed. Unowned rows still send via `token.json`.
+- Why: Google lets people untick "send" on the consent screen; a 502 would wrongly say "try again".
+- Status: built 2026-10-05; live send pending the client secret in `.env`.
+
+### 2026-10-05 — The listener's duplicate key is per mailbox; Pub/Sub auth is interim
+- Decision: the listener upserts on `(user_id, gmail_message_id)` (`UNIQUE NULLS NOT DISTINCT`,
+  migration 0017), since Gmail ids are only unique per mailbox. The old global
+  `messages_gmail_message_id_key` stays until every running listener uses the new key; step 5
+  drops it. Pub/Sub still authenticates as the `token.json` account until a service account
+  replaces it (audit finding 4). Only one listener should run on the subscription: Pub/Sub splits
+  notifications between subscribers, so an old listener would take some users' notifications
+  (the per-mailbox baseline recovers them on the next one).
+- Affects: Lane A (`listener/mailboxes.go`, `dedupe.go`, `quarantine.go`), for JiaJun's review.
+- Status: built 2026-10-05; live run pending the client secret in `.env`.
+
 ### 2026-10-04 — Row-level security on every table
 - Decision: migration 0015 enables RLS on all nine application tables with no policies, so the
   REST API answers nothing to the publishable key or a user's token. New tables enable it in the

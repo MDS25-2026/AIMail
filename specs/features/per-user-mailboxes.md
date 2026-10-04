@@ -1,9 +1,9 @@
 # Per-user mailboxes: real sign-up, each user sees their own Gmail
 
-- **Status:** draft (owner's decisions recorded 2026-10-04; listener part pending JiaJun's review)
+- **Status:** steps 1 to 4 built 2026-10-05 (listener part pending JiaJun's review); step 5 open
 - **Owner:** veyroxie; Lane A (JiaJun) for the listener part
 - **Related:** [ADR 0005](../../docs/adr/0005-dashboard-google-sign-in.md) "Stage 2", [google-sign-in.md](./google-sign-in.md), gap-plan epic #138
-- **Last updated:** 2026-10-04
+- **Last updated:** 2026-10-05
 
 ## Goal
 
@@ -162,11 +162,13 @@ A code audit of every single-mailbox assumption found these, each checked in cod
    same day: each reply uses the owner's own sealed token, refreshed with the Google web client
    (`GOOGLE_OAUTH_CLIENT_ID/SECRET`), cached per mailbox; a read-only grant answers `403
    send_not_granted` before anything is claimed. Rows with no owner still send via `token.json`.
-4. ~~Listener multi-mailbox ingest with per-mailbox baselines (Lane A).~~ Done 2026-10-05, for
-   JiaJun's review: `listener/mailboxes.go` loads every connection, watches each on the shared
+4. Listener multi-mailbox ingest with per-mailbox baselines (Lane A). Built 2026-10-05, for
+   JiaJun's review; live run pending `GOOGLE_OAUTH_CLIENT_SECRET` in `.env`: `listener/mailboxes.go` loads every connection, watches each on the shared
    topic, routes notifications by address (unknown ones acked and dropped), seeds a first-time
    inbox with its newest 10 emails, saves each baseline and watch expiry on the connection row,
    and picks up new sign-ups every two minutes. A failing mailbox is logged and retried, never
    fatal. Rows carry `user_id`; duplicates are judged per mailbox (`on_conflict=user_id,gmail_message_id`).
    Interim: Pub/Sub still authenticates as the `token.json` account (finding 4).
-5. Backfill, delete `app/core/mailbox.py`, disconnect flow and its UI.
+5. Backfill, delete `app/core/mailbox.py`, disconnect flow and its UI. Also: drop the global
+   `messages_gmail_message_id_key`; the admin console to counts only (finding 5, decided
+   2026-10-04); fair per-user throughput (finding 7); Pub/Sub on a service account (finding 4).
