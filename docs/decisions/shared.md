@@ -6,6 +6,17 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-04 — Sender name and address are stored unmasked, on purpose
+- Decision: `messages.from_addr` and `reply_to` keep the sender's display name and address as
+  Gmail gives them. They are personal data under the PDPA, but storing them is necessary for the
+  service (the reader must see who wrote, and a reply needs the address), and they never enter a
+  model payload: `thread_context` labels earlier messages by position, never by sender.
+- Why: the 30 Sep audit listed this as a leak; the mailbox owner decided it is a documented, minimal
+  use instead. Masking the name would show "[Redacted]" for every sender in the inbox.
+- Revisit when: anything starts sending `from_addr` to a model, or a retention policy is written
+  (then these columns follow it like the rest of the row).
+- Status: decided by the mailbox owner, 2026-10-04.
+
 ### 2026-10-04 — Refined drafts are reviewed like generated ones; typed text is masked
 - Decision: Lane C's `/refine` runs the critic, the PII scan and the figures check on the revision
   and returns the same review fields as `/process-email`; the backend stores them with the draft,

@@ -16,6 +16,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -587,6 +588,12 @@ func listenToPubSub(ctx context.Context, ts oauth2.TokenSource, srv *gmail.Servi
 				msg.Ack()
 				return
 			}
+			if msg.DeliveryAttempt == nil {
+				warnNoDeadLetter.Do(func() {
+					log.Printf("WARNING: subscription %s has no dead-letter policy, so failed notifications "+
+						"are retried forever; see infra/pubsub-dead-letter.md", SubscriptionID)
+				})
+			}
 			log.Printf("Ingest failed for history %d, will retry: %v", payload.HistoryID, err)
 			msg.Nack()
 			return
@@ -604,6 +611,10 @@ func listenToPubSub(ctx context.Context, ts oauth2.TokenSource, srv *gmail.Servi
 // first was never ingested. The unique constraint on gmail_message_id hid it — the failure was a
 // missing row, not a duplicate one, which is invisible unless you go looking.
 const maxDeliveryAttempts = 5
+
+// Pub/Sub counts deliveries only when the subscription has a dead-letter policy; said once, not
+// on every failure.
+var warnNoDeadLetter sync.Once
 
 // The last history ID successfully processed. history.list needs a starting point, and the
 // notification's own ID is the *end* of the range, not the start.
@@ -721,7 +732,7 @@ func ingestMessage(ctx context.Context, srv *gmail.Service, msgID string) error 
 
 	stored := StoredMessage{
 		GmailMessageID: msgID,
-		FromAddr:       headerValue(msg.Payload.Headers, "From"), // kept as-is for reply threading; a policy call for the team to confirm
+		FromAddr:       headerValue(msg.Payload.Headers, "From"), // kept unmasked on purpose: docs/decisions/shared.md, 2026-10-04
 		ReplyTo:        headerValue(msg.Payload.Headers, "Reply-To"),
 		ReceivedAt:     time.Now().UTC(),
 		ThreadIdentity: identity,

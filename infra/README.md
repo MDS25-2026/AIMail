@@ -2,6 +2,8 @@
 
 Infrastructure, deployment, and local-dev orchestration for AImail. Houses Docker Compose files, database init scripts, and (later) IaC for the deployment target.
 
+**Set up now:** the Gmail notification dead-letter policy, [`pubsub-dead-letter.md`](pubsub-dead-letter.md). The rest of this README predates the current stack (Compose lives at the repo root) and is due a rewrite.
+
 ## Run locally
 
 _Not built yet._ Placeholder steps:
