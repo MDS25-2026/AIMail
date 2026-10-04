@@ -1,6 +1,6 @@
 # Per-user mailboxes: real sign-up, each user sees their own Gmail
 
-- **Status:** draft (for team review before building; touches every lane)
+- **Status:** draft (owner's decisions recorded 2026-10-04; listener part pending JiaJun's review)
 - **Owner:** veyroxie; Lane A (JiaJun) for the listener part
 - **Related:** [ADR 0005](../../docs/adr/0005-dashboard-google-sign-in.md) "Stage 2", [google-sign-in.md](./google-sign-in.md), gap-plan epic #138
 - **Last updated:** 2026-10-04
@@ -106,20 +106,28 @@ rows; an index on `(user_id, created_at)` serves the inbox.
 
 ## Open questions
 
-- On disconnect, delete the user's stored (masked) mail, or keep it until a retention job runs?
-  Recommendation: delete; the user expects disconnect to mean gone.
+- ~~On disconnect, delete the user's stored mail?~~ **Decided 2026-10-04: yes.** Three distinct
+  actions:
+  - **Sign out** ends the session only. Ingest continues, so the inbox is ready next time; nothing
+    is deleted.
+  - **Disconnect Gmail** stops ingest, revokes and deletes the stored Gmail token, and deletes the
+    user's stored masked mail, drafts and summaries. The account and settings stay; they can
+    reconnect.
+  - **Delete account** does all of that and removes the account, settings, knowledge base and
+    writing profile (the PDPA right to erasure).
 - ~~Does each user get their own knowledge base, or is it shared per company?~~ **Decided
   2026-10-04:** per user now; enterprise accounts later share one per company (ADR 0005).
-- The admin console: aggregates across all users, never one user's mail (unchanged rule).
+- ~~The admin console with many users~~ **Decided 2026-10-04:** aggregates only. The flagged-drafts
+  list becomes counts by reason; no individual subject or id from any mailbox.
 
 ## Audit findings that change the design (2026-10-04)
 
 A code audit of every single-mailbox assumption found these, each checked in code:
 
 1. **`messages.user_id` references `user_profile(id)`, not `auth.users`** (migration 0007), and the
-   backend ORM `Message` has no `user_id` at all. Decision needed: repoint the key to `auth.users`,
-   or create a `user_profile` row per Supabase user with `id = auth uid` (recommended: the
-   personalisation tables already hang off `user_profile`).
+   backend ORM `Message` has no `user_id` at all. **Decided 2026-10-04:** every Supabase user gets a
+   `user_profile` row with `id` = their auth user id, so the existing key and the personalisation
+   tables keep working; the ORM gains `user_id`.
 2. **`UNIQUE (gmail_message_id)` is global** (migration 0003), and the listener's "already stored?"
    check and insert conflict key use it alone. Gmail ids are per mailbox, so a collision would
    silently drop another user's email. Becomes `UNIQUE (user_id, gmail_message_id)`.
