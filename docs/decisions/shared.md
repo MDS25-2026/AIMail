@@ -6,6 +6,68 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-09-30 — Regenerate and refine report failure instead of returning the old draft
+- Decision: both routes raise `DraftNotUpdatedError` when the draft did not change, answered as
+  `502 agent_unavailable`, `422 draft_refused` or `409 masking_pending` (see
+  `specs/context/api-contracts.md`). `_generate_and_store` returns a `GenerationOutcome` instead
+  of a bool, so the caller can tell "no reply needed" from "the agent failed".
+- Why: with the agent down, both answered `200` with the unchanged email, so the dashboard said
+  "Draft refined" when nothing had happened. Found while verifying the Lane D draft-error fix.
+- Affects: Lane B (`app/dashboard.py`, `app/main.py`) and its one consumer, Lane D (already
+  handles non-2xx on both routes). No schema change.
+- Status: implemented by veyroxie, approved by the mailbox owner 2026-09-30.
+
+### 2026-09-29 — Masking fails closed; admin console on Supabase Auth
+- Decision (#109): a message whose NER masking cannot complete is quarantined
+  (`messages.masking_status = 'pending'`, no content) and completed by the listener when Presidio
+  recovers. Lane B never drafts, refines, translates or scores a pending row; Lane D shows it as
+  awaiting masking. Migration 0012 applied.
+- Decision (ADR 0004): the admin console authenticates Supabase users with
+  `app_metadata.role = "admin"`, tokens held in HttpOnly cookies by the backend. The rest of the
+  API keeps the shared token until it moves to the same JWTs.
+- Why: the previous "degrade to regex-only" policy stored real names (observed, #109; the admin
+  console shows 5 such stores in the last 30 days). The shared token is compiled into the browser
+  bundle, so it cannot gate operator data.
+- Affects: Lane A (`listener/quarantine.go`, `main.go`), Lane B (`app/admin/`, `app/dashboard.py`,
+  `app/main.py` CORS credentials, migration 0012), Lane D (`/admin`, quarantine notice), CI.
+- Status: implemented; needs JiaJun's review of the quarantine loop and Elyesa's of the admin API.
+
+### 2026-09-29 — One PR across all four lanes: resilience, reading, normalisation, surfaces
+- Decision: a single bundled PR (branch `feat/hackathon-reuse`, stacked on #113) carries work in
+  every lane, approved by the mailbox owner on 2026-09-29 as one reviewable unit. The cross-lane
+  seams it changes:
+  - `DashboardEmail` gains `sources` fields (`chunkId`, `excerpt`, `score`) and `quantities`;
+    both additive. `POST /emails/{id}/translate` is new (Lane B route, Lane C `/translate`).
+  - Lane C (`email_agent.py`) now imports shared backend modules: `app.core.logging_setup`,
+    `app.core.middleware` and `app.normalise`, instead of keeping private copies. The figures gate
+    and the translation checks read numbers through the same layer the dashboard does.
+  - Lane A's attachment reader is a new local container replacing `presidio-image-redactor`.
+  - Migrations 0009 (thread identity) and 0011 (`rag_sources`) are applied.
+- Why one PR: the owner's review queue is the bottleneck, and the pieces share contracts (the
+  normalisation layer feeds the gate, the dashboard and translation).
+- Why the agent imports `app.*` rather than copying: a second copy of number parsing is how the
+  gate and the dashboard would come to disagree about what "18.400,00" means.
+- Affects: all lanes. Owners to review their folders: JiaJun (`listener/`), Elyesa
+  (`backend/app/`), Hanif (`email_agent.py`, `gemini_client.py`), Han (the dashboard).
+- Status: implemented; awaiting each owner's review.
+
+### 2026-09-29 — Replies read the original's headers from Gmail at send time
+- Decision: the send path reads Subject, From, Reply-To, Message-ID, References and threadId
+  from Gmail (`format=metadata`, headers only) when the reply is approved, and sends with
+  `threadId`, `In-Reply-To` and `References`. The listener also stores `thread_id`,
+  `rfc822_message_id` and `thread_refs` at ingest, per the 2026-09-09 decision, for the thread
+  view and the extension. After sending, the backend reads back the `Message-ID` Gmail assigned
+  and stores it as `sent_message_id`, which settles that decision's open question without
+  relying on Gmail keeping a client-supplied one.
+- Why: Gmail threads a reply only when the Subject matches the original's
+  (developers.google.com/workspace/gmail/api/guides/threads), and the stored subject is masked.
+  Replies were going out as new threads titled "Re: ... [Redacted]". The real subject now lives
+  only in memory for the length of the send.
+- Why not store the raw subject: it is content, and storing it would break mask-before-storage.
+- Affects: Lane A (`listener/thread.go`, `StoredMessage`), Lane B (`app/gmail_send.py`,
+  `app/dashboard.py`, `app/db/models.py`), migration 0009 (applied).
+- Status: implemented — needs JiaJun's review of the listener change.
+
 ### 2026-09-11 — The review gate reads the critic's four checks, not its self-reported score
 - Decision: `needs_human_review` is now a conjunction over the checks the critic already computes
   (grounding, PII, completeness) plus a deterministic PII scan of the generated draft and an
@@ -56,7 +118,8 @@ here when their change crosses a lane boundary. Schema and public contracts are 
   `sent_message_id`. Store only these four fields, not the full header block.
 - Affects: Lane A (`listener/main.go`, `StoredMessage`), Lane B (`app/gmail_send.py`, `dashboard.py`),
   `specs/context/db-schema.md` (this PR), migration 0009.
-- Status: proposed — needs JiaJun's co-sign as owner of the `messages` table and the listener.
+- Status: implemented 2026-09-29 (migration 0009 applied). Still needs JiaJun's co-sign as owner
+  of the `messages` table and the listener; see the 2026-09-29 entry for what the build settled.
 
 ### 2026-08-31 — Seam 1 resolved: canonical column is `messages.body_masked`
 - Decision: the masked-email column is `messages.body_masked`; `masked_body` is retired.

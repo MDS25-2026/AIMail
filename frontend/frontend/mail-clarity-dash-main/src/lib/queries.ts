@@ -11,7 +11,18 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 
+import {
+  fetchAdminSession,
+  fetchAudit,
+  fetchFlagged,
+  fetchOverview,
+  isAuthError,
+  retryUnlessAuth,
+  signIn,
+  signOut,
+} from "./adminApi";
 import {
   addDocument,
   fetchDocuments,
@@ -21,6 +32,7 @@ import {
   refineEmail,
   regenerateEmail,
   sendEmail,
+  translateEmail,
   uploadDocument,
 } from "./api";
 import type { Email, Tone } from "../types/email";
@@ -30,6 +42,7 @@ export const queryKeys = {
   email: (id: string) => ["email", id] as const,
   documents: ["documents"] as const,
   systemInfo: ["system-info"] as const,
+  translation: (id: string, language: string) => ["translation", id, language] as const,
 };
 
 export function useEmails() {
@@ -72,6 +85,26 @@ function useDraftMutation<TVariables>(mutationFn: (variables: TVariables) => Pro
       queryClient.setQueryData(queryKeys.email(updated.id), updated);
       queryClient.invalidateQueries({ queryKey: queryKeys.emails });
     },
+  });
+}
+
+/**
+ * A translation is a query, not a mutation: keyed by email and language, and never stale, so
+ * switching back and forth between original and translation costs one model call, not one per
+ * click. Idle until the reader asks. No retry: a 422 means the text failed its faithfulness
+ * checks, and asking again would only spend quota on the same refusal.
+ */
+export function useEmailTranslation(
+  emailId: string | null,
+  language: string,
+  isRequested: boolean,
+) {
+  return useQuery({
+    queryKey: queryKeys.translation(emailId ?? "", language),
+    queryFn: () => translateEmail(emailId as string, language),
+    enabled: emailId !== null && isRequested,
+    staleTime: Infinity,
+    retry: false,
   });
 }
 
@@ -121,4 +154,87 @@ export function useAddDocument() {
   return useIngestMutation<{ title: string; text: string }>(({ title, text }) =>
     addDocument(title, text),
   );
+}
+
+// ---------- Admin console (docs/adr/0004) ----------
+
+const adminKeys = {
+  session: ["admin", "session"] as const,
+  overview: (days: number) => ["admin", "overview", days] as const,
+  flagged: ["admin", "flagged"] as const,
+  audit: (failuresOnly: boolean) => ["admin", "audit", failuresOnly] as const,
+};
+
+/** Who is signed in to the console. A 401 is an answer ("nobody"), so it is not retried. */
+export function useAdminSession() {
+  return useQuery({ queryKey: adminKeys.session, queryFn: fetchAdminSession, retry: false });
+}
+
+export function useAdminOverview(days: number, isEnabled: boolean) {
+  return useQuery({
+    queryKey: adminKeys.overview(days),
+    queryFn: () => fetchOverview(days),
+    enabled: isEnabled,
+    retry: retryUnlessAuth,
+  });
+}
+
+export function useAdminFlagged(isEnabled: boolean) {
+  return useQuery({
+    queryKey: adminKeys.flagged,
+    queryFn: fetchFlagged,
+    enabled: isEnabled,
+    retry: retryUnlessAuth,
+  });
+}
+
+export function useAdminAudit(failuresOnly: boolean, isEnabled: boolean) {
+  return useQuery({
+    queryKey: adminKeys.audit(failuresOnly),
+    queryFn: () => fetchAudit(failuresOnly),
+    enabled: isEnabled,
+    retry: retryUnlessAuth,
+  });
+}
+
+export function useAdminSignIn() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ email, password }: { email: string; password: string }) =>
+      signIn(email, password),
+    onSuccess: (identity) => {
+      queryClient.setQueryData(adminKeys.session, identity);
+      // Panels that failed while signed out must fetch again for the new session.
+      void queryClient.invalidateQueries({
+        queryKey: ["admin"],
+        predicate: (query) => query.queryKey[1] !== "session",
+      });
+    },
+  });
+}
+
+/**
+ * When any console panel finds the session gone (after its one refresh), ask again who is signed
+ * in: the session query then fails too, and the page falls back to the sign-in form instead of
+ * showing error panels.
+ */
+export function useSignedOutRecovery(errors: unknown[]): void {
+  const queryClient = useQueryClient();
+  const isSignedOut = errors.some(isAuthError);
+  useEffect(() => {
+    if (isSignedOut) void queryClient.invalidateQueries({ queryKey: adminKeys.session });
+  }, [isSignedOut, queryClient]);
+}
+
+/**
+ * Signing out resets every admin query. resetQueries, not removeQueries: a removed query tells its
+ * mounted observers nothing, so the console stayed on screen with the old identity. A reset
+ * returns them to their initial state and refetches, and the session query then answers 401.
+ */
+export function useAdminSignOut() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: signOut,
+    onSettled: () => queryClient.resetQueries({ queryKey: ["admin"] }),
+  });
 }

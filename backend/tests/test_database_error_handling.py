@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import DBAPIError
 
-from app.main import _database_error
+from app.core.db_errors import _database_error
 
 
 def _app_raising(exc: Exception) -> TestClient:

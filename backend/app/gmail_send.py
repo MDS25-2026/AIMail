@@ -7,8 +7,10 @@ the backend authenticates as itself instead of borrowing the listener's token.
 
 import base64
 import json
+import logging
 import re
 import time
+from dataclasses import dataclass
 from email.message import EmailMessage
 from html import escape
 from pathlib import Path
@@ -17,8 +19,33 @@ import httpx
 
 from app.core.config import get_settings
 
+logger = logging.getLogger(__name__)
+
 _TOKEN_URL = "https://oauth2.googleapis.com/token"
-_SEND_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
+_MESSAGES_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages"
+_SEND_URL = f"{_MESSAGES_URL}/send"
+# Read from Gmail at send time, never from the database: the stored subject is masked, and Gmail
+# threads a reply only when its Subject matches the original's.
+_ORIGINAL_HEADERS = ("Subject", "From", "Reply-To", "Message-ID", "References")
+_REPLY_PREFIX = "re:"
+
+
+@dataclass(frozen=True)
+class ReplyTarget:
+    """Where a reply goes and which thread it joins. Held in memory only, never stored or logged."""
+
+    to_addr: str
+    subject: str
+    thread_id: str | None = None
+    in_reply_to: str | None = None
+    references: str | None = None
+
+
+@dataclass(frozen=True)
+class SentReply:
+    gmail_id: str | None
+    thread_id: str | None
+    message_id: str | None
 
 
 class SendError(RuntimeError):
@@ -92,37 +119,121 @@ def _html_body(body: str) -> str:
     )
 
 
-def _build_raw(to_addr: str, subject: str, body: str) -> str:
+def _reply_subject(subject: str) -> str:
+    return subject if subject.lower().startswith(_REPLY_PREFIX) else f"Re: {subject}"
+
+
+def _reply_references(target: ReplyTarget) -> str:
+    """The original's References plus its own Message-ID (RFC 5322 section 3.6.4)."""
+    return " ".join(part for part in (target.references, target.in_reply_to) if part)
+
+
+def _build_raw(target: ReplyTarget, body: str) -> str:
     text = _strip_subject_line(body)
     message = EmailMessage()
-    message["To"] = to_addr
-    message["Subject"] = subject if subject.lower().startswith("re:") else f"Re: {subject}"
+    message["To"] = target.to_addr
+    message["Subject"] = _reply_subject(target.subject)
+    if target.in_reply_to:
+        message["In-Reply-To"] = target.in_reply_to
+        message["References"] = _reply_references(target)
     # multipart/alternative: HTML for clients that render it, plain text for those that do not.
     message.set_content(text)
     message.add_alternative(_html_body(text), subtype="html")
     return base64.urlsafe_b64encode(message.as_bytes()).decode()
 
 
-async def _post_message(client: httpx.AsyncClient, raw: str) -> httpx.Response:
-    access_token = await _access_token(client)
-    return await client.post(
-        _SEND_URL,
-        headers={"Authorization": f"Bearer {access_token}"},
-        json={"raw": raw},
+async def _gmail_request(
+    client: httpx.AsyncClient, method: str, url: str, **kwargs: object
+) -> httpx.Response:
+    global _cached_token
+    for attempt in range(2):
+        access_token = await _access_token(client)
+        response = await client.request(
+            method, url, headers={"Authorization": f"Bearer {access_token}"}, **kwargs
+        )
+        # A cached token can be revoked before it expires. Drop it and try once with a fresh
+        # one, so a revocation costs one retry rather than every call until restart.
+        if response.status_code != httpx.codes.UNAUTHORIZED or attempt:
+            return response
+        _cached_token = None
+    return response
+
+
+async def message_headers(
+    client: httpx.AsyncClient, gmail_id: str, names: tuple[str, ...]
+) -> dict:
+    """The named headers of a message, keyed lower-case, plus its threadId. Headers only, no body."""
+    response = await _gmail_request(
+        client, "GET", f"{_MESSAGES_URL}/{gmail_id}",
+        params=[("format", "metadata"), *(("metadataHeaders", name) for name in names)],
+    )
+    response.raise_for_status()
+    payload = response.json()
+    headers = {h["name"].lower(): h["value"] for h in payload.get("payload", {}).get("headers", [])}
+    return headers | {"threadid": payload.get("threadId")}
+
+
+# The stored subject is masked; with the original gone from Gmail it is all there is. A subject
+# carrying a redaction marker would show "[Redacted]" to the recipient, so it is not used.
+_MARKER = re.compile(r"\[(?:[A-Z_]+_REDACTED|Redacted|REDACTED)\]")
+NEUTRAL_SUBJECT = "Your message"
+
+
+def _sendable_subject(masked_subject: str) -> str:
+    return NEUTRAL_SUBJECT if _MARKER.search(masked_subject) or not masked_subject.strip() else masked_subject
+
+
+async def _reply_target(
+    client: httpx.AsyncClient, gmail_id: str | None, fallback_to: str, fallback_subject: str
+) -> ReplyTarget:
+    """Thread identity and real subject from the original; standalone if it no longer exists."""
+    fallback = ReplyTarget(to_addr=fallback_to, subject=_sendable_subject(fallback_subject))
+    if not gmail_id:
+        return fallback
+    try:
+        headers = await message_headers(client, gmail_id, _ORIGINAL_HEADERS)
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == httpx.codes.NOT_FOUND:
+            return fallback
+        raise
+    return ReplyTarget(
+        to_addr=headers.get("reply-to") or headers.get("from") or fallback_to,
+        subject=headers.get("subject") or fallback_subject,
+        thread_id=headers.get("threadid"),
+        in_reply_to=headers.get("message-id"),
+        references=headers.get("references"),
     )
 
 
-async def send_reply(to_addr: str, subject: str, body: str) -> None:
-    global _cached_token
-    raw = _build_raw(to_addr, subject, body)
+async def _sent_message_id(client: httpx.AsyncClient, gmail_id: str | None) -> str | None:
+    """Read back the Message-ID Gmail actually gave our reply, rather than assuming ours survived.
+
+    Never raises: the reply is already sent, and failing here would invite a second send.
+    """
+    if not gmail_id:
+        return None
+    try:
+        return (await message_headers(client, gmail_id, ("Message-ID",))).get("message-id")
+    except (httpx.HTTPError, KeyError, ValueError) as exc:
+        logger.warning("sent reply %s: could not read back its Message-ID: %s", gmail_id, exc)
+        return None
+
+
+async def send_reply(
+    gmail_message_id: str | None, fallback_to: str, fallback_subject: str, body: str
+) -> SentReply:
+    """Send `body` as a reply in the original's thread. The fallbacks serve only when the
+    original is gone from Gmail or the row predates gmail_message_id."""
     try:
         async with httpx.AsyncClient(timeout=30) as client:
-            resp = await _post_message(client, raw)
-            if resp.status_code == httpx.codes.UNAUTHORIZED:
-                # A cached token can be revoked before it expires. Drop it and try once with a
-                # fresh one, so a revocation costs one retry rather than every send until restart.
-                _cached_token = None
-                resp = await _post_message(client, raw)
-            resp.raise_for_status()
-    except (httpx.HTTPError, KeyError, OSError, json.JSONDecodeError) as exc:
+            target = await _reply_target(client, gmail_message_id, fallback_to, fallback_subject)
+            payload: dict[str, str] = {"raw": _build_raw(target, body)}
+            if target.thread_id:
+                payload["threadId"] = target.thread_id
+            response = await _gmail_request(client, "POST", _SEND_URL, json=payload)
+            response.raise_for_status()
+            sent = response.json()
+            message_id = await _sent_message_id(client, sent.get("id"))
+    except (httpx.HTTPError, KeyError, OSError, ValueError) as exc:
         raise SendError(str(exc)) from exc
+    return SentReply(gmail_id=sent.get("id"), thread_id=sent.get("threadId"), message_id=message_id)

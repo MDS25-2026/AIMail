@@ -8,7 +8,18 @@ Each entry: what happens, why it happens if known, and how much it matters.
 
 ## Open
 
-### Page scrolls past the app into empty space — Lane D
+### Page scrolls past the app into empty space — Lane D — FIXED 2026-09-29 (#96)
+
+**Cause, measured:** each unread inbox row carried an `sr-only` "(unread)" label, and Tailwind's
+`sr-only` is `position: absolute`. With no positioned ancestor inside the list's scroll container,
+the label was placed against the page at its in-flow position (thousands of pixels down the list)
+and escaped the `overflow` clipping. 21 unread labels stretched the document to 4211px on a 900px
+viewport. It looked transient because it tracked which rows were unread, and container-level fixes
+could not touch it. **Fix:** every scroll or clip container is `relative` (a unit test enforces
+it), the app shell is `relative` as a backstop, and the label sits first in its row so it cannot
+widen the list either. Verified in Chrome over CDP: document 900px, list width unchanged, a scroll
+to y=99999 stays at 0. The investigation notes below are kept for the record.
+
 The dashboard can be scrolled below the interface into blank space. An attempted fix (2026-09-04)
 changed the shell from `h-screen` to `h-dvh` with `overflow-hidden` and set `html, body` to
 `height: 100%` — **this did not resolve it**. Body overflow was deliberately not locked, since
@@ -116,7 +127,14 @@ by regex patterns written for prose.
 Worked around in the study instrument by stripping at render (`build_study_instrument.py`), which
 does nothing for what is stored or what the model receives.
 
-### Masking silently degraded on a stored message — Lane A (#109)
+### Masking silently degraded on a stored message — Lane A (#109) — FIXED 2026-09-29
+
+**Fixed:** the listener no longer stores degraded content. If NER is unavailable for any part of a
+message, the row is quarantined (`masking_status = 'pending'`, no subject, body or snippet) and a
+background loop re-fetches and masks it once Presidio's health check passes. The dashboard shows it
+as awaiting masking and nothing drafts from it. Rows stored degraded *before* the fix are still
+found only by `backend/scripts/remask_outliers.py`. The original finding follows.
+
 
 `body_masked` for one message left a real person's name and town in plain text. Found 2026-09-17
 while selecting drafts for the study.
@@ -151,22 +169,24 @@ coursework; state it if asked about reproducibility.
 
 These are not defects — they are trade-offs with reasons, recorded so the reasoning is not lost.
 
-- **Dates inside image attachments are redacted; dates in email text are not.** The listener's
-  text masking asks Presidio for `PERSON, LOCATION, ORGANIZATION, ACCOUNT_NUMBER, CREDIT_CARD`
-  (`main.go:258`). The image redactor's `/redact` endpoint ignores an entity list — verified by
-  checksum, identical output with and without one — and always applies Presidio's defaults, which
-  include `DATE_TIME`. So "Payment due 30 September 2026" in an attached invoice arrives as
-  "Payment due [REDACTED] [REDACTED] [REDACTED]".
-
-  The cost is narrow but real: `app/ml/temporal.py` reads deadlines to lift the importance score,
-  so an email whose only deadline lives inside an attached image will be under-prioritised. Body
-  text is unaffected, which is where most deadlines are.
-
-  Accepted rather than fixed, because the alternatives all cost more than the defect: `presidio-ocr`
-  is a legacy gRPC service, and a self-built Tesseract wrapper is a container to maintain for a
-  minority of messages. **The proper fix** is a thin wrapper around the `presidio-image-redactor`
-  *Python package*, which does accept an entity list even though the REST image does not — worth
-  doing after submission, not before.
+- **Attachment redaction is only as good as the local OCR's view of the page.** The reader
+  withholds a page the local OCR read with low confidence, but it cannot withhold text the OCR
+  never detected at all: a line of handwriting beside confidently printed text would reach Gemini
+  unredacted. The listener's `maskText` still runs on the transcript, which catches the formats it
+  knows, but only after Gemini has seen the image. Accepted because the alternative, withholding
+  any image with a region the OCR skipped, would withhold nearly every photo and logo.
+- **Attachments are over-redacted where NER is unsure.** A capitalised label can be tagged as a
+  name ("Bill to:" loses "Bill"). The business content that matters (amounts, dates, reference
+  numbers) survives: `tests/test_reader.py` asserts it on a synthetic invoice.
+- **Attachment text dropped during an NER outage is not recovered.** If Presidio is down when a
+  message arrives, the whole message is quarantined and re-read later, attachments included. But
+  if Presidio fails only while masking the attachment text (the body masked fine), that text is
+  dropped and the message is stored without it: recorded as `drop_attachment_text` and counted on
+  the admin console, not retried. Accepted because the body, which is what gets drafted from, is
+  intact.
+- **Only the first 20 pages of a PDF are read, within a 150 s budget**, and spreadsheet layout is
+  flattened to one value per line. Pages left unread are reported in the audit row (`unread=`).
+  Both bound the time and memory a single attachment can take.
 
 - **Street numbers survive masking.** "12 Jalan Ampang" keeps the number. An address pattern would
   collide with dates, quantities and clause numbers, which the negative controls exist to prevent.
@@ -176,10 +196,10 @@ These are not defects — they are trade-offs with reasons, recorded so the reas
   and order number being redacted.
 - **`from_addr` is stored unmasked.** `approve_and_send` needs a real recipient. It never enters
   the model payload.
-- **Masking degrades rather than blocks.** If Presidio is unreachable, the regex floor still runs
-  and the row is stored with the degradation recorded in the audit log. Names and locations are
-  not masked in that mode. **This is no longer only theoretical** — see the degraded-message entry
-  above for an observed instance in stored data.
+- **Masking now blocks rather than degrades (changed 2026-09-29, #109).** If Presidio is
+  unreachable, the message is quarantined with no content until it can be masked properly. The
+  cost: a message arriving during an outage is not readable until Presidio recovers, and needs the
+  listener running to be released.
 - **A low-confidence draft is shown, not withheld.** Gating hard on an unvalidated self-reported
   score would silently discard work; the approval click is the real control.
 

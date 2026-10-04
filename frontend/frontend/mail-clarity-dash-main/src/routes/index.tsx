@@ -1,19 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import InboxList from "../components/InboxList";
 import EmailDetailPanel from "../components/EmailDetailPanel";
 import AppShell from "../components/AppShell";
-import {
-  useEmail,
-  useEmails,
-  useRefineEmail,
-  useRegenerateEmail,
-  useSendEmail,
-} from "../lib/queries";
-import type { Tone } from "../types/email";
+import { PageEmpty, PageError, PageLoading } from "../components/PageState";
+import { useEmail, useEmails } from "../lib/queries";
+import { useDraftWorkflow } from "../lib/useDraftWorkflow";
+
+type InboxSearch = { email?: string };
 
 export const Route = createFileRoute("/")({
+  // ?email=<id> opens that email, so Sent and other lists can link straight to one.
+  validateSearch: (search: Record<string, unknown>): InboxSearch => ({
+    email: typeof search.email === "string" ? search.email : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "AIMail — AI inbox dashboard" },
@@ -36,6 +38,8 @@ export const Route = createFileRoute("/")({
 });
 
 function DashboardPage() {
+  const { t } = useTranslation();
+  const { email: requestedId } = Route.useSearch();
   const emails = useEmails();
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
   const selected = useEmail(selectedEmailId);
@@ -43,98 +47,67 @@ function DashboardPage() {
   // The detail call re-runs generation (~15s), so show the list row's copy until it lands.
   const listEmail = (emails.data ?? []).find((item) => item.id === selectedEmailId) ?? null;
   const email = selected.data ?? listEmail;
-
-  // The draft is server state the user can type over. Rather than syncing state to the query in
-  // an effect (which fights the user's keystrokes), an override shadows the server value and is
-  // cleared whenever the server should win again: a new selection, or a completed mutation.
-  const [draftOverride, setDraftOverride] = useState<string | null>(null);
-  const [toneOverride, setToneOverride] = useState<Tone | null>(null);
-  const draft = draftOverride ?? email?.draftReply ?? "";
-  const tone = toneOverride ?? email?.tone ?? "professional";
-
-  const regenerate = useRegenerateEmail();
-  const refine = useRefineEmail();
-  const send = useSendEmail();
-
-  // Last issued wins. Query keys already stop a stale response landing on another email, but
-  // two regenerates for the SAME email resolve into the same cache entry, so a slow first
-  // response could still overwrite a newer one.
-  const requestSeqRef = useRef(0);
-  const runDraftMutation = (run: () => Promise<unknown>) => {
-    const seq = ++requestSeqRef.current;
-    void run()
-      .then(() => {
-        if (seq === requestSeqRef.current) setDraftOverride(null);
-      })
-      .catch(() => {
-        // Keep whatever is on screen; the mutation's error state drives the UI.
-      });
-  };
-
-  const handleSelectEmail = (emailId: string) => {
-    setSelectedEmailId(emailId);
-    setDraftOverride(null);
-    setToneOverride(null);
-  };
+  const workflow = useDraftWorkflow(email);
 
   const didAutoSelectRef = useRef(false);
   useEffect(() => {
-    // Auto-select the first email once; StrictMode double-invokes effects in dev.
-    const first = emails.data?.[0];
+    // Auto-select once: the email the link asked for, else the first. StrictMode double-invokes
+    // effects in dev, hence the ref.
+    const requested = emails.data?.find((item) => item.id === requestedId);
+    const first = requested ?? emails.data?.[0];
     if (first && !didAutoSelectRef.current) {
       didAutoSelectRef.current = true;
-      handleSelectEmail(first.id);
+      setSelectedEmailId(first.id);
     }
   }, [emails.data]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const onRegenerate = (emailId: string) => {
-    runDraftMutation(() => regenerate.mutateAsync({ emailId, tone }));
-  };
-
-  const onRefine = (emailId: string, instruction: string) => {
-    runDraftMutation(() => refine.mutateAsync({ emailId, instruction, draft }));
-  };
-
-  const onToneChange = (emailId: string, nextTone: Tone) => {
-    setToneOverride(nextTone);
-    runDraftMutation(() => regenerate.mutateAsync({ emailId, tone: nextTone }));
-  };
-
-  const onApproveSend = (emailId: string) => {
-    send.mutate(
-      { emailId, draft },
-      {
-        onSuccess: () => setDraftOverride(null),
-        onError: () =>
-          window.alert("Send failed — check the backend and email agent, then try again."),
-      },
-    );
-  };
 
   return (
     <AppShell>
       <>
-        <aside className="w-80 shrink-0 border-r border-slate-200 bg-white">
-          <InboxList
-            emails={emails.data ?? []}
-            selectedEmailId={selectedEmailId}
-            onSelectEmail={handleSelectEmail}
-          />
+        {/* Read out when a slow action finishes, since the result appears elsewhere. */}
+        <p role="status" aria-live="polite" className="sr-only">
+          {workflow.announcement}
+        </p>
+        <aside className="min-h-0 w-80 shrink-0 border-r border-line bg-surface">
+          {emails.isPending ? <PageLoading label={t("inbox.heading")} /> : null}
+          {emails.isError ? (
+            <PageError
+              label={t("inbox.heading")}
+              error={emails.error}
+              onRetry={() => void emails.refetch()}
+            />
+          ) : null}
+          {emails.data?.length === 0 ? (
+            <PageEmpty title={t("inbox.emptyTitle")} hint={t("inbox.emptyHint")} />
+          ) : null}
+          {emails.data && emails.data.length > 0 ? (
+            <InboxList
+              emails={emails.data}
+              selectedEmailId={selectedEmailId}
+              onSelectEmail={setSelectedEmailId}
+            />
+          ) : null}
         </aside>
 
-        <section className="min-w-0 flex-1 bg-slate-50">
+        <section className="min-h-0 min-w-0 flex-1 bg-surface-muted">
           <EmailDetailPanel
             email={email}
-            draft={draft}
-            tone={tone}
-            onDraftChange={setDraftOverride}
-            onToneChange={onToneChange}
-            onRegenerate={onRegenerate}
-            onRefine={onRefine}
-            onApproveSend={onApproveSend}
-            isRegenerating={regenerate.isPending}
-            isRefining={refine.isPending}
-            isSending={send.isPending}
+            draft={workflow.draft}
+            tone={workflow.tone}
+            onDraftChange={workflow.setDraft}
+            onToneChange={(_emailId, tone) => workflow.regenerate(tone)}
+            onRegenerate={() => workflow.regenerate()}
+            onRefine={(_emailId, instruction) => workflow.refine(instruction)}
+            onApproveSend={workflow.send}
+            isRegenerating={workflow.isRegenerating}
+            isRefining={workflow.isRefining}
+            isSending={workflow.isSending}
+            status={{
+              ...workflow.status,
+              isGenerating: selected.isLoading,
+              isLoadFailed: selected.isError,
+              onRetryLoad: () => void selected.refetch(),
+            }}
           />
         </section>
       </>

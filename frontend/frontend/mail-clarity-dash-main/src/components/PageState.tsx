@@ -1,3 +1,6 @@
+import { CircleAlert } from "lucide-react";
+import { useTranslation } from "react-i18next";
+
 /**
  * The three states every data-backed page shows before it shows content.
  * Kept in one place so a new page cannot invent its own loading spinner or swallow an error
@@ -5,31 +8,48 @@
  */
 
 export function PageLoading({ label }: { label: string }) {
+  const { t } = useTranslation();
   return (
-    <p role="status" className="p-6 text-sm text-slate-500">
-      Loading {label}…
+    <p role="status" className="p-6 text-sm text-fg-muted">
+      {t("page.loading", { label })}
     </p>
   );
 }
 
-export function PageError({ label, error }: { label: string; error: unknown }) {
-  const detail = error instanceof Error ? error.message : "Unknown error";
+type PageErrorProps = { label: string; error: unknown; onRetry?: () => void };
+
+export function PageError({ label, error, onRetry }: PageErrorProps) {
+  const { t } = useTranslation();
+  const detail = error instanceof Error ? error.message : t("page.unknownError");
   return (
-    <div role="alert" className="m-6 rounded-md border border-red-200 bg-red-50 p-4">
-      <p className="text-sm font-semibold text-red-800">Could not load {label}</p>
-      <p className="mt-1 text-sm text-red-700">{detail}</p>
-      <p className="mt-2 text-xs text-red-600">
-        Check the backend is running on the configured URL and that the API token matches.
-      </p>
+    <div
+      role="alert"
+      className="m-6 flex gap-3 rounded-md border border-danger-line bg-danger-soft p-4"
+    >
+      <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-danger" />
+      <div>
+        <p className="text-sm font-semibold text-danger">{t("page.errorTitle", { label })}</p>
+        <p className="mt-1 text-sm text-danger">{detail}</p>
+        <p className="mt-2 text-xs text-danger">{t("page.errorHint")}</p>
+        {onRetry ? (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="mt-3 rounded-md border border-danger-line bg-surface px-3 py-1.5 text-xs font-semibold text-danger"
+          >
+            {t("page.retry")}
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }
 
 export function PageEmpty({ title, hint }: { title: string; hint: string }) {
   return (
-    <div className="m-6 rounded-md border border-dashed border-slate-300 p-8 text-center">
-      <p className="text-sm font-semibold text-slate-700">{title}</p>
-      <p className="mt-1 text-sm text-slate-500">{hint}</p>
+    <div className="m-6 rounded-md border border-dashed border-line-strong p-8 text-center">
+      <p className="text-sm font-semibold text-fg-body">{title}</p>
+      <p className="mt-1 text-sm text-fg-muted">{hint}</p>
     </div>
   );
 }
