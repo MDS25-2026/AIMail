@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from app.core.logging_setup import configure_logging
 from app.core.middleware import request_context
+from app.core.redaction import REDACTION_MARKER, has_redaction_marker
 from app.normalise.numbers import (
     canonical,
     figure_readings,
@@ -351,14 +352,6 @@ _AD_HOC_RECOGNIZERS = [
 _PII_ENTITIES = ["EMAIL_ADDRESS", "CREDIT_CARD", "IBAN_CODE", "MY_NRIC", "MY_PHONE"]
 _PII_SCORE_THRESHOLD = 0.5
 
-# A redaction token reaching a sent reply is its own failure, and regex catches it for free.
-# Three shapes reach stored text: the listener's regex tokens ([EMAIL_REDACTED]), Presidio's
-# replacement ([Redacted], listener/main.go) and the OCR transcription ([REDACTED], listener/ocr.go).
-_PLACEHOLDER = re.compile(r"\[(?:[A-Z_]+_REDACTED|Redacted|REDACTED)\]")
-
-
-def has_redaction_placeholder(text: str) -> bool:
-    return bool(_PLACEHOLDER.search(text))
 
 
 async def scan_draft_pii(draft: str) -> list[str]:
@@ -371,7 +364,8 @@ async def scan_draft_pii(draft: str) -> list[str]:
     Degrades like the listener does: if Presidio is unreachable the placeholder check still
     runs, and the caller is told the scan was partial rather than being handed a false clean.
     """
-    findings = ["REDACTION_PLACEHOLDER"] if has_redaction_placeholder(draft) else []
+    # A redaction token reaching a sent reply is its own failure, and regex catches it for free.
+    findings = ["REDACTION_PLACEHOLDER"] if has_redaction_marker(draft) else []
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.post(PRESIDIO_ANALYZER_URL, json={
@@ -661,7 +655,7 @@ def translation_problems(source: str, translation: str) -> list[str]:
     if source.strip() and not translation.strip():
         return ["translation is empty"]
     problems = []
-    if sorted(_PLACEHOLDER.findall(source)) != sorted(_PLACEHOLDER.findall(translation)):
+    if sorted(REDACTION_MARKER.findall(source)) != sorted(REDACTION_MARKER.findall(translation)):
         problems.append("redaction markers changed")
     # Either reading of an ambiguous figure counts ("1.250" is 1250 in Malay), and single digits
     # are skipped as in the draft gate, since a date's month moves between "September" and "9".

@@ -120,10 +120,21 @@ export function useRefineEmail() {
   );
 }
 
+/** Like the other draft mutations, but a failure also refetches: an unknown outcome keeps the email claimed as sent. */
 export function useSendEmail() {
-  return useDraftMutation<{ emailId: string; draft: string }>(({ emailId, draft }) =>
-    sendEmail(emailId, draft),
-  );
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ emailId, draft }: { emailId: string; draft: string }) =>
+      sendEmail(emailId, draft),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKeys.email(updated.id), updated);
+      queryClient.invalidateQueries({ queryKey: queryKeys.emails });
+    },
+    onError: (_error, { emailId }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.email(emailId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.emails });
+    },
+  });
 }
 
 export function useDocuments() {

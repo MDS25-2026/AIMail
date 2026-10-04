@@ -28,9 +28,10 @@ from app.contracts import (
 from app.core.config import get_settings
 from app.core.logging_setup import request_id
 from app.core.middleware import REQUEST_ID_HEADER
+from app.core.redaction import has_redaction_marker
 from app.db.models import MaskingStatus, Message
 from app.db.session import get_sessionmaker
-from app.gmail_send import SendError, send_reply
+from app.gmail_send import SendError, SendOutcomeUnknownError, send_reply
 from app.normalise.quantities import quantities_in
 from app.personalisation import DEFAULT_POLICY, Policy, apply_policy, load_policy
 from app.plain_text import plain_text
@@ -148,6 +149,20 @@ class DraftNotUpdatedError(RuntimeError):
     """A regenerate or refine that changed nothing. Answering 200 with the old draft hid it."""
 
     def __init__(self, code: DraftErrorCode, status_code: int) -> None:
+        super().__init__(code)
+        self.code = code
+        self.status_code = status_code
+
+
+class SendErrorCode(StrEnum):
+    REDACTION_MARKERS = "redaction_markers"  # "[Redacted]" would reach the recipient as written
+    MASKING_PENDING = "masking_pending"  # quarantined: there is nothing safe to reply to yet
+
+
+class SendRejectedError(RuntimeError):
+    """A draft refused before anything is claimed or sent; the dashboard's own check can be bypassed."""
+
+    def __init__(self, code: SendErrorCode, status_code: int) -> None:
         super().__init__(code)
         self.code = code
         self.status_code = status_code
@@ -436,12 +451,20 @@ async def approve_and_send(message_id: str, draft: str) -> DashboardEmail | None
     message = await _load(pk)
     if message is None:
         return None
+    if not message.is_masked:
+        raise SendRejectedError(SendErrorCode.MASKING_PENDING, 409)
+    if has_redaction_marker(draft):
+        raise SendRejectedError(SendErrorCode.REDACTION_MARKERS, 422)
     if message.sent_at is not None or not await _claim_send(pk):
         return _to_email(await _load(pk) or message)
     try:
         sent = await send_reply(
             message.gmail_message_id, message.from_addr or "", message.subject or "", draft
         )
+    except SendOutcomeUnknownError:
+        # The claim stays: Gmail may have sent, and releasing it would invite a second copy.
+        await audit("send_outcome_unknown", f"message={message_id}", success=False)
+        raise
     except SendError:
         await _release_send_claim(pk)
         # The failed attempt is the row an auditor most wants; log before unwinding.

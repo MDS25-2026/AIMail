@@ -157,7 +157,10 @@ def _send_harness(monkeypatch, claim: bool, send_error: bool = False):
     from app.gmail_send import SendError, SentReply
 
     calls = {"sent": 0, "released": 0}
+    from app.db.models import MaskingStatus
+
     message = Message(id=uuid4(), from_addr="a@b.c", subject="Hi",
+                      masking_status=MaskingStatus.COMPLETE,
                       created_at=datetime(2026, 9, 1, tzinfo=timezone.utc))
 
     async def load(pk):

@@ -55,6 +55,12 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer` and a `default-src 'none'` CSP (the
   demo page at `/` gets a CSP that allows its inline script). Implementation:
   `backend/app/core/middleware.py`.
+- `POST /emails/{id}/send` checks the draft on the server (2026-10-04): `422` for an empty draft
+  or one over 20,000 characters (validation), `422` `redaction_markers` when the draft still holds
+  `[Redacted]` or a `[*_REDACTED]` token, and `409` `masking_pending` for a quarantined email.
+  `504` `send_outcome_unknown` means Gmail may have sent the reply but its answer was lost; the email
+  stays marked sent so it is never sent twice, and the reader should check Gmail's Sent folder.
+  `502` `send_failed` still means Gmail never accepted it, and it can be approved again.
 - `POST /emails/{id}/regenerate` and `POST /emails/{id}/refine` no longer answer `200` with the
   old draft when nothing changed (2026-09-30). They answer `502` `agent_unavailable` (the agent
   or retrieval failed; retry later), `422` `draft_refused` (regenerate only: the model failed on

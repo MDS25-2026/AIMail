@@ -25,6 +25,7 @@ from app.core.config import get_settings
 from app.core.constants import (
     ADMIN_PREFIX,
     DEFAULT_ADMIN_ORIGINS,
+    MAX_DRAFT_CHARS,
     MAX_PASTE_CHARS,
     MAX_UPLOAD_BYTES,
     PDF_MAGIC,
@@ -42,6 +43,7 @@ from app.core.ratelimit import (
 from app.dashboard import (
     AlreadySentError,
     DraftNotUpdatedError,
+    SendRejectedError,
     TranslationError,
     approve_and_send,
     email_detail,
@@ -51,7 +53,7 @@ from app.dashboard import (
     regenerate_email,
     translate_email,
 )
-from app.gmail_send import SendError
+from app.gmail_send import SendError, SendOutcomeUnknownError
 from app.rag.chunk import extract_pdf_bytes
 from app.rag.embed import EmbeddingError
 from app.rag.generate import GenerationError, answer
@@ -267,7 +269,7 @@ async def translate_email_route(message_id: str, body: TranslateRequest) -> Tran
 
 
 class SendRequest(BaseModel):
-    draft: str  # the approved, possibly edited draft body to send
+    draft: str = Field(min_length=1, max_length=MAX_DRAFT_CHARS)  # the approved, possibly edited draft
 
 
 @app.post("/emails/{message_id}/send")
@@ -275,6 +277,11 @@ async def send_email_route(message_id: str, body: SendRequest) -> DashboardEmail
     # Human-approved send: reply to the original sender with the draft, then mark it sent.
     try:
         email = await approve_and_send(message_id, body.draft)
+    except SendRejectedError as exc:
+        raise HTTPException(exc.status_code, exc.code) from exc
+    except SendOutcomeUnknownError as exc:
+        logger.warning("send outcome unknown for %s: %s", message_id, exc)
+        raise HTTPException(status.HTTP_504_GATEWAY_TIMEOUT, "send_outcome_unknown") from exc
     except SendError as exc:
         # The reason stays in the log: it can name local credential paths.
         logger.warning("send failed for %s: %s", message_id, exc)

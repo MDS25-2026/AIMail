@@ -266,6 +266,7 @@ export const zh: Translations = {
       send: "回复未发送。您的草稿没有改变，请稍后重试。",
       refused:
         "AI 无法为这封邮件撰写草稿，重试也不会改变结果。您的文字没有改变：请自行撰写回复，或尝试另一种语气。",
+      sendUnknown: "无法确认回复是否已发送。请先检查您的 Gmail 已发送邮件，再决定是否重新发送。",
     },
     replaceEdits: "新草稿将替换您输入的修改。",
     replaceConfirm: "替换我的修改",

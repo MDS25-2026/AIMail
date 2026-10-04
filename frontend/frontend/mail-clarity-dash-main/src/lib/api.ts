@@ -29,13 +29,21 @@ export async function fetchEmail(id: string): Promise<Email> {
 /** The model failed on this email's content (422 draft_refused); retrying cannot change that. */
 export class DraftRefusedError extends Error {}
 
-const DRAFT_REFUSED = "draft_refused";
+/** Gmail may have sent the reply but the answer was lost (504 send_outcome_unknown). Never retry blind. */
+export class SendOutcomeUnknownError extends Error {}
 
-async function regenerateError(res: Response, message: string): Promise<Error> {
+const ERROR_BY_DETAIL: Record<string, new (message: string) => Error> = {
+  draft_refused: DraftRefusedError,
+  send_outcome_unknown: SendOutcomeUnknownError,
+};
+
+/** The typed error for a failed call, chosen by the backend's `detail` code. */
+async function apiError(res: Response, message: string): Promise<Error> {
   const body: unknown = await res.json().catch(() => null);
-  const isRefused =
-    typeof body === "object" && body !== null && "detail" in body && body.detail === DRAFT_REFUSED;
-  return isRefused ? new DraftRefusedError(message) : new Error(message);
+  const detail =
+    typeof body === "object" && body !== null && "detail" in body ? String(body.detail) : "";
+  const ErrorType = ERROR_BY_DETAIL[detail] ?? Error;
+  return new ErrorType(message);
 }
 
 /** Force a fresh draft in the given tone, replacing the cached one. */
@@ -45,8 +53,7 @@ export async function regenerateEmail(id: string, tone: string): Promise<Email> 
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ tone }),
   });
-  if (!res.ok)
-    throw await regenerateError(res, `POST /emails/${id}/regenerate failed (${res.status})`);
+  if (!res.ok) throw await apiError(res, `POST /emails/${id}/regenerate failed (${res.status})`);
   return res.json();
 }
 
@@ -79,7 +86,7 @@ export async function sendEmail(id: string, draft: string): Promise<Email> {
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ draft }),
   });
-  if (!res.ok) throw new Error(`POST /emails/${id}/send failed (${res.status})`);
+  if (!res.ok) throw await apiError(res, `POST /emails/${id}/send failed (${res.status})`);
   return res.json();
 }
 

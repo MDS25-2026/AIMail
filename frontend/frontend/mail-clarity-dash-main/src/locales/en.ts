@@ -278,6 +278,8 @@ export const en = {
       send: "The reply was not sent. Your draft is unchanged, so try again in a moment.",
       refused:
         "The AI couldn't write a draft for this email, and trying again won't change that. Your text is unchanged: write the reply yourself, or try the other tone.",
+      sendUnknown:
+        "We couldn't confirm whether the reply was sent. Check your Gmail Sent folder before sending again.",
     },
     replaceEdits: "A new draft will replace the changes you typed.",
     replaceConfirm: "Replace my changes",

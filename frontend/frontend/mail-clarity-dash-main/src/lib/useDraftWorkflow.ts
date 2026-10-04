@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { DraftRefusedError } from "./api";
+import { DraftRefusedError, SendOutcomeUnknownError } from "./api";
 import { findRedactionMarkers, hasUnsavedEdits } from "./draftGuards";
 import { useRefineEmail, useRegenerateEmail, useSendEmail } from "./queries";
 import type { Email, Tone } from "../types/email";
@@ -18,6 +18,7 @@ export enum DraftFailure {
   Refine = "refine",
   Send = "send",
   Refused = "refused",
+  SendUnknown = "sendUnknown",
 }
 
 const FAILURE_BY_ACTION: Record<DraftAction, DraftFailure> = {
@@ -25,6 +26,12 @@ const FAILURE_BY_ACTION: Record<DraftAction, DraftFailure> = {
   [DraftAction.Refine]: DraftFailure.Refine,
   [DraftAction.Send]: DraftFailure.Send,
 };
+
+function failureFor(error: unknown, action: DraftAction): DraftFailure {
+  if (error instanceof DraftRefusedError) return DraftFailure.Refused;
+  if (error instanceof SendOutcomeUnknownError) return DraftFailure.SendUnknown;
+  return FAILURE_BY_ACTION[action];
+}
 
 export enum ConfirmKind {
   ReplaceEdits = "replaceEdits",
@@ -102,8 +109,7 @@ export function useDraftWorkflow(email: Email | null) {
     try {
       await run();
     } catch (error) {
-      const failure =
-        error instanceof DraftRefusedError ? DraftFailure.Refused : FAILURE_BY_ACTION[action];
+      const failure = failureFor(error, action);
       if (seq === requestSeqRef.current) setFailed({ emailId: id, value: failure });
       throw error;
     }

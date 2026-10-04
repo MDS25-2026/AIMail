@@ -285,6 +285,8 @@ export const ms: Translations = {
       send: "Balasan tidak dihantar. Draf anda tidak berubah, jadi cuba lagi sebentar lagi.",
       refused:
         "AI tidak dapat menulis draf untuk e-mel ini, dan mencuba lagi tidak akan mengubahnya. Teks anda tidak berubah: tulis balasan sendiri, atau cuba nada yang satu lagi.",
+      sendUnknown:
+        "Kami tidak dapat mengesahkan sama ada balasan telah dihantar. Semak folder Dihantar Gmail anda sebelum menghantar semula.",
     },
     replaceEdits: "Draf baharu akan menggantikan perubahan yang anda taip.",
     replaceConfirm: "Gantikan perubahan saya",

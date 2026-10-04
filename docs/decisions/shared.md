@@ -6,6 +6,19 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-04 — A reply is sent at most once, and the server checks what it sends
+- Decision: `send_reply` splits failures by whether Gmail could have acted. Failing to connect, or an
+  error status from Gmail, is `SendError` (claim released, can be approved again). A read timeout,
+  a cut connection or an unreadable 2xx is `SendOutcomeUnknownError`: the claim is kept, an audit row
+  `send_outcome_unknown` is written, and the route answers `504`. `/send` also refuses empty drafts,
+  drafts with redaction markers (422) and quarantined emails (409). The marker pattern moved to
+  `app/core/redaction.py`, shared with the agent.
+- Why: phase 0 of the 30 Sep audit. Any failure after the POST released the claim, so a second
+  press sent a second copy; and the dashboard's marker warning could be bypassed by calling the API.
+- Affects: Lane B (`app/gmail_send.py`, `app/dashboard.py`, `app/main.py`), Lane C
+  (`email_agent.py` imports the shared pattern), Lane D (`lib/api.ts`, `useDraftWorkflow.ts`).
+- Status: implemented by veyroxie, 2026-10-04.
+
 ### 2026-09-30 — Regenerate and refine report failure instead of returning the old draft
 - Decision: both routes raise `DraftNotUpdatedError` when the draft did not change, answered as
   `502 agent_unavailable`, `422 draft_refused` or `409 masking_pending` (see
