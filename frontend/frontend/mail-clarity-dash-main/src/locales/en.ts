@@ -295,7 +295,7 @@ export const en = {
   signIn: {
     google: "Sign in with Google",
     privacy:
-      "Google only confirms who you are. Nothing is sent from your account without your approval.",
+      "AIMail reads your Gmail to draft replies. Personal details are hidden before any AI sees them, and nothing is sent without your approval.",
     errors: {
       sign_in_failed: "Sign-in didn't finish. Please try again.",
       sign_in_unavailable: "Sign-in isn't available right now. Try again in a few minutes.",
@@ -341,7 +341,7 @@ export const en = {
       },
     },
     footer:
-      "Your Google account is only used to sign you in. AIMail is a final-year project at Monash University Malaysia.",
+      "Signing in with Google lets AIMail read and send your Gmail. AIMail is a final-year project at Monash University Malaysia.",
   },
   account: {
     signOut: "Sign out",

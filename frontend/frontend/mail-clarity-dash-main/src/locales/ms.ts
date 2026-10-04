@@ -302,7 +302,7 @@ export const ms: Translations = {
   signIn: {
     google: "Log masuk dengan Google",
     privacy:
-      "Google hanya mengesahkan siapa anda. Tiada apa-apa dihantar dari akaun anda tanpa kelulusan anda.",
+      "AIMail membaca Gmail anda untuk mendraf balasan. Butiran peribadi disembunyikan sebelum AI melihatnya, dan tiada apa-apa dihantar tanpa kelulusan anda.",
     errors: {
       sign_in_failed: "Log masuk tidak selesai. Sila cuba lagi.",
       sign_in_unavailable: "Log masuk tidak tersedia sekarang. Cuba lagi dalam beberapa minit.",
@@ -349,7 +349,7 @@ export const ms: Translations = {
       },
     },
     footer:
-      "Akaun Google anda hanya digunakan untuk log masuk. AIMail ialah projek tahun akhir di Monash University Malaysia.",
+      "Log masuk dengan Google membenarkan AIMail membaca dan menghantar Gmail anda. AIMail ialah projek tahun akhir di Monash University Malaysia.",
   },
   account: {
     signOut: "Log keluar",

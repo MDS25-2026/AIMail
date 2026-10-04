@@ -22,7 +22,10 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
 - Mailbox scope: a signed-in user sees mail only for a mailbox they own (stage 1: the Gmail account
   the backend is connected to, read at startup; `MAILBOX_OWNER_EMAIL` is a fallback). Anyone else gets `[]` from `GET /emails` and `GET /documents`, and `404` from every
   route about one email, `/search`, `/ask` and document ingestion.
-- Sign-in: `GET /auth/google/start` redirects to Supabase; `GET /auth/callback` sets the session
+- Sign-in: `GET /auth/google/start` redirects to Supabase, asking Google for `gmail.readonly` and
+  `gmail.send` offline with consent (per-user mailboxes, step 2); the callback stores the user's
+  sealed Gmail connection if Gmail read access was granted, and never fails sign-in over it.
+  `GET /auth/callback` sets the session
   and redirects to the dashboard (or to `/signin?error=sign_in_failed|sign_in_unavailable`);
   `GET /auth/session` answers `{email, hasMailbox}`; `POST /auth/session/refresh` and
   `DELETE /auth/session` need `X-AIMail-Client: 1`.

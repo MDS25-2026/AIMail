@@ -7,7 +7,7 @@ secret. Failures are plain exceptions so each caller maps them to its own HTTP e
 import asyncio
 import math
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 
 import httpx
@@ -47,6 +47,13 @@ class Session:
     access_token: str
     refresh_token: str
     expires_in: int
+    user_id: str = ""
+    email: str = ""
+    # Present after an OAuth sign-in that asked the provider for offline access (Google).
+    provider_token: str | None = None
+    provider_refresh_token: str | None = None
+    # The response's field names, never values: says what Supabase sent when a token is missing.
+    fields: tuple[str, ...] = field(default=(), repr=False)
 
 
 def auth_base() -> str:
@@ -131,7 +138,14 @@ def session_from(response: httpx.Response) -> Session:
     if not response.is_success:
         raise SupabaseUnavailableError(f"Supabase answered {response.status_code}")
     payload = response.json()
-    return Session(payload["access_token"], payload["refresh_token"], int(payload["expires_in"]))
+    user = payload.get("user") or {}
+    return Session(
+        payload["access_token"], payload["refresh_token"], int(payload["expires_in"]),
+        user_id=user.get("id", ""), email=user.get("email", ""),
+        provider_token=payload.get("provider_token"),
+        provider_refresh_token=payload.get("provider_refresh_token"),
+        fields=tuple(sorted(payload)),
+    )
 
 
 async def password_session(email: str, password: str) -> Session:

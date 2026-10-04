@@ -280,7 +280,8 @@ export const zh: Translations = {
   },
   signIn: {
     google: "使用 Google 登录",
-    privacy: "Google 仅用于确认您的身份。未经您批准，不会从您的账户发送任何内容。",
+    privacy:
+      "AIMail 会读取您的 Gmail 以起草回复。在 AI 看到之前会隐藏个人信息，未经您批准不会发送任何内容。",
     errors: {
       sign_in_failed: "登录未完成，请重试。",
       sign_in_unavailable: "登录暂时不可用，请几分钟后再试。",
@@ -324,7 +325,8 @@ export const zh: Translations = {
         body: "可以编辑、润色或重新生成。只有在您同意后才会发送。",
       },
     },
-    footer: "您的 Google 账户仅用于登录。AIMail 是马来西亚莫纳什大学的毕业项目。",
+    footer:
+      "使用 Google 登录即允许 AIMail 读取和发送您的 Gmail。AIMail 是马来西亚莫纳什大学的毕业项目。",
   },
   account: {
     signOut: "退出登录",

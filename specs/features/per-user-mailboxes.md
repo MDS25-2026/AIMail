@@ -152,7 +152,10 @@ A code audit of every single-mailbox assumption found these, each checked in cod
 1. ~~Migration and `mailbox_connection`, encryption helpers in Python and Go, with tests.~~ Done
    2026-10-05: migration 0016 (applied), `app/core/token_crypt.py`, `listener/tokencrypt.go`, one
    shared test vector both suites decrypt.
-2. Sign-in requests the scopes and stores the connection.
+2. ~~Sign-in requests the scopes and stores the connection.~~ Done 2026-10-05: `/auth/google/start`
+   asks for Gmail read and send, offline, with consent; the callback checks the granted scopes with
+   Google's tokeninfo and stores the sealed connection (`app/connections.py`); failures are logged
+   and never block sign-in. Verified against Supabase with a throwaway row.
 3. Backend scoping by `user_id`, and sending with the user's token.
 4. Listener multi-mailbox ingest with per-mailbox baselines (Lane A).
 5. Backfill, delete `app/core/mailbox.py`, disconnect flow and its UI.
