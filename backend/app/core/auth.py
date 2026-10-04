@@ -6,6 +6,7 @@ the dashboard's HttpOnly session cookie. Applied app-wide (see main.py), so a ro
 protected by default; exempting a path is a deliberate edit below.
 """
 
+import logging
 import secrets
 from dataclasses import dataclass
 from enum import StrEnum
@@ -26,13 +27,13 @@ _EXEMPT_PREFIXES = ("/auth/",)
 _STATE_CHANGING = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
 _bearer = HTTPBearer(auto_error=False)
+logger = logging.getLogger(__name__)
 
 
 class AuthError(StrEnum):
     SIGNED_OUT = "signed_out"
     SESSION_INVALID = "session_invalid"
     CLIENT_HEADER_MISSING = "client_header_missing"
-    NOT_CONFIGURED = "auth_not_configured"
     SUPABASE_UNAVAILABLE = "supabase_unavailable"
 
 
@@ -62,7 +63,9 @@ async def _user(token: str) -> Principal:
     try:
         claims = await supabase_auth.verify_access_token(token)
     except supabase_auth.SupabaseNotConfiguredError as exc:
-        raise _fail(status.HTTP_503_SERVICE_UNAVAILABLE, AuthError.NOT_CONFIGURED) from exc
+        # Without Supabase no session can be valid, so this credential is invalid, not an outage.
+        logger.warning("a session was presented but Supabase sign-in is not configured: %s", exc)
+        raise _fail(status.HTTP_401_UNAUTHORIZED, AuthError.SESSION_INVALID) from exc
     except supabase_auth.SupabaseUnavailableError as exc:
         raise _fail(status.HTTP_503_SERVICE_UNAVAILABLE, AuthError.SUPABASE_UNAVAILABLE) from exc
     except supabase_auth.InvalidTokenError as exc:

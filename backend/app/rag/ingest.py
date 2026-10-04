@@ -26,6 +26,9 @@ async def ingest_text(source: str, title: str, text: str, *, doc_type: str = "po
     Embedding is resumable: if it fails partway, re-run `embed_pending` and only the unembedded
     chunks are retried.
     """
+    # Nothing to store: answered before masking, which needs Presidio and the settings.
+    if not text.strip():
+        return 0
     chunks = chunk_text(await mask_document(text))
     if not chunks:
         return 0
