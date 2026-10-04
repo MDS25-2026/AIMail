@@ -60,7 +60,7 @@ in my own inbox, with drafts written from my mail, so that I never set anything 
 
 | Column | Type | Notes |
 |---|---|---|
-| `user_id` | `UUID PK` | the Supabase user (`auth.users.id`) |
+| `user_id` | `UUID PK` | the Supabase user id (and the matching `user_profile.id`, see finding 1) |
 | `provider` | `TEXT NOT NULL` | `gmail` (room for `outlook`) |
 | `email` | `TEXT UNIQUE NOT NULL` | the mailbox address Google reported |
 | `refresh_token_encrypted` | `BYTEA NOT NULL` | nonce + AES-GCM ciphertext |
@@ -111,6 +111,33 @@ rows; an index on `(user_id, created_at)` serves the inbox.
 - Does each user get their own knowledge base, or is it shared per company? Recommendation: per
   user for now, matching the per-user mailbox; company-wide sharing is a later feature.
 - The admin console: aggregates across all users, never one user's mail (unchanged rule).
+
+## Audit findings that change the design (2026-10-04)
+
+A code audit of every single-mailbox assumption found these, each checked in code:
+
+1. **`messages.user_id` references `user_profile(id)`, not `auth.users`** (migration 0007), and the
+   backend ORM `Message` has no `user_id` at all. Decision needed: repoint the key to `auth.users`,
+   or create a `user_profile` row per Supabase user with `id = auth uid` (recommended: the
+   personalisation tables already hang off `user_profile`).
+2. **`UNIQUE (gmail_message_id)` is global** (migration 0003), and the listener's "already stored?"
+   check and insert conflict key use it alone. Gmail ids are per mailbox, so a collision would
+   silently drop another user's email. Becomes `UNIQUE (user_id, gmail_message_id)`.
+3. **`document.source` is globally unique** (migration 0001), so one user uploading `policy.pdf`
+   would replace another's. Documents get `user_id`, uniqueness `(user_id, source)`, and retrieval
+   filters by owner (otherwise drafts could be grounded on, and cite, another user's documents).
+4. **The listener's Pub/Sub client authenticates as the mailbox user** (pubsub OAuth scope). End
+   users cannot hold project permissions, so the subscriber moves to a service account; per-user
+   tokens are used only for Gmail.
+5. **The admin console's flagged-drafts list shows individual masked subjects** from every mailbox.
+   With many users that breaks "aggregates only": drop the subject or aggregate it.
+6. **Every message query loads by id alone** (detail, regenerate, refine, translate, send, claim,
+   mark-read) and the thread lookup by `thread_id` alone; all add `user_id`.
+7. **Throughput is global:** the draft poller (2 per cycle), the quarantine loop (one batch of 20)
+   and the rate limiter (per IP, in memory) let one busy mailbox starve the rest; all become fair
+   per user. A revoked token must not crash the listener (`setupWatch` calls `log.Fatalf` today).
+8. **The sign-in copy changes:** "Google only confirms who you are" stops being true once AIMail
+   reads Gmail, and "ask the mailbox owner" becomes a "Connect Gmail" button.
 
 ## Implementation order (each step mergeable)
 
