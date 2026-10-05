@@ -232,3 +232,72 @@ export async function fetchSystemInfo(): Promise<SystemInfo> {
   if (!res.ok) throw new Error(`GET /system/info failed (${res.status})`);
   return res.json();
 }
+
+export type HoldingReplySettings = {
+  enabled: boolean;
+  activeWhen: "outside_hours" | "leave" | "always";
+  workDays: number[];
+  workStart: string;
+  workEnd: string;
+  timezone: string;
+  leaveFrom: string | null;
+  leaveUntil: string | null;
+  audience: "correspondents" | "domain" | "everyone";
+  scope: "needs_reply" | "all";
+  cooldownDays: number;
+  templates: Partial<Record<"en" | "ms" | "zh", string>>;
+  defaultLanguage: "en" | "ms" | "zh";
+};
+
+export type HoldingReplyRecord = {
+  id: string;
+  emailId: string;
+  recipient: string;
+  language: string;
+  scheduledFor: string;
+  sentAt: string | null;
+  cancelledReason: string | null;
+  subject: string;
+};
+
+/** The settings were refused; `code` names the problem (specs/context/api-contracts.md). */
+export class HoldingReplySettingsError extends Error {
+  constructor(readonly code: string) {
+    super(code);
+  }
+}
+
+export async function fetchHoldingReplySettings(): Promise<HoldingReplySettings> {
+  const res = await apiFetch("/settings/holding-reply");
+  if (!res.ok) throw new Error(`GET /settings/holding-reply failed (${res.status})`);
+  return res.json();
+}
+
+export async function saveHoldingReplySettings(
+  settings: HoldingReplySettings,
+): Promise<HoldingReplySettings> {
+  const res = await apiFetch("/settings/holding-reply", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settings),
+  });
+  if (res.status === 422) {
+    const body: unknown = await res.json().catch(() => null);
+    const detail =
+      typeof body === "object" && body !== null && "detail" in body ? body.detail : null;
+    throw new HoldingReplySettingsError(typeof detail === "string" ? detail : "invalid");
+  }
+  if (!res.ok) throw new Error(`PUT /settings/holding-reply failed (${res.status})`);
+  return res.json();
+}
+
+export async function fetchHoldingReplies(): Promise<HoldingReplyRecord[]> {
+  const res = await apiFetch("/holding-replies?limit=20");
+  if (!res.ok) throw new Error(`GET /holding-replies failed (${res.status})`);
+  return res.json();
+}
+
+export async function cancelHoldingReply(id: string): Promise<void> {
+  const res = await apiFetch(`/holding-replies/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`DELETE /holding-replies failed (${res.status})`);
+}

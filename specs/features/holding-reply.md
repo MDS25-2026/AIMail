@@ -1,7 +1,7 @@
 # Holding reply: the user's own words, sent only when they would want it sent
 
-- **Status:** accepted 2026-10-06 (owner: "1 then", the meeting 30 task "quiet hours, auto-reply
-  templates"); building
+- **Status:** built 2026-10-06 (owner: "1 then", the meeting 30 task "quiet hours, auto-reply
+  templates"); live send test with the owner pending
 - **Owner:** veyroxie (touches Lane A, Lane B and Lane D; each lane owner reviews their part)
 - **Related issue:** product brainstorm 2026-09-30 ("safe" and "understood" for a work inbox)
 - **Last updated:** 2026-10-06

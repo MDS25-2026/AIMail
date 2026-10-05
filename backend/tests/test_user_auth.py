@@ -221,3 +221,13 @@ def test_a_token_issued_a_moment_ahead_of_our_clock_is_accepted(client):
               "iat": int(time.time()) + 5, "exp": int(time.time()) + 600}
     client.cookies.set(SESSION_COOKIE, jwt.encode(claims, KEY, algorithm="ES256"))
     assert client.get("/emails").status_code == 200
+
+
+def test_the_dashboard_may_save_settings_with_put(client):
+    # Holding reply settings are saved with PUT; a preflight that refused it broke the Save button
+    # in the browser while direct API calls (no CORS) still worked.
+    response = client.options("/settings/holding-reply", headers={
+        "Origin": "http://localhost:8090", "Access-Control-Request-Method": "PUT",
+        "Access-Control-Request-Headers": "content-type,x-aimail-client"})
+    assert response.status_code == 200
+    assert "PUT" in response.headers.get("access-control-allow-methods", "")
