@@ -163,7 +163,8 @@ A code audit of every single-mailbox assumption found these, each checked in cod
    (`GOOGLE_OAUTH_CLIENT_ID/SECRET`), cached per mailbox; a read-only grant answers `403
    send_not_granted` before anything is claimed. Rows with no owner still send via `token.json`.
 4. Listener multi-mailbox ingest with per-mailbox baselines (Lane A). Built 2026-10-05, for
-   JiaJun's review; live run pending `GOOGLE_OAUTH_CLIENT_SECRET` in `.env`: `listener/mailboxes.go` loads every connection, watches each on the shared
+   JiaJun's review; verified live the same day (a connected user's watch set, baseline saved, 10
+   emails seeded and masked under their user id, the unowned rows untouched): `listener/mailboxes.go` loads every connection, watches each on the shared
    topic, routes notifications by address (unknown ones acked and dropped), seeds a first-time
    inbox with its newest 10 emails, saves each baseline and watch expiry on the connection row,
    and picks up new sign-ups every two minutes. A failing mailbox is logged and retried, never
