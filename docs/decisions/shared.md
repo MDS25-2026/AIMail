@@ -8,8 +8,10 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ### 2026-10-05 — Neutral palette with one navy accent; a colour-blind friendly set readers choose
 - Decision: the dashboard and extension move from blue-tinted greys, navy text and a navy sidebar to
-  true greys, dark-grey text (about 12:1 for body text) and a light sidebar, with navy as the only
-  brand accent (the owner chose option A from rendered previews). Status colours come in two sets
+  neutral dark-grey text (about 12:1 for body text) on white cards, with the brand navy on the
+  sidebar, buttons, links and selection and a faint navy tint on the page (the owner chose option A,
+  found it too grey, then chose "navy sidebar + soft tint" from rendered previews). Text is never
+  tinted. Status colours come in two sets
   readers pick in Settings (the extension's eye button keeps its own copy): the conventional green,
   amber and red, and a colour-blind friendly set (`data-colours="friendly"`) that stays at least
   dE 20 apart under protan, deutan and tritan vision. `check-palette.py` now verifies contrast for

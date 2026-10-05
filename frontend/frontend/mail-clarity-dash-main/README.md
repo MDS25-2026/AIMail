@@ -138,8 +138,8 @@ once in the dashboard with the Google account used in Gmail, open Gmail, and cli
   `text-fg-subtle`, `border-line`, `bg-brand` / `text-on-brand`, and for status `success`,
   `warning`, `danger`, `info` (each with `-soft` and `-line`). Dark mode is then one class on
   `<html>` and needs nothing per component.
-- **Colours live in `scripts/palette.json`.** True-grey neutrals with dark-grey text and one navy
-  accent. Status colours come in two sets that readers choose in Settings (the extension's eye
+- **Colours live in `scripts/palette.json`.** Neutral dark-grey text; brand navy on the sidebar,
+  buttons, links and selection, with a faint navy tint on the page. Status colours come in two sets that readers choose in Settings (the extension's eye
   button keeps its own copy): the standard green, amber and red, and a colour-blind friendly set
   applied by `data-colours="friendly"` on `<html>`. `python3 scripts/check-palette.py` verifies
   WCAG 2.1 contrast for both sets in both themes, and that the friendly set stays distinguishable
