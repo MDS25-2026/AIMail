@@ -15,7 +15,9 @@ TOKENS_PER_WORD = 1.3
 
 # Split on sentence punctuation followed by a capital, so a period inside a number ("1.75",
 # "30 days.") does not trigger a split (it is not followed by whitespace + a capital).
-_SENTENCE_BOUNDARY = re.compile(r"(?<=[.!?])\s+(?=[A-Z])")
+# One space, not \s+: _sentences collapses whitespace first, and a fixed width leaves nothing to
+# backtrack over, so no input can make the split slow (CodeQL py/polynomial-redos).
+_SENTENCE_BOUNDARY = re.compile(r"(?<=[.!?]) (?=[A-Z])")
 
 
 def _extract(reader: PdfReader) -> str:
