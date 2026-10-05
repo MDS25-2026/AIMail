@@ -87,16 +87,36 @@ def thread_context(message: Message, thread: list[Message]) -> str:
     unmasked and is documented as never entering a model payload."""
     before = [m for m in thread if m.received_at and message.received_at
               and m.received_at < message.received_at][-THREAD_CONTEXT_MESSAGES:]
-    return "\n\n".join(
-        # plain_text first: many stored bodies are HTML (#108), and cutting markup first would hand
-        # the model 1500 characters of <style> instead of what was said.
-        f"Earlier message {index}:\n{plain_text(m.body_masked or '')[:THREAD_CONTEXT_CHARS_EACH]}"
-        for index, m in enumerate(before, 1)
-    )
+    return "\n\n".join(_context_entry(index, m) for index, m in enumerate(before, 1))
+
+
+def _context_entry(index: int, earlier: Message) -> str:
+    # plain_text first: many stored bodies are HTML (#108), and cutting markup first would hand
+    # the model 1500 characters of <style> instead of what was said.
+    entry = f"Earlier message {index}:\n{plain_text(earlier.body_masked or '')[:THREAD_CONTEXT_CHARS_EACH]}"
+    if not _sent_reply(earlier):
+        return entry
+    # The owner typed this reply, so it is masked like any typed text (formats, not names).
+    reply = mask_typed_text(plain_text(earlier.draft_reply or ""))[:THREAD_CONTEXT_CHARS_EACH]
+    return f"{entry}\n\nYour reply to earlier message {index}:\n{reply}"
+
+
+def _sent_reply(message: Message) -> bool:
+    return message.sent_at is not None and bool(message.draft_reply)
+
+
+THREAD_SNIPPET_CHARS = 200
 
 
 def _thread_view(thread: list[Message]) -> list[ThreadMessage]:
-    return [ThreadMessage(sender=m.from_addr or "", snippet=m.snippet_masked or "") for m in thread]
+    """Each message in the thread, with the owner's reply right under the one it answered."""
+    view: list[ThreadMessage] = []
+    for m in thread:
+        view.append(ThreadMessage(sender=m.from_addr or "", snippet=m.snippet_masked or ""))
+        if _sent_reply(m):
+            snippet = plain_text(m.draft_reply or "")[:THREAD_SNIPPET_CHARS]
+            view.append(ThreadMessage(sender="", snippet=snippet, isOwnReply=True))
+    return view
 
 
 def _to_email(

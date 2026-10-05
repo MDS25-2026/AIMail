@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -758,6 +759,11 @@ func ingestMessage(ctx context.Context, mb *mailbox, msgID string) error {
 		writeAuditLog(ctx, "fetch_message", fmt.Sprintf("msg %s: no payload", msgID), false)
 		return nil
 	}
+	if isOwnSentReply(msg) {
+		// A reply sent from AIMail lands in the same thread and history can list it; it is
+		// already shown under the email it answers, so storing it would add a fake new email.
+		return nil
+	}
 	identity := threadIdentity(msg)
 	content, isComplete := maskMessage(ctx, mb.srv, msg)
 	if !isComplete {
@@ -789,6 +795,12 @@ func ingestMessage(ctx context.Context, mb *mailbox, msgID string) error {
 	writeAuditLog(ctx, "store_message", fmt.Sprintf("msg %s stored, %d emails / %d phones masked",
 		msgID, content.EmailsMasked, content.PhonesMasked), true)
 	return nil
+}
+
+// isOwnSentReply is a message the mailbox sent, not received. Mail to yourself carries both SENT
+// and INBOX and is still ingested.
+func isOwnSentReply(msg *gmail.Message) bool {
+	return slices.Contains(msg.LabelIds, "SENT") && !slices.Contains(msg.LabelIds, "INBOX")
 }
 
 func fetchMessage(ctx context.Context, srv *gmail.Service, msgID string) (*gmail.Message, error) {

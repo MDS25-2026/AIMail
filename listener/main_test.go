@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"google.golang.org/api/gmail/v1"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -327,5 +328,19 @@ func TestHTMLLinksLoseTheirQueryToo(t *testing.T) {
 	masked, _, _ := maskPII(text)
 	if strings.Contains(masked, "siti.aminah") || !strings.Contains(masked, "https://x.example/login") {
 		t.Fatalf("link not reduced to host and path: %q", masked)
+	}
+}
+
+// A reply sent from AIMail shows up in the mailbox's history in the same thread; it must not be
+// stored as if someone had written in.
+func TestTheMailboxsOwnSentReplyIsNotIngested(t *testing.T) {
+	if !isOwnSentReply(&gmail.Message{LabelIds: []string{"SENT"}}) {
+		t.Fatal("a sent reply would be stored as a new email")
+	}
+	if isOwnSentReply(&gmail.Message{LabelIds: []string{"SENT", "INBOX", "UNREAD"}}) {
+		t.Fatal("mail the owner sent to themselves must still arrive")
+	}
+	if isOwnSentReply(&gmail.Message{LabelIds: []string{"INBOX"}}) {
+		t.Fatal("an ordinary incoming email was skipped")
 	}
 }

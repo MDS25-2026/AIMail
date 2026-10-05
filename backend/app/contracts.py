@@ -41,6 +41,8 @@ class EmailPriority(BaseModel):
 class ThreadMessage(BaseModel):
     sender: str
     snippet: str
+    # A reply the mailbox owner sent from AIMail, shown under the email it answered.
+    isOwnReply: bool = False
 
 
 class Source(BaseModel):

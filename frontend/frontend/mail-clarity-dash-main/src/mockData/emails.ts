@@ -15,9 +15,21 @@ export const mockEmails: Email[] = [
     timestamp: "2026-07-31T09:14:00Z",
     priority: "high",
     threadContext: [
-      { sender: "Dana Whitfield", snippet: "Attaching the redlined MSA for your review." },
-      { sender: "You", snippet: "Thanks — routing to legal today, will revert by Wednesday." },
-      { sender: "Dana Whitfield", snippet: "Legal signed off. Confirm seat count by Friday?" },
+      {
+        sender: "Dana Whitfield",
+        snippet: "Attaching the redlined MSA for your review.",
+        isOwnReply: false,
+      },
+      {
+        sender: "",
+        snippet: "Thanks — routing to legal today, will revert by Wednesday.",
+        isOwnReply: true,
+      },
+      {
+        sender: "Dana Whitfield",
+        snippet: "Legal signed off. Confirm seat count by Friday?",
+        isOwnReply: false,
+      },
     ],
     aiSummary:
       "Dana needs written confirmation of the final seat count (currently 120) so their legal team can countersign the Q3 renewal before Friday.",
@@ -47,8 +59,16 @@ export const mockEmails: Email[] = [
     timestamp: "2026-07-31T08:47:00Z",
     priority: "medium",
     threadContext: [
-      { sender: "Priya Raman", snippet: "Staging pinned to build 412, expected 418." },
-      { sender: "Marco Silva", snippet: "I see a failed migration in the deploy log." },
+      {
+        sender: "Priya Raman",
+        snippet: "Staging pinned to build 412, expected 418.",
+        isOwnReply: false,
+      },
+      {
+        sender: "Marco Silva",
+        snippet: "I see a failed migration in the deploy log.",
+        isOwnReply: false,
+      },
     ],
     aiSummary:
       "Priya is blocked because staging is running an outdated build; a failed migration appears to be the cause and someone with deploy access needs to re-run it.",
@@ -96,7 +116,11 @@ export const mockEmails: Email[] = [
     timestamp: "2026-07-30T16:05:00Z",
     priority: "low",
     threadContext: [
-      { sender: "Conference Ops", snippet: "Reminder: speaker materials due end of month." },
+      {
+        sender: "Conference Ops",
+        snippet: "Reminder: speaker materials due end of month.",
+        isOwnReply: false,
+      },
     ],
     aiSummary:
       "Conference organizers need a 100-word speaker bio and a headshot before the end of the month for the printed program.",
@@ -117,8 +141,8 @@ export const mockEmails: Email[] = [
     timestamp: "2026-07-30T11:32:00Z",
     priority: "low",
     threadContext: [
-      { sender: "Jen Alvarez", snippet: "Booked my flights for the offsite." },
-      { sender: "You", snippet: "Nice — I'm in Monday evening too." },
+      { sender: "Jen Alvarez", snippet: "Booked my flights for the offsite.", isOwnReply: false },
+      { sender: "", snippet: "Nice — I'm in Monday evening too.", isOwnReply: true },
     ],
     aiSummary:
       "Jen is proposing coffee on Tuesday morning before the offsite starts and is waiting on a yes/no plus a time.",

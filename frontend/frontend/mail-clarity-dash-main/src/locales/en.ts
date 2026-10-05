@@ -35,7 +35,7 @@ export const en = {
   },
   summary: { title: "AI summary" },
   actions: { title: "Action items" },
-  thread: { title: "Thread context ({{count}})", show: "Show", hide: "Hide" },
+  thread: { title: "Thread context ({{count}})", show: "Show", hide: "Hide", you: "You" },
   draft: {
     title: "Draft reply",
     regenerate: "Regenerate",

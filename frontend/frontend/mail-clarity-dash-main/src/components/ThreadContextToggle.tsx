@@ -37,7 +37,9 @@ export default function ThreadContextToggle({
         <ul className="space-y-2 border-t border-line-subtle px-4 py-3">
           {messages.map((message, index) => (
             <li key={index} className="text-xs text-fg-muted">
-              <span className="font-medium text-fg-body">{message.sender}: </span>
+              <span className="font-medium text-fg-body">
+                {message.isOwnReply ? t("thread.you") : message.sender}:{" "}
+              </span>
               {message.snippet}
             </li>
           ))}

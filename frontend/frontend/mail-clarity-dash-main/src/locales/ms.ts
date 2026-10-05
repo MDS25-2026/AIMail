@@ -40,7 +40,7 @@ export const ms: Translations = {
   },
   summary: { title: "Ringkasan AI" },
   actions: { title: "Item tindakan" },
-  thread: { title: "Konteks bebenang ({{count}})", show: "Tunjuk", hide: "Sorok" },
+  thread: { title: "Konteks bebenang ({{count}})", show: "Tunjuk", hide: "Sorok", you: "Anda" },
   draft: {
     title: "Draf balasan",
     regenerate: "Jana semula",

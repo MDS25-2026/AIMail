@@ -46,7 +46,10 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
 - `DashboardEmail.threadContext` lists the other masked messages in the same Gmail thread,
   oldest first, as `{ sender, snippet }` (detail and regenerate responses; the list endpoint
   leaves it empty). The draft now sees up to five earlier messages, labelled by position and never
-  by sender address.
+  by sender address. Since 2026-10-05 each entry also has `isOwnReply`: a reply the owner sent from
+  AIMail appears right under the email it answered (`sender` empty, the dashboard shows "You"), and
+  the draft sees it as "Your reply to earlier message N", masked like typed text. The listener no
+  longer stores the mailbox's own sent copy (SENT without INBOX) as a new email.
 - `DashboardEmail.masking` is `"complete"`, `"pending"` (quarantined because NER masking was
   unavailable, #109) or `"abandoned"` (the listener gave up: deleted from Gmail, or never
   maskable). For the last two, subject, body and preview are empty and no draft exists;

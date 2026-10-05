@@ -34,7 +34,7 @@ export const zh: Translations = {
   },
   summary: { title: "AI 摘要" },
   actions: { title: "待办事项" },
-  thread: { title: "会话上下文（{{count}}）", show: "显示", hide: "隐藏" },
+  thread: { title: "会话上下文（{{count}}）", show: "显示", hide: "隐藏", you: "您" },
   draft: {
     title: "回复草稿",
     regenerate: "重新生成",

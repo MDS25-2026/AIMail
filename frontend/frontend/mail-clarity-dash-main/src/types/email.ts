@@ -10,6 +10,8 @@ export type Tone = "professional" | "casual";
 export type ThreadMessage = {
   sender: string;
   snippet: string;
+  /** A reply the reader sent from AIMail, shown under the email it answered. */
+  isOwnReply: boolean;
 };
 
 export type Source = {
