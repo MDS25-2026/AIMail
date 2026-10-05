@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.4.0](https://github.com/MDS25-2026/AIMail/compare/v1.3.0...v1.4.0) (2026-10-05)
+
+
+### Features
+
+* per-user mailboxes, restorable masking, the Chrome extension and conversations ([#159](https://github.com/MDS25-2026/AIMail/issues/159)) ([0d60687](https://github.com/MDS25-2026/AIMail/commit/0d60687b5ac7f36e06e85ba2231d1abc45a0fdfb))
+
+
+### Bug Fixes
+
+* phase 0 of the gap plan, Google sign-in and a landing page ([#139](https://github.com/MDS25-2026/AIMail/issues/139)) ([2348183](https://github.com/MDS25-2026/AIMail/commit/23481834d9cbe1308ed3da0d0c78b15c9b7f9406))
+
 ## [1.3.0](https://github.com/MDS25-2026/AIMail/compare/v1.2.0...v1.3.0) (2026-10-04)
 
 
