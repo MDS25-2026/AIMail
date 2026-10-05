@@ -2,10 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { Trans, useTranslation } from "react-i18next";
 
+import AccountCard from "../components/AccountCard";
 import AppShell from "../components/AppShell";
 import { PageError, PageLoading } from "../components/PageState";
 import { usePreferences } from "../lib/usePreferences";
-import { Language, Theme, UnitSystem } from "../lib/preferences";
+import { Language, StatusColours, Theme, UnitSystem } from "../lib/preferences";
 import { useSystemInfo } from "../lib/queries";
 import { CRITIC_CONFIDENCE_THRESHOLD } from "../types/email";
 
@@ -41,8 +42,9 @@ function SettingsPage() {
           </p>
         </header>
 
-        <div className="mb-4">
+        <div className="mb-4 grid gap-4 lg:grid-cols-2">
           <AppearanceCard />
+          <AccountCard />
         </div>
 
         {info.isPending ? <PageLoading label={t("settings.label")} /> : null}
@@ -93,7 +95,7 @@ function SettingsPage() {
 
 function AppearanceCard() {
   const { t } = useTranslation();
-  const { preferences, setTheme, setLanguage, setUnits } = usePreferences();
+  const { preferences, setTheme, setLanguage, setUnits, setColours } = usePreferences();
 
   return (
     <section className="space-y-3 rounded-lg border border-line bg-surface p-4">
@@ -130,6 +132,16 @@ function AppearanceCard() {
           { value: UnitSystem.Imperial, label: t("settings.imperial") },
         ]}
       />
+      <Choice
+        label={t("settings.colours")}
+        value={preferences.colours}
+        onChange={setColours}
+        options={[
+          { value: StatusColours.Standard, label: t("settings.coloursStandard") },
+          { value: StatusColours.Friendly, label: t("settings.coloursFriendly") },
+        ]}
+      />
+      <p className="text-xs text-fg-muted">{t("settings.coloursHint")}</p>
       <p className="pt-1 text-xs text-fg-subtle">{t("settings.preferencesNote")}</p>
     </section>
   );

@@ -1,5 +1,7 @@
 import { useTranslation } from "react-i18next";
 
+import WithDetails from "./WithDetails";
+
 type ActionItemsListProps = {
   items: string[];
 };
@@ -17,7 +19,9 @@ export default function ActionItemsList({ items }: ActionItemsListProps) {
         {items.map((item, index) => (
           <li key={index} className="flex gap-2 text-sm text-fg-body">
             <span aria-hidden className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />
-            <span>{item}</span>
+            <span>
+              <WithDetails text={item} />
+            </span>
           </li>
         ))}
       </ul>

@@ -56,6 +56,46 @@ The canonical three-table split from [`../features/rag-retrieval.md`](../feature
 
 Index: `CREATE INDEX ON embedding USING hnsw (embedding vector_cosine_ops);`
 
+### Per-user mailboxes: mailbox_connection (migration 0016)
+
+One row per user who connected their Gmail (`specs/features/per-user-mailboxes.md`). RLS on, no
+policies.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `user_id` | `UUID PK` | Supabase auth user id; FK to `user_profile(id)`, which shares the same id; cascades on delete |
+| `provider` | `TEXT NOT NULL` | `gmail` (CHECK); room for `outlook` |
+| `email` | `TEXT UNIQUE NOT NULL` | the mailbox address Google reported |
+| `refresh_token_encrypted` | `BYTEA NOT NULL` | AES-256-GCM: version byte, 12-byte nonce, ciphertext+tag; user id bound as associated data (`app/core/token_crypt.py`, `listener/tokencrypt.go`) |
+| `scopes` | `TEXT[]` | as granted |
+| `history_id` | `BIGINT NULL` | per-mailbox `history.list` baseline |
+| `watch_expires_at` | `TIMESTAMPTZ NULL` | renew before Gmail's seven-day expiry |
+| `created_at` / `updated_at` | `TIMESTAMPTZ` | |
+
+`messages.user_id` (migration 0007) is now mapped in the ORM; it stays nullable until the backfill.
+
+### Owner scoping (migration 0017)
+
+- `document.user_id UUID NULL` (FK `user_profile`, cascade): each user's own knowledge base.
+  Uniqueness is `UNIQUE NULLS NOT DISTINCT (user_id, source)`; the global `document_source_key` is
+  dropped, so two users may both upload `policy.pdf`.
+- `messages`: `UNIQUE NULLS NOT DISTINCT (user_id, gmail_message_id)` added (Gmail ids are per
+  mailbox). The global `messages_gmail_message_id_key` stays until every listener upserts on the
+  new key; step 5 drops it.
+- Index `messages_user_created_idx (user_id, created_at DESC)` serves each user's inbox.
+- **NULL owner** means the original single mailbox (`app/core/mailbox.py`). Those rows are visible
+  only to that mailbox's account, and move to it (`user_id` set) when it connects with Google.
+
+### Restorable masking: messages.pii_vault (migration 0018)
+
+`messages.pii_vault BYTEA NULL`: the email's placeholder-to-value map (`{"[PERSON_1]": "Aisyah"}`)
+as JSON, sealed with `PII_VAULT_KEY` (AES-256-GCM, `app/core/sealed_box.py`), associated data
+`aimail-pii-vault:v1:<user_id or "">:<gmail_message_id>`. Written by the listener with the masked
+row; opened only by the backend, per request. NULL for rows from before this, quarantined rows, and
+once the daily job (`app/vault_retention.py`) empties it: 30 days after arrival
+(`VAULT_RETENTION_DAYS`) or 7 days after the reply was sent. `draft_reply` always holds placeholders,
+never the details themselves.
+
 ### Row-level security (migration 0015)
 
 Every application table has RLS **on with no policies** (2026-10-04). Supabase's REST API serves

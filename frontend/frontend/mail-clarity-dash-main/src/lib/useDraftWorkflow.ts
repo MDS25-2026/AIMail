@@ -1,8 +1,15 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { DraftRefusedError, SendOutcomeUnknownError } from "./api";
-import { findRedactionMarkers, hasUnsavedEdits } from "./draftGuards";
+import {
+  DraftRefusedError,
+  SendNotGrantedError,
+  SendOutcomeUnknownError,
+  UnresolvedPlaceholdersError,
+} from "./api";
+import { detailValues, restoreDetails } from "./details";
+import { useDetailsHidden } from "./detailsVisibility";
+import { findRedactionMarkers, findTemplatePlaceholders, hasUnsavedEdits } from "./draftGuards";
 import { useRefineEmail, useRegenerateEmail, useSendEmail } from "./queries";
 import type { Email, Tone } from "../types/email";
 
@@ -19,6 +26,8 @@ export enum DraftFailure {
   Send = "send",
   Refused = "refused",
   SendUnknown = "sendUnknown",
+  SendNotGranted = "sendNotGranted",
+  Unresolved = "unresolved",
 }
 
 const FAILURE_BY_ACTION: Record<DraftAction, DraftFailure> = {
@@ -30,12 +39,15 @@ const FAILURE_BY_ACTION: Record<DraftAction, DraftFailure> = {
 function failureFor(error: unknown, action: DraftAction): DraftFailure {
   if (error instanceof DraftRefusedError) return DraftFailure.Refused;
   if (error instanceof SendOutcomeUnknownError) return DraftFailure.SendUnknown;
+  if (error instanceof SendNotGrantedError) return DraftFailure.SendNotGranted;
+  if (error instanceof UnresolvedPlaceholdersError) return DraftFailure.Unresolved;
   return FAILURE_BY_ACTION[action];
 }
 
 export enum ConfirmKind {
   ReplaceEdits = "replaceEdits",
   SendMarkers = "sendMarkers",
+  SendTemplates = "sendTemplates",
 }
 
 export type PendingConfirm = { kind: ConfirmKind; markerCount: number };
@@ -71,7 +83,13 @@ const shownOnScreen = () => undefined;
 export function useDraftWorkflow(email: Email | null) {
   const { t } = useTranslation();
   const emailId = email?.id ?? null;
-  const serverDraft = email?.draftReply ?? "";
+  const [isHidingDetails] = useDetailsHidden();
+  // The stored draft holds placeholders; the reader edits it with the real details, and the
+  // backend turns them back into placeholders before anything reaches the AI.
+  const storedDraft = email?.draftReply ?? "";
+  const serverDraft = isHidingDetails
+    ? storedDraft
+    : restoreDetails(storedDraft, detailValues(email?.details));
 
   const [typed, setTyped] = useState<Scoped<string> | null>(null);
   const [chosenTone, setChosenTone] = useState<Scoped<Tone> | null>(null);
@@ -154,6 +172,10 @@ export function useDraftWorkflow(email: Email | null) {
       setPending({ emailId, value: { kind: ConfirmKind.SendMarkers, tone } });
       return;
     }
+    if (findTemplatePlaceholders(draft).length > 0) {
+      setPending({ emailId, value: { kind: ConfirmKind.SendTemplates, tone } });
+      return;
+    }
     startSend(emailId);
   };
 
@@ -171,7 +193,10 @@ export function useDraftWorkflow(email: Email | null) {
     failure: forEmail(failed, emailId),
     pendingConfirm: pendingAction && {
       kind: pendingAction.kind,
-      markerCount: findRedactionMarkers(draft).length,
+      markerCount:
+        pendingAction.kind === ConfirmKind.SendTemplates
+          ? findTemplatePlaceholders(draft).length
+          : findRedactionMarkers(draft).length,
     },
     onConfirm: confirm,
     onCancel: () => setPending(null),

@@ -59,10 +59,10 @@ def client(monkeypatch, test_settings):
     get_settings.cache_clear()
     monkeypatch.setattr(supabase_auth, "_jwks", lambda base: _FakeJwks())
 
-    async def emails():
+    async def emails(scope, policy_email):
         return [EMAIL]
 
-    async def detail(message_id):
+    async def detail(message_id, *, scope):
         return EMAIL
 
     monkeypatch.setattr("app.main.list_dashboard_emails", emails)

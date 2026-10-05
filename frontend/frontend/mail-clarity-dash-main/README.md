@@ -111,6 +111,26 @@ npm i
 npm run dev
 ```
 
+## Chrome extension
+
+The side panel beside Gmail (`specs/features/chrome-extension.md`). Source in `src/extension/`;
+the panel itself is `src/components/SidePanel.tsx`, which the dashboard's `/extension` page also
+renders. Built separately from the dashboard, with no extra dependencies:
+
+```sh
+make extension     # from the repo root: extension-dist/ plus aimail-extension.zip
+```
+
+Install (each tester, about a minute): unzip `aimail-extension.zip`, open `chrome://extensions`,
+turn on **Developer mode**, click **Load unpacked**, and choose the unzipped folder. Then sign in
+once in the dashboard with the Google account used in Gmail, open Gmail, and click the AIMail icon.
+
+- The backend address comes from `VITE_BACKEND_URL` in the repo-root `.env` at build time (it also
+  sets the extension's host permission), so rebuild after changing it.
+- The panel uses the dashboard's session cookie; nothing is stored in the extension.
+- A Gmail tab opened before installing needs one reload.
+- Icons: `extension-public/icons/`, drawn by `scripts/make-extension-icons.py`.
+
 ## Colours, themes and languages
 
 - **Never use raw Tailwind colours** (`bg-white`, `text-slate-700`, `bg-red-50`). Use the semantic
@@ -118,9 +138,13 @@ npm run dev
   `text-fg-subtle`, `border-line`, `bg-brand` / `text-on-brand`, and for status `success`,
   `warning`, `danger`, `info` (each with `-soft` and `-line`). Dark mode is then one class on
   `<html>` and needs nothing per component.
-- **Colours live in `scripts/palette.json`.** `python3 scripts/check-palette.py` verifies WCAG 2.1
-  contrast in both themes and that status colours stay distinguishable under protan, deutan and
-  tritan colour blindness; `--write` regenerates `src/palette.css`. Never edit that file by hand.
+- **Colours live in `scripts/palette.json`.** Neutral dark-grey text; brand navy on the sidebar,
+  buttons, links and selection, with a faint navy tint on the page. Status colours come in two sets that readers choose in Settings (the extension's eye
+  button keeps its own copy): the standard green, amber and red, and a colour-blind friendly set
+  applied by `data-colours="friendly"` on `<html>`. `python3 scripts/check-palette.py` verifies
+  WCAG 2.1 contrast for both sets in both themes, and that the friendly set stays distinguishable
+  under protan, deutan and tritan colour blindness; `--write` regenerates `src/palette.css`. Never
+  edit that file by hand, and do not run Prettier over it.
 - **Status never rests on colour alone** (WCAG 1.4.1): pair it with an icon and words.
 - **Every visible string comes from `src/locales/`** via `useTranslation()`. `en.ts` is the master;
   `ms.ts` and `zh.ts` are typed against it, so a missing key fails `tsc`. Malay and Chinese need a

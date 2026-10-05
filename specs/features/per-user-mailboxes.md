@@ -1,9 +1,9 @@
 # Per-user mailboxes: real sign-up, each user sees their own Gmail
 
-- **Status:** draft (owner's decisions recorded 2026-10-04; listener part pending JiaJun's review)
+- **Status:** steps 1 to 4 built 2026-10-05 (listener part pending JiaJun's review); step 5 open
 - **Owner:** veyroxie; Lane A (JiaJun) for the listener part
 - **Related:** [ADR 0005](../../docs/adr/0005-dashboard-google-sign-in.md) "Stage 2", [google-sign-in.md](./google-sign-in.md), gap-plan epic #138
-- **Last updated:** 2026-10-04
+- **Last updated:** 2026-10-05
 
 ## Goal
 
@@ -120,6 +120,23 @@ rows; an index on `(user_id, created_at)` serves the inbox.
 - ~~The admin console with many users~~ **Decided 2026-10-04:** aggregates only. The flagged-drafts
   list becomes counts by reason; no individual subject or id from any mailbox.
 
+## Disconnect and delete account (step 5, built 2026-10-05)
+
+Both are in Settings > Account, each behind a confirmation that says exactly what is deleted.
+
+- `DELETE /account/gmail` (signed-in user, `X-AIMail-Client: 1`): revokes the stored refresh token
+  at Google (best effort: a failure is logged and the deletion still happens), then in one
+  transaction deletes the user's stored emails (masked text, drafts, summaries, detail vaults) and
+  their `mailbox_connection`. The listener drops the mailbox on its next sync (two minutes) and
+  ignores its notifications from then on. The account, settings and knowledge base stay; signing in
+  again reconnects. `204`; `404 not_connected` if there was no connection.
+- `DELETE /account`: the same, then deletes the user's documents (chunks and embeddings cascade),
+  their profile (preferences and rules cascade), and their Supabase sign-in account, and clears the
+  session cookies. Every step is safe to repeat, so a failure part-way answers `502
+  account_not_fully_deleted` and trying again finishes the job.
+- Scripts holding the shared token get `403 account_only`: there is no account to act on.
+- Audit rows record counts only (`messages_deleted=12`), never content.
+
 ## Audit findings that change the design (2026-10-04)
 
 A code audit of every single-mailbox assumption found these, each checked in code:
@@ -149,8 +166,28 @@ A code audit of every single-mailbox assumption found these, each checked in cod
 
 ## Implementation order (each step mergeable)
 
-1. Migration and `mailbox_connection`, encryption helpers in Python and Go, with tests.
-2. Sign-in requests the scopes and stores the connection.
-3. Backend scoping by `user_id`, and sending with the user's token.
-4. Listener multi-mailbox ingest with per-mailbox baselines (Lane A).
-5. Backfill, delete `app/core/mailbox.py`, disconnect flow and its UI.
+1. ~~Migration and `mailbox_connection`, encryption helpers in Python and Go, with tests.~~ Done
+   2026-10-05: migration 0016 (applied), `app/core/token_crypt.py`, `listener/tokencrypt.go`, one
+   shared test vector both suites decrypt.
+2. ~~Sign-in requests the scopes and stores the connection.~~ Done 2026-10-05: `/auth/google/start`
+   asks for Gmail read and send, offline, with consent; the callback checks the granted scopes with
+   Google's tokeninfo and stores the sealed connection (`app/connections.py`); failures are logged
+   and never block sign-in. Verified against Supabase with a throwaway row.
+3. Backend scoping by `user_id`, and sending with the user's token. Scoping done 2026-10-05:
+   `app/core/ownership.py` (one `Scope` used by every email and document query), migration 0017,
+   and the original mailbox's rows hand over to its account when it connects. Sending done the
+   same day: each reply uses the owner's own sealed token, refreshed with the Google web client
+   (`GOOGLE_OAUTH_CLIENT_ID/SECRET`), cached per mailbox; a read-only grant answers `403
+   send_not_granted` before anything is claimed. Rows with no owner still send via `token.json`.
+4. Listener multi-mailbox ingest with per-mailbox baselines (Lane A). Built 2026-10-05, for
+   JiaJun's review; verified live the same day (a connected user's watch set, baseline saved, 10
+   emails seeded and masked under their user id, the unowned rows untouched): `listener/mailboxes.go` loads every connection, watches each on the shared
+   topic, routes notifications by address (unknown ones acked and dropped), seeds a first-time
+   inbox with its newest 10 emails, saves each baseline and watch expiry on the connection row,
+   and picks up new sign-ups every two minutes. A failing mailbox is logged and retried, never
+   fatal. Rows carry `user_id`; duplicates are judged per mailbox (`on_conflict=user_id,gmail_message_id`).
+   Interim: Pub/Sub still authenticates as the `token.json` account (finding 4).
+5. ~~Disconnect flow and its UI~~ done 2026-10-05 (see "Disconnect and delete account"; checked
+   live with throwaway accounts). Still open: backfill and delete `app/core/mailbox.py`. Also: drop the global
+   `messages_gmail_message_id_key`; the admin console to counts only (finding 5, decided
+   2026-10-04); fair per-user throughput (finding 7); Pub/Sub on a service account (finding 4).

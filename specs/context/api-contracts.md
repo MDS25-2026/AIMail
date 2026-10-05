@@ -22,7 +22,36 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
 - Mailbox scope: a signed-in user sees mail only for a mailbox they own (stage 1: the Gmail account
   the backend is connected to, read at startup; `MAILBOX_OWNER_EMAIL` is a fallback). Anyone else gets `[]` from `GET /emails` and `GET /documents`, and `404` from every
   route about one email, `/search`, `/ask` and document ingestion.
-- Sign-in: `GET /auth/google/start` redirects to Supabase; `GET /auth/callback` sets the session
+- **Account (2026-10-05, `specs/features/per-user-mailboxes.md` "Disconnect and delete account"):**
+  `DELETE /account/gmail` revokes the Google token, deletes the user's stored emails and their
+  connection (`204`; `404 not_connected`). `DELETE /account` also deletes their documents, profile
+  and Supabase sign-in, and clears the session cookies (`204`; `502 account_not_fully_deleted`, safe
+  to repeat). Both need a signed-in user (`403 account_only` for the script token) and, with a
+  cookie, `X-AIMail-Client: 1`.
+- **Restorable masking (2026-10-05, `specs/features/restorable-masking.md`):** stored text carries
+  numbered placeholders (`[PERSON_1]`, `[PHONE_2]`, kinds PERSON, EMAIL, PHONE, IC, PASSPORT,
+  ACCOUNT, CARD, LOCATION, ORG), numbered once per thread. Detail, regenerate, refine and send
+  responses add `details: [{placeholder, value, kind}]`, the owner's real values for display (on the
+  list endpoint, each row carries its own email's details in that email's numbering; empty for older
+  emails and once a vault expires). A draft sent with real details
+  typed in is accepted; the backend stores it with placeholders. `POST /emails/{id}/send` adds
+  `422 unresolved_placeholders` (a placeholder no vault can fill). Lane C: `/process-email` and
+  `/refine` accept `sign_off` (the owner's name as a placeholder, never the name); payloads still
+  never carry a real detail.
+- `GET /emails/by-thread/{thread_id}` (2026-10-05, the Chrome extension): the newest of the
+  signed-in user's messages in that Gmail thread, as `GET /emails/{id}` returns it (generating the
+  draft if needed). `thread_id` must be 8 to 24 lowercase hex characters (`422` otherwise); `404`
+  when the user has no message in that thread. Same scope rules as every email route.
+- **Per-user scope (per-user mailboxes, step 3):** every email and document route answers only for
+  the signed-in user's own rows (`app/core/ownership.py`). Another user's email id answers `404`,
+  exactly like an unknown id; `GET /emails` and `GET /documents` return `[]` for a user with no
+  connected Gmail; `/search`, `/ask` and drafting ground only on the user's own documents;
+  `GET /auth/session`'s `hasMailbox` is true when the user has connected Gmail (or owns the
+  original single mailbox). The shared script token still sees everything.
+- Sign-in: `GET /auth/google/start` redirects to Supabase, asking Google for `gmail.readonly` and
+  `gmail.send` offline with consent (per-user mailboxes, step 2); the callback stores the user's
+  sealed Gmail connection if Gmail read access was granted, and never fails sign-in over it.
+  `GET /auth/callback` sets the session
   and redirects to the dashboard (or to `/signin?error=sign_in_failed|sign_in_unavailable`);
   `GET /auth/session` answers `{email, hasMailbox}`; `POST /auth/session/refresh` and
   `DELETE /auth/session` need `X-AIMail-Client: 1`.
@@ -37,7 +66,13 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
 - `DashboardEmail.threadContext` lists the other masked messages in the same Gmail thread,
   oldest first, as `{ sender, snippet }` (detail and regenerate responses; the list endpoint
   leaves it empty). The draft now sees up to five earlier messages, labelled by position and never
-  by sender address.
+  by sender address. Since 2026-10-05 each entry also has `isOwnReply`: a reply the owner sent from
+  AIMail appears right under the email it answered (`sender` empty, the dashboard shows "You"), and
+  the draft sees it as "Your reply to earlier message N", masked like typed text. The listener no
+  longer stores the mailbox's own sent copy (SENT without INBOX) as a new email. Since the
+  conversation view (`specs/features/conversation-view.md`), each entry also carries `body` (the
+  full masked body, placeholders renumbered for the thread) and `timestamp` (received, or for the
+  owner's reply, sent), and `DashboardEmail.threadId` lets the inbox show one row per thread.
 - `DashboardEmail.masking` is `"complete"`, `"pending"` (quarantined because NER masking was
   unavailable, #109) or `"abandoned"` (the listener gave up: deleted from Gmail, or never
   maskable). For the last two, subject, body and preview are empty and no draft exists;
@@ -71,6 +106,9 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   `504` `send_outcome_unknown` means Gmail may have sent the reply but its answer was lost; the email
   stays marked sent so it is never sent twice, and the reader should check Gmail's Sent folder.
   `502` `send_failed` still means Gmail never accepted it, and it can be approved again.
+  Per-user mailboxes (2026-10-05): the reply goes out from the Gmail account the email arrived in,
+  with that user's own token; `403` `send_not_granted` means the owner let AIMail read their Gmail
+  but not send, and nothing was claimed (signing in again and ticking "send" fixes it).
 - `POST /emails/{id}/regenerate` and `POST /emails/{id}/refine` no longer answer `200` with the
   old draft when nothing changed (2026-09-30). They answer `502` `agent_unavailable` (the agent
   or retrieval failed; retry later), `422` `draft_refused` (regenerate only: the model failed on

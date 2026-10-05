@@ -29,7 +29,9 @@ export const ms: Translations = {
       "E-mel baharu dipaparkan di sini beberapa saat selepas tiba di peti masuk Gmail anda.",
     noMailboxTitle: "Tiada peti mel disambungkan",
     noMailboxHint:
-      "Akaun ini belum dipautkan kepada peti mel. Minta pemilik peti mel menyambungkan peti mel anda.",
+      "Log keluar, kemudian log masuk dengan Google semula dan benarkan AIMail membaca Gmail anda.",
+    conversations_one: "{{count}} perbualan",
+    conversations_other: "{{count}} perbualan",
   },
   priority: { high: "Segera", medium: "Sederhana", low: "Rendah" },
   detail: {
@@ -40,7 +42,7 @@ export const ms: Translations = {
   },
   summary: { title: "Ringkasan AI" },
   actions: { title: "Item tindakan" },
-  thread: { title: "Konteks bebenang ({{count}})", show: "Tunjuk", hide: "Sorok" },
+  thread: { title: "Konteks bebenang ({{count}})", show: "Tunjuk", hide: "Sorok", you: "Anda" },
   draft: {
     title: "Draf balasan",
     regenerate: "Jana semula",
@@ -189,6 +191,40 @@ export const ms: Translations = {
     no: "Tidak",
     poll: "Selang tinjauan",
     seconds: "{{count}}s",
+    colours: "Warna",
+    coloursStandard: "Standard",
+    coloursFriendly: "Mesra buta warna",
+    coloursHint:
+      "Mesra buta warna memastikan berjaya, amaran dan bahaya mudah dibezakan bagi penglihatan buta merah, hijau atau biru. Setiap status juga mempunyai label teks.",
+  },
+  details: {
+    hiddenFromAi: "Disembunyikan daripada AI; hanya ditunjukkan kepada anda",
+    hide: "Sembunyikan butiran",
+    show: "Tunjuk butiran",
+    unavailable:
+      "Sesetengah butiran tidak lagi disimpan di sini. Buka e-mel dalam Gmail untuk melihatnya.",
+  },
+  account: {
+    title: "Akaun",
+    signedInAs: "Log masuk sebagai {{email}}.",
+    cancel: "Batal",
+    working: "Sedang diproses…",
+    disconnect: "Putuskan Gmail",
+    disconnectTitle: "Putuskan Gmail?",
+    disconnectBody:
+      "AIMail berhenti membaca Gmail anda dan akses Google untuk AIMail dibatalkan.\nSetiap e-mel yang disimpan oleh AIMail, bersama draf, ringkasan dan butiran tersembunyi, akan dipadam. Tiada apa-apa dipadam daripada Gmail.\nAkaun, tetapan dan dokumen anda kekal. Log masuk semula untuk menyambung.",
+    disconnected: "Gmail telah diputuskan. Log masuk semula bila-bila masa untuk menyambung.",
+    disconnectFailed:
+      "Tidak dapat memutuskan. Tiada apa-apa dipadam daripada Gmail; cuba lagi sebentar lagi.",
+    delete: "Padam akaun",
+    deleteTitle: "Padam akaun AIMail anda?",
+    deleteBody:
+      "Ini memadam semua yang disimpan oleh AIMail untuk anda: e-mel, draf, ringkasan dan butiran tersembunyi, dokumen, tetapan dan log masuk anda. Akses Google untuk AIMail dibatalkan.\nTiada apa-apa dipadam daripada Gmail. Tindakan ini tidak boleh dibuat asal.",
+    deleteTypeEmail: "Taip {{email}} untuk mengesahkan.",
+    deleteFailed:
+      "Belum semuanya dipadam. Cuba lagi untuk selesaikan; apa yang telah dipadam tidak akan kembali.",
+    signOut: "Log keluar",
+    signingOut: "Sedang log keluar…",
   },
   extension: {
     heading: "Pratonton panel sambungan",
@@ -197,6 +233,28 @@ export const ms: Translations = {
     emptyTitle: "Tiada e-mel untuk dipratonton",
     emptyHint: "Hantar mesej ke peti mel yang disambungkan dan ia akan muncul di sini.",
     panel: "Panel sambungan",
+    loading: "Memuatkan…",
+    preparing: "Menyediakan draf untuk e-mel ini…",
+    loadFailed: "Tidak dapat memuatkan e-mel ini daripada AIMail.",
+    notGmailTitle: "Buka Gmail untuk menggunakan AIMail",
+    notGmailHint: "AIMail berfungsi di sebelah peti masuk Gmail anda. Tukar ke tab Gmail.",
+    reloadTitle: "Muat semula Gmail sekali",
+    reloadHint:
+      "Tab Gmail ini dibuka sebelum AIMail dipasang. Muat semula dan AIMail akan mengikut e-mel yang anda buka.",
+    noEmailTitle: "Buka satu e-mel",
+    noEmailHint: "Pilih e-mel dalam Gmail dan ringkasan serta balasannya akan muncul di sini.",
+    notFoundTitle: "AIMail belum menerima e-mel ini",
+    notFoundHint:
+      "Hanya e-mel yang tiba selepas anda menyambung, dalam akaun yang anda log masuk ({{account}}), muncul di sini. Jika Gmail menunjukkan akaun lain, tukar kepadanya.",
+    signedOutTitle: "Log masuk ke AIMail",
+    signedOutHint:
+      "Log masuk sekali dengan akaun Google yang anda gunakan dalam Gmail. Tab log masuk akan ditutup sendiri apabila selesai.",
+    summary: "Ringkasan",
+    showMore_one: "Tunjuk lagi · {{count}} tindakan",
+    showMore_other: "Tunjuk lagi · {{count}} tindakan",
+    showLess: "Tunjuk kurang",
+    sources: "Sumber ({{count}})",
+    friendlyColours: "Warna mesra buta warna",
   },
   quarantine: {
     badge: "Menunggu penyamaran",
@@ -289,6 +347,10 @@ export const ms: Translations = {
         "AI tidak dapat menulis draf untuk e-mel ini, dan mencuba lagi tidak akan mengubahnya. Teks anda tidak berubah: tulis balasan sendiri, atau cuba nada yang satu lagi.",
       sendUnknown:
         "Kami tidak dapat mengesahkan sama ada balasan telah dihantar. Semak folder Dihantar Gmail anda sebelum menghantar semula.",
+      sendNotGranted:
+        "AIMail tidak dibenarkan menghantar daripada Gmail anda. Log keluar, log masuk semula dan tandakan kotak yang membenarkan AIMail menghantar e-mel. Draf anda tidak berubah.",
+      unresolved:
+        "Balasan ini mempunyai pemegang tempat yang tidak dapat diisi oleh AIMail, seperti [PERSON_3]. Taip butiran sebenar di tempatnya, kemudian hantar.",
     },
     replaceEdits: "Draf baharu akan menggantikan perubahan yang anda taip.",
     replaceConfirm: "Gantikan perubahan saya",
@@ -298,11 +360,15 @@ export const ms: Translations = {
       "Balasan ini masih mengandungi {{count}} butiran tersembunyi, seperti [Redacted]. Penerima akan melihatnya begitu sahaja. Taip butiran sebenar sebelum menghantar.",
     sendAnyway: "Hantar juga",
     keepEditing: "Teruskan menyunting",
+    sendTemplates_one:
+      "Balasan ini masih mempunyai {{count}} ruang dalam kurungan, seperti [Your Name]. Penerima akan melihatnya begitu sahaja.",
+    sendTemplates_other:
+      "Balasan ini masih mempunyai {{count}} ruang dalam kurungan, seperti [Your Name]. Penerima akan melihatnya begitu sahaja.",
   },
   signIn: {
     google: "Log masuk dengan Google",
     privacy:
-      "Google hanya mengesahkan siapa anda. Tiada apa-apa dihantar dari akaun anda tanpa kelulusan anda.",
+      "AIMail membaca Gmail anda untuk mendraf balasan. Butiran peribadi disembunyikan sebelum AI melihatnya, dan tiada apa-apa dihantar tanpa kelulusan anda.",
     errors: {
       sign_in_failed: "Log masuk tidak selesai. Sila cuba lagi.",
       sign_in_unavailable: "Log masuk tidak tersedia sekarang. Cuba lagi dalam beberapa minit.",
@@ -318,7 +384,7 @@ export const ms: Translations = {
     pillars: {
       private: {
         title: "Privasi sejak awal",
-        body: "Butiran peribadi disembunyikan di pihak kami sebelum AI melihat apa-apa, termasuk lampiran. Gambar kad pengenalan tidak dihantar langsung.",
+        body: "Butiran peribadi disembunyikan di pihak kami sebelum AI melihat apa-apa, termasuk lampiran, dan hanya disimpan dalam bentuk tersulit supaya balasan anda masih boleh menggunakannya. Gambar kad pengenalan tidak dihantar langsung.",
       },
       approve: {
         title: "Anda meluluskan setiap penghantaran",
@@ -349,11 +415,7 @@ export const ms: Translations = {
       },
     },
     footer:
-      "Akaun Google anda hanya digunakan untuk log masuk. AIMail ialah projek tahun akhir di Monash University Malaysia.",
-  },
-  account: {
-    signOut: "Log keluar",
-    signingOut: "Sedang log keluar…",
+      "Log masuk dengan Google membenarkan AIMail membaca dan menghantar Gmail anda. AIMail ialah projek tahun akhir di Monash University Malaysia.",
   },
   announce: {
     regenerated: "Draf dijana semula",

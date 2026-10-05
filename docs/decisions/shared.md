@@ -6,6 +6,90 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-05 — Restorable masking: numbered placeholders and an encrypted per-email vault
+- Decision: the listener masks each detail as a numbered placeholder (`[PERSON_1]`) instead of a
+  fixed marker and seals the placeholder-to-value map into `messages.pii_vault` with `PII_VAULT_KEY`
+  (owner and Gmail id as associated data). The backend opens a thread's vaults per request to show
+  the owner the real details, turns typed text back into placeholders before the agent, and fills
+  placeholders in when sending; `draft_reply` keeps placeholders. Vaults expire after 30 days, or
+  7 days after the reply. The owner's sign-off is itself a placeholder. Full design: ADR 0006 and
+  `specs/features/restorable-masking.md`.
+- Why: masking hid details from the person replying too (the 5 Oct test could not greet "Aisyah"),
+  and a forgotten marker reached customers as "[Redacted]". The AI's view does not change.
+- Affects: Lane A (placeholders, Go-side replacement, vault sealing; the Presidio anonymizer is no
+  longer used), Lane B (vault opening, thread map, send fill-in, `details`, retention job), Lane C
+  (`email_agent.py`: placeholder rule in the generator, refine and critic; `sign_off` field;
+  placeholder numbers are not figures; translations preserve placeholders), Lane D (highlighted
+  details, Hide details, template-gap warning). JiaJun, Hanif and Han to review their parts.
+- Known limit: if an earlier email in a thread is released from quarantine after a draft was
+  written, later placeholder numbers shift; the editor shows the restored text, so the reader sees
+  the name before sending (not in Hide details mode).
+- Status: built 2026-10-05, migration 0018 applied; live end-to-end check pending `PII_VAULT_KEY`.
+
+### 2026-10-05 — Neutral palette with one navy accent; a colour-blind friendly set readers choose
+- Decision: the dashboard and extension move from blue-tinted greys, navy text and a navy sidebar to
+  neutral dark-grey text (about 12:1 for body text) on white cards, with the brand navy on the
+  sidebar, buttons, links and selection and a faint navy tint on the page (the owner chose option A,
+  found it too grey, then chose "navy sidebar + soft tint" from rendered previews). Text is never
+  tinted. Status colours come in two sets
+  readers pick in Settings (the extension's eye button keeps its own copy): the conventional green,
+  amber and red, and a colour-blind friendly set (`data-colours="friendly"`) that stays at least
+  dE 20 apart under protan, deutan and tritan vision. `check-palette.py` now verifies contrast for
+  both sets in both themes and the colour-blind separation of the friendly set.
+- Why: "too blue" was the neutrals, not the buttons (every grey carried 20 to 29% blue); the 60-30-10
+  rule keeps colour for what should stand out. Teal, green and rust accents were rejected because
+  they merge with "success" for red-green colour-blind readers.
+- Affects: Lane D only (palette, preferences, Settings, extension panel). Han to be told.
+- Status: built 2026-10-05.
+
+### 2026-10-05 — The Chrome extension is built, from the dashboard project, on the session cookie
+- Decision: the extension (proposal Goal 1) is a Manifest V3 side panel built from the dashboard
+  project (`vite.extension.config.ts`, no new dependency), reusing its components; the dashboard's
+  `/extension` preview renders the same `SidePanel`. A content script reads only the open thread's
+  id; the panel calls the new `GET /emails/by-thread/{thread_id}` with the dashboard's HttpOnly
+  session cookie, so no credential lives in the extension. This deviates from ADR 0005, which
+  planned a Supabase bearer token for the extension; whether Chrome sends the SameSite=Strict
+  cookie from the extension is pending the owner's live test, with the bearer flow as fallback. Distributed unpacked (`make extension`); the Web Store is a later, operational step.
+- Why: the owner chose to read originals in Gmail through the extension (restorable-masking.md),
+  and asked for it to be streamlined. Gmail shows the thread, so the panel drops the thread list
+  and folds the summary and sources.
+- Affects: Lane D (new `src/extension/`, `SidePanel`, `PanelSummary`; `ExtensionPanel` removed;
+  `readPreferences` moved to its own file so shared code builds without TanStack Start), Lane B
+  (the route). Han to be told.
+- Status: built 2026-10-05; the panel's states were rendered in headless Chromium against the real
+  backend; the live check inside Gmail is the owner's.
+
+### 2026-10-05 — Per-user mailboxes: every row has an owner, every query is scoped to it
+- Decision: each user who signs in with Google and grants Gmail access gets a `mailbox_connection`
+  row (sealed refresh token, migration 0016). Every email and document query filters on the
+  owner (`app/core/ownership.py`); another user's email id answers `404`, like an unknown id.
+  `GET /auth/session`'s `hasMailbox` means "has connected Gmail, or owns the original mailbox".
+  Rows with no owner are the original `token.json` mailbox's, visible only to its account, and
+  move to it when it connects. Knowledge bases are per user (`document.user_id`, migration 0017).
+- Why: the owner asked that anyone can sign up and see their own Gmail, and that each user see
+  only their own mail (ADR 0005 stage 2; `specs/features/per-user-mailboxes.md`).
+- Affects: Lane B (every route), Lane C (none: payloads unchanged), Lane D (`hasMailbox` text,
+  `send_not_granted`), Lane A (rows carry `user_id`).
+- Status: built by veyroxie on `feat/per-user-mailboxes`; migrations 0016 and 0017 applied.
+
+### 2026-10-05 — `403 send_not_granted`; replies go out from the owner's own Gmail
+- Decision: a reply uses its email owner's own refresh token, refreshed with the Google web client
+  configured in Supabase (`GOOGLE_OAUTH_CLIENT_ID/SECRET`). A user who granted read but not send
+  gets `403 send_not_granted` before anything is claimed. Unowned rows still send via `token.json`.
+- Why: Google lets people untick "send" on the consent screen; a 502 would wrongly say "try again".
+- Status: built 2026-10-05; live send pending the client secret in `.env`.
+
+### 2026-10-05 — The listener's duplicate key is per mailbox; Pub/Sub auth is interim
+- Decision: the listener upserts on `(user_id, gmail_message_id)` (`UNIQUE NULLS NOT DISTINCT`,
+  migration 0017), since Gmail ids are only unique per mailbox. The old global
+  `messages_gmail_message_id_key` stays until every running listener uses the new key; step 5
+  drops it. Pub/Sub still authenticates as the `token.json` account until a service account
+  replaces it (audit finding 4). Only one listener should run on the subscription: Pub/Sub splits
+  notifications between subscribers, so an old listener would take some users' notifications
+  (the per-mailbox baseline recovers them on the next one).
+- Affects: Lane A (`listener/mailboxes.go`, `dedupe.go`, `quarantine.go`), for JiaJun's review.
+- Status: built 2026-10-05; live run pending the client secret in `.env`.
+
 ### 2026-10-04 — Row-level security on every table
 - Decision: migration 0015 enables RLS on all nine application tables with no policies, so the
   REST API answers nothing to the publishable key or a user's token. New tables enable it in the

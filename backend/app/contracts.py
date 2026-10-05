@@ -9,13 +9,13 @@ from datetime import datetime
 from typing import Literal, TypedDict
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ContextChunk(TypedDict):
     """Seam 2 — Lane B retrieval -> Lane C generation (in-process).
 
-    Returned by `retrieve(masked_email, k)`; Lane C builds its prompt from these.
+    Returned by `retrieve(masked_email, k, scope=...)`; Lane C builds its prompt from these.
     """
 
     chunk_id: UUID
@@ -41,6 +41,12 @@ class EmailPriority(BaseModel):
 class ThreadMessage(BaseModel):
     sender: str
     snippet: str
+    # A reply the mailbox owner sent from AIMail, shown under the email it answered.
+    isOwnReply: bool = False
+    # The full masked body and when it arrived (or, for the owner's reply, was sent): the
+    # conversation view expands earlier messages in place (specs/features/conversation-view.md).
+    body: str = ""
+    timestamp: str | None = None
 
 
 class Source(BaseModel):
@@ -65,6 +71,14 @@ class QuantityView(BaseModel):
     system: Literal["metric", "imperial"]
     metric: MeasureView
     imperial: MeasureView
+
+
+class Detail(BaseModel):
+    """A personal detail the AI saw only as its placeholder (restorable masking). Owner only."""
+
+    placeholder: str  # "[PERSON_1]"
+    value: str
+    kind: str  # "PERSON", "PHONE", ...
 
 
 class DashboardEmail(BaseModel):
@@ -97,6 +111,11 @@ class DashboardEmail(BaseModel):
     masking: Literal["complete", "pending", "abandoned"] = "complete"
     # Where an approved reply goes when the sender set a Reply-To; null means it goes to `sender`.
     replyTo: str | None = None
+    # The Gmail thread, so the dashboard can show one inbox row per conversation.
+    threadId: str | None = None
+    # The real details behind this email's, its thread's and its draft's placeholders. Detail
+    # responses only; empty on the list and for emails stored before restorable masking.
+    details: list[Detail] = Field(default_factory=list)
 
 
 _PRIORITY_LABELS: dict[int, Literal["low", "medium", "high"]] = {0: "low", 1: "medium", 2: "high"}

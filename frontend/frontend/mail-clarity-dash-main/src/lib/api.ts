@@ -15,15 +15,41 @@ export class SignedOutError extends Error {}
 
 type ApiInit = Omit<RequestInit, "headers" | "credentials"> & { headers?: Record<string, string> };
 
-/** A backend call carrying the HttpOnly session cookie; there is no token in the browser. */
-async function apiFetch(path: string, init: ApiInit = {}): Promise<Response> {
-  const res = await fetch(`${BASE}${path}`, {
+function send(path: string, init: ApiInit): Promise<Response> {
+  return fetch(`${BASE}${path}`, {
     ...init,
     credentials: "include",
     headers: { ...CLIENT_HEADER, ...init.headers },
   });
-  if (res.status === 401) throw new SignedOutError(`${init.method ?? "GET"} ${path} needs sign-in`);
-  return res;
+}
+
+// Shared by every call that finds the session expired at once: a refresh token can be spent only
+// once, so a second, parallel renewal would be refused and sign the reader out.
+let renewing: Promise<boolean> | null = null;
+
+/** Trade the refresh cookie for a new session (the access cookie lasts an hour, this one a week). */
+function renewSession(): Promise<boolean> {
+  renewing ??= send("/auth/session/refresh", { method: "POST" })
+    .then((res) => res.ok)
+    .finally(() => {
+      renewing = null;
+    });
+  return renewing;
+}
+
+/**
+ * A backend call carrying the HttpOnly session cookie; there is no token in the browser. An expired
+ * session is renewed once and the call retried, so the reader is only asked to sign in again when
+ * the refresh cookie is gone too.
+ */
+async function apiFetch(path: string, init: ApiInit = {}): Promise<Response> {
+  const res = await send(path, init);
+  if (res.status !== 401) return res;
+  if (await renewSession()) {
+    const retried = await send(path, init);
+    if (retried.status !== 401) return retried;
+  }
+  throw new SignedOutError(`${init.method ?? "GET"} ${path} needs sign-in`);
 }
 
 export type SessionInfo = { email: string; hasMailbox: boolean };
@@ -55,15 +81,43 @@ export async function fetchEmail(id: string): Promise<Email> {
   return res.json();
 }
 
+/** Stop AIMail reading the reader's Gmail and delete what it stored from it (Settings > Account). */
+export async function disconnectGmail(): Promise<void> {
+  const res = await apiFetch("/account/gmail", { method: "DELETE" });
+  if (!res.ok) throw await apiError(res, `DELETE /account/gmail failed (${res.status})`);
+}
+
+/** Delete everything the reader has in AIMail, then their sign-in. Safe to try again. */
+export async function deleteAccount(): Promise<void> {
+  const res = await apiFetch("/account", { method: "DELETE" });
+  if (!res.ok) throw await apiError(res, `DELETE /account failed (${res.status})`);
+}
+
+/** The newest of the reader's emails in a Gmail thread, or null when AIMail has none (extension). */
+export async function fetchEmailByThread(threadId: string): Promise<Email | null> {
+  const res = await apiFetch(`/emails/by-thread/${encodeURIComponent(threadId)}`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`GET /emails/by-thread failed (${res.status})`);
+  return res.json();
+}
+
 /** The model failed on this email's content (422 draft_refused); retrying cannot change that. */
 export class DraftRefusedError extends Error {}
 
 /** Gmail may have sent the reply but the answer was lost (504 send_outcome_unknown). Never retry blind. */
 export class SendOutcomeUnknownError extends Error {}
 
+/** A placeholder in the reply has no value to fill in (422 unresolved_placeholders). */
+export class UnresolvedPlaceholdersError extends Error {}
+
+/** The owner let AIMail read their Gmail but not send from it (403 send_not_granted). */
+export class SendNotGrantedError extends Error {}
+
 const ERROR_BY_DETAIL: Record<string, new (message: string) => Error> = {
   draft_refused: DraftRefusedError,
   send_outcome_unknown: SendOutcomeUnknownError,
+  send_not_granted: SendNotGrantedError,
+  unresolved_placeholders: UnresolvedPlaceholdersError,
 };
 
 /** The typed error for a failed call, chosen by the backend's `detail` code. */

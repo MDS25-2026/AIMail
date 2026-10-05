@@ -27,7 +27,7 @@ def test_a_bad_id_is_404(api_client, monkeypatch):
 
 
 def test_an_unfaithful_translation_surfaces_as_422_with_its_code(api_client, monkeypatch):
-    async def refused(message_id: str, language: str):
+    async def refused(message_id: str, language: str, *, scope):
         raise dashboard.TranslationError("translation_unfaithful", 422)
 
     monkeypatch.setattr("app.main.translate_email", refused)

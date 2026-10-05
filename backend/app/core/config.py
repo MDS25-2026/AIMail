@@ -27,6 +27,17 @@ class Settings(BaseSettings):
     # Dashboard sign-in (docs/adr/0005): Supabase sends the user back to BACKEND_PUBLIC_URL, which
     # sends them on to DASHBOARD_URL once the session cookies are set.
     backend_public_url: str = "http://localhost:8000"
+    # Encrypts stored Google refresh tokens (app/core/token_crypt.py): 32 random bytes, base64.
+    # Empty means no token can be stored or read (fail closed). Shared with the listener.
+    token_encryption_key: str = ""
+    # Encrypts each email's personal-detail vault (specs/features/restorable-masking.md): 32 random
+    # bytes, base64, shared with the listener. Empty means details are never stored or shown.
+    pii_vault_key: str = ""
+    # A vault is emptied after this many days, or 7 days after its reply was sent.
+    vault_retention_days: int = 30
+    # The Google OAuth client in Supabase's Google provider; refreshes connected users' tokens.
+    google_oauth_client_id: str = ""
+    google_oauth_client_secret: str = ""
     dashboard_url: str = "http://localhost:8090"
     # Masks uploaded documents before storage (app/rag/mask.py); shared with the listener and agent.
     presidio_analyzer_url: str = "http://localhost:5001/analyze"
@@ -34,8 +45,8 @@ class Settings(BaseSettings):
     # upgrade: a service account + domain-wide delegation so the backend has its own credentials.
     gmail_credentials_path: str = str(_REPO_ROOT / "listener" / "credentials.json")
     gmail_token_path: str = str(_REPO_ROOT / "listener" / "token.json")
-    # Keys the per-user policy, and (ADR 0005, stage 1) the one signed-in user who sees the mail the
-    # listener ingests. Empty means no signed-in user sees any mail; scripts still do.
+    # Fallback for the owner of the original token.json mailbox's unowned rows, if Gmail cannot be
+    # asked at startup (app/core/mailbox.py). Connected users never need it.
     mailbox_owner_email: str = ""
     auto_generate: bool = True  # background poller pre-generates drafts so opens are instant
     generate_poll_seconds: int = 60

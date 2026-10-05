@@ -10,6 +10,12 @@ export type Tone = "professional" | "casual";
 export type ThreadMessage = {
   sender: string;
   snippet: string;
+  /** A reply the reader sent from AIMail, shown under the email it answered. */
+  isOwnReply: boolean;
+  /** The full masked body, expanded in the conversation view. */
+  body: string;
+  /** ISO 8601: when it arrived, or for the reader's reply, when it was sent. */
+  timestamp: string | null;
 };
 
 export type Source = {
@@ -33,6 +39,13 @@ export type Quantity = {
 };
 
 export type Translation = { language: string; text: string };
+
+/** A personal detail the AI only ever saw as its placeholder (restorable masking). */
+export type Detail = {
+  placeholder: string;
+  value: string;
+  kind: string;
+};
 
 export type Email = {
   id: string;
@@ -61,6 +74,10 @@ export type Email = {
   quantities?: Quantity[];
   /** "pending": content withheld until it can be fully masked; "abandoned": it never will be (#109). */
   masking?: "complete" | "pending" | "abandoned";
+  /** The Gmail thread, so the inbox can show one row per conversation. */
+  threadId?: string | null;
+  /** The real values behind this email's placeholders; detail responses only, owner only. */
+  details?: Detail[];
 };
 
 /** Below this the draft is flagged "review recommended". */

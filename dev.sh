@@ -26,7 +26,8 @@ for _ in $(seq 1 20); do
 	sleep 0.25
 done
 
-( cd backend && ../.venv/bin/uvicorn app.main:app --reload 2>&1 | sed 's/^/[backend]  /' ) &
+# --no-access-log: app.request logs each request without its query (see Makefile `backend`).
+( cd backend && ../.venv/bin/uvicorn app.main:app --reload --no-access-log 2>&1 | sed 's/^/[backend]  /' ) &
 # Agent is bound to 127.0.0.1 explicitly: it has no auth of its own, so reachability off-host
 # would be an unauthenticated LLM endpoint. Do not change to 0.0.0.0 without adding a token.
 ( cd backend && ../.venv/bin/uvicorn email_agent:app --reload --port 8001 --host 127.0.0.1 2>&1 | sed 's/^/[agent]    /' ) &

@@ -53,16 +53,19 @@ func cutPoint(line string, max int) int {
 // maskAttachmentText masks attachment text like any other, and drops it entirely if NER was
 // unavailable. A body without NER is quarantined; attachment text is optional, and is where full
 // names, addresses and account holders are densest, so it is simply not stored.
-func maskAttachmentText(ctx context.Context, msgID, text string) (masked string, emails, phones int) {
+func maskAttachmentText(ctx context.Context, msgID, text string, v *detailVault) (masked string, emails, phones int) {
 	if text == "" {
 		return "", 0, 0
 	}
-	masked, emails, phones, degraded := maskText(ctx, text)
+	// Masked into a copy: text that is dropped must not leave its details in the email's vault.
+	scratch := v.fork()
+	masked, emails, phones, degraded := maskText(ctx, text, scratch)
 	if degraded {
 		// Its own action name: the admin console counts these, and must not parse prose to do it.
 		writeAuditLog(ctx, "drop_attachment_text",
 			fmt.Sprintf("msg %s: attachment text dropped, NER masking unavailable", msgID), false)
 		return "", 0, 0
 	}
+	*v = *scratch
 	return masked, emails, phones
 }

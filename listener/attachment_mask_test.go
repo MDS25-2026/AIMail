@@ -34,7 +34,7 @@ func TestAttachmentTextIsDroppedWhenNERIsUnavailable(t *testing.T) {
 	// Pointing Presidio at a closed port is how maskText degrades to the regex floor.
 	t.Setenv("PRESIDIO_ANALYZER_URL", "http://127.0.0.1:1/analyze")
 	withSupabase(t, func(w http.ResponseWriter, _ *http.Request) {})
-	masked, _, _ := maskAttachmentText(context.Background(), "m1", "Invoice for Aisyah Rahman")
+	masked, _, _ := maskAttachmentText(context.Background(), "m1", "Invoice for Aisyah Rahman", newDetailVault())
 	if masked != "" {
 		t.Fatalf("degraded attachment text must be dropped, got %q", masked)
 	}
@@ -45,7 +45,7 @@ func TestAnEmailAcrossAChunkBoundaryIsStillMasked(t *testing.T) {
 	t.Setenv("PRESIDIO_ANALYZER_URL", "http://127.0.0.1:1/analyze")
 	withSupabase(t, func(w http.ResponseWriter, _ *http.Request) {})
 	text := strings.Repeat("a", nerChunkChars-10) + " john.doe@example.com and more"
-	masked, emails, _, _ := maskText(context.Background(), text)
+	masked, emails, _, _ := maskText(context.Background(), text, newDetailVault())
 	if strings.Contains(masked, "john.doe") || strings.Contains(masked, "example.com") || emails != 1 {
 		t.Fatalf("an address straddling the cut leaked: emails=%d", emails)
 	}

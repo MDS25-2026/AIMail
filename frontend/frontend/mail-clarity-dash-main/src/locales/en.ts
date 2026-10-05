@@ -24,8 +24,9 @@ export const en = {
     emptyTitle: "No emails yet",
     emptyHint: "New emails show up here a few seconds after they reach your Gmail inbox.",
     noMailboxTitle: "No mailbox connected",
-    noMailboxHint:
-      "This account isn't linked to a mailbox yet. Ask the mailbox owner to connect yours.",
+    noMailboxHint: "Sign out, then sign in with Google again and allow AIMail to read your Gmail.",
+    conversations_one: "{{count}} conversation",
+    conversations_other: "{{count}} conversations",
   },
   priority: { high: "Urgent", medium: "Medium", low: "Low" },
   detail: {
@@ -36,7 +37,7 @@ export const en = {
   },
   summary: { title: "AI summary" },
   actions: { title: "Action items" },
-  thread: { title: "Thread context ({{count}})", show: "Show", hide: "Hide" },
+  thread: { title: "Thread context ({{count}})", show: "Show", hide: "Hide", you: "You" },
   draft: {
     title: "Draft reply",
     regenerate: "Regenerate",
@@ -183,6 +184,38 @@ export const en = {
     no: "No",
     poll: "Poll interval",
     seconds: "{{count}}s",
+    colours: "Colours",
+    coloursStandard: "Standard",
+    coloursFriendly: "Colour-blind friendly",
+    coloursHint:
+      "Colour-blind friendly keeps success, warning and danger easy to tell apart with red-, green- or blue-blind vision. Every status also has a text label.",
+  },
+  details: {
+    hiddenFromAi: "Hidden from the AI; shown only to you",
+    hide: "Hide details",
+    show: "Show details",
+    unavailable: "Some details are no longer kept here. Open the email in Gmail to see them.",
+  },
+  account: {
+    title: "Account",
+    signedInAs: "Signed in as {{email}}.",
+    cancel: "Cancel",
+    working: "Working…",
+    disconnect: "Disconnect Gmail",
+    disconnectTitle: "Disconnect Gmail?",
+    disconnectBody:
+      "AIMail stops reading your Gmail and Google's access for AIMail is revoked.\nEvery email AIMail stored, with its drafts, summaries and hidden details, is deleted. Nothing is deleted from Gmail itself.\nYour account, settings and documents stay. Sign in again to reconnect.",
+    disconnected: "Gmail disconnected. Sign in again any time to reconnect.",
+    disconnectFailed: "Couldn't disconnect. Nothing was deleted from Gmail; try again in a moment.",
+    delete: "Delete account",
+    deleteTitle: "Delete your AIMail account?",
+    deleteBody:
+      "This deletes everything AIMail holds for you: stored emails, drafts, summaries and hidden details, your documents, your settings, and your sign-in. Google's access for AIMail is revoked.\nNothing is deleted from Gmail itself. This can't be undone.",
+    deleteTypeEmail: "Type {{email}} to confirm.",
+    deleteFailed:
+      "Not everything was deleted yet. Try again to finish; nothing deleted so far comes back.",
+    signOut: "Sign out",
+    signingOut: "Signing out…",
   },
   extension: {
     heading: "Extension panel preview",
@@ -191,6 +224,28 @@ export const en = {
     emptyTitle: "No emails to preview",
     emptyHint: "Send a message to the connected mailbox and it will appear here.",
     panel: "Extension panel",
+    loading: "Loading…",
+    preparing: "Getting this email's draft ready…",
+    loadFailed: "Couldn't load this email from AIMail.",
+    notGmailTitle: "Open Gmail to use AIMail",
+    notGmailHint: "AIMail works beside your Gmail inbox. Switch to a Gmail tab.",
+    reloadTitle: "Reload Gmail once",
+    reloadHint:
+      "This Gmail tab was open before AIMail was installed. Reload it and AIMail will follow the email you open.",
+    noEmailTitle: "Open an email",
+    noEmailHint: "Pick an email in Gmail and its summary and reply appear here.",
+    notFoundTitle: "AIMail hasn't received this email",
+    notFoundHint:
+      "Only emails that arrived after you connected, in the account you signed in with ({{account}}), appear here. If Gmail shows a different account, switch to it.",
+    signedOutTitle: "Sign in to AIMail",
+    signedOutHint:
+      "Sign in once with the Google account you use in Gmail. The sign-in tab closes by itself when you're done.",
+    summary: "Summary",
+    showMore_one: "Show more · {{count}} action item",
+    showMore_other: "Show more · {{count}} action items",
+    showLess: "Show less",
+    sources: "Sources ({{count}})",
+    friendlyColours: "Colour-blind friendly colours",
   },
   quarantine: {
     badge: "Awaiting masking",
@@ -282,6 +337,10 @@ export const en = {
         "The AI couldn't write a draft for this email, and trying again won't change that. Your text is unchanged: write the reply yourself, or try the other tone.",
       sendUnknown:
         "We couldn't confirm whether the reply was sent. Check your Gmail Sent folder before sending again.",
+      sendNotGranted:
+        "AIMail isn't allowed to send from your Gmail. Sign out, sign in again, and tick the box that lets AIMail send email. Your draft is unchanged.",
+      unresolved:
+        "This reply has a placeholder AIMail can't fill in, such as [PERSON_3]. Type the real detail in its place, then send.",
     },
     replaceEdits: "A new draft will replace the changes you typed.",
     replaceConfirm: "Replace my changes",
@@ -291,11 +350,15 @@ export const en = {
       "This reply still has {{count}} hidden details, such as [Redacted]. The recipient will see them exactly like that. Type the real details in before sending.",
     sendAnyway: "Send anyway",
     keepEditing: "Keep editing",
+    sendTemplates_one:
+      "This reply still has {{count}} bracketed gap, such as [Your Name]. The recipient will see it exactly like that.",
+    sendTemplates_other:
+      "This reply still has {{count}} bracketed gaps, such as [Your Name]. The recipient will see them exactly like that.",
   },
   signIn: {
     google: "Sign in with Google",
     privacy:
-      "Google only confirms who you are. Nothing is sent from your account without your approval.",
+      "AIMail reads your Gmail to draft replies. Personal details are hidden before any AI sees them, and nothing is sent without your approval.",
     errors: {
       sign_in_failed: "Sign-in didn't finish. Please try again.",
       sign_in_unavailable: "Sign-in isn't available right now. Try again in a few minutes.",
@@ -310,7 +373,7 @@ export const en = {
     pillars: {
       private: {
         title: "Private by design",
-        body: "Personal details are hidden on our side before the AI sees anything, attachments included. Photos of ID cards never leave at all.",
+        body: "Personal details are hidden on our side before the AI sees anything, attachments included, and kept only encrypted so your reply can still use them. Photos of ID cards never leave at all.",
       },
       approve: {
         title: "You approve every send",
@@ -341,11 +404,7 @@ export const en = {
       },
     },
     footer:
-      "Your Google account is only used to sign you in. AIMail is a final-year project at Monash University Malaysia.",
-  },
-  account: {
-    signOut: "Sign out",
-    signingOut: "Signing out…",
+      "Signing in with Google lets AIMail read and send your Gmail. AIMail is a final-year project at Monash University Malaysia.",
   },
   announce: {
     regenerated: "Draft regenerated",

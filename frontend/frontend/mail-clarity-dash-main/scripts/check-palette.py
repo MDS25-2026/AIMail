@@ -86,13 +86,36 @@ def oklch(hex_colour: str) -> str:
     return f"oklch({lightness:.4f} {chroma:.4f} {hue:.2f})"
 
 
+FRIENDLY_SELECTOR = '[data-colours="friendly"]'
+
+
+def block(selector: str, colours: dict, scheme: str | None) -> str:
+    lines = [f"  --{name}: {oklch(value)};" for name, value in colours.items()]
+    head = f"  color-scheme: {scheme};\n" if scheme else ""
+    return f"{selector} {{\n{head}" + "\n".join(lines) + "\n}\n"
+
+
 def css(spec: dict) -> str:
-    blocks = []
-    for selector, theme in ((":root", "light"), (".dark", "dark")):
-        lines = [f"  --{name}: {oklch(value)};" for name, value in spec[theme].items()]
-        scheme = "light" if theme == "light" else "dark"
-        blocks.append(f"{selector} {{\n  color-scheme: {scheme};\n" + "\n".join(lines) + "\n}\n")
-    return CSS_HEADER + "\n".join(blocks)
+    # The friendly blocks come last and match two selectors, so they win in either theme.
+    return CSS_HEADER + "\n".join([
+        block(":root", spec["light"], "light"),
+        block(".dark", spec["dark"], "dark"),
+        block(f":root{FRIENDLY_SELECTOR}", spec["friendly"]["light"], None),
+        block(f".dark{FRIENDLY_SELECTOR}", spec["friendly"]["dark"], None),
+    ])
+
+
+def separation_failures(colours: dict, names: list[str], visions: list, label: str) -> list[str]:
+    failures = []
+    for vision, matrix in visions:
+        for a, b in itertools.combinations(names, 2):
+            la = lab(simulate(colours[a], matrix) if matrix else [linear(c) for c in rgb(colours[a])])
+            lb = lab(simulate(colours[b], matrix) if matrix else [linear(c) for c in rgb(colours[b])])
+            distance = delta_e(la, lb)
+            if distance < MIN_DELTA_E:
+                failures.append(f"{label} {vision} {a}~{b} dE={distance:.1f}")
+                print(f"FAIL {label:14} {vision:12} {a} vs {b}: dE {distance:.1f}")
+    return failures
 
 
 def main() -> int:
@@ -103,25 +126,24 @@ def main() -> int:
     failures = []
     if not CSS_PATH.exists() or CSS_PATH.read_text() != css(spec):
         failures.append("src/palette.css is stale: run with --write")
+    every_vision = [("normal", None), *MACHADO.items()]
     for theme in ("light", "dark"):
-        colours = spec[theme]
-        for pairs, minimum in ((spec["text_pairs"], TEXT_CONTRAST),
-                               (spec["non_text_pairs"], NON_TEXT_CONTRAST)):
-            for fg, bg in pairs:
-                ratio = contrast(colours[fg], colours[bg])
-                status = "ok " if ratio >= minimum else "FAIL"
-                if ratio < minimum or "--quiet" not in sys.argv:
-                    print(f"{status} {theme:5} {fg:>13} on {bg:<14} {ratio:5.2f}:1 (min {minimum})")
-                if ratio < minimum:
-                    failures.append(f"{theme} {fg}/{bg}")
-        for vision, matrix in [("normal", None), *MACHADO.items()]:
-            for a, b in itertools.combinations(spec["must_differ"], 2):
-                la = lab(simulate(colours[a], matrix) if matrix else [linear(c) for c in rgb(colours[a])])
-                lb = lab(simulate(colours[b], matrix) if matrix else [linear(c) for c in rgb(colours[b])])
-                distance = delta_e(la, lb)
-                if distance < MIN_DELTA_E:
-                    failures.append(f"{theme} {vision} {a}~{b} dE={distance:.1f}")
-                    print(f"FAIL {theme:5} {vision:12} {a} vs {b}: dE {distance:.1f}")
+        standard = spec[theme]
+        friendly = {**standard, **spec["friendly"][theme]}
+        for label, colours in ((theme, standard), (f"{theme}+friendly", friendly)):
+            for pairs, minimum in ((spec["text_pairs"], TEXT_CONTRAST),
+                                   (spec["non_text_pairs"], NON_TEXT_CONTRAST)):
+                for fg, bg in pairs:
+                    ratio = contrast(colours[fg], colours[bg])
+                    status = "ok " if ratio >= minimum else "FAIL"
+                    if ratio < minimum or "--quiet" not in sys.argv:
+                        print(f"{status} {label:14} {fg:>13} on {bg:<14} {ratio:5.2f}:1 (min {minimum})")
+                    if ratio < minimum:
+                        failures.append(f"{label} {fg}/{bg}")
+        # Standard colours are the familiar green/amber/red: distinct for normal vision. The
+        # friendly set is the one that must also hold for each kind of colour blindness.
+        failures += separation_failures(standard, spec["must_differ"], every_vision[:1], theme)
+        failures += separation_failures(friendly, spec["must_differ"], every_vision, f"{theme}+friendly")
     if failures:
         print(f"\n{len(failures)} failure(s): " + "; ".join(failures))
     elif "--quiet" not in sys.argv:

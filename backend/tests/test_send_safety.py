@@ -13,6 +13,7 @@ import httpx
 import pytest
 
 from app import dashboard, gmail_send
+from app.core.ownership import EVERYTHING
 from app.db.models import MaskingStatus, Message
 from tests.conftest import AUTH_HEADERS as AUTH
 
@@ -25,7 +26,7 @@ ORIGINAL = {"threadId": "t-1", "payload": {"headers": [
 
 def _gmail(monkeypatch, on_send):
     """Serve the original from Gmail and let `on_send` decide what the POST does."""
-    monkeypatch.setattr(gmail_send, "_cached_token", ("token", float("inf")))
+    monkeypatch.setattr(gmail_send, "_cached_tokens", {None: ("token", float("inf"))})
 
     def handle(request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith("/send"):
@@ -38,7 +39,7 @@ def _gmail(monkeypatch, on_send):
 
 
 def _send():
-    return asyncio.run(gmail_send.send_reply("orig-1", "a@example.com", "Invoice", "Thanks."))
+    return asyncio.run(gmail_send.send_reply("orig-1", "a@example.com", "Invoice", "Thanks.", owner_id=None))
 
 
 def _raise(error):
@@ -82,7 +83,7 @@ def harness(monkeypatch):
     state = {"message": _message(), "claimed": 0, "released": 0, "sent": 0, "audits": [],
              "send_error": None}
 
-    async def load(pk):
+    async def load(pk, scope):
         return state["message"]
 
     async def claim(pk):
@@ -92,7 +93,7 @@ def harness(monkeypatch):
     async def release(pk):
         state["released"] += 1
 
-    async def send_reply(*_args):
+    async def send_reply(*_args, **_kwargs):
         state["sent"] += 1
         if state["send_error"]:
             raise state["send_error"]
@@ -108,7 +109,7 @@ def harness(monkeypatch):
 
 
 def _approve(state, draft="Thanks, paid."):
-    return asyncio.run(dashboard.approve_and_send(str(state["message"].id), draft))
+    return asyncio.run(dashboard.approve_and_send(str(state["message"].id), draft, scope=EVERYTHING))
 
 
 def test_an_unknown_outcome_keeps_the_claim_so_it_is_never_sent_twice(harness):
@@ -146,7 +147,7 @@ def test_an_empty_draft_is_refused_by_the_route(api_client):
 
 
 def test_the_route_reports_an_unknown_outcome_distinctly(api_client, monkeypatch):
-    async def unknown(*_args):
+    async def unknown(*_args, **_kwargs):
         raise gmail_send.SendOutcomeUnknownError("read timeout")
 
     monkeypatch.setattr("app.main.approve_and_send", unknown)
@@ -156,7 +157,7 @@ def test_the_route_reports_an_unknown_outcome_distinctly(api_client, monkeypatch
 
 
 def test_the_route_reports_a_rejected_draft_with_its_code(api_client, monkeypatch):
-    async def rejected(*_args):
+    async def rejected(*_args, **_kwargs):
         raise dashboard.SendRejectedError(dashboard.SendErrorCode.REDACTION_MARKERS, 422)
 
     monkeypatch.setattr("app.main.approve_and_send", rejected)

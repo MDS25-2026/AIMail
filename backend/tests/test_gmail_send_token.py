@@ -15,9 +15,9 @@ from app import gmail_send
 
 @pytest.fixture(autouse=True)
 def _clear_cache():
-    gmail_send._cached_token = None
+    gmail_send._cached_tokens.clear()
     yield
-    gmail_send._cached_token = None
+    gmail_send._cached_tokens.clear()
 
 
 @pytest.fixture
@@ -42,7 +42,7 @@ def test_the_token_is_fetched_once_and_reused(fake_creds):
 
     async def run() -> tuple[str, str]:
         async with _client(httpx.MockTransport(handle)) as client:
-            return await gmail_send._access_token(client), await gmail_send._access_token(client)
+            return await gmail_send._access_token(client, None), await gmail_send._access_token(client, None)
 
     first, second = asyncio.run(run())
 
@@ -59,9 +59,9 @@ def test_an_expired_token_is_refreshed(fake_creds):
 
     async def run() -> None:
         async with _client(httpx.MockTransport(handle)) as client:
-            await gmail_send._access_token(client)
+            await gmail_send._access_token(client, None)
             # expires_in of 1s is inside the safety margin, so this must not reuse it.
-            await gmail_send._access_token(client)
+            await gmail_send._access_token(client, None)
 
     asyncio.run(run())
 
@@ -88,6 +88,6 @@ def test_a_revoked_token_costs_one_retry_not_every_send(fake_creds, monkeypatch)
         gmail_send.httpx, "AsyncClient", lambda **kw: real_client(transport=transport)
     )
 
-    asyncio.run(gmail_send.send_reply(None, "a@b.com", "Subject", "Body"))
+    asyncio.run(gmail_send.send_reply(None, "a@b.com", "Subject", "Body", owner_id=None))
 
     assert len([p for p in seen if p.endswith("/send")]) == 2, "should retry exactly once"

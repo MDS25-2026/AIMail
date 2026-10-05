@@ -7,17 +7,16 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 )
 
 // messageStored reports whether msgID already has a row. ingestMessage asks before fetching, so
 // a Pub/Sub redelivery, the restart fallback to the newest message, or a retry never pays for
 // attachment redaction and OCR a second time. The insert's on_conflict still guards the row itself.
-func messageStored(ctx context.Context, msgID string) (bool, error) {
+func messageStored(ctx context.Context, ownerID, msgID string) (bool, error) {
 	if supabaseURL == "" || supabaseKey == "" {
 		return false, fmt.Errorf("SUPABASE_URL / SUPABASE_SERVICE_KEY not set")
 	}
-	query := "select=gmail_message_id&gmail_message_id=eq." + url.QueryEscape(msgID) + "&limit=1"
+	query := "select=gmail_message_id&" + messageFilter(ownerID, msgID) + "&limit=1"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
 		fmt.Sprintf("%s/rest/v1/messages?%s", supabaseURL, query), nil)
 	if err != nil {
@@ -45,7 +44,8 @@ func messageStored(ctx context.Context, msgID string) (bool, error) {
 // errRowRejected marks a 4xx from PostgREST: the row itself is refused, so retrying cannot help.
 var errRowRejected = errors.New("supabase rejected the messages row")
 
-// insertMessage inserts a messages row unless one already exists for its Gmail id, and reports
+// insertMessage inserts a messages row unless its mailbox already has one for its Gmail id (ids are
+// per mailbox, so the key is the owner and the id together), and reports
 // which happened. PostgREST returns the inserted rows; an ignored duplicate returns none, so an
 // audit entry can say "stored" only when something was.
 func insertMessage(ctx context.Context, row interface{}) (bool, error) {
@@ -56,7 +56,7 @@ func insertMessage(ctx context.Context, row interface{}) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("marshal row: %w", err)
 	}
-	target := fmt.Sprintf("%s/rest/v1/messages?on_conflict=gmail_message_id&select=gmail_message_id", supabaseURL)
+	target := fmt.Sprintf("%s/rest/v1/messages?on_conflict=user_id,gmail_message_id&select=gmail_message_id", supabaseURL)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, target, bytes.NewReader(body))
 	if err != nil {
 		return false, fmt.Errorf("build request: %w", err)

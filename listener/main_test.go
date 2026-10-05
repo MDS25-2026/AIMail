@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"google.golang.org/api/gmail/v1"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -13,7 +14,7 @@ import (
 func TestMaskTextKeepsRegexFloorWhenPresidioDown(t *testing.T) {
 	t.Setenv("PRESIDIO_ANALYZER_URL", "http://127.0.0.1:1/analyze") // closed port -> connection refused
 
-	masked, emails, _, degraded := maskText(context.Background(), "reach me at john@example.com")
+	masked, emails, _, degraded := maskText(context.Background(), "reach me at john@example.com", newDetailVault())
 
 	if strings.Contains(masked, "john@example.com") {
 		t.Fatalf("email leaked through the degraded path: %q", masked)
@@ -35,17 +36,17 @@ func TestMaskPIITypesNumbersByStructure(t *testing.T) {
 		token string
 		raw   string
 	}{
-		{"dashed IC", "IC 880101-14-5523 on file", icToken, "880101-14-5523"},
-		{"bare 12-digit IC (valid date)", "id 880101145523 here", icToken, "880101145523"},
-		{"MY mobile", "call 012-345 6789 today", phoneToken, "012-345 6789"},
-		{"MY mobile no separators", "call 0123456789 today", phoneToken, "0123456789"},
-		{"US parenthesized", "call (713) 853-6161 now", phoneToken, "(713) 853-6161"},
-		{"US dashed", "at 713-853-6161 ext", phoneToken, "713-853-6161"},
-		{"email", "mail me at a.b@corp.com", emailToken, "a.b@corp.com"},
+		{"dashed IC", "IC 880101-14-5523 on file", "[IC_1]", "880101-14-5523"},
+		{"bare 12-digit IC (valid date)", "id 880101145523 here", "[IC_1]", "880101145523"},
+		{"MY mobile", "call 012-345 6789 today", "[PHONE_1]", "012-345 6789"},
+		{"MY mobile no separators", "call 0123456789 today", "[PHONE_1]", "0123456789"},
+		{"US parenthesized", "call (713) 853-6161 now", "[PHONE_1]", "(713) 853-6161"},
+		{"US dashed", "at 713-853-6161 ext", "[PHONE_1]", "713-853-6161"},
+		{"email", "mail me at a.b@corp.com", "[EMAIL_1]", "a.b@corp.com"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			masked, _, _ := maskPII(c.in)
+			masked, _, _ := maskPII(c.in, newDetailVault())
 			if !strings.Contains(masked, c.token) {
 				t.Fatalf("expected %s in %q", c.token, masked)
 			}
@@ -58,11 +59,11 @@ func TestMaskPIITypesNumbersByStructure(t *testing.T) {
 
 // A 12-digit IC must not be mis-tagged as a phone (the exact failure JJ reported).
 func TestMaskPIIDoesNotTagICAsPhone(t *testing.T) {
-	masked, _, phones := maskPII("my ic is 880101-14-5523")
+	masked, _, phones := maskPII("my ic is 880101-14-5523", newDetailVault())
 	if phones != 0 {
 		t.Fatalf("IC counted as a phone (%d) — type discrimination broke: %q", phones, masked)
 	}
-	if !strings.Contains(masked, icToken) {
+	if !strings.Contains(masked, "[IC_1]") {
 		t.Fatalf("IC not redacted: %q", masked)
 	}
 }
@@ -70,8 +71,8 @@ func TestMaskPIIDoesNotTagICAsPhone(t *testing.T) {
 // A bare 12-digit number whose prefix is not a plausible date is NOT an IC — it's left for
 // Presidio's context-gated account recogniser rather than being falsely typed here.
 func TestMaskPIILeavesNonDateBare12Digits(t *testing.T) {
-	masked, _, _ := maskPII("order 990099123456 shipped")
-	if strings.Contains(masked, icToken) {
+	masked, _, _ := maskPII("order 990099123456 shipped", newDetailVault())
+	if strings.Contains(masked, "[IC_1]") {
 		t.Fatalf("non-date 12-digit run wrongly typed as IC: %q", masked)
 	}
 }
@@ -105,7 +106,7 @@ func TestIsICDateAcceptsOnlyPlausibleCalendarPrefixes(t *testing.T) {
 // spans earlier passes left behind, and the audit counts must reflect every hit.
 func TestMaskPIIMasksEveryOccurrenceInMixedText(t *testing.T) {
 	in := "From ali@corp.com.my: IC 880101-14-5523, backup a.b+tag@Mail.Example.COM, call 012-345 6789 or (713) 853-6161."
-	masked, emails, phones := maskPII(in)
+	masked, emails, phones := maskPII(in, newDetailVault())
 	for _, raw := range []string{"ali@corp.com.my", "880101-14-5523", "a.b+tag@Mail.Example.COM", "012-345 6789", "(713) 853-6161"} {
 		if strings.Contains(masked, raw) {
 			t.Errorf("raw value %q leaked: %q", raw, masked)
@@ -128,7 +129,7 @@ func TestMaskPIIMasksMalaysianCountryCodeVariants(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			masked, _, phones := maskPII(c.in)
+			masked, _, phones := maskPII(c.in, newDetailVault())
 			if strings.Contains(masked, c.raw) {
 				t.Fatalf("raw value %q leaked: %q", c.raw, masked)
 			}
@@ -143,7 +144,7 @@ func TestMaskPIIMasksMalaysianCountryCodeVariants(t *testing.T) {
 // digits (POs, invoice codes, amounts, ISO dates) must pass through byte-identical.
 func TestMaskPIILeavesBusinessNumbersUntouched(t *testing.T) {
 	in := "PO 12345678, invoice INV-2026-0831, total 1,250.00 due 2026-09-15"
-	masked, emails, phones := maskPII(in)
+	masked, emails, phones := maskPII(in, newDetailVault())
 	if masked != in {
 		t.Fatalf("business text altered:\n in: %q\nout: %q", in, masked)
 	}
@@ -274,12 +275,9 @@ func TestMaxDeliveryAttemptsIsBounded(t *testing.T) {
 func TestHistoryBaselineAdvances(t *testing.T) {
 	// ingestHistory records where to resume from. Without this the next notification asks Gmail
 	// for a range starting at zero, which is what "fetch whatever is newest" degenerated into.
-	atomic.StoreUint64(&lastHistoryID, 0)
-	if atomic.LoadUint64(&lastHistoryID) != 0 {
-		t.Fatal("baseline did not reset")
-	}
-	atomic.StoreUint64(&lastHistoryID, 4242)
-	if got := atomic.LoadUint64(&lastHistoryID); got != 4242 {
+	mb := &mailbox{}
+	advanceBaseline(mb, 4242)
+	if got := atomic.LoadUint64(&mb.lastHistoryID); got != 4242 {
 		t.Fatalf("baseline should advance to 4242, got %d", got)
 	}
 }
@@ -287,7 +285,7 @@ func TestHistoryBaselineAdvances(t *testing.T) {
 // Passports carry a letter prefix ("A12345678"), which the digits-only account pattern can never
 // match, so they need their own floor rule.
 func TestMaskPIIMasksAlphanumericPassports(t *testing.T) {
-	masked, _, _ := maskPII("My passport A12345678 expires in May; his is AB1234567.")
+	masked, _, _ := maskPII("My passport A12345678 expires in May; his is AB1234567.", newDetailVault())
 	for _, raw := range []string{"A12345678", "AB1234567"} {
 		if strings.Contains(masked, raw) {
 			t.Fatalf("passport %q leaked: %q", raw, masked)
@@ -298,7 +296,7 @@ func TestMaskPIIMasksAlphanumericPassports(t *testing.T) {
 // The phone floor covered Malaysian and US shapes only; regional contacts write +65, +44, +62.
 func TestMaskPIIMasksInternationalPhones(t *testing.T) {
 	in := "SG +65 9123 4567, UK +44 20 7946 0958, ID +62 812-3456-7890."
-	masked, _, phones := maskPII(in)
+	masked, _, phones := maskPII(in, newDetailVault())
 	for _, raw := range []string{"9123 4567", "7946 0958", "812-3456-7890"} {
 		if strings.Contains(masked, raw) {
 			t.Fatalf("phone %q leaked: %q", raw, masked)
@@ -313,7 +311,7 @@ func TestMaskPIIMasksInternationalPhones(t *testing.T) {
 // rule); the host is all the phishing check needs, so only scheme, host and path are kept.
 func TestLinksKeepTheirHostButLoseQueryAndFragment(t *testing.T) {
 	in := "Reset at https://accounts.example.com/reset?token=abc123&email=jo%40corp.com#step2 today"
-	masked, _, _ := maskPII(in)
+	masked, _, _ := maskPII(in, newDetailVault())
 	if !strings.Contains(masked, "https://accounts.example.com/reset") {
 		t.Fatalf("host and path should survive: %q", masked)
 	}
@@ -327,8 +325,22 @@ func TestLinksKeepTheirHostButLoseQueryAndFragment(t *testing.T) {
 // The HTML path turns a link into "text (url)"; the same stripping must apply to it.
 func TestHTMLLinksLoseTheirQueryToo(t *testing.T) {
 	text := htmlToText(`<p>Click <a href="https://x.example/login?user=siti.aminah&id=42">here</a>.</p>`)
-	masked, _, _ := maskPII(text)
+	masked, _, _ := maskPII(text, newDetailVault())
 	if strings.Contains(masked, "siti.aminah") || !strings.Contains(masked, "https://x.example/login") {
 		t.Fatalf("link not reduced to host and path: %q", masked)
+	}
+}
+
+// A reply sent from AIMail shows up in the mailbox's history in the same thread; it must not be
+// stored as if someone had written in.
+func TestTheMailboxsOwnSentReplyIsNotIngested(t *testing.T) {
+	if !isOwnSentReply(&gmail.Message{LabelIds: []string{"SENT"}}) {
+		t.Fatal("a sent reply would be stored as a new email")
+	}
+	if isOwnSentReply(&gmail.Message{LabelIds: []string{"SENT", "INBOX", "UNREAD"}}) {
+		t.Fatal("mail the owner sent to themselves must still arrive")
+	}
+	if isOwnSentReply(&gmail.Message{LabelIds: []string{"INBOX"}}) {
+		t.Fatal("an ordinary incoming email was skipped")
 	}
 }

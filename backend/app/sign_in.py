@@ -24,6 +24,7 @@ from fastapi import (
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
+from app import connections
 from app.core import supabase_auth
 from app.core.auth import (
     CLIENT_HEADER,
@@ -31,6 +32,7 @@ from app.core.auth import (
     AuthError,
     Principal,
     current_principal,
+    scope_of_principal,
 )
 from app.core.config import get_settings
 from app.core.supabase_auth import Session
@@ -74,7 +76,7 @@ def _set_session(response: Response, session: Session) -> None:
                         path=REFRESH_PATH, httponly=True, secure=secure, samesite="strict")
 
 
-def _clear_session(response: Response) -> None:
+def clear_session(response: Response) -> None:
     secure = get_settings().admin_cookie_secure
     response.delete_cookie(SESSION_COOKIE, path="/", httponly=True, secure=secure, samesite="strict")
     response.delete_cookie(REFRESH_COOKIE, path=REFRESH_PATH, httponly=True, secure=secure,
@@ -100,6 +102,11 @@ async def start_google_sign_in() -> RedirectResponse:
         "redirect_to": f"{get_settings().backend_public_url}/auth/callback",
         "code_challenge": _challenge(verifier),
         "code_challenge_method": "s256",
+        # Gmail read and send, connected in the same consent (per-user mailboxes). Offline with a
+        # fresh consent is what makes Google issue a refresh token every time.
+        "scopes": " ".join(connections.GMAIL_SCOPES),
+        "access_type": "offline",
+        "prompt": "consent",
     })
     response = RedirectResponse(f"{base}/authorize?{query}", status_code=status.HTTP_302_FOUND)
     # Lax, not Strict: the callback arrives as a cross-site redirect from Google and Supabase.
@@ -133,6 +140,7 @@ async def finish_google_sign_in(
     except (supabase_auth.SupabaseUnavailableError, supabase_auth.SupabaseNotConfiguredError) as exc:
         logger.warning("Google sign-in could not reach Supabase: %s", exc)
         return _back_to_sign_in(SIGN_IN_UNAVAILABLE)
+    await connections.connect_mailbox(session)
     response = RedirectResponse(get_settings().dashboard_url, status_code=status.HTTP_303_SEE_OTHER)
     _set_session(response, session)
     response.delete_cookie(VERIFIER_COOKIE, path=VERIFIER_PATH)
@@ -141,7 +149,7 @@ async def finish_google_sign_in(
 
 @router.get("/session")
 async def current_session(principal: Annotated[Principal, Depends(current_principal)]) -> SessionInfo:
-    return SessionInfo(email=principal.email, hasMailbox=principal.has_mailbox)
+    return SessionInfo(email=principal.email, hasMailbox=await scope_of_principal(principal) is not None)
 
 
 @router.post("/session/refresh", dependencies=[Depends(_require_client_header)])
@@ -168,6 +176,6 @@ async def sign_out(request: Request, response: Response) -> Response:
     token = request.cookies.get(SESSION_COOKIE)
     if token:
         await supabase_auth.revoke(token)
-    _clear_session(response)
+    clear_session(response)
     response.status_code = status.HTTP_204_NO_CONTENT
     return response

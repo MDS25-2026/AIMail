@@ -1,6 +1,3 @@
-import { createIsomorphicFn } from "@tanstack/react-start";
-import { getCookie } from "@tanstack/react-start/server";
-
 /**
  * Per-browser display preferences: theme, language, unit system.
  *
@@ -26,19 +23,37 @@ export enum UnitSystem {
   Imperial = "imperial",
 }
 
-export type Preferences = { theme: Theme; language: Language; units: UnitSystem };
+/** Which status colour set to show (scripts/palette.json): familiar, or safe for colour blindness. */
+export enum StatusColours {
+  Standard = "standard",
+  Friendly = "friendly",
+}
+
+export type Preferences = {
+  theme: Theme;
+  language: Language;
+  units: UnitSystem;
+  colours: StatusColours;
+};
 
 export const DEFAULT_PREFERENCES: Preferences = {
   theme: Theme.System,
   language: Language.English,
   units: UnitSystem.Metric,
+  colours: StatusColours.Standard,
 };
 
 export const COOKIE = {
   theme: "aimail-theme",
   language: "aimail-lang",
   units: "aimail-units",
+  colours: "aimail-colours",
 } as const;
+
+/** The attribute palette.css keys the colour-blind friendly set on; absent means standard. */
+export function coloursAttribute(colours: StatusColours): string | undefined {
+  return colours === StatusColours.Friendly ? "friendly" : undefined;
+}
 
 const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
 
@@ -57,23 +72,9 @@ export function parsePreferences(read: (name: string) => string | undefined): Pr
     theme: oneOf(Theme, read(COOKIE.theme), DEFAULT_PREFERENCES.theme),
     language: oneOf(Language, read(COOKIE.language), DEFAULT_PREFERENCES.language),
     units: oneOf(UnitSystem, read(COOKIE.units), DEFAULT_PREFERENCES.units),
+    colours: oneOf(StatusColours, read(COOKIE.colours), DEFAULT_PREFERENCES.colours),
   };
 }
-
-function browserCookie(name: string): string | undefined {
-  const match = document.cookie.split("; ").find((pair) => pair.startsWith(`${name}=`));
-  if (!match) return undefined;
-  try {
-    return decodeURIComponent(match.slice(name.length + 1));
-  } catch {
-    // A malformed value (cookies on localhost are shared across ports) is just "not set".
-    return undefined;
-  }
-}
-
-export const readPreferences = createIsomorphicFn()
-  .server((): Preferences => parsePreferences(getCookie))
-  .client((): Preferences => parsePreferences(browserCookie));
 
 export function writePreference(name: string, value: string): void {
   document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${ONE_YEAR_SECONDS}; samesite=lax`;

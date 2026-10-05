@@ -7,6 +7,7 @@ from uuid import uuid4
 import pytest
 
 from app import dashboard
+from app.core.ownership import EVERYTHING
 from app.db.models import MaskingStatus, Message
 from tests.conftest import AUTH_HEADERS as AUTH
 
@@ -21,10 +22,10 @@ def loaded(monkeypatch):
     """Serve one message from the loaders, and stub the writes that need a database."""
     message = _message(draft_reply="Old draft")
 
-    async def load(pk):
+    async def load(pk, scope):
         return message
 
-    async def load_with_thread(pk):
+    async def load_with_thread(pk, scope):
         return message, []
 
     async def nothing(*_args, **_kwargs):
@@ -41,7 +42,7 @@ def loaded(monkeypatch):
 
 
 def _generation_returns(monkeypatch, result: dict) -> None:
-    async def generate(message, tone, thread):
+    async def generate(message, tone, thread, *_rest):
         return result
 
     monkeypatch.setattr(dashboard, "_generate", generate)
@@ -50,7 +51,7 @@ def _generation_returns(monkeypatch, result: dict) -> None:
 def test_a_regenerate_the_agent_cannot_answer_is_an_error_not_the_old_draft(monkeypatch, loaded):
     _generation_returns(monkeypatch, {})
     with pytest.raises(dashboard.DraftNotUpdatedError) as caught:
-        asyncio.run(dashboard.regenerate_email(str(loaded.id)))
+        asyncio.run(dashboard.regenerate_email(str(loaded.id), scope=EVERYTHING))
     assert (caught.value.code, caught.value.status_code) == (dashboard.DraftErrorCode.AGENT_UNAVAILABLE, 502)
     assert loaded.draft_reply == "Old draft"
 
@@ -58,14 +59,14 @@ def test_a_regenerate_the_agent_cannot_answer_is_an_error_not_the_old_draft(monk
 def test_a_regenerate_refused_for_content_is_an_error_and_keeps_the_draft(monkeypatch, loaded):
     _generation_returns(monkeypatch, dashboard._not_drafted("gemini_output_truncated"))
     with pytest.raises(dashboard.DraftNotUpdatedError) as caught:
-        asyncio.run(dashboard.regenerate_email(str(loaded.id)))
+        asyncio.run(dashboard.regenerate_email(str(loaded.id), scope=EVERYTHING))
     assert (caught.value.code, caught.value.status_code) == (dashboard.DraftErrorCode.DRAFT_REFUSED, 422)
     assert loaded.draft_reply == "Old draft"
 
 
 def test_a_regenerate_judged_to_need_no_reply_is_not_an_error(monkeypatch, loaded):
     _generation_returns(monkeypatch, {"category": "NA", "draft": None, "summary": "", "action_items": []})
-    email = asyncio.run(dashboard.regenerate_email(str(loaded.id)))
+    email = asyncio.run(dashboard.regenerate_email(str(loaded.id), scope=EVERYTHING))
     assert email is not None and email.id == str(loaded.id)
 
 
@@ -75,7 +76,7 @@ def test_a_refine_the_agent_cannot_answer_is_an_error_not_the_old_draft(monkeypa
 
     monkeypatch.setattr(dashboard, "_refine", unavailable)
     with pytest.raises(dashboard.DraftNotUpdatedError) as caught:
-        asyncio.run(dashboard.refine_email(str(loaded.id), "shorter", "Old draft"))
+        asyncio.run(dashboard.refine_email(str(loaded.id), "shorter", "Old draft", scope=EVERYTHING))
     assert (caught.value.code, caught.value.status_code) == (dashboard.DraftErrorCode.AGENT_UNAVAILABLE, 502)
 
 
@@ -87,7 +88,7 @@ def test_a_quarantined_message_cannot_be_refined(monkeypatch, loaded):
 
     monkeypatch.setattr(dashboard, "_refine", must_not_run)
     with pytest.raises(dashboard.DraftNotUpdatedError) as caught:
-        asyncio.run(dashboard.refine_email(str(loaded.id), "shorter", "Old draft"))
+        asyncio.run(dashboard.refine_email(str(loaded.id), "shorter", "Old draft", scope=EVERYTHING))
     assert (caught.value.code, caught.value.status_code) == (dashboard.DraftErrorCode.MASKING_PENDING, 409)
 
 

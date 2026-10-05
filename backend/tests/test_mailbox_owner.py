@@ -1,6 +1,6 @@
 """The mailbox owner comes from the Gmail account AIMail is connected to, not a setting.
 
-Stage 1 of ADR 0005 reads one mailbox; whoever signs in with that Google account sees its mail.
+Rows from before per-user mailboxes have no owner; whoever signs in with that Google account sees them.
 The backend already holds that account's Gmail login (it sends replies with it), so it asks Gmail
 for the address instead of making someone type it into .env.
 """
@@ -11,8 +11,8 @@ import httpx
 import pytest
 
 from app.core import mailbox, supabase_auth
-from app.core.auth import Principal
 from app.core.config import get_settings
+from app.core.ownership import LEGACY, scope_for
 
 
 @pytest.fixture(autouse=True)
@@ -28,8 +28,8 @@ def test_the_gmail_account_is_the_owner_with_no_setting(monkeypatch):
 
     monkeypatch.setattr(mailbox, "gmail_address", profile)
     asyncio.run(mailbox.resolve_owner())
-    assert Principal(email="owner@gmail.com").has_mailbox
-    assert not Principal(email="someone@gmail.com").has_mailbox
+    assert asyncio.run(scope_for(None, "owner@gmail.com")) == LEGACY
+    assert asyncio.run(scope_for(None, "someone@gmail.com")) is None
 
 
 def test_an_unreachable_gmail_falls_back_to_the_setting_if_there_is_one(monkeypatch, caplog):
@@ -47,7 +47,7 @@ def test_an_unreachable_gmail_falls_back_to_the_setting_if_there_is_one(monkeypa
 
 def test_with_neither_no_signed_in_user_sees_mail():
     assert mailbox.owner() == ""
-    assert not Principal(email="anyone@gmail.com").has_mailbox
+    assert asyncio.run(scope_for(None, "anyone@gmail.com")) is None
 
 
 def test_an_invalid_supabase_key_is_a_server_problem_not_a_bad_sign_in():

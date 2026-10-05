@@ -23,7 +23,9 @@ export const zh: Translations = {
     emptyTitle: "暂无邮件",
     emptyHint: "新邮件到达您的 Gmail 收件箱几秒后会显示在这里。",
     noMailboxTitle: "未连接邮箱",
-    noMailboxHint: "此账户尚未关联邮箱。请让邮箱所有者为您连接。",
+    noMailboxHint: "请退出，然后重新使用 Google 登录，并允许 AIMail 读取您的 Gmail。",
+    conversations_one: "{{count}} 个会话",
+    conversations_other: "{{count}} 个会话",
   },
   priority: { high: "紧急", medium: "中等", low: "低" },
   detail: {
@@ -34,7 +36,7 @@ export const zh: Translations = {
   },
   summary: { title: "AI 摘要" },
   actions: { title: "待办事项" },
-  thread: { title: "会话上下文（{{count}}）", show: "显示", hide: "隐藏" },
+  thread: { title: "会话上下文（{{count}}）", show: "显示", hide: "隐藏", you: "您" },
   draft: {
     title: "回复草稿",
     regenerate: "重新生成",
@@ -175,6 +177,37 @@ export const zh: Translations = {
     no: "否",
     poll: "轮询间隔",
     seconds: "{{count}} 秒",
+    colours: "颜色",
+    coloursStandard: "标准",
+    coloursFriendly: "色盲友好",
+    coloursHint:
+      "色盲友好模式让成功、警告和危险在红色盲、绿色盲或蓝色盲视觉下也容易区分。每个状态也都有文字标签。",
+  },
+  details: {
+    hiddenFromAi: "对 AI 隐藏；仅向您显示",
+    hide: "隐藏详情",
+    show: "显示详情",
+    unavailable: "部分详情已不再保存在这里。请在 Gmail 中打开邮件查看。",
+  },
+  account: {
+    title: "账户",
+    signedInAs: "当前登录：{{email}}。",
+    cancel: "取消",
+    working: "处理中…",
+    disconnect: "断开 Gmail",
+    disconnectTitle: "断开 Gmail？",
+    disconnectBody:
+      "AIMail 将停止读取您的 Gmail，并撤销 Google 授予 AIMail 的访问权限。\nAIMail 存储的所有邮件及其草稿、摘要和隐藏详情都将被删除。Gmail 中的内容不会被删除。\n您的账户、设置和文档会保留。重新登录即可再次连接。",
+    disconnected: "已断开 Gmail。随时重新登录即可再次连接。",
+    disconnectFailed: "无法断开连接。Gmail 中没有任何内容被删除；请稍后重试。",
+    delete: "删除账户",
+    deleteTitle: "删除您的 AIMail 账户？",
+    deleteBody:
+      "这将删除 AIMail 为您保存的一切：存储的邮件、草稿、摘要和隐藏详情、您的文档、设置以及登录账户，并撤销 Google 授予 AIMail 的访问权限。\nGmail 中的内容不会被删除。此操作无法撤销。",
+    deleteTypeEmail: "输入 {{email}} 以确认。",
+    deleteFailed: "尚未全部删除。请重试以完成；已删除的内容不会恢复。",
+    signOut: "退出登录",
+    signingOut: "正在退出…",
   },
   extension: {
     heading: "扩展面板预览",
@@ -183,6 +216,27 @@ export const zh: Translations = {
     emptyTitle: "没有可预览的邮件",
     emptyHint: "向已连接的邮箱发送一封邮件，它就会出现在这里。",
     panel: "扩展面板",
+    loading: "正在加载…",
+    preparing: "正在为这封邮件准备草稿…",
+    loadFailed: "无法从 AIMail 加载这封邮件。",
+    notGmailTitle: "打开 Gmail 以使用 AIMail",
+    notGmailHint: "AIMail 在您的 Gmail 收件箱旁工作。请切换到 Gmail 标签页。",
+    reloadTitle: "请重新加载一次 Gmail",
+    reloadHint:
+      "此 Gmail 标签页在安装 AIMail 之前就已打开。重新加载后，AIMail 将跟随您打开的邮件。",
+    noEmailTitle: "打开一封邮件",
+    noEmailHint: "在 Gmail 中选择一封邮件，其摘要和回复将显示在这里。",
+    notFoundTitle: "AIMail 尚未收到这封邮件",
+    notFoundHint:
+      "这里只显示您连接之后、在您登录的账户（{{account}}）中收到的邮件。如果 Gmail 显示的是其他账户，请切换过去。",
+    signedOutTitle: "登录 AIMail",
+    signedOutHint: "使用您在 Gmail 中使用的 Google 账户登录一次。完成后登录标签页会自动关闭。",
+    summary: "摘要",
+    showMore_one: "展开 · {{count}} 项待办",
+    showMore_other: "展开 · {{count}} 项待办",
+    showLess: "收起",
+    sources: "来源（{{count}}）",
+    friendlyColours: "色盲友好颜色",
   },
   quarantine: {
     badge: "等待遮蔽",
@@ -268,6 +322,10 @@ export const zh: Translations = {
       refused:
         "AI 无法为这封邮件撰写草稿，重试也不会改变结果。您的文字没有改变：请自行撰写回复，或尝试另一种语气。",
       sendUnknown: "无法确认回复是否已发送。请先检查您的 Gmail 已发送邮件，再决定是否重新发送。",
+      sendNotGranted:
+        "AIMail 无权从您的 Gmail 发送邮件。请退出并重新登录，并勾选允许 AIMail 发送电子邮件的选项。您的草稿未更改。",
+      unresolved:
+        "这封回复中有 AIMail 无法填写的占位符，例如 [PERSON_3]。请在该处输入真实信息后再发送。",
     },
     replaceEdits: "新草稿将替换您输入的修改。",
     replaceConfirm: "替换我的修改",
@@ -277,10 +335,14 @@ export const zh: Translations = {
       "这封回复仍有 {{count}} 处隐藏信息，例如 [Redacted]。收件人会原样看到。发送前请填入真实信息。",
     sendAnyway: "仍然发送",
     keepEditing: "继续编辑",
+    sendTemplates_one: "这封回复仍有 {{count}} 处方括号空位，例如 [Your Name]。收件人会原样看到。",
+    sendTemplates_other:
+      "这封回复仍有 {{count}} 处方括号空位，例如 [Your Name]。收件人会原样看到。",
   },
   signIn: {
     google: "使用 Google 登录",
-    privacy: "Google 仅用于确认您的身份。未经您批准，不会从您的账户发送任何内容。",
+    privacy:
+      "AIMail 会读取您的 Gmail 以起草回复。在 AI 看到之前会隐藏个人信息，未经您批准不会发送任何内容。",
     errors: {
       sign_in_failed: "登录未完成，请重试。",
       sign_in_unavailable: "登录暂时不可用，请几分钟后再试。",
@@ -294,7 +356,7 @@ export const zh: Translations = {
     pillars: {
       private: {
         title: "从设计上保护隐私",
-        body: "在 AI 看到任何内容之前，我们会先隐藏个人信息，附件也不例外。身份证照片根本不会发送出去。",
+        body: "在 AI 看到任何内容之前，我们会先隐藏个人信息，附件也不例外；这些信息仅以加密形式保存，以便您的回复仍可使用。身份证照片根本不会发送出去。",
       },
       approve: {
         title: "每次发送都由您批准",
@@ -324,11 +386,8 @@ export const zh: Translations = {
         body: "可以编辑、润色或重新生成。只有在您同意后才会发送。",
       },
     },
-    footer: "您的 Google 账户仅用于登录。AIMail 是马来西亚莫纳什大学的毕业项目。",
-  },
-  account: {
-    signOut: "退出登录",
-    signingOut: "正在退出…",
+    footer:
+      "使用 Google 登录即允许 AIMail 读取和发送您的 Gmail。AIMail 是马来西亚莫纳什大学的毕业项目。",
   },
   announce: {
     regenerated: "草稿已重新生成",
