@@ -30,6 +30,8 @@ export const ms: Translations = {
     noMailboxTitle: "Tiada peti mel disambungkan",
     noMailboxHint:
       "Log keluar, kemudian log masuk dengan Google semula dan benarkan AIMail membaca Gmail anda.",
+    conversations_one: "{{count}} perbualan",
+    conversations_other: "{{count}} perbualan",
   },
   priority: { high: "Segera", medium: "Sederhana", low: "Rendah" },
   detail: {

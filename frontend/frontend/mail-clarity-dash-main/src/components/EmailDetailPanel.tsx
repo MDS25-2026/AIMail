@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 
+import { splitAround } from "../lib/conversations";
 import { detailValues } from "../lib/details";
 import { DetailsContext } from "../lib/detailsContext";
 import { useFormat } from "../lib/useFormat";
@@ -8,7 +9,7 @@ import AISummaryCard from "./AISummaryCard";
 import EmailBody from "./EmailBody";
 import QuarantineNotice from "./QuarantineNotice";
 import ActionItemsList from "./ActionItemsList";
-import ThreadContextToggle from "./ThreadContextToggle";
+import ConversationMessages from "./ConversationMessages";
 import DraftReplyEditor from "./DraftReplyEditor";
 import SourcesChips from "./SourcesChips";
 import RefineInput from "./RefineInput";
@@ -59,6 +60,8 @@ export default function EmailDetailPanel({
     );
   }
 
+  const conversation = splitAround(email.threadContext, email.timestamp);
+
   const header = (
     <header className="border-b border-line bg-surface px-6 py-4">
       <div className="flex items-start justify-between gap-3">
@@ -95,11 +98,12 @@ export default function EmailDetailPanel({
 
         <div className="space-y-4 p-6">
           <MissingDetailsNotice email={email} draft={draft} />
+          <ConversationMessages messages={conversation.earlier} />
           <EmailBody key={email.id} email={email} />
+          <ConversationMessages messages={conversation.later} />
 
           <AISummaryCard summary={email.aiSummary} />
           <ActionItemsList items={email.actionItems} />
-          <ThreadContextToggle messages={email.threadContext} />
 
           <section className="space-y-4 rounded-lg border border-line bg-surface p-4">
             <DraftReplyEditor

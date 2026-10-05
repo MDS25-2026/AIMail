@@ -24,6 +24,8 @@ export const zh: Translations = {
     emptyHint: "新邮件到达您的 Gmail 收件箱几秒后会显示在这里。",
     noMailboxTitle: "未连接邮箱",
     noMailboxHint: "请退出，然后重新使用 Google 登录，并允许 AIMail 读取您的 Gmail。",
+    conversations_one: "{{count}} 个会话",
+    conversations_other: "{{count}} 个会话",
   },
   priority: { high: "紧急", medium: "中等", low: "低" },
   detail: {

@@ -45,3 +45,12 @@ def test_the_model_sees_what_the_owner_already_replied_with_typed_details_masked
     assert "Your reply to earlier message 1:" in context
     assert "012-345 6789" not in context and "[PHONE_REDACTED]" in context
     assert "Aisyah" not in context, "the sender's name must never enter a model payload"
+
+
+def test_each_message_in_the_conversation_carries_its_full_body_and_time():
+    original = _message(0, "Can I claim the course fee?", sent_at=T0 + timedelta(minutes=5),
+                        draft_reply="Hi [PERSON_1], yes.")
+    view = _thread_view([original], ThreadMap())
+    assert view[0].body == "Can I claim the course fee?" and view[0].timestamp == T0.isoformat()
+    assert view[1].isOwnReply and view[1].body == "Hi [PERSON_1], yes."
+    assert view[1].timestamp == (T0 + timedelta(minutes=5)).isoformat()

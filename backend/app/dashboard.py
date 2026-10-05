@@ -116,11 +116,19 @@ def _thread_view(thread: list[Message], details: ThreadMap) -> list[ThreadMessag
     """Each message in the thread, with the owner's reply right under the one it answered."""
     view: list[ThreadMessage] = []
     for m in thread:
-        snippet = details.renumber(str(m.id), m.snippet_masked or "")
-        view.append(ThreadMessage(sender=m.from_addr or "", snippet=snippet))
+        key = str(m.id)
+        received = m.received_at or m.created_at
+        view.append(ThreadMessage(
+            sender=m.from_addr or "", snippet=details.renumber(key, m.snippet_masked or ""),
+            body=details.renumber(key, m.body_masked or ""),
+            timestamp=received.isoformat() if received else None,
+        ))
         if _sent_reply(m):
-            snippet = plain_text(m.draft_reply or "")[:THREAD_SNIPPET_CHARS]
-            view.append(ThreadMessage(sender="", snippet=snippet, isOwnReply=True))
+            reply = m.draft_reply or ""
+            view.append(ThreadMessage(
+                sender="", snippet=plain_text(reply)[:THREAD_SNIPPET_CHARS], isOwnReply=True, body=reply,
+                timestamp=m.sent_at.isoformat(),
+            ))
     return view
 
 
@@ -154,6 +162,7 @@ def _to_email(
         quantities=_quantity_views(message.body_masked or ""),
         masking=message.masking_status or MaskingStatus.COMPLETE,
         replyTo=message.reply_to or None,
+        threadId=message.thread_id,
         details=[Detail(**detail) for detail in details.details()],
     )
 

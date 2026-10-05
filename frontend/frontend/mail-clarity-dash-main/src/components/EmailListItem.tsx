@@ -6,11 +6,18 @@ import PriorityBadge from "./PriorityBadge";
 
 type EmailListItemProps = {
   email: Email;
+  /** Messages in this row's conversation; shown beside the sender when more than one. */
+  messageCount?: number;
   selected: boolean;
   onSelect: (emailId: string) => void;
 };
 
-export default function EmailListItem({ email, selected, onSelect }: EmailListItemProps) {
+export default function EmailListItem({
+  email,
+  messageCount = 1,
+  selected,
+  onSelect,
+}: EmailListItemProps) {
   const { t } = useTranslation();
   const format = useFormat();
   return (
@@ -42,6 +49,10 @@ export default function EmailListItem({ email, selected, onSelect }: EmailListIt
           >
             {email.sender}
           </span>
+          {/* Outside the truncated name, so a long sender never hides the count. */}
+          {messageCount > 1 ? (
+            <span className="shrink-0 text-xs text-fg-subtle">({messageCount})</span>
+          ) : null}
           <span className="shrink-0 text-xs text-fg-subtle">
             {format.timestamp(email.timestamp)}
           </span>

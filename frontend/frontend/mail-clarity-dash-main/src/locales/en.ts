@@ -25,6 +25,8 @@ export const en = {
     emptyHint: "New emails show up here a few seconds after they reach your Gmail inbox.",
     noMailboxTitle: "No mailbox connected",
     noMailboxHint: "Sign out, then sign in with Google again and allow AIMail to read your Gmail.",
+    conversations_one: "{{count}} conversation",
+    conversations_other: "{{count}} conversations",
   },
   priority: { high: "Urgent", medium: "Medium", low: "Low" },
   detail: {

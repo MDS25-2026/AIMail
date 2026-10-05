@@ -43,6 +43,10 @@ class ThreadMessage(BaseModel):
     snippet: str
     # A reply the mailbox owner sent from AIMail, shown under the email it answered.
     isOwnReply: bool = False
+    # The full masked body and when it arrived (or, for the owner's reply, was sent): the
+    # conversation view expands earlier messages in place (specs/features/conversation-view.md).
+    body: str = ""
+    timestamp: str | None = None
 
 
 class Source(BaseModel):
@@ -107,6 +111,8 @@ class DashboardEmail(BaseModel):
     masking: Literal["complete", "pending", "abandoned"] = "complete"
     # Where an approved reply goes when the sender set a Reply-To; null means it goes to `sender`.
     replyTo: str | None = None
+    # The Gmail thread, so the dashboard can show one inbox row per conversation.
+    threadId: str | None = None
     # The real details behind this email's, its thread's and its draft's placeholders. Detail
     # responses only; empty on the list and for emails stored before restorable masking.
     details: list[Detail] = Field(default_factory=list)

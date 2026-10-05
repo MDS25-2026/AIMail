@@ -2,18 +2,15 @@ import { ImageOff, Languages } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { restoreDetailsInHtml } from "../lib/details";
 import { needsTranslation } from "../lib/detectLanguage";
-import { useDetailValues } from "../lib/detailsContext";
-import { useDetailsHidden } from "../lib/detailsVisibility";
 import { useEmailTranslation } from "../lib/queries";
 import type { Email } from "../types/email";
-import { sanitizeEmailHtml } from "../lib/sanitizeEmail";
+import { looksLikeHtml, useRenderedBody } from "../lib/useRenderedBody";
 import { usePreferences } from "../lib/usePreferences";
+import { HTML_BODY_CLASS } from "./MessageBody";
 import QuantitiesList from "./QuantitiesList";
 import WithDetails from "./WithDetails";
 
-const LOOKS_LIKE_HTML = /^\s*<[a-z!]/i;
 const TAGS = /<[^>]*>/g;
 
 /** The masked body, with an on-request translation into the reader's language. Key it by email id
@@ -25,22 +22,15 @@ export default function EmailBody({ email }: { email: Email }) {
   const translation = useEmailTranslation(email.id, language, isShowingTranslation);
   const translated = isShowingTranslation ? translation.data?.text : undefined;
   const [isAllowingImages, setIsAllowingImages] = useState(false);
-  const isHtml = LOOKS_LIKE_HTML.test(email.body);
+  const isHtml = looksLikeHtml(email.body);
   // Offered only when it would help; kept while showing, so the original is one click away.
   const canTranslate = useMemo(
     () => needsTranslation(isHtml ? email.body.replace(TAGS, " ") : email.body, language),
     [email.body, isHtml, language],
   );
-  const values = useDetailValues();
-  const [isHidingDetails] = useDetailsHidden();
-  const markTitle = t("details.hiddenFromAi");
-  const sanitized = useMemo(() => {
-    if (!isHtml) return null;
-    const clean = sanitizeEmailHtml(email.body, isAllowingImages);
-    // After sanitising: details go in as text, so nothing from an email can become markup.
-    const html = isHidingDetails ? clean.html : restoreDetailsInHtml(clean.html, values, markTitle);
-    return { ...clean, html };
-  }, [email.body, isHtml, isAllowingImages, isHidingDetails, values, markTitle]);
+  const rendered = useRenderedBody(email.body, isAllowingImages);
+  const sanitized =
+    rendered.html === null ? null : { html: rendered.html, blockedImages: rendered.blockedImages };
 
   return (
     <section className="rounded-lg border border-line bg-surface p-4">
@@ -96,13 +86,7 @@ export default function EmailBody({ email }: { email: Email }) {
               </button>
             </div>
           ) : null}
-          <div
-            // contain:paint makes this the containing block even for position:fixed, and clips to
-            // it: sanitised email HTML keeps inline styles, and a fixed element must not be able to
-            // draw over the dashboard (a fake button over Approve & Send).
-            className="relative max-w-none overflow-x-auto text-sm text-fg-body [contain:paint] [&_a]:text-brand [&_a]:underline [&_img]:max-w-full"
-            dangerouslySetInnerHTML={{ __html: sanitized.html }}
-          />
+          <div className={HTML_BODY_CLASS} dangerouslySetInnerHTML={{ __html: sanitized.html }} />
         </>
       ) : (
         <p className="whitespace-pre-wrap text-sm text-fg-body">

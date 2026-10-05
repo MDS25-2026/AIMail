@@ -19,16 +19,22 @@ export const mockEmails: Email[] = [
         sender: "Dana Whitfield",
         snippet: "Attaching the redlined MSA for your review.",
         isOwnReply: false,
+        body: "Attaching the redlined MSA for your review.",
+        timestamp: null,
       },
       {
         sender: "",
         snippet: "Thanks — routing to legal today, will revert by Wednesday.",
         isOwnReply: true,
+        body: "Thanks — routing to legal today, will revert by Wednesday.",
+        timestamp: null,
       },
       {
         sender: "Dana Whitfield",
         snippet: "Legal signed off. Confirm seat count by Friday?",
         isOwnReply: false,
+        body: "Legal signed off. Confirm seat count by Friday?",
+        timestamp: null,
       },
     ],
     aiSummary:
@@ -63,11 +69,15 @@ export const mockEmails: Email[] = [
         sender: "Priya Raman",
         snippet: "Staging pinned to build 412, expected 418.",
         isOwnReply: false,
+        body: "Staging pinned to build 412, expected 418.",
+        timestamp: null,
       },
       {
         sender: "Marco Silva",
         snippet: "I see a failed migration in the deploy log.",
         isOwnReply: false,
+        body: "I see a failed migration in the deploy log.",
+        timestamp: null,
       },
     ],
     aiSummary:
@@ -120,6 +130,8 @@ export const mockEmails: Email[] = [
         sender: "Conference Ops",
         snippet: "Reminder: speaker materials due end of month.",
         isOwnReply: false,
+        body: "Reminder: speaker materials due end of month.",
+        timestamp: null,
       },
     ],
     aiSummary:
@@ -141,8 +153,20 @@ export const mockEmails: Email[] = [
     timestamp: "2026-07-30T11:32:00Z",
     priority: "low",
     threadContext: [
-      { sender: "Jen Alvarez", snippet: "Booked my flights for the offsite.", isOwnReply: false },
-      { sender: "", snippet: "Nice — I'm in Monday evening too.", isOwnReply: true },
+      {
+        sender: "Jen Alvarez",
+        snippet: "Booked my flights for the offsite.",
+        isOwnReply: false,
+        body: "Booked my flights for the offsite.",
+        timestamp: null,
+      },
+      {
+        sender: "",
+        snippet: "Nice — I'm in Monday evening too.",
+        isOwnReply: true,
+        body: "Nice — I'm in Monday evening too.",
+        timestamp: null,
+      },
     ],
     aiSummary:
       "Jen is proposing coffee on Tuesday morning before the offsite starts and is waiting on a yes/no plus a time.",
