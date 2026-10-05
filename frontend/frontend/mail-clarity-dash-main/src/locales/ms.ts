@@ -204,6 +204,28 @@ export const ms: Translations = {
     unavailable:
       "Sesetengah butiran tidak lagi disimpan di sini. Buka e-mel dalam Gmail untuk melihatnya.",
   },
+  account: {
+    title: "Akaun",
+    signedInAs: "Log masuk sebagai {{email}}.",
+    cancel: "Batal",
+    working: "Sedang diproses…",
+    disconnect: "Putuskan Gmail",
+    disconnectTitle: "Putuskan Gmail?",
+    disconnectBody:
+      "AIMail berhenti membaca Gmail anda dan akses Google untuk AIMail dibatalkan.\nSetiap e-mel yang disimpan oleh AIMail, bersama draf, ringkasan dan butiran tersembunyi, akan dipadam. Tiada apa-apa dipadam daripada Gmail.\nAkaun, tetapan dan dokumen anda kekal. Log masuk semula untuk menyambung.",
+    disconnected: "Gmail telah diputuskan. Log masuk semula bila-bila masa untuk menyambung.",
+    disconnectFailed:
+      "Tidak dapat memutuskan. Tiada apa-apa dipadam daripada Gmail; cuba lagi sebentar lagi.",
+    delete: "Padam akaun",
+    deleteTitle: "Padam akaun AIMail anda?",
+    deleteBody:
+      "Ini memadam semua yang disimpan oleh AIMail untuk anda: e-mel, draf, ringkasan dan butiran tersembunyi, dokumen, tetapan dan log masuk anda. Akses Google untuk AIMail dibatalkan.\nTiada apa-apa dipadam daripada Gmail. Tindakan ini tidak boleh dibuat asal.",
+    deleteTypeEmail: "Taip {{email}} untuk mengesahkan.",
+    deleteFailed:
+      "Belum semuanya dipadam. Cuba lagi untuk selesaikan; apa yang telah dipadam tidak akan kembali.",
+    signOut: "Log keluar",
+    signingOut: "Sedang log keluar…",
+  },
   extension: {
     heading: "Pratonton panel sambungan",
     back: "Kembali ke papan pemuka",
@@ -394,10 +416,6 @@ export const ms: Translations = {
     },
     footer:
       "Log masuk dengan Google membenarkan AIMail membaca dan menghantar Gmail anda. AIMail ialah projek tahun akhir di Monash University Malaysia.",
-  },
-  account: {
-    signOut: "Log keluar",
-    signingOut: "Sedang log keluar…",
   },
   announce: {
     regenerated: "Draf dijana semula",

@@ -196,6 +196,27 @@ export const en = {
     show: "Show details",
     unavailable: "Some details are no longer kept here. Open the email in Gmail to see them.",
   },
+  account: {
+    title: "Account",
+    signedInAs: "Signed in as {{email}}.",
+    cancel: "Cancel",
+    working: "Working…",
+    disconnect: "Disconnect Gmail",
+    disconnectTitle: "Disconnect Gmail?",
+    disconnectBody:
+      "AIMail stops reading your Gmail and Google's access for AIMail is revoked.\nEvery email AIMail stored, with its drafts, summaries and hidden details, is deleted. Nothing is deleted from Gmail itself.\nYour account, settings and documents stay. Sign in again to reconnect.",
+    disconnected: "Gmail disconnected. Sign in again any time to reconnect.",
+    disconnectFailed: "Couldn't disconnect. Nothing was deleted from Gmail; try again in a moment.",
+    delete: "Delete account",
+    deleteTitle: "Delete your AIMail account?",
+    deleteBody:
+      "This deletes everything AIMail holds for you: stored emails, drafts, summaries and hidden details, your documents, your settings, and your sign-in. Google's access for AIMail is revoked.\nNothing is deleted from Gmail itself. This can't be undone.",
+    deleteTypeEmail: "Type {{email}} to confirm.",
+    deleteFailed:
+      "Not everything was deleted yet. Try again to finish; nothing deleted so far comes back.",
+    signOut: "Sign out",
+    signingOut: "Signing out…",
+  },
   extension: {
     heading: "Extension panel preview",
     back: "Back to dashboard",
@@ -384,10 +405,6 @@ export const en = {
     },
     footer:
       "Signing in with Google lets AIMail read and send your Gmail. AIMail is a final-year project at Monash University Malaysia.",
-  },
-  account: {
-    signOut: "Sign out",
-    signingOut: "Signing out…",
   },
   announce: {
     regenerated: "Draft regenerated",

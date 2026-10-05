@@ -22,6 +22,12 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
 - Mailbox scope: a signed-in user sees mail only for a mailbox they own (stage 1: the Gmail account
   the backend is connected to, read at startup; `MAILBOX_OWNER_EMAIL` is a fallback). Anyone else gets `[]` from `GET /emails` and `GET /documents`, and `404` from every
   route about one email, `/search`, `/ask` and document ingestion.
+- **Account (2026-10-05, `specs/features/per-user-mailboxes.md` "Disconnect and delete account"):**
+  `DELETE /account/gmail` revokes the Google token, deletes the user's stored emails and their
+  connection (`204`; `404 not_connected`). `DELETE /account` also deletes their documents, profile
+  and Supabase sign-in, and clears the session cookies (`204`; `502 account_not_fully_deleted`, safe
+  to repeat). Both need a signed-in user (`403 account_only` for the script token) and, with a
+  cookie, `X-AIMail-Client: 1`.
 - **Restorable masking (2026-10-05, `specs/features/restorable-masking.md`):** stored text carries
   numbered placeholders (`[PERSON_1]`, `[PHONE_2]`, kinds PERSON, EMAIL, PHONE, IC, PASSPORT,
   ACCOUNT, CARD, LOCATION, ORG), numbered once per thread. Detail, regenerate, refine and send

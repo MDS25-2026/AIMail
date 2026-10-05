@@ -147,3 +147,17 @@ func TestSigningInAgainRestartsTheMailboxWithTheNewToken(t *testing.T) {
 		t.Fatal("a new token kept the old, possibly revoked, one running")
 	}
 }
+
+// Disconnecting Gmail or deleting an account removes the connection row; the next sync must stop
+// ingesting that mailbox, and must never touch the token.json mailbox, which has no row.
+func TestADisconnectedMailboxIsDroppedOnTheNextSync(t *testing.T) {
+	withSupabase(t, func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte(`[]`)) })
+	withMailboxes(t, &mailbox{ownerID: "user-a", email: "a@gmail.com"}, &mailbox{email: "owner@gmail.com"})
+	syncConnections(context.Background())
+	if lookupMailbox("a@gmail.com") != nil {
+		t.Fatal("a disconnected mailbox is still being ingested")
+	}
+	if lookupMailbox("owner@gmail.com") == nil {
+		t.Fatal("the token.json mailbox was dropped")
+	}
+}

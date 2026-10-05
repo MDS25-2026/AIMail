@@ -189,6 +189,26 @@ export const zh: Translations = {
     show: "显示详情",
     unavailable: "部分详情已不再保存在这里。请在 Gmail 中打开邮件查看。",
   },
+  account: {
+    title: "账户",
+    signedInAs: "当前登录：{{email}}。",
+    cancel: "取消",
+    working: "处理中…",
+    disconnect: "断开 Gmail",
+    disconnectTitle: "断开 Gmail？",
+    disconnectBody:
+      "AIMail 将停止读取您的 Gmail，并撤销 Google 授予 AIMail 的访问权限。\nAIMail 存储的所有邮件及其草稿、摘要和隐藏详情都将被删除。Gmail 中的内容不会被删除。\n您的账户、设置和文档会保留。重新登录即可再次连接。",
+    disconnected: "已断开 Gmail。随时重新登录即可再次连接。",
+    disconnectFailed: "无法断开连接。Gmail 中没有任何内容被删除；请稍后重试。",
+    delete: "删除账户",
+    deleteTitle: "删除您的 AIMail 账户？",
+    deleteBody:
+      "这将删除 AIMail 为您保存的一切：存储的邮件、草稿、摘要和隐藏详情、您的文档、设置以及登录账户，并撤销 Google 授予 AIMail 的访问权限。\nGmail 中的内容不会被删除。此操作无法撤销。",
+    deleteTypeEmail: "输入 {{email}} 以确认。",
+    deleteFailed: "尚未全部删除。请重试以完成；已删除的内容不会恢复。",
+    signOut: "退出登录",
+    signingOut: "正在退出…",
+  },
   extension: {
     heading: "扩展面板预览",
     back: "返回控制台",
@@ -368,10 +388,6 @@ export const zh: Translations = {
     },
     footer:
       "使用 Google 登录即允许 AIMail 读取和发送您的 Gmail。AIMail 是马来西亚莫纳什大学的毕业项目。",
-  },
-  account: {
-    signOut: "退出登录",
-    signingOut: "正在退出…",
   },
   announce: {
     regenerated: "草稿已重新生成",

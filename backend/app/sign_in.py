@@ -76,7 +76,7 @@ def _set_session(response: Response, session: Session) -> None:
                         path=REFRESH_PATH, httponly=True, secure=secure, samesite="strict")
 
 
-def _clear_session(response: Response) -> None:
+def clear_session(response: Response) -> None:
     secure = get_settings().admin_cookie_secure
     response.delete_cookie(SESSION_COOKIE, path="/", httponly=True, secure=secure, samesite="strict")
     response.delete_cookie(REFRESH_COOKIE, path=REFRESH_PATH, httponly=True, secure=secure,
@@ -176,6 +176,6 @@ async def sign_out(request: Request, response: Response) -> Response:
     token = request.cookies.get(SESSION_COOKIE)
     if token:
         await supabase_auth.revoke(token)
-    _clear_session(response)
+    clear_session(response)
     response.status_code = status.HTTP_204_NO_CONTENT
     return response

@@ -167,6 +167,7 @@ func syncConnections(ctx context.Context) {
 		log.Printf("could not load mailbox connections: %v", err)
 		return
 	}
+	dropDisconnected(ctx, rows)
 	for _, row := range rows {
 		if isRunning(row) {
 			continue
@@ -181,6 +182,36 @@ func syncConnections(ctx context.Context) {
 			writeAuditLog(ctx, "start_mailbox", fmt.Sprintf("user %s: %v", row.UserID, err), false)
 		}
 	}
+}
+
+// dropDisconnected stops ingesting every connected mailbox whose row is gone: the user disconnected
+// Gmail or deleted their account. Its notifications are then ignored like any unknown address.
+// The token.json mailbox has no row and is never dropped here.
+func dropDisconnected(ctx context.Context, rows []connectionRow) {
+	for _, ownerID := range unregisterMissing(rows) {
+		log.Printf("stopped ingesting the mailbox of user %s: disconnected", ownerID)
+		writeAuditLog(ctx, "stop_mailbox", fmt.Sprintf("user %s disconnected", ownerID), true)
+	}
+}
+
+// unregisterMissing removes, under the lock, every connected mailbox not among rows, and returns
+// their owners so the caller can log them without holding the lock.
+func unregisterMissing(rows []connectionRow) []string {
+	current := make(map[string]bool, len(rows))
+	for _, row := range rows {
+		current[row.UserID] = true
+	}
+	registry.Lock()
+	defer registry.Unlock()
+	var dropped []string
+	for email, mb := range registry.byEmail {
+		if mb.ownerID == "" || current[mb.ownerID] {
+			continue
+		}
+		delete(registry.byEmail, email)
+		dropped = append(dropped, mb.ownerID)
+	}
+	return dropped
 }
 
 // isRunning is true when this connection is already ingested with its current token. Signing in

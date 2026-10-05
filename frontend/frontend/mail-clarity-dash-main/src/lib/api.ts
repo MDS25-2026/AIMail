@@ -81,6 +81,18 @@ export async function fetchEmail(id: string): Promise<Email> {
   return res.json();
 }
 
+/** Stop AIMail reading the reader's Gmail and delete what it stored from it (Settings > Account). */
+export async function disconnectGmail(): Promise<void> {
+  const res = await apiFetch("/account/gmail", { method: "DELETE" });
+  if (!res.ok) throw await apiError(res, `DELETE /account/gmail failed (${res.status})`);
+}
+
+/** Delete everything the reader has in AIMail, then their sign-in. Safe to try again. */
+export async function deleteAccount(): Promise<void> {
+  const res = await apiFetch("/account", { method: "DELETE" });
+  if (!res.ok) throw await apiError(res, `DELETE /account failed (${res.status})`);
+}
+
 /** The newest of the reader's emails in a Gmail thread, or null when AIMail has none (extension). */
 export async function fetchEmailByThread(threadId: string): Promise<Email | null> {
   const res = await apiFetch(`/emails/by-thread/${encodeURIComponent(threadId)}`);

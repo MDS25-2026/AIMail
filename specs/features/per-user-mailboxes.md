@@ -120,6 +120,23 @@ rows; an index on `(user_id, created_at)` serves the inbox.
 - ~~The admin console with many users~~ **Decided 2026-10-04:** aggregates only. The flagged-drafts
   list becomes counts by reason; no individual subject or id from any mailbox.
 
+## Disconnect and delete account (step 5, built 2026-10-05)
+
+Both are in Settings > Account, each behind a confirmation that says exactly what is deleted.
+
+- `DELETE /account/gmail` (signed-in user, `X-AIMail-Client: 1`): revokes the stored refresh token
+  at Google (best effort: a failure is logged and the deletion still happens), then in one
+  transaction deletes the user's stored emails (masked text, drafts, summaries, detail vaults) and
+  their `mailbox_connection`. The listener drops the mailbox on its next sync (two minutes) and
+  ignores its notifications from then on. The account, settings and knowledge base stay; signing in
+  again reconnects. `204`; `404 not_connected` if there was no connection.
+- `DELETE /account`: the same, then deletes the user's documents (chunks and embeddings cascade),
+  their profile (preferences and rules cascade), and their Supabase sign-in account, and clears the
+  session cookies. Every step is safe to repeat, so a failure part-way answers `502
+  account_not_fully_deleted` and trying again finishes the job.
+- Scripts holding the shared token get `403 account_only`: there is no account to act on.
+- Audit rows record counts only (`messages_deleted=12`), never content.
+
 ## Audit findings that change the design (2026-10-04)
 
 A code audit of every single-mailbox assumption found these, each checked in code:
@@ -170,6 +187,7 @@ A code audit of every single-mailbox assumption found these, each checked in cod
    and picks up new sign-ups every two minutes. A failing mailbox is logged and retried, never
    fatal. Rows carry `user_id`; duplicates are judged per mailbox (`on_conflict=user_id,gmail_message_id`).
    Interim: Pub/Sub still authenticates as the `token.json` account (finding 4).
-5. Backfill, delete `app/core/mailbox.py`, disconnect flow and its UI. Also: drop the global
+5. ~~Disconnect flow and its UI~~ done 2026-10-05 (see "Disconnect and delete account"; checked
+   live with throwaway accounts). Still open: backfill and delete `app/core/mailbox.py`. Also: drop the global
    `messages_gmail_message_id_key`; the admin console to counts only (finding 5, decided
    2026-10-04); fair per-user throughput (finding 7); Pub/Sub on a service account (finding 4).

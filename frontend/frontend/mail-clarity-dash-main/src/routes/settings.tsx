@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { Trans, useTranslation } from "react-i18next";
 
+import AccountCard from "../components/AccountCard";
 import AppShell from "../components/AppShell";
 import { PageError, PageLoading } from "../components/PageState";
 import { usePreferences } from "../lib/usePreferences";
@@ -41,8 +42,9 @@ function SettingsPage() {
           </p>
         </header>
 
-        <div className="mb-4">
+        <div className="mb-4 grid gap-4 lg:grid-cols-2">
           <AppearanceCard />
+          <AccountCard />
         </div>
 
         {info.isPending ? <PageLoading label={t("settings.label")} /> : null}
