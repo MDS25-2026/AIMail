@@ -231,3 +231,37 @@ def test_re_uploading_replaces_only_the_uploaders_own_copy_and_files_it_under_th
     asyncio.run(ingest._replace_document(session, Scope(owner_id=ALICE), "upload://a.pdf", "a", "policy"))
     assert f"document.user_id = '{ALICE}'" in _sql(session.statements[0])
     assert session.added[0].user_id == ALICE
+
+
+# ---------- The Chrome extension's lookup by Gmail thread ----------
+
+def test_the_extension_looks_up_the_open_thread_in_the_users_own_scope(seen, monkeypatch):
+    calls = []
+
+    async def by_thread(thread_id, *, scope):
+        calls.append((thread_id, scope))
+
+    monkeypatch.setattr("app.main.email_for_thread", by_thread)
+    assert _as(ALICE, "alice@gmail.com").get("/emails/by-thread/1a10b0c2d3e4f5a6").status_code == 404
+    assert calls == [("1a10b0c2d3e4f5a6", Scope(owner_id=ALICE))]
+
+
+def test_a_user_with_no_mailbox_never_reaches_the_thread_lookup(seen, monkeypatch):
+    async def by_thread(*_args, **_kwargs):
+        raise AssertionError("looked up a thread for someone with no mailbox")
+
+    monkeypatch.setattr("app.main.email_for_thread", by_thread)
+    assert _as(BOB, "bob@gmail.com").get("/emails/by-thread/1a10b0c2d3e4f5a6").status_code == 404
+
+
+def test_anything_but_a_gmail_thread_id_is_refused_before_any_lookup(seen):
+    response = TestClient(app).get("/emails/by-thread/not-an-id%27%3B", headers=AUTH_HEADERS)
+    assert response.status_code == 422
+
+
+def test_the_thread_lookup_takes_the_newest_message_the_caller_owns(captured):
+    asyncio.run(dashboard.email_for_thread("1a10b0c2d3e4f5a6", scope=Scope(owner_id=ALICE)))
+    sql = _sql(captured[0])
+    assert "messages.thread_id = '1a10b0c2d3e4f5a6'" in sql
+    assert f"messages.user_id = '{ALICE}'" in sql
+    assert "ORDER BY messages.received_at DESC NULLS LAST" in sql

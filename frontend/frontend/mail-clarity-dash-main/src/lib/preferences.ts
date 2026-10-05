@@ -1,6 +1,3 @@
-import { createIsomorphicFn } from "@tanstack/react-start";
-import { getCookie } from "@tanstack/react-start/server";
-
 /**
  * Per-browser display preferences: theme, language, unit system.
  *
@@ -59,21 +56,6 @@ export function parsePreferences(read: (name: string) => string | undefined): Pr
     units: oneOf(UnitSystem, read(COOKIE.units), DEFAULT_PREFERENCES.units),
   };
 }
-
-function browserCookie(name: string): string | undefined {
-  const match = document.cookie.split("; ").find((pair) => pair.startsWith(`${name}=`));
-  if (!match) return undefined;
-  try {
-    return decodeURIComponent(match.slice(name.length + 1));
-  } catch {
-    // A malformed value (cookies on localhost are shared across ports) is just "not set".
-    return undefined;
-  }
-}
-
-export const readPreferences = createIsomorphicFn()
-  .server((): Preferences => parsePreferences(getCookie))
-  .client((): Preferences => parsePreferences(browserCookie));
 
 export function writePreference(name: string, value: string): void {
   document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${ONE_YEAR_SECONDS}; samesite=lax`;

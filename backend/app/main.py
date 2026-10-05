@@ -12,9 +12,10 @@ import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Request, UploadFile, status
+from fastapi import Path as PathParam
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
@@ -55,6 +56,7 @@ from app.dashboard import (
     TranslationError,
     approve_and_send,
     email_detail,
+    email_for_thread,
     generate_pending,
     list_dashboard_emails,
     refine_email,
@@ -228,6 +230,21 @@ async def emails(request: Request) -> list[DashboardEmail]:
 async def email_detail_route(message_id: str, request: Request) -> DashboardEmail:
     # Detail view: adds Lane C generation (retrieve + /process-email) for one opened email.
     email = await email_detail(message_id, scope=scope_of(request))
+    if email is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "email not found")
+    return email
+
+
+# Gmail thread ids are 16 hex digits; bounded so the path never carries anything else.
+GMAIL_THREAD_ID = r"^[0-9a-f]{8,24}$"
+
+
+@app.get("/emails/by-thread/{thread_id}", dependencies=[Depends(rate_limit_detail), Depends(require_mailbox)])
+async def email_for_thread_route(
+    thread_id: Annotated[str, PathParam(pattern=GMAIL_THREAD_ID)], request: Request
+) -> DashboardEmail:
+    # The Chrome extension's lookup: the email Gmail has open, by its thread.
+    email = await email_for_thread(thread_id, scope=scope_of(request))
     if email is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "email not found")
     return email

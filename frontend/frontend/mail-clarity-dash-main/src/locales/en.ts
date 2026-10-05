@@ -190,6 +190,27 @@ export const en = {
     emptyTitle: "No emails to preview",
     emptyHint: "Send a message to the connected mailbox and it will appear here.",
     panel: "Extension panel",
+    loading: "Loading…",
+    preparing: "Getting this email's draft ready…",
+    loadFailed: "Couldn't load this email from AIMail.",
+    notGmailTitle: "Open Gmail to use AIMail",
+    notGmailHint: "AIMail works beside your Gmail inbox. Switch to a Gmail tab.",
+    reloadTitle: "Reload Gmail once",
+    reloadHint:
+      "This Gmail tab was open before AIMail was installed. Reload it and AIMail will follow the email you open.",
+    noEmailTitle: "Open an email",
+    noEmailHint: "Pick an email in Gmail and its summary and reply appear here.",
+    notFoundTitle: "AIMail hasn't received this email",
+    notFoundHint:
+      "Only emails that arrived after you connected, in the account you signed in with ({{account}}), appear here. If Gmail shows a different account, switch to it.",
+    signedOutTitle: "Sign in to AIMail",
+    signedOutHint:
+      "Sign in once with the Google account you use in Gmail. This panel picks it up by itself.",
+    summary: "Summary",
+    showMore_one: "Show more · {{count}} action item",
+    showMore_other: "Show more · {{count}} action items",
+    showLess: "Show less",
+    sources: "Sources ({{count}})",
   },
   quarantine: {
     badge: "Awaiting masking",

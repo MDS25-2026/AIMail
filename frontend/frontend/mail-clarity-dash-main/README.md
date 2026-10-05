@@ -111,6 +111,26 @@ npm i
 npm run dev
 ```
 
+## Chrome extension
+
+The side panel beside Gmail (`specs/features/chrome-extension.md`). Source in `src/extension/`;
+the panel itself is `src/components/SidePanel.tsx`, which the dashboard's `/extension` page also
+renders. Built separately from the dashboard, with no extra dependencies:
+
+```sh
+make extension     # from the repo root: extension-dist/ plus aimail-extension.zip
+```
+
+Install (each tester, about a minute): unzip `aimail-extension.zip`, open `chrome://extensions`,
+turn on **Developer mode**, click **Load unpacked**, and choose the unzipped folder. Then sign in
+once in the dashboard with the Google account used in Gmail, open Gmail, and click the AIMail icon.
+
+- The backend address comes from `VITE_BACKEND_URL` in the repo-root `.env` at build time (it also
+  sets the extension's host permission), so rebuild after changing it.
+- The panel uses the dashboard's session cookie; nothing is stored in the extension.
+- A Gmail tab opened before installing needs one reload.
+- Icons: `extension-public/icons/`, drawn by `scripts/make-extension-icons.py`.
+
 ## Colours, themes and languages
 
 - **Never use raw Tailwind colours** (`bg-white`, `text-slate-700`, `bg-red-50`). Use the semantic

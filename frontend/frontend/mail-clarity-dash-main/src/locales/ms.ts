@@ -197,6 +197,27 @@ export const ms: Translations = {
     emptyTitle: "Tiada e-mel untuk dipratonton",
     emptyHint: "Hantar mesej ke peti mel yang disambungkan dan ia akan muncul di sini.",
     panel: "Panel sambungan",
+    loading: "Memuatkan…",
+    preparing: "Menyediakan draf untuk e-mel ini…",
+    loadFailed: "Tidak dapat memuatkan e-mel ini daripada AIMail.",
+    notGmailTitle: "Buka Gmail untuk menggunakan AIMail",
+    notGmailHint: "AIMail berfungsi di sebelah peti masuk Gmail anda. Tukar ke tab Gmail.",
+    reloadTitle: "Muat semula Gmail sekali",
+    reloadHint:
+      "Tab Gmail ini dibuka sebelum AIMail dipasang. Muat semula dan AIMail akan mengikut e-mel yang anda buka.",
+    noEmailTitle: "Buka satu e-mel",
+    noEmailHint: "Pilih e-mel dalam Gmail dan ringkasan serta balasannya akan muncul di sini.",
+    notFoundTitle: "AIMail belum menerima e-mel ini",
+    notFoundHint:
+      "Hanya e-mel yang tiba selepas anda menyambung, dalam akaun yang anda log masuk ({{account}}), muncul di sini. Jika Gmail menunjukkan akaun lain, tukar kepadanya.",
+    signedOutTitle: "Log masuk ke AIMail",
+    signedOutHint:
+      "Log masuk sekali dengan akaun Google yang anda gunakan dalam Gmail. Panel ini akan mengesannya sendiri.",
+    summary: "Ringkasan",
+    showMore_one: "Tunjuk lagi · {{count}} tindakan",
+    showMore_other: "Tunjuk lagi · {{count}} tindakan",
+    showLess: "Tunjuk kurang",
+    sources: "Sumber ({{count}})",
   },
   quarantine: {
     badge: "Menunggu penyamaran",

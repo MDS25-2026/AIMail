@@ -2,17 +2,17 @@ import { useTranslation } from "react-i18next";
 
 import type { Email, Tone } from "../types/email";
 import { useFormat } from "../lib/useFormat";
-import AISummaryCard from "./AISummaryCard";
-import ActionItemsList from "./ActionItemsList";
-import ThreadContextToggle from "./ThreadContextToggle";
 import DraftReplyEditor from "./DraftReplyEditor";
 import SourcesChips from "./SourcesChips";
 import RefineInput from "./RefineInput";
 import DraftActionsBar from "./DraftActionsBar";
 import DraftStatus, { type DraftStatusProps } from "./DraftStatus";
+import PanelSummary from "./PanelSummary";
+import QuarantineNotice from "./QuarantineNotice";
 
-type ExtensionPanelProps = {
+export type SidePanelProps = {
   email: Email;
+  account?: string;
   draft: string;
   tone: Tone;
   onDraftChange: (draft: string) => void;
@@ -27,11 +27,13 @@ type ExtensionPanelProps = {
 };
 
 /**
- * Condensed, fixed-width Chrome side panel. Same components as the dashboard —
- * only width and spacing differ.
+ * The Chrome extension's panel beside Gmail, also shown by the dashboard's /extension preview.
+ * Gmail already shows the thread and the original, so the panel carries only what Gmail lacks:
+ * the summary, the action items and the reply.
  */
-export default function ExtensionPanel({
+export default function SidePanel({
   email,
+  account,
   draft,
   tone,
   onDraftChange,
@@ -43,43 +45,52 @@ export default function ExtensionPanel({
   isRefining = false,
   isSending = false,
   status,
-}: ExtensionPanelProps) {
+}: SidePanelProps) {
   const { t } = useTranslation();
   const format = useFormat();
   const isDraftBusy = isRegenerating || isRefining || isSending || status.isGenerating;
+  const isMasked = email.masking === "complete";
   return (
-    <div className="flex h-full w-[390px] flex-col border border-line bg-surface-muted">
-      <header className="flex items-center justify-between border-b border-line bg-surface px-3 py-2">
-        <span className="text-sm font-semibold text-fg">{t("app.name")}</span>
-        <span className="text-xs text-fg-subtle">{t("extension.panel")}</span>
-      </header>
+    <div className="flex h-full w-full flex-col bg-surface-muted">
+      <PanelHeader account={account} />
 
       <div className="relative flex-1 space-y-3 overflow-y-auto p-3">
         <div>
-          <p className="truncate text-sm font-medium text-fg">{email.subject}</p>
-          <p className="text-xs text-fg-muted">
+          <p className="line-clamp-2 text-sm font-semibold text-fg">{email.subject}</p>
+          <p className="truncate text-xs text-fg-muted">
             {email.sender} &middot; {format.timestamp(email.timestamp)}
           </p>
         </div>
 
-        <AISummaryCard summary={email.aiSummary} />
-        <ActionItemsList items={email.actionItems} />
-        <ThreadContextToggle messages={email.threadContext} defaultOpen={false} />
+        {isMasked ? null : <QuarantineNotice isAbandoned={email.masking === "abandoned"} />}
+        <PanelSummary summary={email.aiSummary} actionItems={email.actionItems} />
 
-        <div className="space-y-3 rounded-lg border border-line bg-surface p-3">
+        <section
+          aria-label={t("draft.title")}
+          className="space-y-3 rounded-lg border border-line bg-surface p-3"
+        >
           <DraftReplyEditor
             email={email}
             draft={draft}
             tone={tone}
-            rows={6}
+            rows={9}
             onDraftChange={onDraftChange}
             onToneChange={onToneChange}
             disabled={isDraftBusy}
           />
-          <SourcesChips sources={email.sources} draft={draft} />
           <RefineInput emailId={email.id} onRefine={onRefine} disabled={isDraftBusy} />
+          {email.sources.length > 0 ? (
+            <details className="group text-xs">
+              <summary className="cursor-pointer font-medium text-fg-muted hover:text-fg-body">
+                {t("extension.sources", { count: email.sources.length })}
+              </summary>
+              <div className="mt-2">
+                <SourcesChips sources={email.sources} draft={draft} />
+              </div>
+            </details>
+          ) : null}
           <DraftStatus {...status} />
-        </div>
+        </section>
       </div>
 
       <footer className="border-t border-line bg-surface p-3">
@@ -95,5 +106,15 @@ export default function ExtensionPanel({
         />
       </footer>
     </div>
+  );
+}
+
+export function PanelHeader({ account }: { account?: string }) {
+  const { t } = useTranslation();
+  return (
+    <header className="flex items-center gap-2 border-b border-line bg-surface px-3 py-2">
+      <span className="text-sm font-semibold text-fg">{t("app.name")}</span>
+      {account ? <span className="ml-auto truncate text-xs text-fg-subtle">{account}</span> : null}
+    </header>
   );
 }

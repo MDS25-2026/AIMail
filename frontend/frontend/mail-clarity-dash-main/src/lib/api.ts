@@ -55,6 +55,14 @@ export async function fetchEmail(id: string): Promise<Email> {
   return res.json();
 }
 
+/** The newest of the reader's emails in a Gmail thread, or null when AIMail has none (extension). */
+export async function fetchEmailByThread(threadId: string): Promise<Email | null> {
+  const res = await apiFetch(`/emails/by-thread/${encodeURIComponent(threadId)}`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`GET /emails/by-thread failed (${res.status})`);
+  return res.json();
+}
+
 /** The model failed on this email's content (422 draft_refused); retrying cannot change that. */
 export class DraftRefusedError extends Error {}
 

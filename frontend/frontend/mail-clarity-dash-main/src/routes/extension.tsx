@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
-import ExtensionPanel from "../components/ExtensionPanel";
+import SidePanel from "../components/SidePanel";
 import { PageEmpty, PageError, PageLoading } from "../components/PageState";
 import { useEmail, useEmails } from "../lib/queries";
 import { useDraftWorkflow } from "../lib/useDraftWorkflow";
@@ -53,14 +53,14 @@ function ExtensionPage() {
           {t("extension.back")}
         </Link>
       </div>
-      <div className="h-[720px]">
+      <div className="relative h-[720px] w-[390px] overflow-hidden rounded-lg border border-line">
         {emails.isPending ? <PageLoading label={t("extension.label")} /> : null}
         {emails.isError ? <PageError label={t("extension.label")} error={emails.error} /> : null}
         {emails.data && !email ? (
           <PageEmpty title={t("extension.emptyTitle")} hint={t("extension.emptyHint")} />
         ) : null}
         {email ? (
-          <ExtensionPanel
+          <SidePanel
             email={email}
             draft={workflow.draft}
             tone={workflow.tone}

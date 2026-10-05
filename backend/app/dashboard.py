@@ -410,6 +410,22 @@ async def email_detail(message_id: str, *, scope: Scope) -> DashboardEmail | Non
     return _to_email(message, thread=thread)
 
 
+async def email_for_thread(thread_id: str, *, scope: Scope) -> DashboardEmail | None:
+    """The newest of the caller's messages in a Gmail thread, as the detail view returns it.
+
+    The Chrome extension knows only the thread Gmail has open, not AIMail's message id.
+    """
+    stmt = (select(Message.id)
+            .where(Message.thread_id == thread_id, scope.where(Message.user_id))
+            .order_by(Message.received_at.desc().nulls_last(), Message.created_at.desc())
+            .limit(1))
+    async with get_sessionmaker()() as session:
+        pk = await session.scalar(stmt)
+    if pk is None:
+        return None
+    return await email_detail(str(pk), scope=scope)
+
+
 async def regenerate_email(
     message_id: str, *, scope: Scope, tone: str = "professional"
 ) -> DashboardEmail | None:

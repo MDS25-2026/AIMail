@@ -22,6 +22,10 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
 - Mailbox scope: a signed-in user sees mail only for a mailbox they own (stage 1: the Gmail account
   the backend is connected to, read at startup; `MAILBOX_OWNER_EMAIL` is a fallback). Anyone else gets `[]` from `GET /emails` and `GET /documents`, and `404` from every
   route about one email, `/search`, `/ask` and document ingestion.
+- `GET /emails/by-thread/{thread_id}` (2026-10-05, the Chrome extension): the newest of the
+  signed-in user's messages in that Gmail thread, as `GET /emails/{id}` returns it (generating the
+  draft if needed). `thread_id` must be 8 to 24 lowercase hex characters (`422` otherwise); `404`
+  when the user has no message in that thread. Same scope rules as every email route.
 - **Per-user scope (per-user mailboxes, step 3):** every email and document route answers only for
   the signed-in user's own rows (`app/core/ownership.py`). Another user's email id answers `404`,
   exactly like an unknown id; `GET /emails` and `GET /documents` return `[]` for a user with no

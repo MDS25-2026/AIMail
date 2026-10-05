@@ -6,6 +6,22 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-05 — The Chrome extension is built, from the dashboard project, on the session cookie
+- Decision: the extension (proposal Goal 1) is a Manifest V3 side panel built from the dashboard
+  project (`vite.extension.config.ts`, no new dependency), reusing its components; the dashboard's
+  `/extension` preview renders the same `SidePanel`. A content script reads only the open thread's
+  id; the panel calls the new `GET /emails/by-thread/{thread_id}` with the dashboard's HttpOnly
+  session cookie (Chrome sends it under the backend host permission), so no credential lives in
+  the extension. Distributed unpacked (`make extension`); the Web Store is a later, operational step.
+- Why: the owner chose to read originals in Gmail through the extension (restorable-masking.md),
+  and asked for it to be streamlined. Gmail shows the thread, so the panel drops the thread list
+  and folds the summary and sources.
+- Affects: Lane D (new `src/extension/`, `SidePanel`, `PanelSummary`; `ExtensionPanel` removed;
+  `readPreferences` moved to its own file so shared code builds without TanStack Start), Lane B
+  (the route). Han to be told.
+- Status: built 2026-10-05; the panel's states were rendered in headless Chromium against the real
+  backend; the live check inside Gmail is the owner's.
+
 ### 2026-10-05 — Per-user mailboxes: every row has an owner, every query is scoped to it
 - Decision: each user who signs in with Google and grants Gmail access gets a `mailbox_connection`
   row (sealed refresh token, migration 0016). Every email and document query filters on the
