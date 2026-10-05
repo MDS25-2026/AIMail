@@ -198,7 +198,15 @@ async def list_dashboard_emails(scope: Scope, policy_email: str, limit: int = 50
     async with get_sessionmaker()() as session:
         rows = (await session.scalars(stmt)).all()
         policy = await load_policy(session, policy_email)
-    return [_to_email(message, policy) for message in rows]
+    return [_to_email(message, policy, details=_own_details(message)) for message in rows]
+
+
+def _own_details(message: Message) -> ThreadMap:
+    """One email's details in its own numbering, for its inbox row (subject and preview)."""
+    text = f"{message.subject or ''}\n{message.snippet_masked or ''}"
+    return build_thread_map(
+        [(str(message.id), message.pii_vault, message.user_id, message.gmail_message_id or "", text)], ""
+    )
 
 
 # A message whose drafting fails this many times is left for a human instead of being retried

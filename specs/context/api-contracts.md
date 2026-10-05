@@ -25,8 +25,9 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
 - **Restorable masking (2026-10-05, `specs/features/restorable-masking.md`):** stored text carries
   numbered placeholders (`[PERSON_1]`, `[PHONE_2]`, kinds PERSON, EMAIL, PHONE, IC, PASSPORT,
   ACCOUNT, CARD, LOCATION, ORG), numbered once per thread. Detail, regenerate, refine and send
-  responses add `details: [{placeholder, value, kind}]`, the owner's real values for display (empty
-  on the list endpoint, for older emails, and once a vault expires). A draft sent with real details
+  responses add `details: [{placeholder, value, kind}]`, the owner's real values for display (on the
+  list endpoint, each row carries its own email's details in that email's numbering; empty for older
+  emails and once a vault expires). A draft sent with real details
   typed in is accepted; the backend stores it with placeholders. `POST /emails/{id}/send` adds
   `422 unresolved_placeholders` (a placeholder no vault can fill). Lane C: `/process-email` and
   `/refine` accept `sign_off` (the owner's name as a placeholder, never the name); payloads still

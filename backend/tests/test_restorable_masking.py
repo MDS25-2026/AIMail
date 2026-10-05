@@ -165,3 +165,9 @@ def test_an_email_from_before_restorable_masking_behaves_as_it_always_did(mailbo
     assert caught.value.code == dashboard.SendErrorCode.REDACTION_MARKERS
     asyncio.run(dashboard.approve_and_send(str(old.id), "Hi Aisyah, thanks.", scope=EVERYTHING))
     assert mailbox["sent"] == ["Hi Aisyah, thanks."]
+
+
+def test_an_inbox_row_shows_its_own_details(mailbox):
+    row = dashboard._to_email(mailbox["message"], details=dashboard._own_details(mailbox["message"]))
+    assert row.subject == "Claim for [PERSON_1]"
+    assert {d.placeholder: d.value for d in row.details}["[PERSON_1]"] == "Aisyah Rahman"
