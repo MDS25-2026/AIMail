@@ -188,6 +188,12 @@ export const en = {
     coloursHint:
       "Colour-blind friendly keeps success, warning and danger easy to tell apart with red-, green- or blue-blind vision. Every status also has a text label.",
   },
+  details: {
+    hiddenFromAi: "Hidden from the AI; shown only to you",
+    hide: "Hide details",
+    show: "Show details",
+    unavailable: "Some details are no longer kept here. Open the email in Gmail to see them.",
+  },
   extension: {
     heading: "Extension panel preview",
     back: "Back to dashboard",
@@ -310,6 +316,8 @@ export const en = {
         "We couldn't confirm whether the reply was sent. Check your Gmail Sent folder before sending again.",
       sendNotGranted:
         "AIMail isn't allowed to send from your Gmail. Sign out, sign in again, and tick the box that lets AIMail send email. Your draft is unchanged.",
+      unresolved:
+        "This reply has a placeholder AIMail can't fill in, such as [PERSON_3]. Type the real detail in its place, then send.",
     },
     replaceEdits: "A new draft will replace the changes you typed.",
     replaceConfirm: "Replace my changes",
@@ -319,6 +327,10 @@ export const en = {
       "This reply still has {{count}} hidden details, such as [Redacted]. The recipient will see them exactly like that. Type the real details in before sending.",
     sendAnyway: "Send anyway",
     keepEditing: "Keep editing",
+    sendTemplates_one:
+      "This reply still has {{count}} bracketed gap, such as [Your Name]. The recipient will see it exactly like that.",
+    sendTemplates_other:
+      "This reply still has {{count}} bracketed gaps, such as [Your Name]. The recipient will see them exactly like that.",
   },
   signIn: {
     google: "Sign in with Google",
@@ -338,7 +350,7 @@ export const en = {
     pillars: {
       private: {
         title: "Private by design",
-        body: "Personal details are hidden on our side before the AI sees anything, attachments included. Photos of ID cards never leave at all.",
+        body: "Personal details are hidden on our side before the AI sees anything, attachments included, and kept only encrypted so your reply can still use them. Photos of ID cards never leave at all.",
       },
       approve: {
         title: "You approve every send",

@@ -1,5 +1,7 @@
 import { useTranslation } from "react-i18next";
 
+import WithDetails from "./WithDetails";
+
 type AISummaryCardProps = {
   summary: string;
 };
@@ -11,7 +13,9 @@ export default function AISummaryCard({ summary }: AISummaryCardProps) {
       <h3 className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">
         {t("summary.title")}
       </h3>
-      <p className="mt-2 text-sm leading-relaxed text-fg-body">{summary}</p>
+      <p className="mt-2 text-sm leading-relaxed text-fg-body">
+        <WithDetails text={summary} />
+      </p>
     </section>
   );
 }

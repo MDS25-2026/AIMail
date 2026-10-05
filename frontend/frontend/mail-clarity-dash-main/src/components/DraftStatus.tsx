@@ -1,4 +1,5 @@
 import { CircleAlert, LoaderCircle, TriangleAlert } from "lucide-react";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 
 import { ConfirmKind, type DraftWorkflowStatus } from "../lib/useDraftWorkflow";
@@ -8,6 +9,12 @@ export type DraftStatusProps = DraftWorkflowStatus & {
   isLoadFailed: boolean;
   onRetryLoad: () => void;
 };
+
+function confirmMessage(kind: ConfirmKind, count: number, t: TFunction): string {
+  if (kind === ConfirmKind.ReplaceEdits) return t("draftStatus.replaceEdits");
+  if (kind === ConfirmKind.SendTemplates) return t("draftStatus.sendTemplates", { count });
+  return t("draftStatus.sendMarkers", { count });
+}
 
 const BUTTON =
   "rounded-md border px-3 py-1.5 text-xs font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand";
@@ -33,9 +40,7 @@ export default function DraftStatus({
         >
           <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-warning" />
           <p className="min-w-0 flex-1 text-sm text-warning">
-            {pendingConfirm.kind === ConfirmKind.ReplaceEdits
-              ? t("draftStatus.replaceEdits")
-              : t("draftStatus.sendMarkers", { count: pendingConfirm.markerCount })}
+            {confirmMessage(pendingConfirm.kind, pendingConfirm.markerCount, t)}
           </p>
           <div className="flex gap-2">
             {/* The safe choice takes focus, so Enter never confirms by accident. */}

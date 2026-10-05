@@ -1,7 +1,7 @@
 # Restorable masking: the AI never sees personal details, your reply still says "Hi Aisyah"
 
-- **Status:** accepted by the owner 2026-10-05 (all recommendations, plus the expiry below);
-  cross-lane, see "Lanes"
+- **Status:** built 2026-10-05 (backend, agent prompts, listener, dashboard and extension); the live
+  end-to-end check waits on `PII_VAULT_KEY` in `.env`. Cross-lane, see "Lanes"
 - **Owner:** veyroxie; Lane A (JiaJun) for the listener part, Lane C (Hanif) for the prompts,
   Lane D (Han) for the dashboard
 - **Related:** [ADR 0006](../../docs/adr/0006-restorable-masking.md),
@@ -113,6 +113,17 @@ The owner decided (2026-10-05) that the original email is read in Gmail itself, 
 extension panel beside it, rather than an "Open in Gmail" link or a second copy rendered inside
 AIMail. The extension is a separate feature (Lane D); this spec only guarantees the panel can show
 the same `details` the dashboard does.
+
+## As built (2026-10-05)
+
+- The dashboard shows each detail highlighted ("hidden from the AI") in the subject, body (plain and
+  HTML, inserted after sanitising and only as text), summary, action items, thread and translation,
+  and the draft editor holds the real values. **Hide details** sits in the email header and the
+  panel header, one switch for the whole page, remembered per browser.
+- A draft still holding bracketed template text (`[Your Name]`) asks before sending, like the marker
+  warning; `unresolved_placeholders` explains itself in three languages.
+- Placeholders with no value (expired or unopenable vault) show a notice pointing to Gmail.
+- The listener numbers Presidio entities in reading order; live recall stays 44 of 44.
 
 ## Data model (migration 0018; `specs/context/db-schema.md` first)
 

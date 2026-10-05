@@ -36,6 +36,13 @@ export type Quantity = {
 
 export type Translation = { language: string; text: string };
 
+/** A personal detail the AI only ever saw as its placeholder (restorable masking). */
+export type Detail = {
+  placeholder: string;
+  value: string;
+  kind: string;
+};
+
 export type Email = {
   id: string;
   sender: string;
@@ -63,6 +70,8 @@ export type Email = {
   quantities?: Quantity[];
   /** "pending": content withheld until it can be fully masked; "abandoned": it never will be (#109). */
   masking?: "complete" | "pending" | "abandoned";
+  /** The real values behind this email's placeholders; detail responses only, owner only. */
+  details?: Detail[];
 };
 
 /** Below this the draft is flagged "review recommended". */

@@ -195,6 +195,13 @@ export const ms: Translations = {
     coloursHint:
       "Mesra buta warna memastikan berjaya, amaran dan bahaya mudah dibezakan bagi penglihatan buta merah, hijau atau biru. Setiap status juga mempunyai label teks.",
   },
+  details: {
+    hiddenFromAi: "Disembunyikan daripada AI; hanya ditunjukkan kepada anda",
+    hide: "Sembunyikan butiran",
+    show: "Tunjuk butiran",
+    unavailable:
+      "Sesetengah butiran tidak lagi disimpan di sini. Buka e-mel dalam Gmail untuk melihatnya.",
+  },
   extension: {
     heading: "Pratonton panel sambungan",
     back: "Kembali ke papan pemuka",
@@ -318,6 +325,8 @@ export const ms: Translations = {
         "Kami tidak dapat mengesahkan sama ada balasan telah dihantar. Semak folder Dihantar Gmail anda sebelum menghantar semula.",
       sendNotGranted:
         "AIMail tidak dibenarkan menghantar daripada Gmail anda. Log keluar, log masuk semula dan tandakan kotak yang membenarkan AIMail menghantar e-mel. Draf anda tidak berubah.",
+      unresolved:
+        "Balasan ini mempunyai pemegang tempat yang tidak dapat diisi oleh AIMail, seperti [PERSON_3]. Taip butiran sebenar di tempatnya, kemudian hantar.",
     },
     replaceEdits: "Draf baharu akan menggantikan perubahan yang anda taip.",
     replaceConfirm: "Gantikan perubahan saya",
@@ -327,6 +336,10 @@ export const ms: Translations = {
       "Balasan ini masih mengandungi {{count}} butiran tersembunyi, seperti [Redacted]. Penerima akan melihatnya begitu sahaja. Taip butiran sebenar sebelum menghantar.",
     sendAnyway: "Hantar juga",
     keepEditing: "Teruskan menyunting",
+    sendTemplates_one:
+      "Balasan ini masih mempunyai {{count}} ruang dalam kurungan, seperti [Your Name]. Penerima akan melihatnya begitu sahaja.",
+    sendTemplates_other:
+      "Balasan ini masih mempunyai {{count}} ruang dalam kurungan, seperti [Your Name]. Penerima akan melihatnya begitu sahaja.",
   },
   signIn: {
     google: "Log masuk dengan Google",
@@ -347,7 +360,7 @@ export const ms: Translations = {
     pillars: {
       private: {
         title: "Privasi sejak awal",
-        body: "Butiran peribadi disembunyikan di pihak kami sebelum AI melihat apa-apa, termasuk lampiran. Gambar kad pengenalan tidak dihantar langsung.",
+        body: "Butiran peribadi disembunyikan di pihak kami sebelum AI melihat apa-apa, termasuk lampiran, dan hanya disimpan dalam bentuk tersulit supaya balasan anda masih boleh menggunakannya. Gambar kad pengenalan tidak dihantar langsung.",
       },
       approve: {
         title: "Anda meluluskan setiap penghantaran",

@@ -2,11 +2,15 @@ import { ImageOff, Languages } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { restoreDetailsInHtml } from "../lib/details";
+import { useDetailValues } from "../lib/detailsContext";
+import { useDetailsHidden } from "../lib/detailsVisibility";
 import { useEmailTranslation } from "../lib/queries";
 import type { Email } from "../types/email";
 import { sanitizeEmailHtml } from "../lib/sanitizeEmail";
 import { usePreferences } from "../lib/usePreferences";
 import QuantitiesList from "./QuantitiesList";
+import WithDetails from "./WithDetails";
 
 const LOOKS_LIKE_HTML = /^\s*<[a-z!]/i;
 
@@ -20,10 +24,16 @@ export default function EmailBody({ email }: { email: Email }) {
   const translated = isShowingTranslation ? translation.data?.text : undefined;
   const [isAllowingImages, setIsAllowingImages] = useState(false);
   const isHtml = LOOKS_LIKE_HTML.test(email.body);
-  const sanitized = useMemo(
-    () => (isHtml ? sanitizeEmailHtml(email.body, isAllowingImages) : null),
-    [email.body, isHtml, isAllowingImages],
-  );
+  const values = useDetailValues();
+  const [isHidingDetails] = useDetailsHidden();
+  const markTitle = t("details.hiddenFromAi");
+  const sanitized = useMemo(() => {
+    if (!isHtml) return null;
+    const clean = sanitizeEmailHtml(email.body, isAllowingImages);
+    // After sanitising: details go in as text, so nothing from an email can become markup.
+    const html = isHidingDetails ? clean.html : restoreDetailsInHtml(clean.html, values, markTitle);
+    return { ...clean, html };
+  }, [email.body, isHtml, isAllowingImages, isHidingDetails, values, markTitle]);
 
   return (
     <section className="rounded-lg border border-line bg-surface p-4">
@@ -56,7 +66,7 @@ export default function EmailBody({ email }: { email: Email }) {
       {translated !== undefined ? (
         <>
           <p lang={language} className="whitespace-pre-wrap text-sm text-fg-body">
-            {translated}
+            <WithDetails text={translated} />
           </p>
           <p role="status" className="mt-2 text-[11px] text-fg-subtle">
             {t("translate.notice")}
@@ -86,7 +96,9 @@ export default function EmailBody({ email }: { email: Email }) {
           />
         </>
       ) : (
-        <p className="whitespace-pre-wrap text-sm text-fg-body">{email.body}</p>
+        <p className="whitespace-pre-wrap text-sm text-fg-body">
+          <WithDetails text={email.body} />
+        </p>
       )}
 
       <QuantitiesList quantities={email.quantities ?? []} />

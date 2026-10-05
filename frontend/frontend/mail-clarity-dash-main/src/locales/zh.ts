@@ -181,6 +181,12 @@ export const zh: Translations = {
     coloursHint:
       "色盲友好模式让成功、警告和危险在红色盲、绿色盲或蓝色盲视觉下也容易区分。每个状态也都有文字标签。",
   },
+  details: {
+    hiddenFromAi: "对 AI 隐藏；仅向您显示",
+    hide: "隐藏详情",
+    show: "显示详情",
+    unavailable: "部分详情已不再保存在这里。请在 Gmail 中打开邮件查看。",
+  },
   extension: {
     heading: "扩展面板预览",
     back: "返回控制台",
@@ -296,6 +302,8 @@ export const zh: Translations = {
       sendUnknown: "无法确认回复是否已发送。请先检查您的 Gmail 已发送邮件，再决定是否重新发送。",
       sendNotGranted:
         "AIMail 无权从您的 Gmail 发送邮件。请退出并重新登录，并勾选允许 AIMail 发送电子邮件的选项。您的草稿未更改。",
+      unresolved:
+        "这封回复中有 AIMail 无法填写的占位符，例如 [PERSON_3]。请在该处输入真实信息后再发送。",
     },
     replaceEdits: "新草稿将替换您输入的修改。",
     replaceConfirm: "替换我的修改",
@@ -305,6 +313,9 @@ export const zh: Translations = {
       "这封回复仍有 {{count}} 处隐藏信息，例如 [Redacted]。收件人会原样看到。发送前请填入真实信息。",
     sendAnyway: "仍然发送",
     keepEditing: "继续编辑",
+    sendTemplates_one: "这封回复仍有 {{count}} 处方括号空位，例如 [Your Name]。收件人会原样看到。",
+    sendTemplates_other:
+      "这封回复仍有 {{count}} 处方括号空位，例如 [Your Name]。收件人会原样看到。",
   },
   signIn: {
     google: "使用 Google 登录",
@@ -323,7 +334,7 @@ export const zh: Translations = {
     pillars: {
       private: {
         title: "从设计上保护隐私",
-        body: "在 AI 看到任何内容之前，我们会先隐藏个人信息，附件也不例外。身份证照片根本不会发送出去。",
+        body: "在 AI 看到任何内容之前，我们会先隐藏个人信息，附件也不例外；这些信息仅以加密形式保存，以便您的回复仍可使用。身份证照片根本不会发送出去。",
       },
       approve: {
         title: "每次发送都由您批准",

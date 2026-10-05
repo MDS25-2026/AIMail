@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ThreadMessage } from "../types/email";
+import WithDetails from "./WithDetails";
 
 type ThreadContextToggleProps = {
   messages: ThreadMessage[];
@@ -40,7 +41,7 @@ export default function ThreadContextToggle({
               <span className="font-medium text-fg-body">
                 {message.isOwnReply ? t("thread.you") : message.sender}:{" "}
               </span>
-              {message.snippet}
+              <WithDetails text={message.snippet} />
             </li>
           ))}
         </ul>
