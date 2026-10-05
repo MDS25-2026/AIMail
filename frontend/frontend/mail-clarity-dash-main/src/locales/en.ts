@@ -205,7 +205,7 @@ export const en = {
       "Only emails that arrived after you connected, in the account you signed in with ({{account}}), appear here. If Gmail shows a different account, switch to it.",
     signedOutTitle: "Sign in to AIMail",
     signedOutHint:
-      "Sign in once with the Google account you use in Gmail. This panel picks it up by itself.",
+      "Sign in once with the Google account you use in Gmail. The sign-in tab closes by itself when you're done.",
     summary: "Summary",
     showMore_one: "Show more · {{count}} action item",
     showMore_other: "Show more · {{count}} action items",

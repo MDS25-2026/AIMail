@@ -15,15 +15,41 @@ export class SignedOutError extends Error {}
 
 type ApiInit = Omit<RequestInit, "headers" | "credentials"> & { headers?: Record<string, string> };
 
-/** A backend call carrying the HttpOnly session cookie; there is no token in the browser. */
-async function apiFetch(path: string, init: ApiInit = {}): Promise<Response> {
-  const res = await fetch(`${BASE}${path}`, {
+function send(path: string, init: ApiInit): Promise<Response> {
+  return fetch(`${BASE}${path}`, {
     ...init,
     credentials: "include",
     headers: { ...CLIENT_HEADER, ...init.headers },
   });
-  if (res.status === 401) throw new SignedOutError(`${init.method ?? "GET"} ${path} needs sign-in`);
-  return res;
+}
+
+// Shared by every call that finds the session expired at once: a refresh token can be spent only
+// once, so a second, parallel renewal would be refused and sign the reader out.
+let renewing: Promise<boolean> | null = null;
+
+/** Trade the refresh cookie for a new session (the access cookie lasts an hour, this one a week). */
+function renewSession(): Promise<boolean> {
+  renewing ??= send("/auth/session/refresh", { method: "POST" })
+    .then((res) => res.ok)
+    .finally(() => {
+      renewing = null;
+    });
+  return renewing;
+}
+
+/**
+ * A backend call carrying the HttpOnly session cookie; there is no token in the browser. An expired
+ * session is renewed once and the call retried, so the reader is only asked to sign in again when
+ * the refresh cookie is gone too.
+ */
+async function apiFetch(path: string, init: ApiInit = {}): Promise<Response> {
+  const res = await send(path, init);
+  if (res.status !== 401) return res;
+  if (await renewSession()) {
+    const retried = await send(path, init);
+    if (retried.status !== 401) return retried;
+  }
+  throw new SignedOutError(`${init.method ?? "GET"} ${path} needs sign-in`);
 }
 
 export type SessionInfo = { email: string; hasMailbox: boolean };

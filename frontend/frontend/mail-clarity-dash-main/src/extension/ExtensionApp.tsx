@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import SidePanel, { PanelHeader } from "../components/SidePanel";
@@ -15,8 +15,25 @@ import { useDraftWorkflow } from "../lib/useDraftWorkflow";
 import type { Email } from "../types/email";
 import { TabState, useOpenThread } from "./useOpenThread";
 
-// While signed out, check again every few seconds, so signing in from the tab takes effect alone.
-const SIGNED_OUT_POLL_MS = 3000;
+// While signed out, check again every couple of seconds, so signing in from the tab takes effect alone.
+const SIGNED_OUT_POLL_MS = 2000;
+
+type OpenSignIn = () => void;
+
+/** Opens Google sign-in in a tab, and closes that tab again once the session exists. */
+function useSignInTab(isSignedIn: boolean): OpenSignIn {
+  const tabId = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (!isSignedIn || tabId.current === undefined) return;
+    // The reader may have closed it already; that is fine.
+    chrome.tabs.remove(tabId.current).catch(() => undefined);
+    tabId.current = undefined;
+  }, [isSignedIn]);
+  return () =>
+    void chrome.tabs.create({ url: SIGN_IN_URL }).then((tab) => {
+      tabId.current = tab.id;
+    });
+}
 
 export default function ExtensionApp() {
   const { tab, threadId } = useOpenThread();
@@ -27,25 +44,35 @@ export default function ExtensionApp() {
     refetchInterval: (query) =>
       query.state.error instanceof SignedOutError ? SIGNED_OUT_POLL_MS : false,
   });
+  const openSignIn = useSignInTab(session.isSuccess);
 
-  if (session.error instanceof SignedOutError) return <SignedOut />;
+  if (session.error instanceof SignedOutError) return <SignedOut onSignIn={openSignIn} />;
   if (tab === TabState.Loading || session.isPending) return <PanelMessage titleKey="loading" />;
   if (tab === TabState.NotGmail)
     return <PanelMessage titleKey="notGmailTitle" hintKey="notGmailHint" />;
   if (tab === TabState.NeedsReload)
     return <PanelMessage titleKey="reloadTitle" hintKey="reloadHint" />;
   if (threadId === null) return <PanelMessage titleKey="noEmailTitle" hintKey="noEmailHint" />;
-  return <ThreadPanel key={threadId} threadId={threadId} account={session.data?.email ?? ""} />;
+  return (
+    <ThreadPanel
+      key={threadId}
+      threadId={threadId}
+      account={session.data?.email ?? ""}
+      onSignIn={openSignIn}
+    />
+  );
 }
 
-function ThreadPanel({ threadId, account }: { threadId: string; account: string }) {
+type ThreadPanelProps = { threadId: string; account: string; onSignIn: OpenSignIn };
+
+function ThreadPanel({ threadId, account, onSignIn }: ThreadPanelProps) {
   const { t } = useTranslation();
   const found = useQuery({
     queryKey: ["email-by-thread", threadId],
     queryFn: () => fetchEmailByThread(threadId),
   });
 
-  if (found.error instanceof SignedOutError) return <SignedOut />;
+  if (found.error instanceof SignedOutError) return <SignedOut onSignIn={onSignIn} />;
   if (found.isPending) return <PanelMessage titleKey="preparing" account={account} />;
   if (found.isError) {
     return (
@@ -93,13 +120,11 @@ function OpenEmail({ initial, account }: { initial: Email; account: string }) {
   );
 }
 
-function SignedOut() {
+function SignedOut({ onSignIn }: { onSignIn: OpenSignIn }) {
   const { t } = useTranslation();
   return (
     <PanelMessage titleKey="signedOutTitle" hintKey="signedOutHint">
-      <PanelButton onClick={() => void chrome.tabs.create({ url: SIGN_IN_URL })}>
-        {t("signIn.google")}
-      </PanelButton>
+      <PanelButton onClick={onSignIn}>{t("signIn.google")}</PanelButton>
     </PanelMessage>
   );
 }

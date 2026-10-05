@@ -27,6 +27,7 @@ declare namespace chrome {
     }): Promise<Tab[]>;
     function sendMessage(tabId: number, message: unknown): Promise<unknown>;
     function create(properties: { url: string }): Promise<Tab>;
+    function remove(tabId: number): Promise<void>;
     const onActivated: {
       addListener(listener: (info: ActiveInfo) => void): void;
       removeListener(listener: (info: ActiveInfo) => void): void;

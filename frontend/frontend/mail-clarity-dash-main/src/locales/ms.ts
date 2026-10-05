@@ -212,7 +212,7 @@ export const ms: Translations = {
       "Hanya e-mel yang tiba selepas anda menyambung, dalam akaun yang anda log masuk ({{account}}), muncul di sini. Jika Gmail menunjukkan akaun lain, tukar kepadanya.",
     signedOutTitle: "Log masuk ke AIMail",
     signedOutHint:
-      "Log masuk sekali dengan akaun Google yang anda gunakan dalam Gmail. Panel ini akan mengesannya sendiri.",
+      "Log masuk sekali dengan akaun Google yang anda gunakan dalam Gmail. Tab log masuk akan ditutup sendiri apabila selesai.",
     summary: "Ringkasan",
     showMore_one: "Tunjuk lagi · {{count}} tindakan",
     showMore_other: "Tunjuk lagi · {{count}} tindakan",

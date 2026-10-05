@@ -40,3 +40,38 @@ describe("calls to the backend (ADR 0005)", () => {
     await expect(fetchEmails()).rejects.toBeInstanceOf(SignedOutError);
   });
 });
+
+/** Answers each call with the next status in turn, recording the paths asked for. */
+function answerInTurn(...statuses: number[]) {
+  const paths: string[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => {
+      paths.push(new URL(url).pathname);
+      const status = statuses.shift() ?? 200;
+      // A 204 may not carry a body.
+      return new Response(status === 204 ? null : JSON.stringify([]), { status });
+    }),
+  );
+  return paths;
+}
+
+describe("staying signed in", () => {
+  test("an expired session is renewed from the refresh cookie and the call retried", async () => {
+    const paths = answerInTurn(401, 204, 200);
+    await expect(fetchEmails()).resolves.toEqual([]);
+    expect(paths).toEqual(["/emails", "/auth/session/refresh", "/emails"]);
+  });
+
+  test("when the renewal is refused too, the reader is signed out, without looping", async () => {
+    const paths = answerInTurn(401, 401);
+    await expect(fetchEmails()).rejects.toBeInstanceOf(SignedOutError);
+    expect(paths).toEqual(["/emails", "/auth/session/refresh"]);
+  });
+
+  test("calls that expire together share one renewal, since a refresh token works only once", async () => {
+    const paths = answerInTurn(401, 401, 204, 200, 200);
+    await Promise.all([fetchEmails(), fetchEmails()]);
+    expect(paths.filter((path) => path === "/auth/session/refresh")).toHaveLength(1);
+  });
+});

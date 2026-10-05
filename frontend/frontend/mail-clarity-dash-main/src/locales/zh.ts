@@ -197,7 +197,7 @@ export const zh: Translations = {
     notFoundHint:
       "这里只显示您连接之后、在您登录的账户（{{account}}）中收到的邮件。如果 Gmail 显示的是其他账户，请切换过去。",
     signedOutTitle: "登录 AIMail",
-    signedOutHint: "使用您在 Gmail 中使用的 Google 账户登录一次。此面板会自动识别。",
+    signedOutHint: "使用您在 Gmail 中使用的 Google 账户登录一次。完成后登录标签页会自动关闭。",
     summary: "摘要",
     showMore_one: "展开 · {{count}} 项待办",
     showMore_other: "展开 · {{count}} 项待办",
