@@ -76,6 +76,9 @@ IMAGE_ENTITIES = [
 FORMAT_ENTITIES = [
     "EMAIL_ADDRESS", "PHONE_NUMBER", "CREDIT_CARD", "IBAN_CODE", "MY_NRIC", "MY_PHONE",
 ]
+# An image showing one of these is an identity document: its face, signature and machine-readable
+# line cannot be boxed out word by word, so the whole image is withheld.
+ID_DOCUMENT_ENTITIES = ["MY_NRIC", "PASSPORT"]
 MAX_REDACTION_PASSES = 3
 
 
@@ -90,6 +93,9 @@ AD_HOC_RECOGNIZERS = [
     _recognizer("MY_NRIC", r"\b\d{6}[- ]?\d{2}[- ]?\d{4}\b", 0.6, ["ic", "nric", "mykad"]),
     _recognizer("MY_PHONE", r"\b(?:\+?60|0)1\d[- ]?\d{3,4}[- ]?\d{4}\b", 0.6, ["phone", "tel"]),
     _recognizer("ACCOUNT_NUMBER", r"\b\d{4,16}\b", 0.3, ["account", "acc", "bank", "ref"]),
+    _recognizer("PASSPORT", r"\b[A-Z]{1,2}\d{7,8}\b", 0.5, ["passport", "pasport"]),
+    # The machine-readable zone of a passport page: "P<" and a three-letter country code.
+    _recognizer("PASSPORT", r"P<[A-Z]{3}[A-Z<]{5,}", 0.8, []),
 ]
 
 
@@ -210,6 +216,9 @@ class Redactor:
         rgb = image.convert("RGB")
         text, words = ocr_words(rgb)
         if not confidently_read(words):
+            return None
+        if self._findings(text, ID_DOCUMENT_ENTITIES):
+            logger.warning("image reads as an identity document; withheld whole")
             return None
         redacted = rgb.copy()
         draw = ImageDraw.Draw(redacted)

@@ -11,10 +11,12 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -64,9 +66,10 @@ func supabaseTimeout() time.Duration {
 // "different-length numbers, wrong type" mis-tagging: no two patterns fight over one span.
 
 const (
-	emailToken = "[EMAIL_REDACTED]"
-	phoneToken = "[PHONE_REDACTED]"
-	icToken    = "[IC_REDACTED]"
+	emailToken    = "[EMAIL_REDACTED]"
+	phoneToken    = "[PHONE_REDACTED]"
+	icToken       = "[IC_REDACTED]"
+	passportToken = "[PASSPORT_REDACTED]"
 )
 
 var (
@@ -83,6 +86,15 @@ var (
 	// MY branch allows a separator and parens after the country code ("+60 (12) 345 6789").
 	// The final branch is a short local number ("555-0142"): separator required, so it cannot
 	// swallow a bare digit run, and it runs after the IC pass so an IC is already redacted.
+	// International numbers outside Malaysia ("+65 9123 4567", "+44 20 7946 0958"): a "+" and a
+	// country code, then two to five digit groups. Runs after the Malaysian branch.
+	intlPhoneRegex = regexp.MustCompile(`\+[1-9]\d{0,2}[\s.-]?\(?\d{1,4}\)?(?:[\s.-]?\d{2,5}){1,4}`)
+	// Passports: one or two capitals then seven or eight digits ("A12345678"). The digits-only
+	// account pattern can never match after a letter, so this sits in the floor.
+	passportRegex = regexp.MustCompile(`\b[A-Z]{1,2}\d{7,8}\b`)
+	// Links: the query and fragment carry reset tokens and encoded addresses; only the host is
+	// needed, by the agent's phishing check.
+	urlRegex   = regexp.MustCompile(`https?://[^\s<>"')\]]+`)
 	phoneRegex = regexp.MustCompile(`(?:\+?60|\b0)[\s.-]?\(?\d{1,2}\)?[\s.-]?\d{3,4}[\s.-]?\d{3,4}\b|\(\d{3}\)[\s.-]?\d{3}[\s.-]?\d{4}|\b\d{3}[\s.-]\d{3}[\s.-]\d{4}\b|\b\d{3}[.-]\d{4}\b`)
 )
 
@@ -101,7 +113,8 @@ func isICDate(twelveDigits string) bool {
 // masked text plus email/phone counts for the audit log. IC is redacted too (over-masking is
 // preferred) but not separately counted — the persisted metric tracks the 80% email/phone floor.
 func maskPII(text string) (masked string, emailsMasked, phonesMasked int) {
-	masked = emailRegex.ReplaceAllStringFunc(text, func(string) string {
+	masked = urlRegex.ReplaceAllStringFunc(text, withoutQuery)
+	masked = emailRegex.ReplaceAllStringFunc(masked, func(string) string {
 		emailsMasked++
 		return emailToken
 	})
@@ -112,11 +125,28 @@ func maskPII(text string) (masked string, emailsMasked, phonesMasked int) {
 		}
 		return s
 	})
-	masked = phoneRegex.ReplaceAllStringFunc(masked, func(string) string {
+	masked = passportRegex.ReplaceAllString(masked, passportToken)
+	countPhone := func(string) string {
 		phonesMasked++
 		return phoneToken
-	})
+	}
+	masked = phoneRegex.ReplaceAllStringFunc(masked, countPhone)
+	masked = intlPhoneRegex.ReplaceAllStringFunc(masked, countPhone)
 	return masked, emailsMasked, phonesMasked
+}
+
+// withoutQuery keeps a link's scheme, host and path. An unparseable link is cut at the first
+// "?" or "#" instead, so a token never survives a parse error.
+func withoutQuery(link string) string {
+	parsed, err := url.Parse(link)
+	if err != nil {
+		if cut := strings.IndexAny(link, "?#"); cut >= 0 {
+			return link[:cut]
+		}
+		return link
+	}
+	parsed.RawQuery, parsed.Fragment, parsed.RawFragment = "", "", ""
+	return parsed.String()
 }
 
 // --- Presidio NER masking (layered on top of the regex floor) ---------------
@@ -264,7 +294,7 @@ func maskWithPresidio(ctx context.Context, text string) (string, error) {
 		// CREDIT_CARD and IBAN_CODE are Presidio built-ins that validate their checksums, so they
 		// cannot fire on an invoice or order number that merely looks card- or IBAN-shaped. SWIFT/BIC
 		// is left out on purpose: it names a bank, which is public, not a person.
-		Entities:         []string{"PERSON", "LOCATION", "ORGANIZATION", "ACCOUNT_NUMBER", "CREDIT_CARD", "IBAN_CODE"},
+		Entities:         []string{"PERSON", "LOCATION", "ORGANIZATION", "ACCOUNT_NUMBER", "CREDIT_CARD", "IBAN_CODE", "PHONE_NUMBER", "EMAIL_ADDRESS"},
 		AdHocRecognizers: localeRecognizers,
 	})
 	if err != nil {
@@ -558,6 +588,12 @@ func listenToPubSub(ctx context.Context, ts oauth2.TokenSource, srv *gmail.Servi
 				msg.Ack()
 				return
 			}
+			if msg.DeliveryAttempt == nil {
+				warnNoDeadLetter.Do(func() {
+					log.Printf("WARNING: subscription %s has no dead-letter policy, so failed notifications "+
+						"are retried forever; see infra/pubsub-dead-letter.md", SubscriptionID)
+				})
+			}
 			log.Printf("Ingest failed for history %d, will retry: %v", payload.HistoryID, err)
 			msg.Nack()
 			return
@@ -575,6 +611,10 @@ func listenToPubSub(ctx context.Context, ts oauth2.TokenSource, srv *gmail.Servi
 // first was never ingested. The unique constraint on gmail_message_id hid it — the failure was a
 // missing row, not a duplicate one, which is invisible unless you go looking.
 const maxDeliveryAttempts = 5
+
+// Pub/Sub counts deliveries only when the subscription has a dead-letter policy; said once, not
+// on every failure.
+var warnNoDeadLetter sync.Once
 
 // The last history ID successfully processed. history.list needs a starting point, and the
 // notification's own ID is the *end* of the range, not the start.
@@ -692,7 +732,7 @@ func ingestMessage(ctx context.Context, srv *gmail.Service, msgID string) error 
 
 	stored := StoredMessage{
 		GmailMessageID: msgID,
-		FromAddr:       headerValue(msg.Payload.Headers, "From"), // kept as-is for reply threading; a policy call for the team to confirm
+		FromAddr:       headerValue(msg.Payload.Headers, "From"), // kept unmasked on purpose: docs/decisions/shared.md, 2026-10-04
 		ReplyTo:        headerValue(msg.Payload.Headers, "Reply-To"),
 		ReceivedAt:     time.Now().UTC(),
 		ThreadIdentity: identity,

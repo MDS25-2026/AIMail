@@ -10,15 +10,22 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
 
 ## Conventions
 
-- Base URL: `${NEXT_PUBLIC_BACKEND_URL}` (configurable per environment).
+- Base URL: `${VITE_BACKEND_URL}` (configurable per environment).
 - All requests/responses are JSON.
-- Auth: **shared bearer token, required on every endpoint except `GET /`.** Send
-  `Authorization: Bearer <BACKEND_API_TOKEN>`; the value lives in the repo-root `.env`
-  (frontend reads the same value as `VITE_BACKEND_API_TOKEN`). Missing or wrong token returns
-  `401`; if the server has no token configured it returns `503` and serves nothing — auth is
-  never silently disabled. Implementation: `backend/app/core/auth.py`. Per-user Supabase JWTs
-  are the planned upgrade and replace only that file; AImail serves one shared mailbox, so
-  per-user identity is deferred, not forgotten.
+- Auth (ADR 0005, 2026-10-04): **every endpoint except `GET /` and the `/auth` sign-in routes needs
+  one of** the dashboard's `aimail_session` cookie (set by Google sign-in), a Supabase access token
+  as `Authorization: Bearer`, or the server-side `BACKEND_API_TOKEN` as a bearer (scripts and tests
+  only; never in the browser). No credential returns `401` `signed_out`, a bad one `401`
+  `session_invalid`, and a cookie request that changes state without `X-AIMail-Client: 1` returns
+  `403` `client_header_missing`. An unset `BACKEND_API_TOKEN` never matches. Implementation:
+  `backend/app/core/auth.py`.
+- Mailbox scope: a signed-in user sees mail only for a mailbox they own (stage 1: the Gmail account
+  the backend is connected to, read at startup; `MAILBOX_OWNER_EMAIL` is a fallback). Anyone else gets `[]` from `GET /emails` and `GET /documents`, and `404` from every
+  route about one email, `/search`, `/ask` and document ingestion.
+- Sign-in: `GET /auth/google/start` redirects to Supabase; `GET /auth/callback` sets the session
+  and redirects to the dashboard (or to `/signin?error=sign_in_failed|sign_in_unavailable`);
+  `GET /auth/session` answers `{email, hasMailbox}`; `POST /auth/session/refresh` and
+  `DELETE /auth/session` need `X-AIMail-Client: 1`.
 - `DashboardEmail` carries `isRead` (opened at least once; anything new is unread) and a
   `priority` that is the classifier's prediction **after** the per-user policy layer has been
   applied — see the Personalisation section of `db-schema.md`. Consumers should treat `priority`
@@ -43,6 +50,9 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
 - `GET /system/info` returns non-secret runtime configuration (model names, feature flags,
   corpus counts) for the dashboard's Settings view. Never add keys, URLs or credentials to
   it — the browser reads it.
+- Ingestion routes mask the text before anything is stored (2026-10-04): fixed formats, then
+  Presidio for names, emails, phones, cards and IBANs. If Presidio is unreachable they answer `503`
+  `masking_unavailable` and store nothing.
 - Ingestion routes (`POST /documents`, `POST /documents/upload`) are rate limited to 20
   requests per 60s per client IP; over that returns `429` with `Retry-After`. Uploads are
   capped at 10 MB (`413`) and must carry a real `%PDF-` header (`400`).
@@ -55,12 +65,26 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer` and a `default-src 'none'` CSP (the
   demo page at `/` gets a CSP that allows its inline script). Implementation:
   `backend/app/core/middleware.py`.
+- `POST /emails/{id}/send` checks the draft on the server (2026-10-04): `422` for an empty draft
+  or one over 20,000 characters (validation), `422` `redaction_markers` when the draft still holds
+  `[Redacted]` or a `[*_REDACTED]` token, and `409` `masking_pending` for a quarantined email.
+  `504` `send_outcome_unknown` means Gmail may have sent the reply but its answer was lost; the email
+  stays marked sent so it is never sent twice, and the reader should check Gmail's Sent folder.
+  `502` `send_failed` still means Gmail never accepted it, and it can be approved again.
 - `POST /emails/{id}/regenerate` and `POST /emails/{id}/refine` no longer answer `200` with the
   old draft when nothing changed (2026-09-30). They answer `502` `agent_unavailable` (the agent
   or retrieval failed; retry later), `422` `draft_refused` (regenerate only: the model failed on
   this content and the reviewed draft is kept), `409` `masking_pending` (quarantined) or `409`
   `already_sent`, each as `{"detail": "<code>"}`. A regenerate the router judges needs no reply
   is still `200`, with an empty draft.
+- Lane C's `/refine` (2026-10-04) takes `thread_context`, `rag_context` and `action_items` besides
+  `email_body`, `draft` and `instruction`, and runs the same critic and gates as `/process-email`.
+  It answers `{draft, confidence, issues, needs_human_review, grounding_ok, pii_clean, tone_match,
+  completeness, pii_findings, unsupported_specifics, unaddressed_requests, review_reasons,
+  model_calls}`, and the backend stores that verdict with the refined draft. The backend masks
+  emails, ICs, passports, card and phone numbers in the typed draft and instruction first (names
+  stay), and does the same for `/search` and `/ask` queries (`app/core/typed_text.py`). A refine
+  the model refuses answers `422` `draft_refused` through the backend.
 - Lane C's `/process-email` and `/refine` answer `503` (or `504` when the draft's deadline ran
   out) with `{"detail": "<gemini error code>"}` when Gemini fails. See
   [`../features/llm-resilience.md`](../features/llm-resilience.md).

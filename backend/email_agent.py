@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from app.core.logging_setup import configure_logging
 from app.core.middleware import request_context
+from app.core.redaction import REDACTION_MARKER, has_redaction_marker
 from app.normalise.numbers import (
     canonical,
     figure_readings,
@@ -351,14 +352,6 @@ _AD_HOC_RECOGNIZERS = [
 _PII_ENTITIES = ["EMAIL_ADDRESS", "CREDIT_CARD", "IBAN_CODE", "MY_NRIC", "MY_PHONE"]
 _PII_SCORE_THRESHOLD = 0.5
 
-# A redaction token reaching a sent reply is its own failure, and regex catches it for free.
-# Three shapes reach stored text: the listener's regex tokens ([EMAIL_REDACTED]), Presidio's
-# replacement ([Redacted], listener/main.go) and the OCR transcription ([REDACTED], listener/ocr.go).
-_PLACEHOLDER = re.compile(r"\[(?:[A-Z_]+_REDACTED|Redacted|REDACTED)\]")
-
-
-def has_redaction_placeholder(text: str) -> bool:
-    return bool(_PLACEHOLDER.search(text))
 
 
 async def scan_draft_pii(draft: str) -> list[str]:
@@ -371,7 +364,8 @@ async def scan_draft_pii(draft: str) -> list[str]:
     Degrades like the listener does: if Presidio is unreachable the placeholder check still
     runs, and the caller is told the scan was partial rather than being handed a false clean.
     """
-    findings = ["REDACTION_PLACEHOLDER"] if has_redaction_placeholder(draft) else []
+    # A redaction token reaching a sent reply is its own failure, and regex catches it for free.
+    findings = ["REDACTION_PLACEHOLDER"] if has_redaction_marker(draft) else []
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.post(PRESIDIO_ANALYZER_URL, json={
@@ -661,7 +655,7 @@ def translation_problems(source: str, translation: str) -> list[str]:
     if source.strip() and not translation.strip():
         return ["translation is empty"]
     problems = []
-    if sorted(_PLACEHOLDER.findall(source)) != sorted(_PLACEHOLDER.findall(translation)):
+    if sorted(REDACTION_MARKER.findall(source)) != sorted(REDACTION_MARKER.findall(translation)):
         problems.append("redaction markers changed")
     # Either reading of an ambiguous figure counts ("1.250" is 1250 in Malay), and single digits
     # are skipped as in the draft gate, since a date's month moves between "September" and "9".
@@ -722,11 +716,31 @@ class RefineRequest(BaseModel):
     draft: str
     instruction: str
     tone: str = "professional, concise, and collaborative"
+    # What the critic needs to judge the revision the way it judged the original draft.
+    thread_context: str = ""
+    rag_context: str = ""
+    action_items: list[str] = Field(default_factory=list)
 
 
-@app.post("/refine")
-async def refine(req: RefineRequest) -> dict:
-    """Revise an existing draft per a free-text user instruction (dashboard's Refine box)."""
+class RefineResponse(BaseModel):
+    draft: str
+    confidence: float | None = None
+    issues: list[str] = Field(default_factory=list)
+    needs_human_review: bool = False
+    grounding_ok: bool | None = None
+    pii_clean: bool | None = None
+    tone_match: bool | None = None
+    completeness: bool | None = None
+    pii_findings: list[str] = Field(default_factory=list)
+    unsupported_specifics: list[str] = Field(default_factory=list)
+    unaddressed_requests: list[str] = Field(default_factory=list)
+    review_reasons: list[str] = Field(default_factory=list)
+    model_calls: list[dict] = Field(default_factory=list)
+
+
+@app.post("/refine", response_model=RefineResponse)
+async def refine(req: RefineRequest) -> RefineResponse:
+    """Revise a draft per a user instruction, then run the same gates a generated draft passes."""
     system_prompt = (
         "You revise an email reply following the user's instruction. "
         "Return only the revised reply, with no preamble. "
@@ -740,9 +754,33 @@ async def refine(req: RefineRequest) -> dict:
         f"{fence('user_instruction', req.instruction)}\n\n"
         f"Keep the tone {req.tone}."
     )
+    calls: list[dict] = []
     try:
-        with deadline():
+        with deadline(), track_calls() as calls:
             revised = await call_llm(system_prompt, user_prompt, max_tokens=DRAFT_MAX_TOKENS)
+            evaluation = await evaluate_reply(req.thread_context, req.rag_context, req.email_body,
+                                              revised, req.tone, req.action_items)
     except GeminiError as error:
         raise _unavailable(error) from error
-    return {"draft": revised}
+    confidence = clamp_confidence(evaluation.get("confidence"))
+    pii_findings = await scan_draft_pii(revised)
+    # The user's own draft is a source too: a figure they typed is theirs, not an invention.
+    specifics = unsupported_specifics(revised, req.email_body, req.thread_context, req.rag_context,
+                                      req.draft)
+    unaddressed = unaddressed_requests(evaluation, req.action_items)
+    reasons = build_review_reasons(evaluation, confidence, 0, pii_findings, specifics, unaddressed)
+    return RefineResponse(
+        draft=revised,
+        confidence=confidence,
+        issues=evaluation.get("issues", []),
+        needs_human_review=bool(reasons),
+        grounding_ok=evaluation.get("grounding_ok"),
+        pii_clean=pii_verdict(pii_findings),
+        tone_match=evaluation.get("tone_match"),
+        completeness=evaluation.get("completeness"),
+        pii_findings=pii_findings,
+        unsupported_specifics=specifics,
+        unaddressed_requests=unaddressed,
+        review_reasons=reasons,
+        model_calls=calls,
+    )

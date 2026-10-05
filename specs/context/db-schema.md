@@ -56,6 +56,14 @@ The canonical three-table split from [`../features/rag-retrieval.md`](../feature
 
 Index: `CREATE INDEX ON embedding USING hnsw (embedding vector_cosine_ops);`
 
+### Row-level security (migration 0015)
+
+Every application table has RLS **on with no policies** (2026-10-04). Supabase's REST API serves
+public-schema tables to anyone holding the publishable key, and to any signed-in user's token,
+unless RLS is on; before 0015 that key alone read stored emails. With no policy, the anon and
+authenticated roles see nothing. The backend connects as `postgres` and the listener uses the
+`service_role` key; both bypass RLS. **Every new table must enable RLS in its own migration.**
+
 ### Ingestion: messages + audit_log (Lane A writes, Lane B annotates)
 
 One `messages` row per ingested email. **Lane A (JiaJun's Go listener) inserts into a table named

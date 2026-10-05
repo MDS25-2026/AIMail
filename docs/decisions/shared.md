@@ -6,6 +6,53 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-04 — Row-level security on every table
+- Decision: migration 0015 enables RLS on all nine application tables with no policies, so the
+  REST API answers nothing to the publishable key or a user's token. New tables enable it in the
+  same migration that creates them.
+- Why: found while starting per-user mailboxes. With RLS off, a request using only the publishable
+  key returned rows from `messages`, `audit_log` and `document`; verified, then verified blocked
+  (0 rows) after applying. The backend (`postgres`) and listener (`service_role`) bypass RLS and
+  were checked to still read and write.
+- Affects: the database only; no code change. Applied to Supabase 2026-10-04.
+- Status: applied by veyroxie.
+
+### 2026-10-04 — Sender name and address are stored unmasked, on purpose
+- Decision: `messages.from_addr` and `reply_to` keep the sender's display name and address as
+  Gmail gives them. They are personal data under the PDPA, but storing them is necessary for the
+  service (the reader must see who wrote, and a reply needs the address), and they never enter a
+  model payload: `thread_context` labels earlier messages by position, never by sender.
+- Why: the 30 Sep audit listed this as a leak; the mailbox owner decided it is a documented, minimal
+  use instead. Masking the name would show "[Redacted]" for every sender in the inbox.
+- Revisit when: anything starts sending `from_addr` to a model, or a retention policy is written
+  (then these columns follow it like the rest of the row).
+- Status: decided by the mailbox owner, 2026-10-04.
+
+### 2026-10-04 — Refined drafts are reviewed like generated ones; typed text is masked
+- Decision: Lane C's `/refine` runs the critic, the PII scan and the figures check on the revision
+  and returns the same review fields as `/process-email`; the backend stores them with the draft,
+  replacing the old verdict. The backend masks fixed formats (email, IC, passport, card with a Luhn
+  check, phone) in text the user typed before any model sees it; names stay, by the owner's choice,
+  since masking them would fill every refined draft with [Redacted].
+- Why: phase 0 of the 30 Sep audit, raised again at meeting 30. A refined draft skipped every check
+  while the previous "checked" badge stayed on screen, and typed phone numbers reached Gemini.
+- Affects: Lane C (`email_agent.py` `/refine`), Lane B (`app/dashboard.py`, `app/main.py`, new
+  `app/core/typed_text.py`). No dashboard change: it already re-reads the stored verdict.
+- Status: implemented by veyroxie, 2026-10-04.
+
+### 2026-10-04 — A reply is sent at most once, and the server checks what it sends
+- Decision: `send_reply` splits failures by whether Gmail could have acted. Failing to connect, or an
+  error status from Gmail, is `SendError` (claim released, can be approved again). A read timeout,
+  a cut connection or an unreadable 2xx is `SendOutcomeUnknownError`: the claim is kept, an audit row
+  `send_outcome_unknown` is written, and the route answers `504`. `/send` also refuses empty drafts,
+  drafts with redaction markers (422) and quarantined emails (409). The marker pattern moved to
+  `app/core/redaction.py`, shared with the agent.
+- Why: phase 0 of the 30 Sep audit. Any failure after the POST released the claim, so a second
+  press sent a second copy; and the dashboard's marker warning could be bypassed by calling the API.
+- Affects: Lane B (`app/gmail_send.py`, `app/dashboard.py`, `app/main.py`), Lane C
+  (`email_agent.py` imports the shared pattern), Lane D (`lib/api.ts`, `useDraftWorkflow.ts`).
+- Status: implemented by veyroxie, 2026-10-04.
+
 ### 2026-09-30 — Regenerate and refine report failure instead of returning the old draft
 - Decision: both routes raise `DraftNotUpdatedError` when the draft did not change, answered as
   `502 agent_unavailable`, `422 draft_refused` or `409 masking_pending` (see

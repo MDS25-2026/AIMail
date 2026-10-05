@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 
-import { DraftRefusedError, regenerateEmail } from "../api";
+import { DraftRefusedError, SendOutcomeUnknownError, regenerateEmail, sendEmail } from "../api";
 
 function answer(status: number, body: string) {
   vi.stubGlobal(
@@ -27,5 +27,17 @@ describe("regenerate failures", () => {
   test("a body that is not JSON is still an ordinary error", async () => {
     answer(500, "Internal Server Error");
     await expect(regenerateEmail("id", "casual")).rejects.not.toBeInstanceOf(DraftRefusedError);
+  });
+});
+
+describe("send failures", () => {
+  test("a send whose outcome is unknown is its own error, so the reader checks Gmail before retrying", async () => {
+    answer(504, JSON.stringify({ detail: "send_outcome_unknown" }));
+    await expect(sendEmail("id", "Thanks.")).rejects.toBeInstanceOf(SendOutcomeUnknownError);
+  });
+
+  test("a refused send stays an ordinary error", async () => {
+    answer(502, JSON.stringify({ detail: "send_failed" }));
+    await expect(sendEmail("id", "Thanks.")).rejects.not.toBeInstanceOf(SendOutcomeUnknownError);
   });
 });

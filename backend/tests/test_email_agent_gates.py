@@ -10,10 +10,10 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import email_agent
+from app.core.redaction import has_redaction_marker
 from email_agent import (
     build_review_reasons,
     clamp_confidence,
-    has_redaction_placeholder,
     pii_verdict,
     strip_quoted,
     unaddressed_requests,
@@ -180,11 +180,11 @@ def test_pathological_numeric_input_stays_linear():
 ])
 def test_every_redaction_marker_in_a_draft_is_flagged(draft):
     """The listener writes three marker shapes; a leak of any of them must reach review."""
-    assert has_redaction_placeholder(draft)
+    assert has_redaction_marker(draft)
 
 
 def test_ordinary_brackets_are_not_a_redaction_marker():
-    assert not has_redaction_placeholder("See [attached] and [Appendix B].")
+    assert not has_redaction_marker("See [attached] and [Appendix B].")
 
 
 

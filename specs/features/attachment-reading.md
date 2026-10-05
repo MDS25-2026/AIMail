@@ -16,20 +16,24 @@ unredacted attachment content leaving the machine.
 - `listener/attachment-reader`: a local container (Flask, on the pinned presidio-image-redactor
   image for Tesseract 5 and spaCy `en_core_web_lg`, plus `pypdfium2`) with `POST /read`.
 - Text PDF pages, .docx and .xlsx come back as text; the listener masks it like body text.
-- Images and scanned pages are redacted locally and released only past two gates (below).
+- Images and scanned pages are redacted locally and released only past three gates (below).
 - The listener sends only released images to Gemini, and masks the transcript again.
 - Dates are no longer redacted in attachments (`DATE_TIME` is not in the entity list).
 
 **Out of scope**
-- Faces, signatures and handwriting: nothing here detects them. See known-issues.
+- Faces, signatures and handwriting: nothing here detects them. Identity documents, where they
+  matter most, are withheld whole (gate 2); on any other image they are not.
 - Legacy .doc/.xls, archives, and anything not listed above: skipped.
 
-## The two gates
+## The three gates
 
 1. **Confidence.** Tesseract must have found words, and at most 20% of them below 60 confidence.
    Text the local OCR cannot read cannot be checked for PII, so the page is withheld rather than
    handed to a stronger remote reader.
-2. **Verification.** Names and places are found by NER over the OCR text, re-run until removing
+2. **Identity documents.** If the OCR text holds an IC number or a passport number or
+   machine-readable line, the image is withheld whole (2026-10-04): its face, signature and MRZ
+   cannot be boxed out word by word.
+3. **Verification.** Names and places are found by NER over the OCR text, re-run until removing
    the found words turns up nothing new. Then the redacted pixels are OCR'd again, and any
    fixed-format identifier still detectable (email, phone, IC, card, IBAN) withholds the
    page. Names are not re-checked on pixels: box edges make OCR read "Email:" as "Ena:", which
@@ -43,6 +47,7 @@ unredacted attachment content leaving the machine.
 - [x] Given a text PDF, text comes back and no image does.
 - [x] Given noise or a blank page, nothing is released and the page counts as skipped.
 - [x] Given a redaction that missed an identifier, the page is withheld.
+- [x] Given a MyKad image or a passport page, the whole image is withheld.
 - [x] Given a zip member inflating past 8 MB, or an unreadable or unsupported file, the reply is 422.
 - [x] Given an unreachable reader, the listener skips the attachment and never OCRs it.
 

@@ -28,6 +28,7 @@ import {
   fetchDocuments,
   fetchEmail,
   fetchEmails,
+  fetchSession,
   fetchSystemInfo,
   refineEmail,
   regenerateEmail,
@@ -38,12 +39,18 @@ import {
 import type { Email, Tone } from "../types/email";
 
 export const queryKeys = {
+  session: ["session"] as const,
   emails: ["emails"] as const,
   email: (id: string) => ["email", id] as const,
   documents: ["documents"] as const,
   systemInfo: ["system-info"] as const,
   translation: (id: string, language: string) => ["translation", id, language] as const,
 };
+
+/** Who is signed in. No retry: a 401 is an answer, and the cache handler sends them to sign in. */
+export function useSession() {
+  return useQuery({ queryKey: queryKeys.session, queryFn: fetchSession, retry: false });
+}
 
 export function useEmails() {
   return useQuery({ queryKey: queryKeys.emails, queryFn: fetchEmails });
@@ -120,10 +127,21 @@ export function useRefineEmail() {
   );
 }
 
+/** Like the other draft mutations, but a failure also refetches: an unknown outcome keeps the email claimed as sent. */
 export function useSendEmail() {
-  return useDraftMutation<{ emailId: string; draft: string }>(({ emailId, draft }) =>
-    sendEmail(emailId, draft),
-  );
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ emailId, draft }: { emailId: string; draft: string }) =>
+      sendEmail(emailId, draft),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKeys.email(updated.id), updated);
+      queryClient.invalidateQueries({ queryKey: queryKeys.emails });
+    },
+    onError: (_error, { emailId }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.email(emailId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.emails });
+    },
+  });
 }
 
 export function useDocuments() {

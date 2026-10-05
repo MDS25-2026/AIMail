@@ -4,24 +4,53 @@ import type { PolicyDocument, SystemInfo } from "../types/knowledge";
 /** Backend base URL. Defaults to the local backend; override with VITE_BACKEND_URL for other envs. */
 export const BASE = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:8000";
 
-/** Shared bearer token the backend requires on every route (backend/app/core/auth.py). */
-const TOKEN = import.meta.env.VITE_BACKEND_API_TOKEN ?? "";
+/** Where "Sign in with Google" starts; the backend runs the flow and sets the session cookie. */
+export const SIGN_IN_URL = `${BASE}/auth/google/start`;
 
-/** Auth header for backend calls; JSON senders spread it alongside Content-Type. */
-function authHeaders(): Record<string, string> {
-  return TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {};
+// The backend refuses a cookie request that changes state without it (CSRF, ADR 0005).
+const CLIENT_HEADER = { "X-AIMail-Client": "1" };
+
+/** No session, or it expired. The app sends the reader to the sign-in page. */
+export class SignedOutError extends Error {}
+
+type ApiInit = Omit<RequestInit, "headers" | "credentials"> & { headers?: Record<string, string> };
+
+/** A backend call carrying the HttpOnly session cookie; there is no token in the browser. */
+async function apiFetch(path: string, init: ApiInit = {}): Promise<Response> {
+  const res = await fetch(`${BASE}${path}`, {
+    ...init,
+    credentials: "include",
+    headers: { ...CLIENT_HEADER, ...init.headers },
+  });
+  if (res.status === 401) throw new SignedOutError(`${init.method ?? "GET"} ${path} needs sign-in`);
+  return res;
+}
+
+export type SessionInfo = { email: string; hasMailbox: boolean };
+
+/** Who is signed in, and whether a mailbox is connected to that account. */
+export async function fetchSession(): Promise<SessionInfo> {
+  const res = await apiFetch("/auth/session");
+  if (!res.ok) throw new Error(`GET /auth/session failed (${res.status})`);
+  return res.json();
+}
+
+/** End the session at Supabase and clear the cookies. */
+export async function signOut(): Promise<void> {
+  const res = await apiFetch("/auth/session", { method: "DELETE" });
+  if (!res.ok) throw new Error(`DELETE /auth/session failed (${res.status})`);
 }
 
 /** Inbox list — Lane A fields + Lane B priority (no draft). */
 export async function fetchEmails(): Promise<Email[]> {
-  const res = await fetch(`${BASE}/emails`, { headers: authHeaders() });
+  const res = await apiFetch(`/emails`);
   if (!res.ok) throw new Error(`GET /emails failed (${res.status})`);
   return res.json();
 }
 
 /** One email with the Lane C draft/summary/critic filled in. */
 export async function fetchEmail(id: string): Promise<Email> {
-  const res = await fetch(`${BASE}/emails/${id}`, { headers: authHeaders() });
+  const res = await apiFetch(`/emails/${id}`);
   if (!res.ok) throw new Error(`GET /emails/${id} failed (${res.status})`);
   return res.json();
 }
@@ -29,32 +58,39 @@ export async function fetchEmail(id: string): Promise<Email> {
 /** The model failed on this email's content (422 draft_refused); retrying cannot change that. */
 export class DraftRefusedError extends Error {}
 
-const DRAFT_REFUSED = "draft_refused";
+/** Gmail may have sent the reply but the answer was lost (504 send_outcome_unknown). Never retry blind. */
+export class SendOutcomeUnknownError extends Error {}
 
-async function regenerateError(res: Response, message: string): Promise<Error> {
+const ERROR_BY_DETAIL: Record<string, new (message: string) => Error> = {
+  draft_refused: DraftRefusedError,
+  send_outcome_unknown: SendOutcomeUnknownError,
+};
+
+/** The typed error for a failed call, chosen by the backend's `detail` code. */
+async function apiError(res: Response, message: string): Promise<Error> {
   const body: unknown = await res.json().catch(() => null);
-  const isRefused =
-    typeof body === "object" && body !== null && "detail" in body && body.detail === DRAFT_REFUSED;
-  return isRefused ? new DraftRefusedError(message) : new Error(message);
+  const detail =
+    typeof body === "object" && body !== null && "detail" in body ? String(body.detail) : "";
+  const ErrorType = ERROR_BY_DETAIL[detail] ?? Error;
+  return new ErrorType(message);
 }
 
 /** Force a fresh draft in the given tone, replacing the cached one. */
 export async function regenerateEmail(id: string, tone: string): Promise<Email> {
-  const res = await fetch(`${BASE}/emails/${id}/regenerate`, {
+  const res = await apiFetch(`/emails/${id}/regenerate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ tone }),
   });
-  if (!res.ok)
-    throw await regenerateError(res, `POST /emails/${id}/regenerate failed (${res.status})`);
+  if (!res.ok) throw await apiError(res, `POST /emails/${id}/regenerate failed (${res.status})`);
   return res.json();
 }
 
 /** Revise the current draft per a user instruction. */
 export async function refineEmail(id: string, instruction: string, draft: string): Promise<Email> {
-  const res = await fetch(`${BASE}/emails/${id}/refine`, {
+  const res = await apiFetch(`/emails/${id}/refine`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ instruction, draft }),
   });
   if (!res.ok) throw new Error(`POST /emails/${id}/refine failed (${res.status})`);
@@ -63,9 +99,9 @@ export async function refineEmail(id: string, instruction: string, draft: string
 
 /** The masked body in another language. 422 means the translation failed its faithfulness checks. */
 export async function translateEmail(id: string, language: string): Promise<Translation> {
-  const res = await fetch(`${BASE}/emails/${id}/translate`, {
+  const res = await apiFetch(`/emails/${id}/translate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ language }),
   });
   if (!res.ok) throw new Error(`POST /emails/${id}/translate failed (${res.status})`);
@@ -74,27 +110,27 @@ export async function translateEmail(id: string, language: string): Promise<Tran
 
 /** Send the approved (possibly edited) draft as a reply; marks the email sent. */
 export async function sendEmail(id: string, draft: string): Promise<Email> {
-  const res = await fetch(`${BASE}/emails/${id}/send`, {
+  const res = await apiFetch(`/emails/${id}/send`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ draft }),
   });
-  if (!res.ok) throw new Error(`POST /emails/${id}/send failed (${res.status})`);
+  if (!res.ok) throw await apiError(res, `POST /emails/${id}/send failed (${res.status})`);
   return res.json();
 }
 
 /** Knowledge base inventory — one row per ingested policy document. */
 export async function fetchDocuments(): Promise<PolicyDocument[]> {
-  const res = await fetch(`${BASE}/documents`, { headers: authHeaders() });
+  const res = await apiFetch(`/documents`);
   if (!res.ok) throw new Error(`GET /documents failed (${res.status})`);
   return res.json();
 }
 
 /** Ingest pasted text as a document; returns the number of chunks stored. */
 export async function addDocument(title: string, text: string): Promise<number> {
-  const res = await fetch(`${BASE}/documents`, {
+  const res = await apiFetch(`/documents`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ title, text }),
   });
   if (!res.ok) throw uploadError(res);
@@ -107,9 +143,8 @@ export async function uploadDocument(file: File): Promise<number> {
   const form = new FormData();
   form.append("file", file);
   // No Content-Type: the browser sets the multipart boundary itself.
-  const res = await fetch(`${BASE}/documents/upload`, {
+  const res = await apiFetch(`/documents/upload`, {
     method: "POST",
-    headers: authHeaders(),
     body: form,
   });
   if (!res.ok) throw uploadError(res);
@@ -119,13 +154,12 @@ export async function uploadDocument(file: File): Promise<number> {
 
 /** Turn the backend's guard responses into something a person can act on. */
 /** Why an upload was refused, as a code the page translates; the page owns the wording. */
-export type UploadFailure = "too_large" | "rate_limited" | "not_pdf" | "unauthorized" | "failed";
+export type UploadFailure = "too_large" | "rate_limited" | "not_pdf" | "failed";
 
 const UPLOAD_FAILURE_BY_STATUS: Record<number, UploadFailure> = {
   413: "too_large",
   429: "rate_limited",
   400: "not_pdf",
-  401: "unauthorized",
 };
 
 export class UploadError extends Error {
@@ -140,7 +174,7 @@ function uploadError(res: Response): UploadError {
 
 /** Non-secret runtime configuration, for the Settings view. */
 export async function fetchSystemInfo(): Promise<SystemInfo> {
-  const res = await fetch(`${BASE}/system/info`, { headers: authHeaders() });
+  const res = await apiFetch(`/system/info`);
   if (!res.ok) throw new Error(`GET /system/info failed (${res.status})`);
   return res.json();
 }

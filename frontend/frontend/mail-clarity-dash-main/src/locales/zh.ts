@@ -22,6 +22,8 @@ export const zh: Translations = {
     keyboardHint: "在列表中，按 J/K 或方向键在邮件之间切换。",
     emptyTitle: "暂无邮件",
     emptyHint: "新邮件到达您的 Gmail 收件箱几秒后会显示在这里。",
+    noMailboxTitle: "未连接邮箱",
+    noMailboxHint: "此账户尚未关联邮箱。请让邮箱所有者为您连接。",
   },
   priority: { high: "紧急", medium: "中等", low: "低" },
   detail: {
@@ -71,6 +73,10 @@ export const zh: Translations = {
   quantities: {
     title: "度量",
     approx: "{{written}} ≈ {{converted}}",
+  },
+  emailBody: {
+    imagesBlocked: "已阻止远程图片，发件人无法得知您何时打开了这封邮件。",
+    loadImages: "加载图片",
   },
   translate: {
     action: "翻译成{{language}}",
@@ -131,7 +137,6 @@ export const zh: Translations = {
       too_large: "该文件超过 10 MB 限制。",
       rate_limited: "上传次数过多。请稍等一分钟后重试。",
       not_pdf: "该文件被拒绝：必须是真正的 PDF。",
-      unauthorized: "未授权。请检查 VITE_BACKEND_API_TOKEN。",
       failed: "上传失败。",
     },
   },
@@ -262,6 +267,7 @@ export const zh: Translations = {
       send: "回复未发送。您的草稿没有改变，请稍后重试。",
       refused:
         "AI 无法为这封邮件撰写草稿，重试也不会改变结果。您的文字没有改变：请自行撰写回复，或尝试另一种语气。",
+      sendUnknown: "无法确认回复是否已发送。请先检查您的 Gmail 已发送邮件，再决定是否重新发送。",
     },
     replaceEdits: "新草稿将替换您输入的修改。",
     replaceConfirm: "替换我的修改",
@@ -271,6 +277,58 @@ export const zh: Translations = {
       "这封回复仍有 {{count}} 处隐藏信息，例如 [Redacted]。收件人会原样看到。发送前请填入真实信息。",
     sendAnyway: "仍然发送",
     keepEditing: "继续编辑",
+  },
+  signIn: {
+    google: "使用 Google 登录",
+    privacy: "Google 仅用于确认您的身份。未经您批准，不会从您的账户发送任何内容。",
+    errors: {
+      sign_in_failed: "登录未完成，请重试。",
+      sign_in_unavailable: "登录暂时不可用，请几分钟后再试。",
+      sign_in_not_allowed: "此 Google 账户暂时无法注册。请联系 AIMail 所有者邀请您。",
+    },
+  },
+  landing: {
+    headline: "更快回复工作邮件，而无需把客户信息交给 AI。",
+    lede: "AIMail 为您的工作邮件起草回复。在 AI 读取任何内容之前，姓名、电话号码和身份证号码都会被隐藏，未经您批准不会发送任何内容。",
+    whyTitle: "团队为何选择 AIMail",
+    pillars: {
+      private: {
+        title: "从设计上保护隐私",
+        body: "在 AI 看到任何内容之前，我们会先隐藏个人信息，附件也不例外。身份证照片根本不会发送出去。",
+      },
+      approve: {
+        title: "每次发送都由您批准",
+        body: "AIMail 撰写草稿，由您决定。若回复中仍留有隐藏信息，它会提醒您，并且从不自行发送。",
+      },
+      local: {
+        title: "为马来西亚办公室打造",
+        body: "支持英文、马来文和中文，配色照顾色盲读者，并提供适合深夜使用的深色模式。",
+      },
+    },
+    howTitle: "运作方式",
+    steps: {
+      arrives: {
+        title: "收到邮件",
+        body: "AIMail 从您的 Gmail 收件箱获取邮件。",
+      },
+      hidden: {
+        title: "隐藏个人信息",
+        body: "首先替换姓名、号码和地址。",
+      },
+      drafted: {
+        title: "撰写草稿",
+        body: "依据对话内容和您公司的文件，并向您展示所用的来源。",
+      },
+      approved: {
+        title: "您审阅并发送",
+        body: "可以编辑、润色或重新生成。只有在您同意后才会发送。",
+      },
+    },
+    footer: "您的 Google 账户仅用于登录。AIMail 是马来西亚莫纳什大学的毕业项目。",
+  },
+  account: {
+    signOut: "退出登录",
+    signingOut: "正在退出…",
   },
   announce: {
     regenerated: "草稿已重新生成",

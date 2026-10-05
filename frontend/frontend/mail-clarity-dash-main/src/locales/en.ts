@@ -23,6 +23,9 @@ export const en = {
     keyboardHint: "In the list, J/K or the arrow keys move between emails.",
     emptyTitle: "No emails yet",
     emptyHint: "New emails show up here a few seconds after they reach your Gmail inbox.",
+    noMailboxTitle: "No mailbox connected",
+    noMailboxHint:
+      "This account isn't linked to a mailbox yet. Ask the mailbox owner to connect yours.",
   },
   priority: { high: "Urgent", medium: "Medium", low: "Low" },
   detail: {
@@ -73,6 +76,10 @@ export const en = {
   quantities: {
     title: "Measurements",
     approx: "{{written}} ≈ {{converted}}",
+  },
+  emailBody: {
+    imagesBlocked: "Remote images are blocked, so the sender cannot see when you opened this.",
+    loadImages: "Load images",
   },
   translate: {
     action: "Translate to {{language}}",
@@ -137,7 +144,6 @@ export const en = {
       too_large: "That file is over the 10 MB limit.",
       rate_limited: "Too many uploads just now. Wait a minute and retry.",
       not_pdf: "That file was rejected: it must be a real PDF.",
-      unauthorized: "Not authorised. Check VITE_BACKEND_API_TOKEN.",
       failed: "The upload failed.",
     },
   },
@@ -274,6 +280,8 @@ export const en = {
       send: "The reply was not sent. Your draft is unchanged, so try again in a moment.",
       refused:
         "The AI couldn't write a draft for this email, and trying again won't change that. Your text is unchanged: write the reply yourself, or try the other tone.",
+      sendUnknown:
+        "We couldn't confirm whether the reply was sent. Check your Gmail Sent folder before sending again.",
     },
     replaceEdits: "A new draft will replace the changes you typed.",
     replaceConfirm: "Replace my changes",
@@ -283,6 +291,61 @@ export const en = {
       "This reply still has {{count}} hidden details, such as [Redacted]. The recipient will see them exactly like that. Type the real details in before sending.",
     sendAnyway: "Send anyway",
     keepEditing: "Keep editing",
+  },
+  signIn: {
+    google: "Sign in with Google",
+    privacy:
+      "Google only confirms who you are. Nothing is sent from your account without your approval.",
+    errors: {
+      sign_in_failed: "Sign-in didn't finish. Please try again.",
+      sign_in_unavailable: "Sign-in isn't available right now. Try again in a few minutes.",
+      sign_in_not_allowed:
+        "This Google account can't sign up yet. Ask the AIMail owner to invite you.",
+    },
+  },
+  landing: {
+    headline: "Answer work email faster, without handing your customers' details to AI.",
+    lede: "AIMail drafts replies to your work email. Names, phone numbers and IC numbers are hidden before any AI reads a word, and nothing is sent until you approve it.",
+    whyTitle: "Why teams choose AIMail",
+    pillars: {
+      private: {
+        title: "Private by design",
+        body: "Personal details are hidden on our side before the AI sees anything, attachments included. Photos of ID cards never leave at all.",
+      },
+      approve: {
+        title: "You approve every send",
+        body: "AIMail writes the draft; you decide. It warns you about anything left hidden in a reply, and it never sends on its own.",
+      },
+      local: {
+        title: "Built for Malaysian offices",
+        body: "Use it in English, Bahasa Melayu or Chinese, with colours that work for colour-blind readers and a dark mode for late nights.",
+      },
+    },
+    howTitle: "How it works",
+    steps: {
+      arrives: {
+        title: "An email arrives",
+        body: "AIMail picks it up from your Gmail inbox.",
+      },
+      hidden: {
+        title: "Personal details are hidden",
+        body: "Before anything else, names, numbers and addresses are replaced.",
+      },
+      drafted: {
+        title: "A draft is written",
+        body: "Using the conversation and your company's own documents, which it shows you.",
+      },
+      approved: {
+        title: "You review and send",
+        body: "Edit it, refine it, or start over. It goes out only when you say so.",
+      },
+    },
+    footer:
+      "Your Google account is only used to sign you in. AIMail is a final-year project at Monash University Malaysia.",
+  },
+  account: {
+    signOut: "Sign out",
+    signingOut: "Signing out…",
   },
   announce: {
     regenerated: "Draft regenerated",

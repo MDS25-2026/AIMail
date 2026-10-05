@@ -283,3 +283,52 @@ func TestHistoryBaselineAdvances(t *testing.T) {
 		t.Fatalf("baseline should advance to 4242, got %d", got)
 	}
 }
+
+// Passports carry a letter prefix ("A12345678"), which the digits-only account pattern can never
+// match, so they need their own floor rule.
+func TestMaskPIIMasksAlphanumericPassports(t *testing.T) {
+	masked, _, _ := maskPII("My passport A12345678 expires in May; his is AB1234567.")
+	for _, raw := range []string{"A12345678", "AB1234567"} {
+		if strings.Contains(masked, raw) {
+			t.Fatalf("passport %q leaked: %q", raw, masked)
+		}
+	}
+}
+
+// The phone floor covered Malaysian and US shapes only; regional contacts write +65, +44, +62.
+func TestMaskPIIMasksInternationalPhones(t *testing.T) {
+	in := "SG +65 9123 4567, UK +44 20 7946 0958, ID +62 812-3456-7890."
+	masked, _, phones := maskPII(in)
+	for _, raw := range []string{"9123 4567", "7946 0958", "812-3456-7890"} {
+		if strings.Contains(masked, raw) {
+			t.Fatalf("phone %q leaked: %q", raw, masked)
+		}
+	}
+	if phones != 3 {
+		t.Fatalf("expected 3 phones counted, got %d: %q", phones, masked)
+	}
+}
+
+// A link's query and fragment carry reset tokens and encoded addresses (%40 escapes the email
+// rule); the host is all the phishing check needs, so only scheme, host and path are kept.
+func TestLinksKeepTheirHostButLoseQueryAndFragment(t *testing.T) {
+	in := "Reset at https://accounts.example.com/reset?token=abc123&email=jo%40corp.com#step2 today"
+	masked, _, _ := maskPII(in)
+	if !strings.Contains(masked, "https://accounts.example.com/reset") {
+		t.Fatalf("host and path should survive: %q", masked)
+	}
+	for _, leaked := range []string{"token=abc123", "jo%40corp.com", "step2"} {
+		if strings.Contains(masked, leaked) {
+			t.Fatalf("%q survived: %q", leaked, masked)
+		}
+	}
+}
+
+// The HTML path turns a link into "text (url)"; the same stripping must apply to it.
+func TestHTMLLinksLoseTheirQueryToo(t *testing.T) {
+	text := htmlToText(`<p>Click <a href="https://x.example/login?user=siti.aminah&id=42">here</a>.</p>`)
+	masked, _, _ := maskPII(text)
+	if strings.Contains(masked, "siti.aminah") || !strings.Contains(masked, "https://x.example/login") {
+		t.Fatalf("link not reduced to host and path: %q", masked)
+	}
+}

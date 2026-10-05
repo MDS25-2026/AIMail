@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from app.admin import app as admin_routes
 from app.admin import auth, stats
 from app.admin.schemas import MailboxCounts, ModelHealth, Overview, PrivacyCounts
+from app.core import supabase_auth
 from app.core.config import get_settings
 from app.db.models import AuditLog
 from app.main import app
@@ -55,7 +56,7 @@ def client(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "postgresql://unused:unused@127.0.0.1:5432/unused")
     monkeypatch.setenv("GEMINI_API_KEY", "unused")
     get_settings.cache_clear()
-    monkeypatch.setattr(auth, "_jwks", lambda auth_base: _FakeJwks())
+    monkeypatch.setattr(supabase_auth, "_jwks", lambda base: _FakeJwks())
 
     async def fake_overview(session, days):
         return Overview(days=days, mailbox=MailboxCounts(total=1, masking_pending=0, masking_abandoned=0, generated=1,
@@ -83,7 +84,7 @@ def supabase(monkeypatch, handler) -> list[str]:
         seen.append(request.url.path + ("?" + request.url.query.decode() if request.url.query else ""))
         return handler(request)
 
-    monkeypatch.setattr(auth, "transport", httpx.MockTransport(respond))
+    monkeypatch.setattr(supabase_auth, "transport", httpx.MockTransport(respond))
     return seen
 
 
@@ -276,7 +277,7 @@ def test_a_forged_key_id_triggers_at_most_one_refetch(monkeypatch):
             fetches.append(1)
             return []
 
-    key_set = auth._KeySet.__new__(auth._KeySet)
+    key_set = supabase_auth._KeySet.__new__(supabase_auth._KeySet)
     key_set._client, key_set._keys, key_set._fetched_at = _Client(), {}, float("-inf")
     forged = jwt.encode({"sub": "x"}, KEY, algorithm="ES256", headers={"kid": "forged"})
     for _ in range(5):

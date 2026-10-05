@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 _TOKEN_URL = "https://oauth2.googleapis.com/token"
 _MESSAGES_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages"
+_PROFILE_URL = "https://gmail.googleapis.com/gmail/v1/users/me/profile"
 _SEND_URL = f"{_MESSAGES_URL}/send"
 # Read from Gmail at send time, never from the database: the stored subject is masked, and Gmail
 # threads a reply only when its Subject matches the original's.
@@ -49,7 +50,16 @@ class SentReply:
 
 
 class SendError(RuntimeError):
-    """Sending the reply via Gmail failed."""
+    """Sending the reply via Gmail failed, before Gmail could have sent it."""
+
+
+class SendOutcomeUnknownError(RuntimeError):
+    """Gmail may have sent the reply but the answer was lost. Never retried: that risks a second copy."""
+
+
+# Failures raised before a request can reach Gmail. Any other transport failure on the POST may
+# have landed after Gmail accepted it.
+_NEVER_REACHED_GMAIL = (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout)
 
 
 def _load_creds() -> tuple[dict, dict]:
@@ -219,6 +229,29 @@ async def _sent_message_id(client: httpx.AsyncClient, gmail_id: str | None) -> s
         return None
 
 
+async def profile_address() -> str:
+    """The address of the Gmail account this backend sends from, which is the mailbox it reads."""
+    async with httpx.AsyncClient(timeout=30) as client:
+        response = await _gmail_request(client, "GET", _PROFILE_URL)
+        response.raise_for_status()
+        return response.json()["emailAddress"]
+
+
+async def _post_send(client: httpx.AsyncClient, payload: dict[str, str]) -> dict:
+    """POST the reply. A failure Gmail may already have acted on raises SendOutcomeUnknownError."""
+    try:
+        response = await _gmail_request(client, "POST", _SEND_URL, json=payload)
+    except httpx.TransportError as exc:
+        if isinstance(exc, _NEVER_REACHED_GMAIL):
+            raise
+        raise SendOutcomeUnknownError(f"no answer from Gmail: {exc}") from exc
+    response.raise_for_status()  # an error status means Gmail refused, so nothing was sent
+    try:
+        return response.json()
+    except ValueError as exc:
+        raise SendOutcomeUnknownError("Gmail accepted the send but its answer was unreadable") from exc
+
+
 async def send_reply(
     gmail_message_id: str | None, fallback_to: str, fallback_subject: str, body: str
 ) -> SentReply:
@@ -230,9 +263,7 @@ async def send_reply(
             payload: dict[str, str] = {"raw": _build_raw(target, body)}
             if target.thread_id:
                 payload["threadId"] = target.thread_id
-            response = await _gmail_request(client, "POST", _SEND_URL, json=payload)
-            response.raise_for_status()
-            sent = response.json()
+            sent = await _post_send(client, payload)
             message_id = await _sent_message_id(client, sent.get("id"))
     except (httpx.HTTPError, KeyError, OSError, ValueError) as exc:
         raise SendError(str(exc)) from exc

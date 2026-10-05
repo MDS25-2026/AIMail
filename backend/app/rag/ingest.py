@@ -10,6 +10,7 @@ from app.db.models import Chunk, Document, Embedding
 from app.db.session import get_sessionmaker
 from app.rag.chunk import chunk_text, estimate_tokens, extract_pdf_text
 from app.rag.embed import embed_documents
+from app.rag.mask import mask_document
 
 EMBED_BATCH = 100
 
@@ -25,7 +26,10 @@ async def ingest_text(source: str, title: str, text: str, *, doc_type: str = "po
     Embedding is resumable: if it fails partway, re-run `embed_pending` and only the unembedded
     chunks are retried.
     """
-    chunks = chunk_text(text)
+    # Nothing to store: answered before masking, which needs Presidio and the settings.
+    if not text.strip():
+        return 0
+    chunks = chunk_text(await mask_document(text))
     if not chunks:
         return 0
     sessionmaker = get_sessionmaker()

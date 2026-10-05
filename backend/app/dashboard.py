@@ -25,12 +25,15 @@ from app.contracts import (
     Source,
     ThreadMessage,
 )
+from app.core import mailbox
 from app.core.config import get_settings
 from app.core.logging_setup import request_id
 from app.core.middleware import REQUEST_ID_HEADER
+from app.core.redaction import has_redaction_marker
+from app.core.typed_text import mask_typed_text
 from app.db.models import MaskingStatus, Message
 from app.db.session import get_sessionmaker
-from app.gmail_send import SendError, send_reply
+from app.gmail_send import SendError, SendOutcomeUnknownError, send_reply
 from app.normalise.quantities import quantities_in
 from app.personalisation import DEFAULT_POLICY, Policy, apply_policy, load_policy
 from app.plain_text import plain_text
@@ -125,7 +128,7 @@ async def list_dashboard_emails(limit: int = 50) -> list[DashboardEmail]:
     stmt = select(Message).order_by(Message.created_at.desc()).limit(limit)
     async with get_sessionmaker()() as session:
         rows = (await session.scalars(stmt)).all()
-        policy = await load_policy(session, get_settings().mailbox_owner_email)
+        policy = await load_policy(session, mailbox.owner())
     return [_to_email(message, policy) for message in rows]
 
 
@@ -148,6 +151,20 @@ class DraftNotUpdatedError(RuntimeError):
     """A regenerate or refine that changed nothing. Answering 200 with the old draft hid it."""
 
     def __init__(self, code: DraftErrorCode, status_code: int) -> None:
+        super().__init__(code)
+        self.code = code
+        self.status_code = status_code
+
+
+class SendErrorCode(StrEnum):
+    REDACTION_MARKERS = "redaction_markers"  # "[Redacted]" would reach the recipient as written
+    MASKING_PENDING = "masking_pending"  # quarantined: there is nothing safe to reply to yet
+
+
+class SendRejectedError(RuntimeError):
+    """A draft refused before anything is claimed or sent; the dashboard's own check can be bypassed."""
+
+    def __init__(self, code: SendErrorCode, status_code: int) -> None:
         super().__init__(code)
         self.code = code
         self.status_code = status_code
@@ -283,27 +300,34 @@ async def _generate(message: Message, tone: str, thread: list[Message]) -> dict:
 def _generation_fields(generated: dict) -> dict:
     # NULL, not 0.0: an NA message was never scored, and coercing that to zero made "not
     # evaluated" indistinguishable from "the critic rejected this" in every stored statistic.
-    confidence = generated.get("confidence")
     return {
         "ai_summary": generated.get("summary") or "",
         "draft_reply": generated.get("draft") or "",
         "action_items": generated.get("action_items") or [],
         "rag_sources": generated.get("rag_sources") or [],
+        **_review_fields(generated),
+        "generated_at": datetime.now(timezone.utc),
+    }
+
+
+def _review_fields(reviewed: dict) -> dict:
+    """The critic's verdict on a draft, stored the same way for a generated and a refined one."""
+    confidence = reviewed.get("confidence")
+    return {
         "critic_confidence": None if confidence is None else float(confidence),
         # Stored so a rescued draft is distinguishable from a first-pass success.
-        "critic_attempts": int(generated.get("attempts") or 0),
+        "critic_attempts": int(reviewed.get("attempts") or 0),
         "critic_checks": {
-            "grounding_ok": generated.get("grounding_ok"),
-            "pii_clean": generated.get("pii_clean"),
-            "tone_match": generated.get("tone_match"),
-            "completeness": generated.get("completeness"),
-            "pii_findings": generated.get("pii_findings") or [],
-            "review_reasons": generated.get("review_reasons") or [],
+            "grounding_ok": reviewed.get("grounding_ok"),
+            "pii_clean": reviewed.get("pii_clean"),
+            "tone_match": reviewed.get("tone_match"),
+            "completeness": reviewed.get("completeness"),
+            "pii_findings": reviewed.get("pii_findings") or [],
+            "review_reasons": reviewed.get("review_reasons") or [],
             # Which models answered and how many retries it took; outcomes and ms, no content.
-            "model_calls": generated.get("model_calls") or [],
+            "model_calls": reviewed.get("model_calls") or [],
         },
-        "needs_human_review": bool(generated.get("needs_human_review")),
-        "generated_at": datetime.now(timezone.utc),
+        "needs_human_review": bool(reviewed.get("needs_human_review")),
     }
 
 
@@ -436,12 +460,20 @@ async def approve_and_send(message_id: str, draft: str) -> DashboardEmail | None
     message = await _load(pk)
     if message is None:
         return None
+    if not message.is_masked:
+        raise SendRejectedError(SendErrorCode.MASKING_PENDING, 409)
+    if has_redaction_marker(draft):
+        raise SendRejectedError(SendErrorCode.REDACTION_MARKERS, 422)
     if message.sent_at is not None or not await _claim_send(pk):
         return _to_email(await _load(pk) or message)
     try:
         sent = await send_reply(
             message.gmail_message_id, message.from_addr or "", message.subject or "", draft
         )
+    except SendOutcomeUnknownError:
+        # The claim stays: Gmail may have sent, and releasing it would invite a second copy.
+        await audit("send_outcome_unknown", f"message={message_id}", success=False)
+        raise
     except SendError:
         await _release_send_claim(pk)
         # The failed attempt is the row an auditor most wants; log before unwinding.
@@ -459,14 +491,39 @@ async def approve_and_send(message_id: str, draft: str) -> DashboardEmail | None
     return email
 
 
-async def _refine(message: Message, draft: str, instruction: str) -> str | None:
-    """Call Lane C's /refine to revise a draft per a user instruction. None on failure."""
+def _stored_rag_context(message: Message) -> str:
+    """The policy passages the draft was grounded on, rebuilt from what generation stored."""
+    return "\n\n".join(f"[{source.get('label', 'Policy')}] {source.get('excerpt', '')}"
+                       for source in message.rag_sources or [])
+
+
+async def _refine(message: Message, thread: list[Message], draft: str, instruction: str) -> dict:
+    """Lane C's revision plus its review. Raises DraftNotUpdatedError when nothing usable came back.
+
+    The user typed the draft and the instruction, so fixed-format details are masked before they
+    leave; names stay, since they were typed on purpose.
+    """
+    payload = {
+        "email_body": message.body_masked or "",
+        "draft": mask_typed_text(draft),
+        "instruction": mask_typed_text(instruction),
+        "thread_context": thread_context(message, thread),
+        "rag_context": _stored_rag_context(message),
+        "action_items": message.action_items or [],
+    }
     try:
-        payload = {"email_body": message.body_masked or "", "draft": draft, "instruction": instruction}
-        return (await _call_agent("/refine", payload)).get("draft")
+        refined = await _call_agent("/refine", payload)
+    except httpx.HTTPStatusError as exc:
+        logger.warning("refine failed for message %s: %s", message.id, exc)
+        if exc.response.status_code == AGENT_CONTENT_FAILURE:
+            raise DraftNotUpdatedError(DraftErrorCode.DRAFT_REFUSED, 422) from exc
+        raise DraftNotUpdatedError(DraftErrorCode.AGENT_UNAVAILABLE, 502) from exc
     except (httpx.HTTPError, ValueError) as exc:
         logger.warning("refine failed for message %s: %s", message.id, exc)
-        return None
+        raise DraftNotUpdatedError(DraftErrorCode.AGENT_UNAVAILABLE, 502) from exc
+    if not refined.get("draft"):
+        raise DraftNotUpdatedError(DraftErrorCode.AGENT_UNAVAILABLE, 502)
+    return refined
 
 
 # Mirrors the agent's own bound (email_agent.MAX_TRANSLATE_CHARS), checked here first so an
@@ -530,18 +587,24 @@ async def refine_email(message_id: str, instruction: str, draft: str) -> Dashboa
         pk = UUID(message_id)
     except ValueError:
         return None
-    message = await _load(pk)
-    if message is None:
+    loaded = await _load_with_thread(pk)
+    if loaded is None:
         return None
+    message, thread = loaded
     if message.sent_at is not None:
         raise AlreadySentError(message_id)
     if not message.is_masked:
         raise DraftNotUpdatedError(DraftErrorCode.MASKING_PENDING, 409)
-    refined = await _refine(message, draft, instruction)
-    await audit("refine_draft", f"message={message_id}", success=bool(refined))
-    if not refined:
-        raise DraftNotUpdatedError(DraftErrorCode.AGENT_UNAVAILABLE, 502)
-    if not await _update_unsent(pk, {"draft_reply": refined}):
+    try:
+        refined = await _refine(message, thread, draft, instruction)
+    except DraftNotUpdatedError:
+        await audit("refine_draft", f"message={message_id}", success=False)
+        raise
+    # The old verdict described the old draft; the refined one carries its own.
+    fields = {"draft_reply": refined["draft"], **_review_fields(refined)}
+    if not await _update_unsent(pk, fields):
         raise AlreadySentError(message_id)
-    message.draft_reply = refined
-    return _to_email(message)
+    for column, value in fields.items():
+        setattr(message, column, value)
+    await audit("refine_draft", f"message={message_id} review={message.needs_human_review}")
+    return _to_email(message, thread=thread)

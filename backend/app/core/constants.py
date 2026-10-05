@@ -18,6 +18,7 @@ CHAT_MODEL = "gemini-2.5-flash"
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB — comfortably above a real policy PDF
 UPLOAD_CHUNK_BYTES = 64 * 1024  # streamed so an oversized file is rejected before it is buffered
 MAX_PASTE_CHARS = 200_000  # ~50k tokens; the paste path has no file size to bound it
+MAX_DRAFT_CHARS = 20_000  # a reply, not a document; generous for a long email
 PDF_MAGIC = b"%PDF-"  # a .pdf extension is a claim; the header is evidence
 
 # Size caps stop one huge upload; this stops many small ones. Generous enough that a human

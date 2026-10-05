@@ -27,6 +27,9 @@ export const ms: Translations = {
     emptyTitle: "Belum ada e-mel",
     emptyHint:
       "E-mel baharu dipaparkan di sini beberapa saat selepas tiba di peti masuk Gmail anda.",
+    noMailboxTitle: "Tiada peti mel disambungkan",
+    noMailboxHint:
+      "Akaun ini belum dipautkan kepada peti mel. Minta pemilik peti mel menyambungkan peti mel anda.",
   },
   priority: { high: "Segera", medium: "Sederhana", low: "Rendah" },
   detail: {
@@ -77,6 +80,11 @@ export const ms: Translations = {
   quantities: {
     title: "Ukuran",
     approx: "{{written}} ≈ {{converted}}",
+  },
+  emailBody: {
+    imagesBlocked:
+      "Imej jauh disekat, jadi pengirim tidak dapat melihat bila anda membuka e-mel ini.",
+    loadImages: "Muatkan imej",
   },
   translate: {
     action: "Terjemah ke {{language}}",
@@ -142,7 +150,6 @@ export const ms: Translations = {
       too_large: "Fail itu melebihi had 10 MB.",
       rate_limited: "Terlalu banyak muat naik sekarang. Tunggu seminit dan cuba lagi.",
       not_pdf: "Fail itu ditolak: ia mesti PDF sebenar.",
-      unauthorized: "Tidak dibenarkan. Semak VITE_BACKEND_API_TOKEN.",
       failed: "Muat naik gagal.",
     },
   },
@@ -280,6 +287,8 @@ export const ms: Translations = {
       send: "Balasan tidak dihantar. Draf anda tidak berubah, jadi cuba lagi sebentar lagi.",
       refused:
         "AI tidak dapat menulis draf untuk e-mel ini, dan mencuba lagi tidak akan mengubahnya. Teks anda tidak berubah: tulis balasan sendiri, atau cuba nada yang satu lagi.",
+      sendUnknown:
+        "Kami tidak dapat mengesahkan sama ada balasan telah dihantar. Semak folder Dihantar Gmail anda sebelum menghantar semula.",
     },
     replaceEdits: "Draf baharu akan menggantikan perubahan yang anda taip.",
     replaceConfirm: "Gantikan perubahan saya",
@@ -289,6 +298,62 @@ export const ms: Translations = {
       "Balasan ini masih mengandungi {{count}} butiran tersembunyi, seperti [Redacted]. Penerima akan melihatnya begitu sahaja. Taip butiran sebenar sebelum menghantar.",
     sendAnyway: "Hantar juga",
     keepEditing: "Teruskan menyunting",
+  },
+  signIn: {
+    google: "Log masuk dengan Google",
+    privacy:
+      "Google hanya mengesahkan siapa anda. Tiada apa-apa dihantar dari akaun anda tanpa kelulusan anda.",
+    errors: {
+      sign_in_failed: "Log masuk tidak selesai. Sila cuba lagi.",
+      sign_in_unavailable: "Log masuk tidak tersedia sekarang. Cuba lagi dalam beberapa minit.",
+      sign_in_not_allowed:
+        "Akaun Google ini belum boleh mendaftar. Minta pemilik AIMail menjemput anda.",
+    },
+  },
+  landing: {
+    headline:
+      "Balas e-mel kerja dengan lebih pantas, tanpa menyerahkan butiran pelanggan anda kepada AI.",
+    lede: "AIMail mendraf balasan untuk e-mel kerja anda. Nama, nombor telefon dan nombor IC disembunyikan sebelum AI membaca apa-apa, dan tiada apa-apa dihantar sehingga anda meluluskannya.",
+    whyTitle: "Mengapa pasukan memilih AIMail",
+    pillars: {
+      private: {
+        title: "Privasi sejak awal",
+        body: "Butiran peribadi disembunyikan di pihak kami sebelum AI melihat apa-apa, termasuk lampiran. Gambar kad pengenalan tidak dihantar langsung.",
+      },
+      approve: {
+        title: "Anda meluluskan setiap penghantaran",
+        body: "AIMail menulis draf; anda yang membuat keputusan. Ia memberi amaran tentang butiran tersembunyi yang tertinggal, dan tidak pernah menghantar sendiri.",
+      },
+      local: {
+        title: "Dibina untuk pejabat Malaysia",
+        body: "Gunakan dalam bahasa Inggeris, Bahasa Melayu atau Cina, dengan warna yang sesuai untuk pembaca buta warna dan mod gelap untuk waktu malam.",
+      },
+    },
+    howTitle: "Cara ia berfungsi",
+    steps: {
+      arrives: {
+        title: "E-mel tiba",
+        body: "AIMail mengambilnya dari peti masuk Gmail anda.",
+      },
+      hidden: {
+        title: "Butiran peribadi disembunyikan",
+        body: "Sebelum apa-apa, nama, nombor dan alamat digantikan.",
+      },
+      drafted: {
+        title: "Draf ditulis",
+        body: "Berdasarkan perbualan dan dokumen syarikat anda sendiri, yang ditunjukkan kepada anda.",
+      },
+      approved: {
+        title: "Anda semak dan hantar",
+        body: "Sunting, perhalusi atau mula semula. Ia hanya dihantar apabila anda setuju.",
+      },
+    },
+    footer:
+      "Akaun Google anda hanya digunakan untuk log masuk. AIMail ialah projek tahun akhir di Monash University Malaysia.",
+  },
+  account: {
+    signOut: "Log keluar",
+    signingOut: "Sedang log keluar…",
   },
   announce: {
     regenerated: "Draf dijana semula",
