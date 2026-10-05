@@ -1,6 +1,7 @@
 # Restorable masking: the AI never sees personal details, your reply still says "Hi Aisyah"
 
-- **Status:** proposed (awaiting the owner's go-ahead; cross-lane, see "Lanes")
+- **Status:** accepted by the owner 2026-10-05 (all recommendations, plus the expiry below);
+  cross-lane, see "Lanes"
 - **Owner:** veyroxie; Lane A (JiaJun) for the listener part, Lane C (Hanif) for the prompts,
   Lane D (Han) for the dashboard
 - **Related:** [ADR 0006](../../docs/adr/0006-restorable-masking.md),
@@ -97,15 +98,27 @@ retyping anything, knowing the AI only ever saw `[PERSON_1]`.
    its own bracket placeholders, and to sign off with the owner's name when given. The dashboard
    warns before sending a draft containing any other `[Bracketed Text]`, with "Send anyway", like
    the existing marker warning.
-9. **Signature.** At sign-in, the owner's name from their Google account (Supabase
+9. **The vault expires.** A daily job empties `pii_vault` once a message is older than
+   `VAULT_RETENTION_DAYS` (default 30), or 7 days after its reply was sent, whichever is first. The
+   details are kept only while a reply may still be written. After that the email shows its
+   placeholders with a note, and the original is read where it lives: in Gmail, through the Chrome
+   extension (see "Seeing the original").
+10. **Signature.** At sign-in, the owner's name from their Google account (Supabase
    `user_metadata.full_name`) fills `user_profile.display_name` if empty; the generator receives it
    as the sign-off name.
+
+## Seeing the original
+
+The owner decided (2026-10-05) that the original email is read in Gmail itself, through the Chrome
+extension panel beside it, rather than an "Open in Gmail" link or a second copy rendered inside
+AIMail. The extension is a separate feature (Lane D); this spec only guarantees the panel can show
+the same `details` the dashboard does.
 
 ## Data model (migration 0018; `specs/context/db-schema.md` first)
 
 | Column | Type | Notes |
 |---|---|---|
-| `messages.pii_vault` | `BYTEA NULL` | version byte, 12-byte nonce, AES-256-GCM ciphertext of the JSON map; AAD `aimail-pii-vault:v1:<user_id or "">:<gmail_message_id>`. NULL for rows from before this, quarantined rows, and degraded masking |
+| `messages.pii_vault` | `BYTEA NULL` | emptied by the retention job (see "The vault expires"); version byte, 12-byte nonce, AES-256-GCM ciphertext of the JSON map; AAD `aimail-pii-vault:v1:<user_id or "">:<gmail_message_id>`. NULL for rows from before this, quarantined rows, and degraded masking |
 
 No other schema change: the vault lives and dies with its row, so disconnect and account deletion
 remove it with the mail.
@@ -148,6 +161,7 @@ remove it with the mail.
 | Vault missing or cannot be opened | Masked view with a notice; placeholders left in the draft block the send with `unresolved_placeholders` ("type the details yourself") |
 | `PII_VAULT_KEY` unset in the listener | Masking still runs; no vault stored; a startup warning |
 | `PII_VAULT_KEY` unset in the backend | Masked view everywhere; sends with placeholders refused |
+| Vault expired | Placeholders with a note; the original is in Gmail; a draft still holding placeholders cannot be sent until they are typed in |
 | Presidio down | Quarantine as today; no content, no vault |
 | Model invents `[PERSON_9]` | Send refused until the owner fixes it |
 | Model writes `[Your Name]` | Dashboard warning, "Send anyway" possible |
@@ -190,7 +204,12 @@ dashboard. Each step is mergeable alone.
 - Live: the 5 Oct test email again, end to end, with the payload log checked for the name, IC and
   phone.
 
-## Open questions (recommendation first)
+## Decisions (2026-10-05, the owner accepted every recommendation)
+
+The questions below were answered "yes to all", plus the expiry and "see the original in Gmail
+via the extension".
+
+## Open questions (as asked; recommendation first)
 
 1. **Where the real details come from at send time.** *Recommended:* the stored, encrypted vault.
    *Alternative:* store nothing, re-read the original from Gmail and re-mask it at send time; no

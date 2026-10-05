@@ -1,6 +1,6 @@
 # ADR 0006 — Restorable masking: numbered placeholders with an encrypted per-message vault
 
-- **Status:** Proposed
+- **Status:** Accepted by the owner 2026-10-05 (Lane A, C, D owners to be told)
 - **Date opened:** 2026-10-05
 - **Deciders:** veyroxie (proposer); Lane A, C and D owners to confirm
 - **Extends:** the listener masking design (CLAUDE.md "masks PII here"); ADR 0005 stage 2
@@ -40,7 +40,8 @@ Anything typed by the owner is turned back into placeholders before it reaches t
 ## Consequences
 
 - New stored data: personal details, encrypted, readable only with `PII_VAULT_KEY` (not in the
-  database). Deleted with the mail.
+  database). Kept at most 30 days, or 7 days after the reply (`VAULT_RETENTION_DAYS`), and deleted
+  with the mail.
 - New setting `PII_VAULT_KEY` for the listener and backend.
 - The Presidio anonymizer is no longer needed for masking; replacement moves into the listener.
 - `REDACTION_MARKER` gains the `[KIND_N]` shape in the agent, backend and dashboard.
