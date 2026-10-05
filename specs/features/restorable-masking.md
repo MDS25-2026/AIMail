@@ -1,7 +1,8 @@
 # Restorable masking: the AI never sees personal details, your reply still says "Hi Aisyah"
 
-- **Status:** built 2026-10-05 (backend, agent prompts, listener, dashboard and extension); the live
-  end-to-end check waits on `PII_VAULT_KEY` in `.env`. Cross-lane, see "Lanes"
+- **Status:** built and checked live 2026-10-05: a real email's vault opened, no stored or
+  AI-written text held a real detail, and the approved reply went out with 3 details filled in
+  while the stored copy kept placeholders. Cross-lane, see "Lanes"
 - **Owner:** veyroxie; Lane A (JiaJun) for the listener part, Lane C (Hanif) for the prompts,
   Lane D (Han) for the dashboard
 - **Related:** [ADR 0006](../../docs/adr/0006-restorable-masking.md),
