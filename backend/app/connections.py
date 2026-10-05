@@ -14,7 +14,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core import mailbox, token_crypt
+from app.core import mailbox, token_crypt, vault
 from app.core.supabase_auth import Session
 from app.db.models import Document, MailboxConnection, Message, UserProfile
 from app.db.session import get_sessionmaker
@@ -82,8 +82,25 @@ async def can_send(user_id: UUID) -> bool:
     return GMAIL_SEND in (scopes or [])
 
 
+async def _reseal_unowned_vaults(session: AsyncSession, user_id: str) -> None:
+    """Vaults are sealed against their owner, so rows changing owner need theirs sealed again. One
+    that will not open (no key, corrupt) is left as it was: its details were unreadable anyway."""
+    rows = (await session.execute(
+        select(Message.id, Message.gmail_message_id, Message.pii_vault)
+        .where(Message.user_id.is_(None), Message.pii_vault.is_not(None))
+    )).all()
+    for message_id, gmail_message_id, sealed in rows:
+        try:
+            resealed = vault.reseal_for_owner(sealed, gmail_message_id or "", None, UUID(user_id))
+        except vault.VaultUnavailableError as exc:
+            logger.warning("vault of message %s not moved to its owner: %s", message_id, exc)
+            continue
+        await session.execute(update(Message).where(Message.id == message_id).values(pii_vault=resealed))
+
+
 async def _hand_over_unowned_rows(session: AsyncSession, user_id: str) -> None:
     """The original mailbox's account just connected: its unowned mail and documents become its own."""
+    await _reseal_unowned_vaults(session, user_id)
     for model in (Message, Document):
         await session.execute(update(model).where(model.user_id.is_(None)).values(user_id=user_id))
     logger.info("handed the original mailbox's unowned rows over to user %s", user_id)

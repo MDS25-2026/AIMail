@@ -123,9 +123,18 @@ def test_a_failure_to_store_never_blocks_sign_in(client, monkeypatch, caplog):
     assert "1//refresh" not in caplog.text
 
 
+class _Rows:
+    def __init__(self, rows):
+        self.rows = rows
+
+    def all(self):
+        return self.rows
+
+
 class _RecordingSession:
-    def __init__(self):
+    def __init__(self, vault_rows=()):
         self.statements = []
+        self.vault_rows = list(vault_rows)
 
     async def __aenter__(self):
         return self
@@ -138,6 +147,8 @@ class _RecordingSession:
 
     async def execute(self, statement):
         self.statements.append(str(statement))
+        # The handover first asks for unowned vaults to re-seal; nothing else reads rows.
+        return _Rows(self.vault_rows if str(statement).startswith("SELECT") else [])
 
 
 def _stored_statements(monkeypatch, email: str, owner: str) -> list[str]:
@@ -150,9 +161,33 @@ def _stored_statements(monkeypatch, email: str, owner: str) -> list[str]:
 
 def test_the_original_mailbox_connecting_takes_over_its_unowned_mail_and_documents(client, monkeypatch):
     statements = _stored_statements(monkeypatch, "Owner@Gmail.com", "owner@gmail.com")
-    handed_over = [s for s in statements if s.startswith("UPDATE")]
+    handed_over = [s for s in statements if s.startswith("UPDATE") and "user_id IS NULL" in s]
     assert len(handed_over) == 2
-    assert all("user_id IS NULL" in s for s in handed_over)
+
+
+def test_handed_over_mail_keeps_its_details_readable(client, monkeypatch):
+    from uuid import UUID
+
+    from app.core import vault
+
+    monkeypatch.setenv("PII_VAULT_KEY", "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=")
+    get_settings.cache_clear()
+    sealed = vault.seal_vault({"[PERSON_1]": "Aisyah"}, None, "gm-1")
+    session = _RecordingSession(vault_rows=[("row-1", "gm-1", sealed)])
+    updates = []
+    original = session.execute
+
+    async def execute(statement):
+        if str(statement).startswith("UPDATE messages SET pii_vault"):
+            updates.append(statement.compile().params["pii_vault"])
+        return await original(statement)
+
+    session.execute = execute
+    monkeypatch.setattr(connections, "get_sessionmaker", lambda: lambda: session)
+    monkeypatch.setattr(connections.mailbox, "owner", lambda: "owner@gmail.com")
+    asyncio.run(connections.store_connection(USER_ID, "owner@gmail.com", "1//refresh", [GMAIL_READ], ""))
+    assert len(updates) == 1
+    assert vault.open_vault(updates[0], UUID(USER_ID), "gm-1") == {"[PERSON_1]": "Aisyah"}
 
 
 def test_anyone_else_connecting_never_touches_unowned_rows(client, monkeypatch):

@@ -66,6 +66,12 @@ def open_vault(sealed: bytes, owner_id: UUID | None, gmail_message_id: str) -> d
     return {key: value for key, value in details.items() if PLACEHOLDER.fullmatch(key) and isinstance(value, str)}
 
 
+def reseal_for_owner(sealed: bytes, gmail_message_id: str, old_owner: UUID | None, new_owner: UUID) -> bytes:
+    """A vault moved to a new owner (the original mailbox's rows handed to its account): the owner
+    is part of what it was sealed against, so it must be sealed again to keep opening."""
+    return seal_vault(open_vault(sealed, old_owner, gmail_message_id), new_owner, gmail_message_id)
+
+
 def _normalise(kind: DetailKind, value: str) -> str:
     if kind in _WORDLIKE:
         return " ".join(value.casefold().split())

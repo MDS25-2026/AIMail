@@ -110,3 +110,21 @@ def test_the_owner_is_shown_only_details_that_have_a_value():
 def test_the_shared_placeholder_pattern_knows_every_kind_the_vault_does():
     from app.core.redaction import DETAIL_KINDS
     assert tuple(kind.value for kind in vault.DetailKind) == DETAIL_KINDS
+
+
+def test_a_vault_sealed_by_the_listener_opens_here():
+    import base64
+    import json
+    from pathlib import Path
+
+    vector = json.loads((Path(__file__).parents[2] / "listener" / "testdata" / "vault_vector_go.json").read_text())
+    sealed = base64.b64decode(vector["sealed"])
+    assert vault.open_vault(sealed, UUID(vector["owner"]), vector["gmail_message_id"]) == vector["details"]
+
+
+def test_a_vault_moved_to_a_new_owner_opens_for_them_and_no_longer_for_nobody():
+    sealed = vault.seal_vault({"[PERSON_1]": "Aisyah"}, None, "gm-1")
+    moved = vault.reseal_for_owner(sealed, "gm-1", None, OWNER)
+    assert vault.open_vault(moved, OWNER, "gm-1") == {"[PERSON_1]": "Aisyah"}
+    with pytest.raises(vault.VaultUnavailableError):
+        vault.open_vault(moved, None, "gm-1")

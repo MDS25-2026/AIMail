@@ -6,6 +6,26 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-05 — Restorable masking: numbered placeholders and an encrypted per-email vault
+- Decision: the listener masks each detail as a numbered placeholder (`[PERSON_1]`) instead of a
+  fixed marker and seals the placeholder-to-value map into `messages.pii_vault` with `PII_VAULT_KEY`
+  (owner and Gmail id as associated data). The backend opens a thread's vaults per request to show
+  the owner the real details, turns typed text back into placeholders before the agent, and fills
+  placeholders in when sending; `draft_reply` keeps placeholders. Vaults expire after 30 days, or
+  7 days after the reply. The owner's sign-off is itself a placeholder. Full design: ADR 0006 and
+  `specs/features/restorable-masking.md`.
+- Why: masking hid details from the person replying too (the 5 Oct test could not greet "Aisyah"),
+  and a forgotten marker reached customers as "[Redacted]". The AI's view does not change.
+- Affects: Lane A (placeholders, Go-side replacement, vault sealing; the Presidio anonymizer is no
+  longer used), Lane B (vault opening, thread map, send fill-in, `details`, retention job), Lane C
+  (`email_agent.py`: placeholder rule in the generator, refine and critic; `sign_off` field;
+  placeholder numbers are not figures; translations preserve placeholders), Lane D (highlighted
+  details, Hide details, template-gap warning). JiaJun, Hanif and Han to review their parts.
+- Known limit: if an earlier email in a thread is released from quarantine after a draft was
+  written, later placeholder numbers shift; the editor shows the restored text, so the reader sees
+  the name before sending (not in Hide details mode).
+- Status: built 2026-10-05, migration 0018 applied; live end-to-end check pending `PII_VAULT_KEY`.
+
 ### 2026-10-05 — Neutral palette with one navy accent; a colour-blind friendly set readers choose
 - Decision: the dashboard and extension move from blue-tinted greys, navy text and a navy sidebar to
   neutral dark-grey text (about 12:1 for body text) on white cards, with the brand navy on the
