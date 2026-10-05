@@ -73,7 +73,7 @@ func TestMaskingThatCannotRunNERIsIncompleteSoNothingIsStored(t *testing.T) {
 	withSupabase(t, func(w http.ResponseWriter, _ *http.Request) {})
 	msg := &gmail.Message{Id: "m1", Payload: &gmail.MessagePart{MimeType: "text/plain",
 		Body: &gmail.MessagePartBody{Data: base64.URLEncoding.EncodeToString([]byte("Aisyah Rahman"))}}}
-	if content, isComplete := maskMessage(context.Background(), nil, msg); isComplete || content.BodyMasked != "" {
+	if content, isComplete := maskMessage(context.Background(), nil, msg, ""); isComplete || content.BodyMasked != "" {
 		t.Fatal("without NER the message must be quarantined, with no content kept")
 	}
 }
@@ -115,16 +115,18 @@ func TestAGmailOutageStopsThePassWithoutChargingAttempts(t *testing.T) {
 	}
 }
 
-func TestHealthRequiresBothPresidioContainers(t *testing.T) {
+// Masking replaces entities itself since restorable masking, so only the analyzer decides health:
+// an anonymizer outage must not hold messages in quarantine.
+func TestHealthDependsOnTheAnalyzerAlone(t *testing.T) {
 	healthy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {}))
 	defer healthy.Close()
-	t.Setenv("PRESIDIO_ANALYZER_URL", healthy.URL+"/analyze/")
 	t.Setenv("PRESIDIO_ANONYMIZER_URL", "http://127.0.0.1:1/anonymize")
-	if presidioHealthy(context.Background()) {
-		t.Fatal("an unreachable anonymizer must make Presidio unhealthy")
-	}
-	t.Setenv("PRESIDIO_ANONYMIZER_URL", healthy.URL+"/anonymize")
+	t.Setenv("PRESIDIO_ANALYZER_URL", healthy.URL+"/analyze/")
 	if !presidioHealthy(context.Background()) {
-		t.Fatal("both up (with a trailing slash on one URL) is healthy")
+		t.Fatal("a healthy analyzer (with a trailing slash) is enough")
+	}
+	t.Setenv("PRESIDIO_ANALYZER_URL", "http://127.0.0.1:1/analyze")
+	if presidioHealthy(context.Background()) {
+		t.Fatal("an unreachable analyzer must make Presidio unhealthy")
 	}
 }

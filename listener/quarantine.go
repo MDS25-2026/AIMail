@@ -72,13 +72,11 @@ func quarantine(ctx context.Context, ownerID, msgID string, headers []*gmail.Mes
 	return nil
 }
 
-// presidioHealthy asks both containers: masking needs the analyzer to find entities and the
-// anonymizer to replace them, and either one down makes every message fail the same way.
+// presidioHealthy asks the analyzer, the one container masking needs: replacement happens in this
+// service since restorable masking, so the anonymizer is no longer on the path.
 func presidioHealthy(ctx context.Context) bool {
 	analyzer := getEnvOrDefault("PRESIDIO_ANALYZER_URL", "http://localhost:5001/analyze")
-	anonymizer := getEnvOrDefault("PRESIDIO_ANONYMIZER_URL", "http://localhost:5002/anonymize")
-	return serviceHealthy(ctx, healthURL(analyzer, "/analyze")) &&
-		serviceHealthy(ctx, healthURL(anonymizer, "/anonymize"))
+	return serviceHealthy(ctx, healthURL(analyzer, "/analyze"))
 }
 
 // healthURL turns a configured endpoint into its /health sibling, trailing slash or not.
@@ -194,7 +192,7 @@ func remaskOne(ctx context.Context, srv *gmail.Service, row quarantinedRow) bool
 		recordFailure(ctx, row, "fetch failed")
 		return true
 	}
-	content, isComplete := maskMessage(ctx, srv, msg)
+	content, isComplete := maskMessage(ctx, srv, msg, row.UserID)
 	if !isComplete {
 		if !presidioHealthy(ctx) {
 			return false

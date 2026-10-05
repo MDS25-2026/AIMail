@@ -26,7 +26,7 @@ func requireLivePresidio(t *testing.T) {
 func TestMaskTextLiveMasksNamesAndLocations(t *testing.T) {
 	requireLivePresidio(t)
 
-	masked, _, _, degraded := maskText(context.Background(), "Please ask Sarah Tan in Kuala Lumpur to reply to the vendor.")
+	masked, _, _, degraded := maskText(context.Background(), "Please ask Sarah Tan in Kuala Lumpur to reply to the vendor.", newDetailVault())
 
 	if degraded {
 		t.Fatal("degraded=true with a live analyzer")
@@ -44,7 +44,7 @@ func TestMaskTextLiveMasksNamesAndLocations(t *testing.T) {
 func TestMaskTextLiveMasksAccountNumberWithContext(t *testing.T) {
 	requireLivePresidio(t)
 
-	masked, _, _, degraded := maskText(context.Background(), "Wire the deposit to my Maybank account 512837465920 by Friday.")
+	masked, _, _, degraded := maskText(context.Background(), "Wire the deposit to my Maybank account 512837465920 by Friday.", newDetailVault())
 
 	if degraded {
 		t.Fatal("degraded=true with a live analyzer")
@@ -57,7 +57,7 @@ func TestMaskTextLiveMasksAccountNumberWithContext(t *testing.T) {
 func TestMaskTextLiveLeavesContextFreeDigitRun(t *testing.T) {
 	requireLivePresidio(t)
 
-	masked, _, _, _ := maskText(context.Background(), "We shipped 93842716 widgets on Friday.")
+	masked, _, _, _ := maskText(context.Background(), "We shipped 93842716 widgets on Friday.", newDetailVault())
 
 	if !strings.Contains(masked, "93842716") {
 		t.Fatalf("context-free digit run over-masked: %q", masked)
@@ -69,7 +69,7 @@ func TestMaskTextLiveLeavesContextFreeDigitRun(t *testing.T) {
 func TestMaskTextLiveMasksAnIBAN(t *testing.T) {
 	requireLivePresidio(t)
 
-	masked, _, _, _ := maskText(context.Background(), "Please pay into GB82 WEST 1234 5698 7654 32 by Friday.")
+	masked, _, _, _ := maskText(context.Background(), "Please pay into GB82 WEST 1234 5698 7654 32 by Friday.", newDetailVault())
 	if strings.Contains(masked, "WEST") || strings.Contains(masked, "GB82") {
 		t.Fatalf("IBAN leaked past masking: %q", masked)
 	}

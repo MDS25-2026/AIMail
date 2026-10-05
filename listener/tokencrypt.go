@@ -1,9 +1,9 @@
 package main
 
-// Stored Google refresh tokens, sealed by the backend (backend/app/core/token_crypt.py) and read
-// here to watch each user's mailbox. AES-256-GCM; format: version byte, 12-byte nonce, ciphertext
-// and tag; the owner's user id is the associated data, so a token copied to another user's row
-// does not decrypt. Standard library only.
+// AES-256-GCM sealing shared with the backend (backend/app/core/sealed_box.py): a version byte, a
+// 12-byte nonce, then ciphertext and tag. Callers bind the record's identity as associated data, so
+// a sealed value copied to another record does not open. Used for stored Google refresh tokens
+// (read here to watch each mailbox) and for each email's personal-detail vault (written here).
 
 import (
 	"crypto/aes"
@@ -21,15 +21,15 @@ const (
 	tokenAADPrefix     = "aimail-mailbox-token:v1:"
 )
 
-var errTokenFormat = errors.New("unrecognised sealed token format")
+var errTokenFormat = errors.New("unrecognised sealed format")
 
-func tokenCipher(encodedKey string) (cipher.AEAD, error) {
+func aeadFor(encodedKey, setting string) (cipher.AEAD, error) {
 	key, err := base64.StdEncoding.DecodeString(encodedKey)
 	if err != nil {
-		return nil, fmt.Errorf("TOKEN_ENCRYPTION_KEY is not valid base64: %w", err)
+		return nil, fmt.Errorf("%s is not valid base64: %w", setting, err)
 	}
 	if len(key) != tokenKeyBytes {
-		return nil, fmt.Errorf("TOKEN_ENCRYPTION_KEY must decode to %d bytes", tokenKeyBytes)
+		return nil, fmt.Errorf("%s must decode to %d bytes", setting, tokenKeyBytes)
 	}
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -38,8 +38,8 @@ func tokenCipher(encodedKey string) (cipher.AEAD, error) {
 	return cipher.NewGCM(block)
 }
 
-func sealToken(encodedKey, token, userID string) ([]byte, error) {
-	aead, err := tokenCipher(encodedKey)
+func sealWith(encodedKey, setting string, plaintext []byte, aad string) ([]byte, error) {
+	aead, err := aeadFor(encodedKey, setting)
 	if err != nil {
 		return nil, err
 	}
@@ -48,21 +48,30 @@ func sealToken(encodedKey, token, userID string) ([]byte, error) {
 		return nil, err
 	}
 	sealed := append([]byte{tokenFormatVersion}, nonce...)
-	return aead.Seal(sealed, nonce, []byte(token), []byte(tokenAADPrefix+userID)), nil
+	return aead.Seal(sealed, nonce, plaintext, []byte(aad)), nil
+}
+
+func openWith(encodedKey, setting string, sealed []byte, aad string) ([]byte, error) {
+	aead, err := aeadFor(encodedKey, setting)
+	if err != nil {
+		return nil, err
+	}
+	if len(sealed) <= 1+tokenNonceBytes || sealed[0] != tokenFormatVersion {
+		return nil, errTokenFormat
+	}
+	nonce, body := sealed[1:1+tokenNonceBytes], sealed[1+tokenNonceBytes:]
+	plain, err := aead.Open(nil, nonce, body, []byte(aad))
+	if err != nil {
+		return nil, fmt.Errorf("sealed value failed authentication: %w", err)
+	}
+	return plain, nil
+}
+
+func sealToken(encodedKey, token, userID string) ([]byte, error) {
+	return sealWith(encodedKey, "TOKEN_ENCRYPTION_KEY", []byte(token), tokenAADPrefix+userID)
 }
 
 func unsealToken(encodedKey string, sealed []byte, userID string) (string, error) {
-	aead, err := tokenCipher(encodedKey)
-	if err != nil {
-		return "", err
-	}
-	if len(sealed) <= 1+tokenNonceBytes || sealed[0] != tokenFormatVersion {
-		return "", errTokenFormat
-	}
-	nonce, body := sealed[1:1+tokenNonceBytes], sealed[1+tokenNonceBytes:]
-	plain, err := aead.Open(nil, nonce, body, []byte(tokenAADPrefix+userID))
-	if err != nil {
-		return "", fmt.Errorf("sealed token failed authentication: %w", err)
-	}
-	return string(plain), nil
+	plain, err := openWith(encodedKey, "TOKEN_ENCRYPTION_KEY", sealed, tokenAADPrefix+userID)
+	return string(plain), err
 }

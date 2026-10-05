@@ -15,6 +15,7 @@ import (
 	"os"
 	"regexp"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -66,13 +67,6 @@ func supabaseTimeout() time.Duration {
 // Presidio's NER below. Splitting by PII *nature* rather than by tool is what removes the
 // "different-length numbers, wrong type" mis-tagging: no two patterns fight over one span.
 
-const (
-	emailToken    = "[EMAIL_REDACTED]"
-	phoneToken    = "[PHONE_REDACTED]"
-	icToken       = "[IC_REDACTED]"
-	passportToken = "[PASSPORT_REDACTED]"
-)
-
 var (
 	emailRegex = regexp.MustCompile(`[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}`)
 	// Malaysian IC: dashed YYMMDD-PB-###G is unambiguous; a bare 12-digit run counts as an IC
@@ -110,26 +104,30 @@ func isICDate(twelveDigits string) bool {
 	return month >= 1 && month <= 12 && day >= 1 && day <= 31
 }
 
-// maskPII redacts format-clear PII by ordered regex (email -> IC -> phone) and returns the
-// masked text plus email/phone counts for the audit log. IC is redacted too (over-masking is
-// preferred) but not separately counted — the persisted metric tracks the 80% email/phone floor.
-func maskPII(text string) (masked string, emailsMasked, phonesMasked int) {
+// maskPII replaces format-clear PII by ordered regex (email -> IC -> passport -> phone) with
+// numbered placeholders from v, and returns the masked text plus email/phone counts for the audit
+// log. IC is masked too (over-masking is preferred) but not separately counted — the persisted
+// metric tracks the 80% email/phone floor.
+func maskPII(text string, v *detailVault) (masked string, emailsMasked, phonesMasked int) {
+	as := func(kind detailKind) func(string) string {
+		return func(value string) string { return v.placeholder(kind, value) }
+	}
 	masked = urlRegex.ReplaceAllStringFunc(text, withoutQuery)
-	masked = emailRegex.ReplaceAllStringFunc(masked, func(string) string {
+	masked = emailRegex.ReplaceAllStringFunc(masked, func(value string) string {
 		emailsMasked++
-		return emailToken
+		return v.placeholder(kindEmail, value)
 	})
-	masked = icDashedRegex.ReplaceAllString(masked, icToken)
-	masked = icBareRegex.ReplaceAllStringFunc(masked, func(s string) string {
-		if isICDate(s) {
-			return icToken
+	masked = icDashedRegex.ReplaceAllStringFunc(masked, as(kindIC))
+	masked = icBareRegex.ReplaceAllStringFunc(masked, func(value string) string {
+		if isICDate(value) {
+			return v.placeholder(kindIC, value)
 		}
-		return s
+		return value
 	})
-	masked = passportRegex.ReplaceAllString(masked, passportToken)
-	countPhone := func(string) string {
+	masked = passportRegex.ReplaceAllStringFunc(masked, as(kindPassport))
+	countPhone := func(value string) string {
 		phonesMasked++
-		return phoneToken
+		return v.placeholder(kindPhone, value)
 	}
 	masked = phoneRegex.ReplaceAllStringFunc(masked, countPhone)
 	masked = intlPhoneRegex.ReplaceAllStringFunc(masked, countPhone)
@@ -152,7 +150,7 @@ func withoutQuery(link string) string {
 
 // --- Presidio NER masking (layered on top of the regex floor) ---------------
 //
-// Presidio (two local containers: analyzer + anonymizer) catches context-dependent PII the
+// Presidio (the analyzer container) catches context-dependent PII the
 // regex can't — names, locations, organizations, and account numbers (identifiable only by
 // nearby words). It runs AFTER maskPII on the already-floored text, so the email/phone/IC
 // floor holds even when the containers are down: any Presidio error degrades to the regex
@@ -189,22 +187,6 @@ type presidioResult struct {
 	Start      int     `json:"start"`
 	End        int     `json:"end"`
 	Score      float64 `json:"score"`
-}
-
-// presidioReplacement is the typed anonymizer config (avoids a map[string]interface{}).
-type presidioReplacement struct {
-	Type     string `json:"type"`
-	NewValue string `json:"new_value"`
-}
-
-type presidioAnonymizeRequest struct {
-	Text           string                         `json:"text"`
-	AnalyzeResults []presidioResult               `json:"analyzer_results"`
-	Anonymizers    map[string]presidioReplacement `json:"anonymizers,omitempty"`
-}
-
-type presidioAnonymizeResponse struct {
-	Text string `json:"text"`
 }
 
 // localeRecognizers holds only the context-gated account recogniser. IC and phone moved to the
@@ -265,11 +247,11 @@ func filterAllowedLocations(text string, results []presidioResult) []presidioRes
 // maskText runs the regex floor over the whole text, then NER over it in pieces. The floor is never
 // chunked: an email address cut across two pieces would match in neither. NER is, because one
 // Presidio call on a long body or a 20-page PDF can outrun presidioClient's timeout.
-func maskText(ctx context.Context, text string) (masked string, emailsMasked, phonesMasked int, degraded bool) {
-	masked, emailsMasked, phonesMasked = maskPII(text)
+func maskText(ctx context.Context, text string, v *detailVault) (masked string, emailsMasked, phonesMasked int, degraded bool) {
+	masked, emailsMasked, phonesMasked = maskPII(text, v)
 	var pieces []string
 	for _, chunk := range chunkText(masked, nerChunkChars) {
-		piece, err := maskWithPresidio(ctx, chunk)
+		piece, err := maskWithPresidio(ctx, chunk, v)
 		if err != nil {
 			log.Printf("presidio degraded, regex-only for this field: %v", err)
 			return masked, emailsMasked, phonesMasked, true
@@ -279,15 +261,15 @@ func maskText(ctx context.Context, text string) (masked string, emailsMasked, ph
 	return strings.Join(pieces, ""), emailsMasked, phonesMasked, false
 }
 
-// maskWithPresidio detects PII via the analyzer container and redacts it via the anonymizer
-// container. Any error is returned so the caller can degrade to the regex floor.
-func maskWithPresidio(ctx context.Context, text string) (string, error) {
+// maskWithPresidio detects PII with the analyzer container and replaces each entity with a
+// numbered placeholder from v. Replacement happens here rather than in the anonymizer container so
+// the value behind every placeholder is known and can be sealed into the vault. Any error is
+// returned so the caller can degrade to the regex floor.
+func maskWithPresidio(ctx context.Context, text string, v *detailVault) (string, error) {
 	if strings.TrimSpace(text) == "" {
 		return text, nil
 	}
 	analyzerURL := getEnvOrDefault("PRESIDIO_ANALYZER_URL", "http://localhost:5001/analyze")
-	anonymizerURL := getEnvOrDefault("PRESIDIO_ANONYMIZER_URL", "http://localhost:5002/anonymize")
-
 	analyzePayload, err := json.Marshal(presidioAnalyzeRequest{
 		Text:           text,
 		Language:       "en",
@@ -301,7 +283,6 @@ func maskWithPresidio(ctx context.Context, text string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("marshal analyze request: %w", err)
 	}
-
 	raw, err := presidioPost(ctx, analyzerURL, analyzePayload)
 	if err != nil {
 		return "", fmt.Errorf("presidio analyzer: %w", err)
@@ -310,29 +291,62 @@ func maskWithPresidio(ctx context.Context, text string) (string, error) {
 	if err := json.Unmarshal(raw, &results); err != nil {
 		return "", fmt.Errorf("decode analyze results: %w", err)
 	}
-	results = filterAllowedLocations(text, results)
-	if len(results) == 0 {
-		return text, nil // no PII beyond the regex floor
-	}
+	return replaceEntities(text, filterAllowedLocations(text, results), v), nil
+}
 
-	anonymizePayload, err := json.Marshal(presidioAnonymizeRequest{
-		Text:           text,
-		AnalyzeResults: results,
-		Anonymizers:    map[string]presidioReplacement{"DEFAULT": {Type: "replace", NewValue: "[Redacted]"}},
+// entityKinds maps Presidio's entity names to placeholder kinds. An unlisted entity is still
+// masked, as an account-like identifier.
+var entityKinds = map[string]detailKind{
+	"PERSON": kindPerson, "LOCATION": kindLocation, "ORGANIZATION": kindOrg,
+	"ACCOUNT_NUMBER": kindAccount, "IBAN_CODE": kindAccount, "CREDIT_CARD": kindCard,
+	"PHONE_NUMBER": kindPhone, "EMAIL_ADDRESS": kindEmail,
+}
+
+func entityKind(entity string) detailKind {
+	if kind, ok := entityKinds[entity]; ok {
+		return kind
+	}
+	return kindAccount
+}
+
+// replaceEntities swaps each detected entity for its placeholder. Offsets are Python character
+// indices, so the text is handled as runes. Where entities overlap the longest wins, and anything
+// touching a placeholder the regex floor already wrote is left alone.
+func replaceEntities(text string, results []presidioResult, v *detailVault) string {
+	runes := []rune(text)
+	taken := runeSpans(text, placeholderRegex.FindAllStringIndex(text, -1))
+	sort.SliceStable(results, func(i, j int) bool {
+		li, lj := results[i].End-results[i].Start, results[j].End-results[j].Start
+		return li > lj || (li == lj && results[i].Score > results[j].Score)
 	})
-	if err != nil {
-		return "", fmt.Errorf("marshal anonymize request: %w", err)
+	var chosen []presidioResult
+	for _, r := range results {
+		if r.Start < 0 || r.End > len(runes) || r.Start >= r.End || overlapsAny(r.Start, r.End, taken) {
+			continue
+		}
+		taken = append(taken, [2]int{r.Start, r.End})
+		chosen = append(chosen, r)
 	}
+	// Numbered in reading order, then replaced from the end so earlier offsets stay valid.
+	sort.Slice(chosen, func(i, j int) bool { return chosen[i].Start < chosen[j].Start })
+	tokens := make([][]rune, len(chosen))
+	for i, r := range chosen {
+		tokens[i] = []rune(v.placeholder(entityKind(r.EntityType), string(runes[r.Start:r.End])))
+	}
+	for i := len(chosen) - 1; i >= 0; i-- {
+		r := chosen[i]
+		runes = append(runes[:r.Start], append(tokens[i], runes[r.End:]...)...)
+	}
+	return string(runes)
+}
 
-	raw, err = presidioPost(ctx, anonymizerURL, anonymizePayload)
-	if err != nil {
-		return "", fmt.Errorf("presidio anonymizer: %w", err)
+func overlapsAny(start, end int, spans [][2]int) bool {
+	for _, s := range spans {
+		if start < s[1] && s[0] < end {
+			return true
+		}
 	}
-	var out presidioAnonymizeResponse
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return "", fmt.Errorf("decode anonymize response: %w", err)
-	}
-	return out.Text, nil
+	return false
 }
 
 // presidioPost POSTs a JSON payload to a Presidio endpoint and returns the raw response body.
@@ -371,6 +385,8 @@ type MaskedContent struct {
 	EmailsMasked  int    `json:"emails_masked"`
 	PhonesMasked  int    `json:"phones_masked"`
 	MaskingStatus string `json:"masking_status"`
+	// The sealed placeholder-to-value map (details.go), as PostgREST's `\x` hex; omitted when empty.
+	PiiVault string `json:"pii_vault,omitempty"`
 }
 
 // StoredMessage is what we persist for each processed email, post-masking.
@@ -765,7 +781,7 @@ func ingestMessage(ctx context.Context, mb *mailbox, msgID string) error {
 		return nil
 	}
 	identity := threadIdentity(msg)
-	content, isComplete := maskMessage(ctx, mb.srv, msg)
+	content, isComplete := maskMessage(ctx, mb.srv, msg, mb.ownerID)
 	if !isComplete {
 		return quarantine(ctx, mb.ownerID, msgID, msg.Payload.Headers, identity)
 	}
@@ -816,15 +832,17 @@ func fetchMessage(ctx context.Context, srv *gmail.Service, msgID string) (*gmail
 // maskMessage masks every content field. isComplete is false when NER was unavailable for any
 // of them: the caller must then store nothing of the content (#109). Attachment text is masked on
 // its own and dropped rather than degraded, so it never decides the outcome.
-func maskMessage(ctx context.Context, srv *gmail.Service, msg *gmail.Message) (MaskedContent, bool) {
-	maskedBody, bodyEmails, bodyPhones, degradedBody := maskText(ctx, getBody(msg.Payload))
-	maskedSnippet, snipEmails, snipPhones, degradedSnip := maskText(ctx, msg.Snippet)
-	maskedSubject, subEmails, subPhones, degradedSubj := maskText(ctx, headerValue(msg.Payload.Headers, "Subject"))
+func maskMessage(ctx context.Context, srv *gmail.Service, msg *gmail.Message, ownerID string) (MaskedContent, bool) {
+	// One vault for every field, so a person named in the subject and the body is one placeholder.
+	v := newDetailVault()
+	maskedBody, bodyEmails, bodyPhones, degradedBody := maskText(ctx, getBody(msg.Payload), v)
+	maskedSnippet, snipEmails, snipPhones, degradedSnip := maskText(ctx, msg.Snippet, v)
+	maskedSubject, subEmails, subPhones, degradedSubj := maskText(ctx, headerValue(msg.Payload.Headers, "Subject"), v)
 	if degradedBody || degradedSnip || degradedSubj {
 		return MaskedContent{}, false
 	}
 	attachments, attachEmails, attachPhones := maskAttachmentText(ctx, msg.Id,
-		ocrAttachments(ctx, srv, msg.Id, msg.Payload))
+		ocrAttachments(ctx, srv, msg.Id, msg.Payload), v)
 	return MaskedContent{
 		Subject:       maskedSubject,
 		BodyMasked:    maskedBody + attachments,
@@ -832,6 +850,7 @@ func maskMessage(ctx context.Context, srv *gmail.Service, msg *gmail.Message) (M
 		EmailsMasked:  bodyEmails + snipEmails + subEmails + attachEmails,
 		PhonesMasked:  bodyPhones + snipPhones + subPhones + attachPhones,
 		MaskingStatus: maskingComplete,
+		PiiVault:      v.sealed(ownerID, msg.Id),
 	}, true
 }
 

@@ -15,9 +15,16 @@ in with Google; then its connection replaces it. Pub/Sub itself still authentica
 Masking is split by PII nature. Format-clear PII (email, phone, Malaysian IC) is redacted by an
 ordered, offline regex floor — most-specific first, and a bare 12-digit run is only typed as an IC
 when its `YYMMDD` prefix is a plausible date, so numbers aren't mis-typed by length. Context-dependent
-PII (names, locations, organizations, account numbers) is then handled by Microsoft Presidio NER (two
-local containers). If Presidio is unreachable the service degrades to the regex floor — raw text is
-never stored — and notes `presidio degraded` on the audit row.
+PII (names, locations, organizations, account numbers) is then found by Microsoft Presidio's analyzer
+(a local container). If Presidio is unreachable the message is quarantined with no content until it
+can be masked.
+
+Every detail becomes a numbered placeholder (`[PERSON_1]`, `[PHONE_2]`), the same value always the
+same number within an email, and the placeholder-to-value map is sealed with `PII_VAULT_KEY` into
+the row's `pii_vault` (`details.go`), so the backend can show the owner the real details and fill
+them into an approved reply while the AI only ever sees placeholders
+(`specs/features/restorable-masking.md`). Replacement happens in this service, so the Presidio
+anonymizer container is no longer used.
 
 ## Run locally
 
@@ -42,6 +49,8 @@ the watched inbox to see it masked and stored. Re-auth by deleting `token.json` 
   Pub/Sub topic/subscription).
 - `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` — read from the repo-root `.env` (loaded via godotenv).
 - `TOKEN_ENCRYPTION_KEY` — unseals stored refresh tokens; must match the backend's.
+- `PII_VAULT_KEY` — seals each email's detail vault; must match the backend's. Without it, emails
+  are still masked but their details cannot be shown or restored.
 - `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` — the web client in Supabase's Google
   provider; a connected user's token can only be refreshed with the client that issued it.
 - `PRESIDIO_ANALYZER_URL`, `PRESIDIO_ANONYMIZER_URL` — Presidio endpoints; default to `localhost:5001/5002`
@@ -61,7 +70,8 @@ the watched inbox to see it masked and stored. Re-auth by deleting `token.json` 
 listener/
 ├── main.go                 # watch, Pub/Sub loop, layered PII masking, Supabase writes
 ├── mailboxes.go            # connected mailboxes: load, watch, route by address, per-mailbox baseline
-├── tokencrypt.go           # reads refresh tokens sealed by backend/app/core/token_crypt.py
+├── tokencrypt.go           # AES-GCM shared with the backend: refresh tokens, detail vaults
+├── details.go              # numbered placeholders and the sealed per-email detail vault
 ├── main_test.go            # offline regex-floor tests: typing, ordering, IC date gate, false-positive guards
 ├── presidio_live_test.go   # live NER tests against the containers; self-skip when Presidio is down
 ├── credentials.json        # OAuth client (gitignored)
