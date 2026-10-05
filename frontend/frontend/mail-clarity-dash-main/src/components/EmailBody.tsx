@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { restoreDetailsInHtml } from "../lib/details";
+import { needsTranslation } from "../lib/detectLanguage";
 import { useDetailValues } from "../lib/detailsContext";
 import { useDetailsHidden } from "../lib/detailsVisibility";
 import { useEmailTranslation } from "../lib/queries";
@@ -13,6 +14,7 @@ import QuantitiesList from "./QuantitiesList";
 import WithDetails from "./WithDetails";
 
 const LOOKS_LIKE_HTML = /^\s*<[a-z!]/i;
+const TAGS = /<[^>]*>/g;
 
 /** The masked body, with an on-request translation into the reader's language. Key it by email id
  *  so a new email starts untranslated. */
@@ -24,6 +26,11 @@ export default function EmailBody({ email }: { email: Email }) {
   const translated = isShowingTranslation ? translation.data?.text : undefined;
   const [isAllowingImages, setIsAllowingImages] = useState(false);
   const isHtml = LOOKS_LIKE_HTML.test(email.body);
+  // Offered only when it would help; kept while showing, so the original is one click away.
+  const canTranslate = useMemo(
+    () => needsTranslation(isHtml ? email.body.replace(TAGS, " ") : email.body, language),
+    [email.body, isHtml, language],
+  );
   const values = useDetailValues();
   const [isHidingDetails] = useDetailsHidden();
   const markTitle = t("details.hiddenFromAi");
@@ -41,20 +48,22 @@ export default function EmailBody({ email }: { email: Email }) {
         <h2 className="text-xs font-medium uppercase tracking-wide text-fg-subtle">
           {t("detail.email")}
         </h2>
-        <button
-          type="button"
-          aria-pressed={isShowingTranslation}
-          disabled={translation.isFetching}
-          onClick={() => setIsShowingTranslation((value) => !value)}
-          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-brand hover:bg-brand-soft disabled:text-fg-subtle"
-        >
-          <Languages aria-hidden className="size-3.5" />
-          {translation.isFetching
-            ? t("translate.pending")
-            : isShowingTranslation
-              ? t("translate.showOriginal")
-              : t("translate.action", { language: t(`languages.${language}`) })}
-        </button>
+        {canTranslate || isShowingTranslation ? (
+          <button
+            type="button"
+            aria-pressed={isShowingTranslation}
+            disabled={translation.isFetching}
+            onClick={() => setIsShowingTranslation((value) => !value)}
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-brand hover:bg-brand-soft disabled:text-fg-subtle"
+          >
+            <Languages aria-hidden className="size-3.5" />
+            {translation.isFetching
+              ? t("translate.pending")
+              : isShowingTranslation
+                ? t("translate.showOriginal")
+                : t("translate.action", { language: t(`languages.${language}`) })}
+          </button>
+        ) : null}
       </div>
 
       {isShowingTranslation && translation.isError ? (
