@@ -1,9 +1,10 @@
 # Holding reply: the user's own words, sent only when they would want it sent
 
-- **Status:** draft
+- **Status:** accepted 2026-10-06 (owner: "1 then", the meeting 30 task "quiet hours, auto-reply
+  templates"); building
 - **Owner:** veyroxie (touches Lane A, Lane B and Lane D; each lane owner reviews their part)
 - **Related issue:** product brainstorm 2026-09-30 ("safe" and "understood" for a work inbox)
-- **Last updated:** 2026-09-30
+- **Last updated:** 2026-10-06
 
 ## Goal
 
@@ -150,7 +151,29 @@ To be added to `specs/context/db-schema.md` with the migration:
 - The rows in `holding_reply` are personal data (recipient addresses). Retention follows
   `messages`.
 
-## Open questions
+## Decisions (2026-10-06)
+
+The open questions below were settled with their recommendations when the owner chose to build:
+
+- **"Needs a reply"** is the agent router's verdict, which drafting already produces: an email it
+  routed as needing no reply has no draft. A holding reply under scope `needs_reply` waits for the
+  draft; if drafting has not finished by the stale limit, nothing is sent (fails closed).
+- **A reply the user sent from Gmail** is found at send time with one `threads.get` on the user's
+  own token: any message labelled SENT after the incoming one cancels the holding reply.
+- **Correspondents** are found at send time with one Gmail search (`to:<address> in:sent`, one
+  result) on the user's token. Any error counts as "not a correspondent" (fails closed).
+- **The phishing check** moves to `app/core/phishing.py`, imported by both the agent and the backend.
+- **Quiet hours** (meeting 30's wording) are the hours this reply is active: outside the user's
+  working hours, or during leave. The working-hours model lives in this feature's settings.
+- **Scheduling** happens when the listener has stored a message: the backend's poller schedules
+  qualifying emails, re-checks every condition when the hold window ends, and sends or cancels.
+- **Language** is detected locally (Chinese characters mean zh; Malay common words outnumbering
+  English ones mean ms; otherwise en), matching the dashboard's Translate check.
+- **`{name}` fallback** greetings: en "there", ms "tuan/puan", zh "您".
+- Settings are only looked at for emails received after the feature was last switched on
+  (`enabled_at`), so switching it on never answers a backlog.
+
+## Open questions (as first written)
 
 - **What decides "needs a reply"?** The priority classifier scores importance, not whether a
   reply is expected. Options: the agent router's category (costs a Gemini call on masked text), or

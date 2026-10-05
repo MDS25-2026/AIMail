@@ -96,6 +96,21 @@ once the daily job (`app/vault_retention.py`) empties it: 30 days after arrival
 (`VAULT_RETENTION_DAYS`) or 7 days after the reply was sent. `draft_reply` always holds placeholders,
 never the details themselves.
 
+### Holding reply (migration 0019, `specs/features/holding-reply.md`)
+
+- `holding_reply_settings` (PK `user_id` FK `user_profile`, cascade): `enabled`, `enabled_at`,
+  `active_when` (`outside_hours|leave|always`), `work_days SMALLINT[]` (ISO 1 Monday to 7 Sunday),
+  `work_start`/`work_end TIME`, `timezone TEXT` (IANA), `leave_from`/`leave_until DATE`, `audience`
+  (`correspondents|domain|everyone`), `scope` (`needs_reply|all`), `cooldown_days SMALLINT`,
+  `templates JSONB` (`{"en": "...", "ms": "...", "zh": "..."}`), `default_language`, timestamps.
+  Enums by CHECK constraints.
+- `holding_reply` (one per scheduled reply): `id`, `user_id` FK (cascade), `message_id` FK
+  `messages` (cascade) UNIQUE, `recipient_addr`, `language`, `scheduled_for`, `sent_at`,
+  `cancelled_reason`, `sent_message_id`, `created_at`. Index `(user_id, recipient_addr, sent_at)`.
+- `messages.is_automated BOOLEAN NOT NULL DEFAULT false` (Lane A): mailing-list, bulk and
+  auto-submitted mail, and noreply senders (RFC 3834).
+- RLS on for both new tables, no policies.
+
 ### Row-level security (migration 0015)
 
 Every application table has RLS **on with no policies** (2026-10-04). Supabase's REST API serves

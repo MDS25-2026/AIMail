@@ -19,6 +19,10 @@ AUDIENCE = "authenticated"
 ALGORITHMS = ["ES256"]
 JWKS_CACHE_SECONDS = 600
 JWKS_REFETCH_SECONDS = 60
+# Tolerance for Supabase's clock differing from ours: a token issued "0.6 s in the future" was
+# refused as not yet valid, so a request right after signing in bounced back to sign-in. Also
+# applies to expiry, by the same few seconds.
+CLOCK_SKEW_SECONDS = 30
 SUPABASE_TIMEOUT_SECONDS = 10.0
 INVALID_GRANT_STATUSES = (400, 401, 403, 422)
 
@@ -105,7 +109,7 @@ def _jwks(base: str) -> _KeySet:
 def _decode(token: str, base: str) -> dict:
     key = _jwks(base).get_signing_key_from_jwt(token).key
     return jwt.decode(token, key, algorithms=ALGORITHMS, audience=AUDIENCE, issuer=base,
-                      options={"require": ["exp", "sub", "aud", "iss"]})
+                      leeway=CLOCK_SKEW_SECONDS, options={"require": ["exp", "sub", "aud", "iss"]})
 
 
 async def verify_access_token(token: str) -> dict:

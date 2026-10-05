@@ -42,3 +42,12 @@ ADMIN_PREFIX = "/admin"
 # localhost only: from 127.0.0.1 the dashboard and an API on localhost are different sites, and
 # the SameSite=Strict session cookie would not travel anyway. Open the dashboard at localhost.
 DEFAULT_ADMIN_ORIGINS = "http://localhost:8090"
+
+# Holding replies (specs/features/holding-reply.md): product behaviour, not deployment config.
+# The wait before sending, so the user can still answer first.
+HOLD_WINDOW_MINUTES = 10
+# A reply not sent within this long after it fell due is cancelled: a day-late "I'll get back to
+# you" is worse than none.
+HOLDING_REPLY_STALE_MINUTES = 20
+HOLDING_REPLY_DAILY_CAP = 50
+HOLDING_REPLY_POLL_SECONDS = 60

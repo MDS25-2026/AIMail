@@ -11,6 +11,7 @@ import logging
 import re
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from email.message import EmailMessage
 from html import escape
 from pathlib import Path
@@ -166,9 +167,11 @@ def _reply_references(target: ReplyTarget) -> str:
     return " ".join(part for part in (target.references, target.in_reply_to) if part)
 
 
-def _build_raw(target: ReplyTarget, body: str) -> str:
+def _build_raw(target: ReplyTarget, body: str, extra_headers: dict[str, str] | None = None) -> str:
     text = _strip_subject_line(body)
     message = EmailMessage()
+    for name, value in (extra_headers or {}).items():
+        message[name] = value
     message["To"] = target.to_addr
     message["Subject"] = _reply_subject(target.subject)
     if target.in_reply_to:
@@ -259,6 +262,30 @@ async def _sent_message_id(
         return None
 
 
+_THREADS_URL = "https://gmail.googleapis.com/gmail/v1/users/me/threads"
+
+
+async def has_written_to(address: str, *, owner_id: UUID) -> bool:
+    """Whether the owner has ever sent mail to this address (holding reply "correspondents")."""
+    async with httpx.AsyncClient(timeout=30) as client:
+        response = await _gmail_request(client, "GET", _MESSAGES_URL, owner_id,
+                                        params={"q": f"in:sent to:{address}", "maxResults": 1})
+        response.raise_for_status()
+        return bool(response.json().get("messages"))
+
+
+async def replied_in_thread_since(thread_id: str, since: datetime, *, owner_id: UUID) -> bool:
+    """Whether the owner sent anything in this Gmail thread after `since`, from Gmail or anywhere."""
+    since_ms = int(since.timestamp() * 1000)
+    async with httpx.AsyncClient(timeout=30) as client:
+        response = await _gmail_request(client, "GET", f"{_THREADS_URL}/{thread_id}", owner_id,
+                                        params={"format": "minimal"})
+        response.raise_for_status()
+        messages = response.json().get("messages", [])
+    return any("SENT" in m.get("labelIds", []) and int(m.get("internalDate", 0)) > since_ms
+               for m in messages)
+
+
 async def profile_address() -> str:
     """The address of the original single mailbox (token.json), the owner of unowned rows."""
     async with httpx.AsyncClient(timeout=30) as client:
@@ -286,7 +313,7 @@ async def _post_send(
 
 async def send_reply(
     gmail_message_id: str | None, fallback_to: str, fallback_subject: str, body: str,
-    *, owner_id: UUID | None,
+    *, owner_id: UUID | None, extra_headers: dict[str, str] | None = None,
 ) -> SentReply:
     """Send `body` as a reply in the original's thread, from the owner's mailbox. The fallbacks
     serve only when the original is gone from Gmail or the row predates gmail_message_id."""
@@ -294,7 +321,7 @@ async def send_reply(
         async with httpx.AsyncClient(timeout=30) as client:
             target = await _reply_target(client, gmail_message_id, fallback_to, fallback_subject,
                                          owner_id)
-            payload: dict[str, str] = {"raw": _build_raw(target, body)}
+            payload: dict[str, str] = {"raw": _build_raw(target, body, extra_headers)}
             if target.thread_id:
                 payload["threadId"] = target.thread_id
             sent = await _post_send(client, payload, owner_id)

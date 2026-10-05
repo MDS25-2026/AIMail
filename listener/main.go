@@ -396,6 +396,7 @@ type StoredMessage struct {
 	FromAddr       string    `json:"from_addr"`
 	ReplyTo        string    `json:"reply_to,omitempty"` // where an approved reply goes; shown to the approver
 	ReceivedAt     time.Time `json:"received_at"`
+	IsAutomated    bool      `json:"is_automated"` // never sent a holding reply (automated.go)
 	ThreadIdentity
 	MaskedContent
 }
@@ -792,6 +793,7 @@ func ingestMessage(ctx context.Context, mb *mailbox, msgID string) error {
 		FromAddr:       headerValue(msg.Payload.Headers, "From"), // kept unmasked on purpose: docs/decisions/shared.md, 2026-10-04
 		ReplyTo:        headerValue(msg.Payload.Headers, "Reply-To"),
 		ReceivedAt:     time.Now().UTC(),
+		IsAutomated:    isAutomated(msg.Payload.Headers),
 		ThreadIdentity: identity,
 		MaskedContent:  content,
 	}

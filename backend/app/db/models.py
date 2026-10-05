@@ -4,12 +4,22 @@ The DDL source of truth is app/db/migrations/0001_rag_tables.sql; these models
 mirror it for querying and inserts. See specs/context/db-schema.md.
 """
 
-from datetime import datetime
+from datetime import date, datetime, time
 from enum import StrEnum
 from uuid import UUID, uuid4
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import BigInteger, DateTime, ForeignKey, LargeBinary, Text, func
+from sqlalchemy import (
+    BigInteger,
+    Date,
+    DateTime,
+    ForeignKey,
+    LargeBinary,
+    SmallInteger,
+    Text,
+    Time,
+    func,
+)
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -103,6 +113,8 @@ class Message(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     # The mailbox owner (migration 0007); filled for every row once per-user mailboxes land.
     user_id: Mapped[UUID | None] = mapped_column(ForeignKey("user_profile.id"))
+    # Mailing-list, bulk, auto-submitted or no-reply mail (migration 0019); never auto-answered.
+    is_automated: Mapped[bool] = mapped_column(default=False)
     # Sealed placeholder-to-value map (migration 0018, app/core/vault.py); never decoded here.
     pii_vault: Mapped[bytes | None] = mapped_column(LargeBinary)
     gmail_message_id: Mapped[str | None] = mapped_column(Text)
@@ -211,3 +223,43 @@ class MailboxConnection(Base):
     watch_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class HoldingReplySettings(Base):
+    """One user's holding reply (migration 0019, specs/features/holding-reply.md)."""
+
+    __tablename__ = "holding_reply_settings"
+
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("user_profile.id"), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(default=False)
+    enabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    active_when: Mapped[str] = mapped_column(Text, default="outside_hours")
+    work_days: Mapped[list[int]] = mapped_column(ARRAY(SmallInteger), default=lambda: [1, 2, 3, 4, 5])
+    work_start: Mapped[time] = mapped_column(Time, default=time(9))
+    work_end: Mapped[time] = mapped_column(Time, default=time(18))
+    timezone: Mapped[str] = mapped_column(Text, default="Asia/Kuala_Lumpur")
+    leave_from: Mapped[date | None] = mapped_column(Date)
+    leave_until: Mapped[date | None] = mapped_column(Date)
+    audience: Mapped[str] = mapped_column(Text, default="correspondents")
+    scope: Mapped[str] = mapped_column(Text, default="needs_reply")
+    cooldown_days: Mapped[int] = mapped_column(SmallInteger, default=4)
+    templates: Mapped[dict] = mapped_column(JSONB, default=dict)
+    default_language: Mapped[str] = mapped_column(Text, default="en")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class HoldingReply(Base):
+    """One scheduled holding reply: sent, cancelled with a reason, or still waiting."""
+
+    __tablename__ = "holding_reply"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("user_profile.id"))
+    message_id: Mapped[UUID] = mapped_column(ForeignKey("messages.id"), unique=True)
+    recipient_addr: Mapped[str] = mapped_column(Text)
+    language: Mapped[str] = mapped_column(Text)
+    scheduled_for: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancelled_reason: Mapped[str | None] = mapped_column(Text)
+    sent_message_id: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

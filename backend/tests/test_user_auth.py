@@ -212,3 +212,12 @@ def test_every_failed_callback_logs_why(client, caplog):
     logged = " ".join(record.getMessage() for record in caplog.records)
     assert "no PKCE verifier cookie" in logged
     assert "Unable to exchange external code" in logged
+
+
+def test_a_token_issued_a_moment_ahead_of_our_clock_is_accepted(client):
+    # Supabase's clock can run slightly ahead of ours: a token signed "in the future" by a second
+    # or two is fresh, not forged, and refusing it bounced people to sign-in right after signing in.
+    claims = {"sub": "user-x", "email": OWNER, "aud": "authenticated", "iss": AUTH_BASE,
+              "iat": int(time.time()) + 5, "exp": int(time.time()) + 600}
+    client.cookies.set(SESSION_COOKIE, jwt.encode(claims, KEY, algorithm="ES256"))
+    assert client.get("/emails").status_code == 200

@@ -22,6 +22,14 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
 - Mailbox scope: a signed-in user sees mail only for a mailbox they own (stage 1: the Gmail account
   the backend is connected to, read at startup; `MAILBOX_OWNER_EMAIL` is a fallback). Anyone else gets `[]` from `GET /emails` and `GET /documents`, and `404` from every
   route about one email, `/search`, `/ask` and document ingestion.
+- **Holding reply (2026-10-06, `specs/features/holding-reply.md`):** `GET /settings/holding-reply`
+  returns `{enabled, activeWhen, workDays, workStart, workEnd, timezone, leaveFrom, leaveUntil,
+  audience, scope, cooldownDays, templates: {en?, ms?, zh?}, defaultLanguage}` (defaults with
+  `enabled: false` when unset); `PUT` validates and saves it (`422` with a code for an unknown
+  placeholder, `{return_date}` without leave dates, an empty template, or an unknown timezone).
+  `GET /holding-replies?limit=` lists `{id, emailId, recipient, language, scheduledFor, sentAt,
+  cancelledReason}` newest first; `DELETE /holding-replies/{id}` cancels one still waiting (`409`
+  once sent). All per signed-in user; `403 account_only` for the script token.
 - **Account (2026-10-05, `specs/features/per-user-mailboxes.md` "Disconnect and delete account"):**
   `DELETE /account/gmail` revokes the Google token, deletes the user's stored emails and their
   connection (`204`; `404 not_connected`). `DELETE /account` also deletes their documents, profile

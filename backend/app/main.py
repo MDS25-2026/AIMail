@@ -65,6 +65,8 @@ from app.dashboard import (
     translate_email,
 )
 from app.gmail_send import SendError, SendOutcomeUnknownError
+from app.holding_reply_routes import router as holding_reply_router
+from app.holding_reply_scheduler import holding_replies_loop
 from app.rag.chunk import extract_pdf_bytes
 from app.rag.embed import EmbeddingError
 from app.rag.generate import GenerationError, answer
@@ -83,7 +85,8 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     drafts to pre-generate. Both are held (asyncio keeps only weak references to tasks) and both
     are cancelled on shutdown."""
     await mailbox.resolve_owner()
-    tasks = [asyncio.create_task(_embed_missing()), asyncio.create_task(expire_vaults_daily())]
+    tasks = [asyncio.create_task(_embed_missing()), asyncio.create_task(expire_vaults_daily()),
+             asyncio.create_task(holding_replies_loop())]
     if get_settings().auto_generate:
         tasks.append(asyncio.create_task(_pregen_loop()))
     try:
@@ -99,6 +102,7 @@ app.middleware("http")(request_context)
 app.mount(ADMIN_PREFIX, admin_app)
 app.include_router(sign_in_router)
 app.include_router(account_router)
+app.include_router(holding_reply_router)
 
 # Dev CORS so the dashboard can call this API cross-origin. The regex covers any
 # localhost/127.0.0.1 port (they are distinct origins to the browser); FRONTEND_ORIGIN adds

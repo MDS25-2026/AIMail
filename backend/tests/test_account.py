@@ -99,3 +99,15 @@ def test_a_deletion_that_stops_part_way_says_to_try_again_and_keeps_the_session(
     response = _signed_in().delete("/account", headers={"X-AIMail-Client": "1"})
     assert response.status_code == 502 and response.json()["detail"] == "account_not_fully_deleted"
     assert SESSION_COOKIE not in response.headers.get("set-cookie", "")
+
+
+# ---------- Holding reply settings: who may call, and what is refused ----------
+
+def test_a_script_has_no_holding_reply_settings(calls):
+    assert TestClient(app).get("/settings/holding-reply", headers=AUTH_HEADERS).status_code == 403
+
+
+def test_settings_that_could_never_work_are_refused_with_their_code(calls):
+    response = _signed_in().put("/settings/holding-reply", headers={"X-AIMail-Client": "1"},
+                                json={"enabled": True, "templates": {"en": "Back on {return_date}"}})
+    assert response.status_code == 422 and response.json()["detail"] == "return_date_needs_leave"

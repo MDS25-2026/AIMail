@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from app.core.logging_setup import configure_logging
 from app.core.middleware import request_context
+from app.core.phishing import phishing_signal
 from app.core.redaction import ANY_MASK, has_redaction_marker
 from app.normalise.numbers import (
     canonical,
@@ -470,22 +471,6 @@ def unsupported_specifics(draft: str, *sources: str) -> list[str]:
 
 
 # ---------- Input signals: reasons for review that come from the email, not the draft ----------
-
-# A request for credentials or payment details beside a link is the shape of phishing. Checked on
-# the masked body: masking removes names and addresses, never URLs or these words. Deterministic
-# on purpose, so an email cannot talk its way past it.
-_CREDENTIAL_ASK = re.compile(
-    r"\b(?:password|passcode|log ?in|sign ?in|verify your (?:account|identity)|one[- ]time"
-    r" (?:password|code)|otp|pin|security code|bank details|card details|credentials)\b",
-    re.IGNORECASE,
-)
-# A scheme, "www.", or a bare domain followed by a path ("secure-bank.com/verify").
-_LINK = re.compile(r"\bhttps?://|\bwww\.|\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}/", re.IGNORECASE)
-
-
-def phishing_signal(email_body: str) -> bool:
-    return bool(_CREDENTIAL_ASK.search(email_body) and _LINK.search(email_body))
-
 
 def input_reasons(req: "ProcessEmailRequest", is_phishing: bool) -> list[str]:
     reasons = []
