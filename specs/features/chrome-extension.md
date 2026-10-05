@@ -62,19 +62,24 @@ whichever email I open and has a reply ready, so I approve and move on.
    owned by the signed-in user, as the detail view does (generating the draft if needed); `404` when
    AIMail has none (an older email, the Sent folder, or another Gmail account). Same scope rules as
    every email route.
-4. **Auth.** The panel calls the backend with the dashboard's HttpOnly session cookie. Chrome sends
+4. **Auth.** *Pending the live test; deviates from ADR 0005, which planned a Supabase bearer token
+   for the extension.* The panel calls the backend with the dashboard's HttpOnly session cookie. Chrome sends
    it because the extension holds host permission for the backend's address; the CSRF header is
    sent as the dashboard does. No token is stored in the extension. A `401` shows the sign-in
-   state, whose button opens the backend's Google sign-in in a tab.
-5. **Panel states**, each one screen: not Gmail ("Open Gmail to use AIMail"), no email open ("Open
+   state, whose button opens the backend's Google sign-in in a tab. If Chrome does not send the
+   cookie, the panel stays on "Sign in" after signing in; the fallback is ADR 0005's bearer flow.
+5. **Gmail tabs already open** when the extension is installed get the panel switched on at once
+   (the worker enables it on every open Gmail tab when it starts); their content script only
+   arrives on reload, which the "Reload Gmail once" state says.
+6. **Panel states**, each one screen: not Gmail ("Open Gmail to use AIMail"), no email open ("Open
    an email"), loading, signed out, not found ("AIMail hasn't received this email", with the signed-in
    address so a different Gmail account is obvious), quarantined (existing notice), and the email.
-6. **Streamlined layout.** Header: AIMail and the signed-in address. Body: subject, summary, action
+7. **Streamlined layout.** Header: AIMail and the signed-in address. Body: subject, summary, action
    items, then the draft editor taking the remaining height, the tone switch and refine box beside
    it. Footer: Regenerate and a full-width Approve & Send. The thread list is left out (Gmail shows
    the thread); sources collapse to one line. The panel fills Chrome's resizable side panel width.
    Language follows the browser (English, Malay, Chinese); theme follows the system.
-7. **One component.** The dashboard's `/extension` preview renders the same panel component, so the
+8. **One component.** The dashboard's `/extension` preview renders the same panel component, so the
    preview is the real thing.
 
 ## Manifest

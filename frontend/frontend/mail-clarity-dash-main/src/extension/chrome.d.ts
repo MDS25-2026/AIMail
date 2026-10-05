@@ -20,7 +20,11 @@ declare namespace chrome {
     type Tab = { id?: number; url?: string; active: boolean; windowId: number };
     type ActiveInfo = { tabId: number; windowId: number };
     type ChangeInfo = { status?: string; url?: string };
-    function query(filter: { active: boolean; currentWindow: boolean }): Promise<Tab[]>;
+    function query(filter: {
+      active?: boolean;
+      currentWindow?: boolean;
+      url?: string;
+    }): Promise<Tab[]>;
     function sendMessage(tabId: number, message: unknown): Promise<unknown>;
     function create(properties: { url: string }): Promise<Tab>;
     const onActivated: {

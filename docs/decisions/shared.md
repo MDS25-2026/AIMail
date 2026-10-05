@@ -11,8 +11,9 @@ here when their change crosses a lane boundary. Schema and public contracts are 
   project (`vite.extension.config.ts`, no new dependency), reusing its components; the dashboard's
   `/extension` preview renders the same `SidePanel`. A content script reads only the open thread's
   id; the panel calls the new `GET /emails/by-thread/{thread_id}` with the dashboard's HttpOnly
-  session cookie (Chrome sends it under the backend host permission), so no credential lives in
-  the extension. Distributed unpacked (`make extension`); the Web Store is a later, operational step.
+  session cookie, so no credential lives in the extension. This deviates from ADR 0005, which
+  planned a Supabase bearer token for the extension; whether Chrome sends the SameSite=Strict
+  cookie from the extension is pending the owner's live test, with the bearer flow as fallback. Distributed unpacked (`make extension`); the Web Store is a later, operational step.
 - Why: the owner chose to read originals in Gmail through the extension (restorable-masking.md),
   and asked for it to be streamlined. Gmail shows the thread, so the panel drops the thread list
   and folds the summary and sources.

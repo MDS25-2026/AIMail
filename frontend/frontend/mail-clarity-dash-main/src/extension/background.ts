@@ -2,6 +2,12 @@
 import { isGmailUrl } from "./gmailThread";
 
 const PANEL_PATH = "sidepanel.html";
+const GMAIL_TABS = "https://mail.google.com/*";
+
+function enableOn(tabId: number | undefined, isEnabled: boolean): void {
+  if (tabId === undefined) return;
+  void chrome.sidePanel.setOptions({ tabId, path: PANEL_PATH, enabled: isEnabled });
+}
 
 void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 // Off by default; each Gmail tab turns it on below (a tab's own setting wins over this one).
@@ -11,5 +17,11 @@ void chrome.sidePanel.setOptions({ enabled: false });
 // as "not Gmail".
 chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
   if (info.status !== "complete" && info.url === undefined) return;
-  void chrome.sidePanel.setOptions({ tabId, path: PANEL_PATH, enabled: isGmailUrl(tab.url) });
+  enableOn(tabId, isGmailUrl(tab.url));
 });
+
+// Gmail tabs already open when the extension is installed (or the worker restarts) never fire the
+// update above, and the panel would stay switched off there.
+void chrome.tabs
+  .query({ url: GMAIL_TABS })
+  .then((tabs) => tabs.forEach((tab) => enableOn(tab.id, true)));
