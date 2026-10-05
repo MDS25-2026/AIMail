@@ -125,6 +125,12 @@ remove it with the mail.
 
 ## API changes (`specs/context/api-contracts.md` first)
 
+- *Built 2026-10-05, backend and agent:* the shared pattern was split rather than widened.
+  `REDACTION_MARKER` still means only the unfillable markers (the critic's leak check and the send
+  check use it), `PLACEHOLDER` is the numbered form, and `ANY_MASK` (both) is what a translation must
+  preserve. Otherwise every draft holding `[PERSON_1]` would have been flagged as a leak. The owner's
+  sign-off name is itself a thread placeholder, so the AI never receives it. `Cache-Control:
+  no-store` was already on every API response.
 - `DashboardEmail.details: {placeholder: string, value: string, kind: string}[]` on detail,
   regenerate, refine and send responses (empty on the list endpoint and for old rows). Only ever
   the signed-in owner's own details (the scope already guarantees it).

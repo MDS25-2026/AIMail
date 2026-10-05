@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Literal, TypedDict
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ContextChunk(TypedDict):
@@ -69,6 +69,14 @@ class QuantityView(BaseModel):
     imperial: MeasureView
 
 
+class Detail(BaseModel):
+    """A personal detail the AI saw only as its placeholder (restorable masking). Owner only."""
+
+    placeholder: str  # "[PERSON_1]"
+    value: str
+    kind: str  # "PERSON", "PHONE", ...
+
+
 class DashboardEmail(BaseModel):
     """The joined email view the Lane D dashboard renders (matches Han's `Email` type).
 
@@ -99,6 +107,9 @@ class DashboardEmail(BaseModel):
     masking: Literal["complete", "pending", "abandoned"] = "complete"
     # Where an approved reply goes when the sender set a Reply-To; null means it goes to `sender`.
     replyTo: str | None = None
+    # The real details behind this email's, its thread's and its draft's placeholders. Detail
+    # responses only; empty on the list and for emails stored before restorable masking.
+    details: list[Detail] = Field(default_factory=list)
 
 
 _PRIORITY_LABELS: dict[int, Literal["low", "medium", "high"]] = {0: "low", 1: "medium", 2: "high"}

@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     # Encrypts stored Google refresh tokens (app/core/token_crypt.py): 32 random bytes, base64.
     # Empty means no token can be stored or read (fail closed). Shared with the listener.
     token_encryption_key: str = ""
+    # Encrypts each email's personal-detail vault (specs/features/restorable-masking.md): 32 random
+    # bytes, base64, shared with the listener. Empty means details are never stored or shown.
+    pii_vault_key: str = ""
+    # A vault is emptied after this many days, or 7 days after its reply was sent.
+    vault_retention_days: int = 30
     # The Google OAuth client in Supabase's Google provider; refreshes connected users' tokens.
     google_oauth_client_id: str = ""
     google_oauth_client_secret: str = ""

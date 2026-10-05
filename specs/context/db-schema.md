@@ -86,6 +86,16 @@ policies.
 - **NULL owner** means the original single mailbox (`app/core/mailbox.py`). Those rows are visible
   only to that mailbox's account, and move to it (`user_id` set) when it connects with Google.
 
+### Restorable masking: messages.pii_vault (migration 0018)
+
+`messages.pii_vault BYTEA NULL`: the email's placeholder-to-value map (`{"[PERSON_1]": "Aisyah"}`)
+as JSON, sealed with `PII_VAULT_KEY` (AES-256-GCM, `app/core/sealed_box.py`), associated data
+`aimail-pii-vault:v1:<user_id or "">:<gmail_message_id>`. Written by the listener with the masked
+row; opened only by the backend, per request. NULL for rows from before this, quarantined rows, and
+once the daily job (`app/vault_retention.py`) empties it: 30 days after arrival
+(`VAULT_RETENTION_DAYS`) or 7 days after the reply was sent. `draft_reply` always holds placeholders,
+never the details themselves.
+
 ### Row-level security (migration 0015)
 
 Every application table has RLS **on with no policies** (2026-10-04). Supabase's REST API serves

@@ -212,7 +212,7 @@ def test_a_regenerate_that_fails_for_content_keeps_the_existing_draft(monkeypatc
     from app import dashboard
     from app.db.models import MaskingStatus
 
-    async def not_drafted(message, tone, thread):
+    async def not_drafted(message, tone, thread, *_rest):
         return dashboard._not_drafted("gemini_output_truncated")
 
     async def must_not_write(pk, fields):

@@ -51,15 +51,17 @@ def _supabase_answers(monkeypatch, body: dict):
 
 def _session(**extra) -> dict:
     return {"access_token": _access_token(), "refresh_token": "r1", "expires_in": 3600,
-            "user": {"id": USER_ID, "email": "new.user@gmail.com"}, **extra}
+            "user": {"id": USER_ID, "email": "new.user@gmail.com", "user_metadata": {"full_name": "New User"}},
+            **extra}
 
 
 @pytest.fixture
 def stored(monkeypatch):
     saved = []
 
-    async def store(user_id, email, refresh_token, scopes):
-        saved.append({"user_id": user_id, "email": email, "token": refresh_token, "scopes": scopes})
+    async def store(user_id, email, refresh_token, scopes, display_name):
+        saved.append({"user_id": user_id, "email": email, "token": refresh_token, "scopes": scopes,
+                      "name": display_name})
 
     monkeypatch.setattr(connections, "store_connection", store)
     return saved
@@ -88,7 +90,7 @@ def test_a_granted_gmail_connection_is_stored_for_the_user(client, monkeypatch, 
     response = _callback(client)
     assert response.headers["location"] == "http://localhost:8090"
     assert stored == [{"user_id": USER_ID, "email": "new.user@gmail.com", "token": "1//refresh",
-                       "scopes": sorted({GMAIL_READ, GMAIL_SEND})}]
+                       "scopes": sorted({GMAIL_READ, GMAIL_SEND}), "name": "New User"}]
 
 
 def test_unticking_gmail_read_on_googles_screen_stores_nothing_but_still_signs_in(client, monkeypatch, stored):
@@ -142,7 +144,7 @@ def _stored_statements(monkeypatch, email: str, owner: str) -> list[str]:
     session = _RecordingSession()
     monkeypatch.setattr(connections, "get_sessionmaker", lambda: lambda: session)
     monkeypatch.setattr(connections.mailbox, "owner", lambda: owner)
-    asyncio.run(connections.store_connection(USER_ID, email, "1//refresh", [GMAIL_READ]))
+    asyncio.run(connections.store_connection(USER_ID, email, "1//refresh", [GMAIL_READ], "New User"))
     return session.statements
 
 
@@ -156,3 +158,9 @@ def test_the_original_mailbox_connecting_takes_over_its_unowned_mail_and_documen
 def test_anyone_else_connecting_never_touches_unowned_rows(client, monkeypatch):
     statements = _stored_statements(monkeypatch, "new.user@gmail.com", "owner@gmail.com")
     assert not [s for s in statements if s.startswith("UPDATE")]
+
+
+def test_the_google_account_name_becomes_the_profile_name_without_replacing_one_already_set(client, monkeypatch):
+    statements = _stored_statements(monkeypatch, "new.user@gmail.com", "owner@gmail.com")
+    profile = next(s for s in statements if "INSERT INTO user_profile" in s)
+    assert "coalesce(user_profile.display_name, excluded.display_name)" in profile

@@ -72,6 +72,7 @@ from app.rag.library import DocumentSummary, list_documents
 from app.rag.mask import DocumentMaskingError
 from app.rag.retrieve import ContextChunk, retrieve
 from app.sign_in import router as sign_in_router
+from app.vault_retention import expire_vaults_daily
 
 configure_logging()
 
@@ -81,7 +82,7 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     drafts to pre-generate. Both are held (asyncio keeps only weak references to tasks) and both
     are cancelled on shutdown."""
     await mailbox.resolve_owner()
-    tasks = [asyncio.create_task(_embed_missing())]
+    tasks = [asyncio.create_task(_embed_missing()), asyncio.create_task(expire_vaults_daily())]
     if get_settings().auto_generate:
         tasks.append(asyncio.create_task(_pregen_loop()))
     try:

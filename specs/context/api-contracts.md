@@ -22,6 +22,15 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
 - Mailbox scope: a signed-in user sees mail only for a mailbox they own (stage 1: the Gmail account
   the backend is connected to, read at startup; `MAILBOX_OWNER_EMAIL` is a fallback). Anyone else gets `[]` from `GET /emails` and `GET /documents`, and `404` from every
   route about one email, `/search`, `/ask` and document ingestion.
+- **Restorable masking (2026-10-05, `specs/features/restorable-masking.md`):** stored text carries
+  numbered placeholders (`[PERSON_1]`, `[PHONE_2]`, kinds PERSON, EMAIL, PHONE, IC, PASSPORT,
+  ACCOUNT, CARD, LOCATION, ORG), numbered once per thread. Detail, regenerate, refine and send
+  responses add `details: [{placeholder, value, kind}]`, the owner's real values for display (empty
+  on the list endpoint, for older emails, and once a vault expires). A draft sent with real details
+  typed in is accepted; the backend stores it with placeholders. `POST /emails/{id}/send` adds
+  `422 unresolved_placeholders` (a placeholder no vault can fill). Lane C: `/process-email` and
+  `/refine` accept `sign_off` (the owner's name as a placeholder, never the name); payloads still
+  never carry a real detail.
 - `GET /emails/by-thread/{thread_id}` (2026-10-05, the Chrome extension): the newest of the
   signed-in user's messages in that Gmail thread, as `GET /emails/{id}` returns it (generating the
   draft if needed). `thread_id` must be 8 to 24 lowercase hex characters (`422` otherwise); `404`

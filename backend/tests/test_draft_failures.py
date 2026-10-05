@@ -42,7 +42,7 @@ def loaded(monkeypatch):
 
 
 def _generation_returns(monkeypatch, result: dict) -> None:
-    async def generate(message, tone, thread):
+    async def generate(message, tone, thread, *_rest):
         return result
 
     monkeypatch.setattr(dashboard, "_generate", generate)

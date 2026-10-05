@@ -69,6 +69,7 @@ migrate:  ## create all tables; run BEFORE starting a newer listener (it writes 
 	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0015_enable_rls.sql
 	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0016_mailbox_connection.sql
 	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0017_owner_scoping.sql
+	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0018_pii_vault.sql
 
 seed:  ## load sample policy chunks
 	cd backend && ../$(VENV)/python scripts/seed_demo.py

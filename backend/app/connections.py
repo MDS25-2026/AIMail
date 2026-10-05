@@ -43,7 +43,19 @@ async def granted_scopes(provider_token: str) -> set[str]:
         raise ConnectionStoreError(f"could not read the granted scopes: {exc}") from exc
 
 
-async def store_connection(user_id: str, email: str, refresh_token: str, scopes: list[str]) -> None:
+async def _upsert_profile(session: AsyncSession, user_id: str, email: str, display_name: str) -> None:
+    """The profile shares the auth user id, so messages.user_id and the personalisation tables (all
+    keyed on user_profile) line up with the signed-in user. A name the user set is never replaced."""
+    statement = insert(UserProfile).values(id=user_id, email=email.lower(), display_name=display_name or None)
+    await session.execute(statement.on_conflict_do_update(
+        index_elements=["id"],
+        set_={"display_name": func.coalesce(UserProfile.display_name, statement.excluded.display_name)},
+    ))
+
+
+async def store_connection(
+    user_id: str, email: str, refresh_token: str, scopes: list[str], display_name: str
+) -> None:
     """Create the user's profile if new, then store or replace their sealed Gmail connection."""
     try:
         sealed = token_crypt.seal(refresh_token, user_id)
@@ -51,10 +63,7 @@ async def store_connection(user_id: str, email: str, refresh_token: str, scopes:
         raise ConnectionStoreError(str(exc)) from exc
     try:
         async with get_sessionmaker()() as session, session.begin():
-            # The profile shares the auth user id, so messages.user_id and the personalisation
-            # tables (all keyed on user_profile) line up with the signed-in user.
-            await session.execute(insert(UserProfile).values(id=user_id, email=email.lower())
-                                  .on_conflict_do_nothing(index_elements=["id"]))
+            await _upsert_profile(session, user_id, email, display_name)
             values = {"email": email.lower(), "refresh_token_encrypted": sealed, "scopes": scopes}
             await session.execute(insert(MailboxConnection).values(user_id=user_id, **values)
                                   .on_conflict_do_update(index_elements=["user_id"],
@@ -92,7 +101,8 @@ async def connect_mailbox(session: Session) -> None:
             logger.info("user %s signed in without granting Gmail read access", session.user_id)
             return
         granted = sorted(scope for scope in scopes if scope in GMAIL_SCOPES)
-        await store_connection(session.user_id, session.email, session.provider_refresh_token, granted)
+        await store_connection(session.user_id, session.email, session.provider_refresh_token, granted,
+                               session.full_name)
     except ConnectionStoreError as exc:
         logger.warning("could not store the Gmail connection for user %s: %s", session.user_id, exc)
         return

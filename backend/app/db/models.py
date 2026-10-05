@@ -103,6 +103,8 @@ class Message(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     # The mailbox owner (migration 0007); filled for every row once per-user mailboxes land.
     user_id: Mapped[UUID | None] = mapped_column(ForeignKey("user_profile.id"))
+    # Sealed placeholder-to-value map (migration 0018, app/core/vault.py); never decoded here.
+    pii_vault: Mapped[bytes | None] = mapped_column(LargeBinary)
     gmail_message_id: Mapped[str | None] = mapped_column(Text)
     from_addr: Mapped[str | None] = mapped_column(Text)
     subject: Mapped[str | None] = mapped_column(Text)

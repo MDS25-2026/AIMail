@@ -8,6 +8,7 @@ next reply knows what was already said.
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
+from app.core.vault import ThreadMap
 from app.dashboard import _thread_view, thread_context
 from app.db.models import Message
 
@@ -23,7 +24,7 @@ def test_the_owners_reply_is_listed_right_under_the_email_it_answered():
     original = _message(0, "Can I claim the course fee?", sent_at=T0 + timedelta(minutes=5),
                         draft_reply="Hi Aisyah, yes, within 14 days.")
     later = _message(10, "Thanks, and the travel costs?")
-    view = _thread_view([original, later])
+    view = _thread_view([original, later], ThreadMap())
     assert [(m.isOwnReply, m.snippet) for m in view] == [
         (False, "Can I claim the course fee?"),
         (True, "Hi Aisyah, yes, within 14 days."),
@@ -32,7 +33,7 @@ def test_the_owners_reply_is_listed_right_under_the_email_it_answered():
 
 
 def test_an_unsent_draft_is_not_shown_as_a_reply():
-    view = _thread_view([_message(0, "Hello", draft_reply="Not sent yet")])
+    view = _thread_view([_message(0, "Hello", draft_reply="Not sent yet")], ThreadMap())
     assert [m.isOwnReply for m in view] == [False]
 
 
