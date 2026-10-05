@@ -182,6 +182,11 @@ export const en = {
     no: "No",
     poll: "Poll interval",
     seconds: "{{count}}s",
+    colours: "Colours",
+    coloursStandard: "Standard",
+    coloursFriendly: "Colour-blind friendly",
+    coloursHint:
+      "Colour-blind friendly keeps success, warning and danger easy to tell apart with red-, green- or blue-blind vision. Every status also has a text label.",
   },
   extension: {
     heading: "Extension panel preview",
@@ -211,6 +216,7 @@ export const en = {
     showMore_other: "Show more · {{count}} action items",
     showLess: "Show less",
     sources: "Sources ({{count}})",
+    friendlyColours: "Colour-blind friendly colours",
   },
   quarantine: {
     badge: "Awaiting masking",

@@ -14,7 +14,7 @@ import { useTranslation } from "react-i18next";
 import appCss from "../styles.css?url";
 import PreferencesProvider from "../components/PreferencesProvider";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { SYSTEM_THEME_SCRIPT, Theme } from "../lib/preferences";
+import { coloursAttribute, SYSTEM_THEME_SCRIPT, Theme } from "../lib/preferences";
 import { readPreferences } from "../lib/readPreferences";
 
 function NotFoundComponent() {
@@ -110,6 +110,7 @@ function RootShell({ children }: { children: ReactNode }) {
     <html
       lang={preferences.language}
       className={preferences.theme === Theme.Dark ? "dark" : undefined}
+      data-colours={coloursAttribute(preferences.colours)}
       suppressHydrationWarning
     >
       <head>

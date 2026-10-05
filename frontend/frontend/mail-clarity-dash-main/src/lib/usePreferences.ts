@@ -1,12 +1,13 @@
 import { createContext, useContext } from "react";
 
-import type { Language, Preferences, Theme, UnitSystem } from "./preferences";
+import type { Language, Preferences, StatusColours, Theme, UnitSystem } from "./preferences";
 
 export type PreferencesContextValue = {
   preferences: Preferences;
   setTheme: (theme: Theme) => void;
   setLanguage: (language: Language) => void;
   setUnits: (units: UnitSystem) => void;
+  setColours: (colours: StatusColours) => void;
 };
 
 export const PreferencesContext = createContext<PreferencesContextValue | null>(null);

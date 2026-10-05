@@ -4,6 +4,7 @@ import { I18nextProvider } from "react-i18next";
 
 import { createI18n } from "../lib/i18n";
 import { COOKIE, Theme, writePreference, type Preferences } from "../lib/preferences";
+import { useColoursAttribute } from "../lib/useColoursAttribute";
 import { PreferencesContext, type PreferencesContextValue } from "../lib/usePreferences";
 
 const DARK_QUERY = "(prefers-color-scheme: dark)";
@@ -37,6 +38,7 @@ export default function PreferencesProvider({
   // Created once per render tree; language changes go through changeLanguage on this instance.
   const i18n = useMemo(() => createI18n(initial.language), []); // eslint-disable-line react-hooks/exhaustive-deps
   useThemeClass(preferences.theme);
+  useColoursAttribute(preferences.colours);
 
   const value = useMemo<PreferencesContextValue>(() => {
     const save = (next: Partial<Preferences>, cookie: string, stored: string) => {
@@ -54,6 +56,7 @@ export default function PreferencesProvider({
         save({ language }, COOKIE.language, language);
       },
       setUnits: (units) => save({ units }, COOKIE.units, units),
+      setColours: (colours) => save({ colours }, COOKIE.colours, colours),
     };
   }, [preferences, i18n, router]);
 

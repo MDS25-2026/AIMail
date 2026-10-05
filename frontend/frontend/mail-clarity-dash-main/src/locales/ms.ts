@@ -189,6 +189,11 @@ export const ms: Translations = {
     no: "Tidak",
     poll: "Selang tinjauan",
     seconds: "{{count}}s",
+    colours: "Warna",
+    coloursStandard: "Standard",
+    coloursFriendly: "Mesra buta warna",
+    coloursHint:
+      "Mesra buta warna memastikan berjaya, amaran dan bahaya mudah dibezakan bagi penglihatan buta merah, hijau atau biru. Setiap status juga mempunyai label teks.",
   },
   extension: {
     heading: "Pratonton panel sambungan",
@@ -218,6 +223,7 @@ export const ms: Translations = {
     showMore_other: "Tunjuk lagi · {{count}} tindakan",
     showLess: "Tunjuk kurang",
     sources: "Sumber ({{count}})",
+    friendlyColours: "Warna mesra buta warna",
   },
   quarantine: {
     badge: "Menunggu penyamaran",

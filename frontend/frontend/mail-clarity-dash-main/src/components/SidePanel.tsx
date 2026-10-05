@@ -1,7 +1,10 @@
+import { Eye } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import type { Email, Tone } from "../types/email";
+import { StatusColours } from "../lib/preferences";
 import { useFormat } from "../lib/useFormat";
+import { usePreferences } from "../lib/usePreferences";
 import DraftReplyEditor from "./DraftReplyEditor";
 import SourcesChips from "./SourcesChips";
 import RefineInput from "./RefineInput";
@@ -111,10 +114,22 @@ export default function SidePanel({
 
 export function PanelHeader({ account }: { account?: string }) {
   const { t } = useTranslation();
+  const { preferences, setColours } = usePreferences();
+  const isFriendly = preferences.colours === StatusColours.Friendly;
   return (
     <header className="flex items-center gap-2 border-b border-line bg-surface px-3 py-2">
       <span className="text-sm font-semibold text-fg">{t("app.name")}</span>
-      {account ? <span className="ml-auto truncate text-xs text-fg-subtle">{account}</span> : null}
+      <span className="ml-auto truncate text-xs text-fg-subtle">{account}</span>
+      <button
+        type="button"
+        aria-pressed={isFriendly}
+        title={t("extension.friendlyColours")}
+        aria-label={t("extension.friendlyColours")}
+        onClick={() => setColours(isFriendly ? StatusColours.Standard : StatusColours.Friendly)}
+        className={`rounded-md p-1 hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-brand ${isFriendly ? "text-brand" : "text-fg-subtle"}`}
+      >
+        <Eye aria-hidden className="size-4" />
+      </button>
     </header>
   );
 }

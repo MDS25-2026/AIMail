@@ -138,9 +138,13 @@ once in the dashboard with the Google account used in Gmail, open Gmail, and cli
   `text-fg-subtle`, `border-line`, `bg-brand` / `text-on-brand`, and for status `success`,
   `warning`, `danger`, `info` (each with `-soft` and `-line`). Dark mode is then one class on
   `<html>` and needs nothing per component.
-- **Colours live in `scripts/palette.json`.** `python3 scripts/check-palette.py` verifies WCAG 2.1
-  contrast in both themes and that status colours stay distinguishable under protan, deutan and
-  tritan colour blindness; `--write` regenerates `src/palette.css`. Never edit that file by hand.
+- **Colours live in `scripts/palette.json`.** True-grey neutrals with dark-grey text and one navy
+  accent. Status colours come in two sets that readers choose in Settings (the extension's eye
+  button keeps its own copy): the standard green, amber and red, and a colour-blind friendly set
+  applied by `data-colours="friendly"` on `<html>`. `python3 scripts/check-palette.py` verifies
+  WCAG 2.1 contrast for both sets in both themes, and that the friendly set stays distinguishable
+  under protan, deutan and tritan colour blindness; `--write` regenerates `src/palette.css`. Never
+  edit that file by hand, and do not run Prettier over it.
 - **Status never rests on colour alone** (WCAG 1.4.1): pair it with an icon and words.
 - **Every visible string comes from `src/locales/`** via `useTranslation()`. `en.ts` is the master;
   `ms.ts` and `zh.ts` are typed against it, so a missing key fails `tsc`. Malay and Chinese need a

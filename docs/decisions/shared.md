@@ -6,6 +6,20 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-05 — Neutral palette with one navy accent; a colour-blind friendly set readers choose
+- Decision: the dashboard and extension move from blue-tinted greys, navy text and a navy sidebar to
+  true greys, dark-grey text (about 12:1 for body text) and a light sidebar, with navy as the only
+  brand accent (the owner chose option A from rendered previews). Status colours come in two sets
+  readers pick in Settings (the extension's eye button keeps its own copy): the conventional green,
+  amber and red, and a colour-blind friendly set (`data-colours="friendly"`) that stays at least
+  dE 20 apart under protan, deutan and tritan vision. `check-palette.py` now verifies contrast for
+  both sets in both themes and the colour-blind separation of the friendly set.
+- Why: "too blue" was the neutrals, not the buttons (every grey carried 20 to 29% blue); the 60-30-10
+  rule keeps colour for what should stand out. Teal, green and rust accents were rejected because
+  they merge with "success" for red-green colour-blind readers.
+- Affects: Lane D only (palette, preferences, Settings, extension panel). Han to be told.
+- Status: built 2026-10-05.
+
 ### 2026-10-05 — The Chrome extension is built, from the dashboard project, on the session cookie
 - Decision: the extension (proposal Goal 1) is a Manifest V3 side panel built from the dashboard
   project (`vite.extension.config.ts`, no new dependency), reusing its components; the dashboard's

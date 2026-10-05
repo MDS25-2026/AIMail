@@ -23,19 +23,37 @@ export enum UnitSystem {
   Imperial = "imperial",
 }
 
-export type Preferences = { theme: Theme; language: Language; units: UnitSystem };
+/** Which status colour set to show (scripts/palette.json): familiar, or safe for colour blindness. */
+export enum StatusColours {
+  Standard = "standard",
+  Friendly = "friendly",
+}
+
+export type Preferences = {
+  theme: Theme;
+  language: Language;
+  units: UnitSystem;
+  colours: StatusColours;
+};
 
 export const DEFAULT_PREFERENCES: Preferences = {
   theme: Theme.System,
   language: Language.English,
   units: UnitSystem.Metric,
+  colours: StatusColours.Standard,
 };
 
 export const COOKIE = {
   theme: "aimail-theme",
   language: "aimail-lang",
   units: "aimail-units",
+  colours: "aimail-colours",
 } as const;
+
+/** The attribute palette.css keys the colour-blind friendly set on; absent means standard. */
+export function coloursAttribute(colours: StatusColours): string | undefined {
+  return colours === StatusColours.Friendly ? "friendly" : undefined;
+}
 
 const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
 
@@ -54,6 +72,7 @@ export function parsePreferences(read: (name: string) => string | undefined): Pr
     theme: oneOf(Theme, read(COOKIE.theme), DEFAULT_PREFERENCES.theme),
     language: oneOf(Language, read(COOKIE.language), DEFAULT_PREFERENCES.language),
     units: oneOf(UnitSystem, read(COOKIE.units), DEFAULT_PREFERENCES.units),
+    colours: oneOf(StatusColours, read(COOKIE.colours), DEFAULT_PREFERENCES.colours),
   };
 }
 

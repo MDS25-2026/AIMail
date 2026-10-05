@@ -175,6 +175,11 @@ export const zh: Translations = {
     no: "否",
     poll: "轮询间隔",
     seconds: "{{count}} 秒",
+    colours: "颜色",
+    coloursStandard: "标准",
+    coloursFriendly: "色盲友好",
+    coloursHint:
+      "色盲友好模式让成功、警告和危险在红色盲、绿色盲或蓝色盲视觉下也容易区分。每个状态也都有文字标签。",
   },
   extension: {
     heading: "扩展面板预览",
@@ -203,6 +208,7 @@ export const zh: Translations = {
     showMore_other: "展开 · {{count}} 项待办",
     showLess: "收起",
     sources: "来源（{{count}}）",
+    friendlyColours: "色盲友好颜色",
   },
   quarantine: {
     badge: "等待遮蔽",
