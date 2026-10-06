@@ -16,7 +16,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from fastapi.testclient import TestClient
 from sqlalchemy.dialects import postgresql
 
-from app import dashboard
+from app import dashboard, sign_in
 from app.core import ownership, supabase_auth
 from app.core.auth import SESSION_COOKIE
 from app.core.config import get_settings
@@ -49,6 +49,10 @@ def _token(user_id: UUID | str, email: str) -> str:
     return jwt.encode(claims, KEY, algorithm="ES256")
 
 
+async def _never(_user_id):
+    return False
+
+
 @pytest.fixture
 def seen(monkeypatch, test_settings):
     """Signs users in, connects only Alice, and records the scope every dashboard call receives."""
@@ -62,6 +66,7 @@ def seen(monkeypatch, test_settings):
         return user_id == ALICE
 
     monkeypatch.setattr(ownership, "is_connected", connected)
+    monkeypatch.setattr(sign_in.connections, "needs_reconnect", _never)
     scopes: list[Scope] = []
 
     async def record(*_args, scope, **_kwargs):

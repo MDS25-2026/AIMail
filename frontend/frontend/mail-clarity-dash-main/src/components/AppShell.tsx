@@ -3,7 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-import { signOut } from "../lib/api";
+import { SIGN_IN_URL, signOut } from "../lib/api";
 import { useSession } from "../lib/queries";
 import SideNav from "./SideNav";
 
@@ -27,10 +27,32 @@ export default function AppShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
+      <ReconnectBanner />
       <main className="flex min-h-0 flex-1">
         <SideNav />
         {children}
       </main>
+    </div>
+  );
+}
+
+/** Google refused the stored token; until the user signs in again nothing arrives or sends. */
+function ReconnectBanner() {
+  const { t } = useTranslation();
+  const session = useSession();
+  if (!session.data?.needsReconnect) return null;
+  return (
+    <div
+      role="alert"
+      className="flex flex-wrap items-center justify-between gap-3 border-b border-warning-line bg-warning-soft px-6 py-2 text-sm text-fg"
+    >
+      <span>{t("reconnect.banner")}</span>
+      <a
+        href={SIGN_IN_URL}
+        className="rounded-md bg-brand px-3 py-1 text-sm font-semibold text-on-brand hover:bg-brand-strong"
+      >
+        {t("reconnect.signIn")}
+      </a>
     </div>
   );
 }

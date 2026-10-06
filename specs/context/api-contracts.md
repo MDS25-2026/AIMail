@@ -41,6 +41,9 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   and `DELETE /profile/writing` (everything, learning off) return `204`. Per signed-in user;
   `403 account_only` for the script token. The agent's `/process-email` and `/refine` take
   `style_hint: str = ""` and `style_examples: list[str] = []`, fenced as data.
+- **Expired Google access (2026-10-06, `specs/features/per-user-mailboxes.md`):** `GET /auth/session`
+  also returns `needsReconnect` (bool). A send whose Google token was refused returns
+  `409 google_access_expired`.
 - **Account (2026-10-05, `specs/features/per-user-mailboxes.md` "Disconnect and delete account"):**
   `DELETE /account/gmail` revokes the Google token, deletes the user's stored emails and their
   connection (`204`; `404 not_connected`). `DELETE /account` also deletes their documents, profile

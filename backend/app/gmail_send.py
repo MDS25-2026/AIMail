@@ -20,6 +20,7 @@ from uuid import UUID
 import httpx
 from sqlalchemy import select
 
+from app import connections
 from app.core import token_crypt
 from app.core.config import get_settings
 from app.db.models import MailboxConnection
@@ -28,6 +29,7 @@ from app.db.session import get_sessionmaker
 logger = logging.getLogger(__name__)
 
 _TOKEN_URL = "https://oauth2.googleapis.com/token"
+INVALID_GRANT = "invalid_grant"
 _MESSAGES_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages"
 _PROFILE_URL = "https://gmail.googleapis.com/gmail/v1/users/me/profile"
 _SEND_URL = f"{_MESSAGES_URL}/send"
@@ -61,6 +63,14 @@ class SendError(RuntimeError):
 
 class GmailAccessError(RuntimeError):
     """No usable Google credentials for this mailbox. The reason never includes a token."""
+
+
+class GoogleAccessExpiredError(GmailAccessError):
+    """Google refused the user's refresh token (invalid_grant): only signing in again fixes it."""
+
+
+class AccessExpiredSendError(SendError):
+    """The send failed because the user's Google access has ended."""
 
 
 class SendOutcomeUnknownError(RuntimeError):
@@ -114,6 +124,16 @@ _cached_tokens: dict[UUID | None, tuple[str, float]] = {}
 _EXPIRY_MARGIN_SECONDS = 60
 
 
+def _is_refused_grant(response: httpx.Response) -> bool:
+    """Testing-mode tokens expire after 7 days, and revoked ones look the same."""
+    if response.status_code != httpx.codes.BAD_REQUEST:
+        return False
+    try:
+        return response.json().get("error") == INVALID_GRANT
+    except ValueError:
+        return False
+
+
 async def _access_token(client: httpx.AsyncClient, owner_id: UUID | None) -> str:
     now = time.monotonic()
     cached = _cached_tokens.get(owner_id)
@@ -122,6 +142,9 @@ async def _access_token(client: httpx.AsyncClient, owner_id: UUID | None) -> str
     resp = await client.post(
         _TOKEN_URL, data={**await _refresh_grant(owner_id), "grant_type": "refresh_token"}
     )
+    if owner_id is not None and _is_refused_grant(resp):
+        await connections.mark_needs_reconnect(owner_id)
+        raise GoogleAccessExpiredError(f"google refused the token of user {owner_id}")
     resp.raise_for_status()
     payload = resp.json()
     access_token = payload["access_token"]
@@ -326,6 +349,8 @@ async def send_reply(
                 payload["threadId"] = target.thread_id
             sent = await _post_send(client, payload, owner_id)
             message_id = await _sent_message_id(client, sent.get("id"), owner_id)
+    except GoogleAccessExpiredError as exc:
+        raise AccessExpiredSendError(str(exc)) from exc
     except (httpx.HTTPError, GmailAccessError, KeyError, OSError, ValueError) as exc:
         raise SendError(str(exc)) from exc
     return SentReply(gmail_id=sent.get("id"), thread_id=sent.get("threadId"), message_id=message_id)

@@ -573,6 +573,7 @@ func renewWatch(ctx context.Context, mb *mailbox) {
 		log.Printf("WATCH RENEWAL FAILED for user %q: %v — this mailbox stops receiving mail when the current watch expires",
 			mb.ownerID, err)
 		writeAuditLog(ctx, "renew_watch", fmt.Sprintf("user %q: renewal failed: %v", mb.ownerID, err), false)
+		noteRefusedGrant(ctx, mb.ownerID, err)
 		return
 	}
 	writeAuditLog(ctx, "renew_watch", fmt.Sprintf("user %q: renewed", mb.ownerID), true)

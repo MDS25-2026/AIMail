@@ -52,7 +52,8 @@ async function apiFetch(path: string, init: ApiInit = {}): Promise<Response> {
   throw new SignedOutError(`${init.method ?? "GET"} ${path} needs sign-in`);
 }
 
-export type SessionInfo = { email: string; hasMailbox: boolean };
+/** needsReconnect: Google refused the stored token (7-day Testing-mode expiry or a revocation). */
+export type SessionInfo = { email: string; hasMailbox: boolean; needsReconnect: boolean };
 
 /** Who is signed in, and whether a mailbox is connected to that account. */
 export async function fetchSession(): Promise<SessionInfo> {
@@ -113,10 +114,14 @@ export class UnresolvedPlaceholdersError extends Error {}
 /** The owner let AIMail read their Gmail but not send from it (403 send_not_granted). */
 export class SendNotGrantedError extends Error {}
 
+/** Google has ended AIMail's access to the owner's Gmail (409 google_access_expired); sign in again. */
+export class GoogleAccessExpiredError extends Error {}
+
 const ERROR_BY_DETAIL: Record<string, new (message: string) => Error> = {
   draft_refused: DraftRefusedError,
   send_outcome_unknown: SendOutcomeUnknownError,
   send_not_granted: SendNotGrantedError,
+  google_access_expired: GoogleAccessExpiredError,
   unresolved_placeholders: UnresolvedPlaceholdersError,
 };
 

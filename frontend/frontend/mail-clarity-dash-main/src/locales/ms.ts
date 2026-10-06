@@ -345,6 +345,11 @@ export const ms: Translations = {
       failed: "Ada masalah. Cuba lagi.",
     },
   },
+  reconnect: {
+    banner:
+      "Google telah menghentikan akses AIMail ke Gmail anda, jadi e-mel baharu tidak masuk dan balasan tidak boleh dihantar. Akses ujian bertahan 7 hari.",
+    signIn: "Log masuk semula",
+  },
   account: {
     title: "Akaun",
     signedInAs: "Log masuk sebagai {{email}}.",
@@ -488,6 +493,8 @@ export const ms: Translations = {
         "AI tidak dapat menulis draf untuk e-mel ini, dan mencuba lagi tidak akan mengubahnya. Teks anda tidak berubah: tulis balasan sendiri, atau cuba nada yang satu lagi.",
       sendUnknown:
         "Kami tidak dapat mengesahkan sama ada balasan telah dihantar. Semak folder Dihantar Gmail anda sebelum menghantar semula.",
+      accessExpired:
+        "Google telah menamatkan akses AIMail ke Gmail anda, jadi balasan tidak dihantar. Log masuk semula untuk menyambung semula; draf anda tidak berubah.",
       sendNotGranted:
         "AIMail tidak dibenarkan menghantar daripada Gmail anda. Log keluar, log masuk semula dan tandakan kotak yang membenarkan AIMail menghantar e-mel. Draf anda tidak berubah.",
       unresolved:

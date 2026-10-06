@@ -43,6 +43,9 @@ type mailbox struct {
 	lastHistoryID uint64 // atomic: notifications for one mailbox are handled concurrently
 }
 
+// invalidGrant is RFC 6749's error code for a refresh token the server will no longer honour.
+const invalidGrant = "invalid_grant"
+
 // startFailures holds each connection's last start error, so one that keeps failing the same way
 // is logged and audited once rather than every sync.
 var startFailures = struct {
@@ -180,7 +183,27 @@ func syncConnections(ctx context.Context) {
 		if isNewFailure(row.UserID, err) {
 			log.Printf("mailbox for user %s not started, retrying every sync: %v", row.UserID, err)
 			writeAuditLog(ctx, "start_mailbox", fmt.Sprintf("user %s: %v", row.UserID, err), false)
+			noteRefusedGrant(ctx, row.UserID, err)
 		}
+	}
+}
+
+// isRefusedGrant reports whether Google refused the stored refresh token: expired (Testing-mode
+// tokens last 7 days) or revoked. Only signing in again fixes it.
+func isRefusedGrant(err error) bool {
+	var refused *oauth2.RetrieveError
+	return errors.As(err, &refused) && refused.ErrorCode == invalidGrant
+}
+
+// noteRefusedGrant marks the connection so the dashboard asks the user to sign in again
+// (specs/features/per-user-mailboxes.md, "Expired Google access"). Any other error is left alone.
+func noteRefusedGrant(ctx context.Context, userID string, err error) {
+	if userID == "" || !isRefusedGrant(err) {
+		return
+	}
+	filter := "user_id=eq." + url.QueryEscape(userID)
+	if err := supabasePatch(ctx, "mailbox_connection", filter, map[string]interface{}{"needs_reconnect": true}); err != nil {
+		log.Printf("could not mark user %s to reconnect: %v", userID, err)
 	}
 }
 

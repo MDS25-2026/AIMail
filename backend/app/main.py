@@ -64,7 +64,7 @@ from app.dashboard import (
     regenerate_email,
     translate_email,
 )
-from app.gmail_send import SendError, SendOutcomeUnknownError
+from app.gmail_send import AccessExpiredSendError, SendError, SendOutcomeUnknownError
 from app.holding_reply_routes import router as holding_reply_router
 from app.holding_reply_scheduler import holding_replies_loop
 from app.rag.chunk import extract_pdf_bytes
@@ -339,6 +339,8 @@ async def send_email_route(message_id: str, body: SendRequest, request: Request)
     except SendOutcomeUnknownError as exc:
         logger.warning("send outcome unknown for %s: %s", message_id, exc)
         raise HTTPException(status.HTTP_504_GATEWAY_TIMEOUT, "send_outcome_unknown") from exc
+    except AccessExpiredSendError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, "google_access_expired") from exc
     except SendError as exc:
         # The reason stays in the log: it can name local credential paths.
         logger.warning("send failed for %s: %s", message_id, exc)

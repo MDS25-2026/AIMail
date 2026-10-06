@@ -334,6 +334,11 @@ export const en = {
       failed: "Something went wrong. Try again.",
     },
   },
+  reconnect: {
+    banner:
+      "Google has stopped AIMail's access to your Gmail, so new emails aren't arriving and replies can't be sent. Test access lasts 7 days.",
+    signIn: "Sign in again",
+  },
   account: {
     title: "Account",
     signedInAs: "Signed in as {{email}}.",
@@ -475,6 +480,8 @@ export const en = {
         "The AI couldn't write a draft for this email, and trying again won't change that. Your text is unchanged: write the reply yourself, or try the other tone.",
       sendUnknown:
         "We couldn't confirm whether the reply was sent. Check your Gmail Sent folder before sending again.",
+      accessExpired:
+        "Google has ended AIMail's access to your Gmail, so the reply was not sent. Sign in again to reconnect; your draft is unchanged.",
       sendNotGranted:
         "AIMail isn't allowed to send from your Gmail. Sign out, sign in again, and tick the box that lets AIMail send email. Your draft is unchanged.",
       unresolved:

@@ -224,6 +224,8 @@ class MailboxConnection(Base):
     scopes: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
     history_id: Mapped[int | None] = mapped_column(BigInteger)
     watch_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Google refused the stored token (migration 0021); signing in again clears it.
+    needs_reconnect: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

@@ -325,6 +325,11 @@ export const zh: Translations = {
       failed: "出了点问题，请重试。",
     },
   },
+  reconnect: {
+    banner:
+      "Google 已停止 AIMail 对您 Gmail 的访问，因此新邮件不会到达，回复也无法发送。测试访问有效期为 7 天。",
+    signIn: "重新登录",
+  },
   account: {
     title: "账户",
     signedInAs: "当前登录：{{email}}。",
@@ -458,6 +463,8 @@ export const zh: Translations = {
       refused:
         "AI 无法为这封邮件撰写草稿，重试也不会改变结果。您的文字没有改变：请自行撰写回复，或尝试另一种语气。",
       sendUnknown: "无法确认回复是否已发送。请先检查您的 Gmail 已发送邮件，再决定是否重新发送。",
+      accessExpired:
+        "Google 已终止 AIMail 对您 Gmail 的访问，因此回复未发送。请重新登录以重新连接；您的草稿未更改。",
       sendNotGranted:
         "AIMail 无权从您的 Gmail 发送邮件。请退出并重新登录，并勾选允许 AIMail 发送电子邮件的选项。您的草稿未更改。",
       unresolved:

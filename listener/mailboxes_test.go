@@ -4,10 +4,15 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
+
+	"golang.org/x/oauth2"
 )
 
 func withMailboxes(t *testing.T, mbs ...*mailbox) {
@@ -159,5 +164,21 @@ func TestADisconnectedMailboxIsDroppedOnTheNextSync(t *testing.T) {
 	}
 	if lookupMailbox("owner@gmail.com") == nil {
 		t.Fatal("the token.json mailbox was dropped")
+	}
+}
+
+func TestOnlyAnExpiredOrRevokedTokenAsksTheUserToReconnect(t *testing.T) {
+	refused := fmt.Errorf("watch: %w", &url.Error{Op: "Post", URL: "https://oauth2.googleapis.com/token",
+		Err: &oauth2.RetrieveError{ErrorCode: "invalid_grant"}})
+	if !isRefusedGrant(refused) {
+		t.Fatal("a refused refresh token wrapped by the Gmail client must ask the user to reconnect")
+	}
+	for _, err := range []error{
+		errors.New("watch: connection reset"),
+		&oauth2.RetrieveError{ErrorCode: "temporarily_unavailable"},
+	} {
+		if isRefusedGrant(err) {
+			t.Fatalf("%v is not a refused token and must not ask the user to reconnect", err)
+		}
 	}
 }

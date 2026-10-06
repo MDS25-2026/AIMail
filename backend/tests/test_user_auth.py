@@ -19,6 +19,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import ec
 from fastapi.testclient import TestClient
 
+from app import sign_in
 from app.core import supabase_auth
 from app.core.auth import CLIENT_HEADER, SESSION_COOKIE
 from app.core.config import get_settings
@@ -50,6 +51,10 @@ def _token(email: str) -> str:
     return jwt.encode(claims, KEY, algorithm="ES256")
 
 
+async def _never(_user_id):
+    return False
+
+
 @pytest.fixture
 def client(monkeypatch, test_settings):
     for name, value in (("SUPABASE_URL", SUPABASE), ("SUPABASE_ANON_KEY", "anon"),
@@ -58,6 +63,7 @@ def client(monkeypatch, test_settings):
         monkeypatch.setenv(name, value)
     get_settings.cache_clear()
     monkeypatch.setattr(supabase_auth, "_jwks", lambda base: _FakeJwks())
+    monkeypatch.setattr(sign_in.connections, "needs_reconnect", _never)
 
     async def emails(scope, policy_email):
         return [EMAIL]
@@ -123,7 +129,8 @@ def test_the_owner_match_ignores_case(client):
 
 
 def test_the_session_endpoint_says_whether_a_mailbox_is_connected(client):
-    assert _signed_in(client, OWNER).get("/auth/session").json() == {"email": OWNER, "hasMailbox": True}
+    assert _signed_in(client, OWNER).get("/auth/session").json() == {
+        "email": OWNER, "hasMailbox": True, "needsReconnect": False}
     other = _signed_in(client, "x@gmail.com").get("/auth/session").json()
     assert other["hasMailbox"] is False
 

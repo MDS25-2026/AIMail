@@ -56,6 +56,8 @@ MAX_LOGGED_DESCRIPTION = 200
 class SessionInfo(BaseModel):
     email: str
     hasMailbox: bool
+    # Google refused the stored token (specs/features/per-user-mailboxes.md); sign in again.
+    needsReconnect: bool = False
 
 
 def _challenge(verifier: str) -> str:
@@ -149,7 +151,9 @@ async def finish_google_sign_in(
 
 @router.get("/session")
 async def current_session(principal: Annotated[Principal, Depends(current_principal)]) -> SessionInfo:
-    return SessionInfo(email=principal.email, hasMailbox=await scope_of_principal(principal) is not None)
+    needs = principal.user_id is not None and await connections.needs_reconnect(principal.user_id)
+    return SessionInfo(email=principal.email, hasMailbox=await scope_of_principal(principal) is not None,
+                       needsReconnect=needs)
 
 
 @router.post("/session/refresh", dependencies=[Depends(_require_client_header)])
