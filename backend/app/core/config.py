@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     embedding_model: str = EMBEDDING_MODEL
     embedding_dim: int = EMBEDDING_DIM
     gemini_chat_model: str = CHAT_MODEL
-    email_agent_url: str = "http://localhost:8001"  # Lane C /process-email service
+    email_agent_url: str = "http://127.0.0.1:8001"  # Lane C /process-email service
     # Reuse the listener's OAuth creds (gmail.send scope) to send approved replies. Best-practice
     # upgrade: a service account + domain-wide delegation so the backend has its own credentials.
     gmail_credentials_path: str = str(_REPO_ROOT / "listener" / "credentials.json")
