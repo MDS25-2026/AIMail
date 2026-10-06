@@ -1,6 +1,8 @@
 """Expired Google access (specs/features/per-user-mailboxes.md): mark it, say so, never guess."""
 
 import asyncio
+import subprocess
+import sys
 from uuid import UUID
 
 import httpx
@@ -25,7 +27,7 @@ def marked(monkeypatch):
     async def grant(_owner_id):
         return {"client_id": "c", "client_secret": "s", "refresh_token": "r"}
 
-    monkeypatch.setattr(gmail_send.connections, "mark_needs_reconnect", mark)
+    monkeypatch.setattr(gmail_send, "_mark_needs_reconnect", mark)
     monkeypatch.setattr(gmail_send, "_refresh_grant", grant)
     gmail_send._cached_tokens.clear()
     return seen
@@ -58,3 +60,11 @@ def test_a_send_refused_for_expired_access_is_its_own_error(marked, monkeypatch)
     monkeypatch.setattr(gmail_send, "_reply_target", refused)
     with pytest.raises(gmail_send.AccessExpiredSendError):
         asyncio.run(gmail_send.send_reply("gm-1", "a@b.c", "Hi", "body", owner_id=ALICE))
+
+
+@pytest.mark.parametrize("module", ["app.gmail_send", "app.connections", "app.core.mailbox"])
+def test_each_mailbox_module_imports_on_its_own(module):
+    # A cycle (gmail_send -> connections -> mailbox -> gmail_send) only shows when a script
+    # imports one of them first; the app's own import order hid it.
+    result = subprocess.run([sys.executable, "-c", f"import {module}"], capture_output=True, text=True, check=False)
+    assert result.returncode == 0, result.stderr

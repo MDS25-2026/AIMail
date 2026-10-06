@@ -75,14 +75,6 @@ async def store_connection(
         raise ConnectionStoreError(f"database refused the connection: {type(exc).__name__}") from exc
 
 
-async def mark_needs_reconnect(user_id: UUID) -> None:
-    """Google refused this user's token; the dashboard asks them to sign in again."""
-    async with get_sessionmaker()() as session, session.begin():
-        await session.execute(update(MailboxConnection).where(MailboxConnection.user_id == user_id)
-                              .values(needs_reconnect=True))
-    logger.warning("google refused the token of user %s; marked to reconnect", user_id)
-
-
 async def needs_reconnect(user_id: UUID) -> bool:
     async with get_sessionmaker()() as session:
         return bool(await session.scalar(select(MailboxConnection.needs_reconnect)

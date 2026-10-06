@@ -216,3 +216,16 @@ def test_an_example_needs_text_or_a_sent_email_but_not_both(calls):  # noqa: F81
 def test_no_admin_route_reads_a_writing_style():
     paths = [getattr(route, "path", "") for route in admin_app.routes]
     assert not [p for p in paths if "writing" in p or "style" in p]
+
+
+def test_every_drafting_prompt_asks_for_the_emails_own_language(monkeypatch):
+    prompts = []
+
+    async def capture(system_prompt, user_prompt, max_tokens=0):
+        prompts.append(system_prompt)
+        return "ok"
+
+    monkeypatch.setattr(email_agent, "call_llm", capture)
+    asyncio.run(email_agent.generate_reply("STANDARD", "", "", "Salam", "warm"))
+    asyncio.run(email_agent.refine_reply("", "", "Salam", "draft", {}))
+    assert all(email_agent._LANGUAGE_RULE in prompt for prompt in prompts) and len(prompts) == 2

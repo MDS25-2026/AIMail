@@ -18,9 +18,8 @@ from pathlib import Path
 from uuid import UUID
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import select, update
 
-from app import connections
 from app.core import token_crypt
 from app.core.config import get_settings
 from app.db.models import MailboxConnection
@@ -124,6 +123,14 @@ _cached_tokens: dict[UUID | None, tuple[str, float]] = {}
 _EXPIRY_MARGIN_SECONDS = 60
 
 
+async def _mark_needs_reconnect(owner_id: UUID) -> None:
+    """The dashboard then asks the user to sign in again (specs/features/per-user-mailboxes.md)."""
+    async with get_sessionmaker()() as session, session.begin():
+        await session.execute(update(MailboxConnection).where(MailboxConnection.user_id == owner_id)
+                              .values(needs_reconnect=True))
+    logger.warning("google refused the token of user %s; marked to reconnect", owner_id)
+
+
 def _is_refused_grant(response: httpx.Response) -> bool:
     """Testing-mode tokens expire after 7 days, and revoked ones look the same."""
     if response.status_code != httpx.codes.BAD_REQUEST:
@@ -143,7 +150,7 @@ async def _access_token(client: httpx.AsyncClient, owner_id: UUID | None) -> str
         _TOKEN_URL, data={**await _refresh_grant(owner_id), "grant_type": "refresh_token"}
     )
     if owner_id is not None and _is_refused_grant(resp):
-        await connections.mark_needs_reconnect(owner_id)
+        await _mark_needs_reconnect(owner_id)
         raise GoogleAccessExpiredError(f"google refused the token of user {owner_id}")
     resp.raise_for_status()
     payload = resp.json()
