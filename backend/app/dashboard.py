@@ -15,6 +15,7 @@ from uuid import UUID
 
 import httpx
 from sqlalchemy import func, select, update
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import connections
@@ -43,6 +44,7 @@ from app.plain_text import plain_text
 from app.rag.embed import EmbeddingError
 from app.rag.retrieve import retrieve
 from app.rag.utils import format_rag_context
+from app.writing_style import edit_ratio, is_learning, relearn, style_for
 
 logger = logging.getLogger(__name__)
 
@@ -384,6 +386,7 @@ async def _generate(message: Message, tone: str, thread: list[Message], details:
             "rag_context": format_rag_context(chunks),
             "tone": _TONE_PROMPTS.get(tone, _TONE_PROMPTS["professional"]),
             "sign_off": details.owner or "",
+            **await _style_fields(message.user_id),
         }
         try:
             generated = await _call_agent("/process-email", payload)
@@ -612,6 +615,11 @@ async def approve_and_send(message_id: str, draft: str, *, scope: Scope) -> Dash
         raise
     async with get_sessionmaker()() as session:
         stored = await session.get(Message, pk)
+        is_learning_style = await is_learning(session, stored.user_id)
+        if is_learning_style:
+            # Both sides in placeholder form, so the learner never sees a real detail.
+            stored.draft_shown = stored.draft_reply or ""
+            stored.edit_ratio = edit_ratio(stored.draft_shown, reply.stored)
         # The record keeps placeholders, so no detail sits readable outside its vault.
         stored.draft_reply = reply.stored
         stored.sent_message_id = sent.message_id
@@ -620,7 +628,25 @@ async def approve_and_send(message_id: str, draft: str, *, scope: Scope) -> Dash
         await session.commit()
         email = _to_email(stored)
     await audit("approve_and_send", f"message={message_id} restored={reply.restored}")
+    if is_learning_style:
+        await _relearn_after_send(stored.user_id)
     return email
+
+
+async def _relearn_after_send(user_id: UUID) -> None:
+    """The reply is already sent, so a learning failure is logged and never reported as a send error."""
+    try:
+        async with get_sessionmaker()() as session, session.begin():
+            await relearn(session, user_id)
+    except SQLAlchemyError:
+        logger.exception("writing style: relearning failed for user %s", user_id)
+
+
+async def _style_fields(user_id: UUID | None) -> dict:
+    """The user's writing style for a draft request; masked when stored, so it can go as is."""
+    async with get_sessionmaker()() as session:
+        style = await style_for(session, user_id)
+    return {"style_hint": style.hint, "style_examples": style.examples}
 
 
 def _stored_rag_context(message: Message) -> str:
@@ -645,6 +671,7 @@ async def _refine(
         "rag_context": _stored_rag_context(message),
         "action_items": message.action_items or [],
         "sign_off": details.owner or "",
+        **await _style_fields(message.user_id),
     }
     try:
         refined = await _call_agent("/refine", payload)

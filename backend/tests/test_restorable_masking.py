@@ -66,10 +66,14 @@ def mailbox(monkeypatch, test_settings):
     async def no_chunks(*_args, **_kwargs):
         return []
 
+    async def no_style(_user_id):
+        return {}
+
     for name, value in (("_load", load), ("_load_with_thread", load_with_thread), ("_owner_name", owner_name),
                         ("retrieve", no_chunks), ("_mark_read", nothing),
                         ("_call_agent", call_agent), ("_claim_send", claim), ("send_reply", send_reply),
-                        ("audit", nothing), ("_update_unsent", _true)):
+                        ("audit", nothing), ("_update_unsent", _true), ("_style_fields", no_style),
+                        ("is_learning", _false)):
         monkeypatch.setattr(dashboard, name, value)
     monkeypatch.setattr(dashboard.connections, "can_send", can_send)
     return state
@@ -77,6 +81,10 @@ def mailbox(monkeypatch, test_settings):
 
 async def _true(*_args, **_kwargs):
     return True
+
+
+async def _false(*_args, **_kwargs):
+    return False
 
 
 class _Sent:

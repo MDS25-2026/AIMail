@@ -76,6 +76,7 @@ from app.rag.mask import DocumentMaskingError
 from app.rag.retrieve import ContextChunk, retrieve
 from app.sign_in import router as sign_in_router
 from app.vault_retention import expire_vaults_daily
+from app.writing_style_routes import router as writing_style_router
 
 configure_logging()
 
@@ -103,6 +104,7 @@ app.mount(ADMIN_PREFIX, admin_app)
 app.include_router(sign_in_router)
 app.include_router(account_router)
 app.include_router(holding_reply_router)
+app.include_router(writing_style_router)
 
 # Dev CORS so the dashboard can call this API cross-origin. The regex covers any
 # localhost/127.0.0.1 port (they are distinct origins to the browser); FRONTEND_ORIGIN adds

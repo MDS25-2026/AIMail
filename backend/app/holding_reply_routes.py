@@ -9,9 +9,8 @@ from pydantic import BaseModel
 from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
 
-from app.account_routes import AccountError
+from app.account_routes import account_user_id
 from app.audit import audit
-from app.core.auth import principal_of
 from app.db.models import HoldingReply, HoldingReplySettings, Message
 from app.db.session import get_sessionmaker
 from app.holding_reply import InvalidSettingsError, Refusal, SettingsBody, validate
@@ -32,13 +31,6 @@ class HoldingReplyView(BaseModel):
     subject: str
 
 
-def _user_id(request: Request) -> UUID:
-    user_id = principal_of(request).user_id
-    if user_id is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, AccountError.ACCOUNT_ONLY)
-    return user_id
-
-
 def _to_body(row: HoldingReplySettings) -> SettingsBody:
     return SettingsBody(
         enabled=row.enabled, activeWhen=row.active_when, workDays=row.work_days, workStart=row.work_start,
@@ -51,13 +43,13 @@ def _to_body(row: HoldingReplySettings) -> SettingsBody:
 @router.get("/settings/holding-reply")
 async def get_settings_route(request: Request) -> SettingsBody:
     async with get_sessionmaker()() as session:
-        row = await session.get(HoldingReplySettings, _user_id(request))
+        row = await session.get(HoldingReplySettings, account_user_id(request))
     return _to_body(row) if row else SettingsBody()
 
 
 @router.put("/settings/holding-reply")
 async def put_settings_route(body: SettingsBody, request: Request) -> SettingsBody:
-    user_id = _user_id(request)
+    user_id = account_user_id(request)
     try:
         validate(body)
     except InvalidSettingsError as exc:
@@ -85,7 +77,7 @@ async def put_settings_route(body: SettingsBody, request: Request) -> SettingsBo
 @router.get("/holding-replies")
 async def list_route(request: Request, limit: Annotated[int, Query(ge=1, le=MAX_LIST)] = 20) -> list[HoldingReplyView]:
     stmt = (select(HoldingReply, Message.subject).join(Message, Message.id == HoldingReply.message_id)
-            .where(HoldingReply.user_id == _user_id(request))
+            .where(HoldingReply.user_id == account_user_id(request))
             .order_by(HoldingReply.created_at.desc()).limit(limit))
     async with get_sessionmaker()() as session:
         rows = (await session.execute(stmt)).all()
@@ -99,7 +91,7 @@ async def list_route(request: Request, limit: Annotated[int, Query(ge=1, le=MAX_
 @router.delete("/holding-replies/{reply_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def cancel_route(reply_id: UUID, request: Request) -> Response:
     """Cancel one still waiting. 404 for someone else's, 409 once sent or already cancelled."""
-    user_id = _user_id(request)
+    user_id = account_user_id(request)
     async with get_sessionmaker()() as session, session.begin():
         cancelled = await session.scalar(update(HoldingReply).where(
             HoldingReply.id == reply_id, HoldingReply.user_id == user_id, HoldingReply.sent_at.is_(None),

@@ -132,6 +132,9 @@ class Message(Base):
     # Lane C generation, cached so opening an email doesn't regenerate every time.
     ai_summary: Mapped[str | None] = mapped_column(Text)
     draft_reply: Mapped[str | None] = mapped_column(Text)
+    # Only while writing-style learning is on (migration 0020): the draft before the user's edits.
+    draft_shown: Mapped[str | None] = mapped_column(Text)
+    edit_ratio: Mapped[float | None]
     action_items: Mapped[list[str] | None] = mapped_column(JSONB)
     critic_confidence: Mapped[float | None]
     critic_attempts: Mapped[int | None]
@@ -263,3 +266,37 @@ class HoldingReply(Base):
     cancelled_reason: Mapped[str | None] = mapped_column(Text)
     sent_message_id: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class WritingStyle(Base):
+    """One user's writing style (migration 0020, specs/features/writing-profile.md). Masked text only."""
+
+    __tablename__ = "writing_style"
+
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("user_profile.id"), primary_key=True)
+    description: Mapped[str] = mapped_column(Text, default="")
+    learning_enabled: Mapped[bool] = mapped_column(default=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class StyleExample(Base):
+    __tablename__ = "style_example"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("user_profile.id"))
+    text: Mapped[str] = mapped_column(Text)
+    source: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class StyleHabit(Base):
+    __tablename__ = "style_habit"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("user_profile.id"))
+    kind: Mapped[str] = mapped_column(Text)
+    value: Mapped[str] = mapped_column(Text)
+    evidence: Mapped[int] = mapped_column(SmallInteger)
+    out_of: Mapped[int] = mapped_column(SmallInteger)
+    suppressed: Mapped[bool] = mapped_column(default=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
