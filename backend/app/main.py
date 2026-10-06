@@ -67,6 +67,7 @@ from app.dashboard import (
 from app.gmail_send import AccessExpiredSendError, SendError, SendOutcomeUnknownError
 from app.holding_reply_routes import router as holding_reply_router
 from app.holding_reply_scheduler import holding_replies_loop
+from app.private_mode_routes import router as private_mode_router
 from app.rag.chunk import extract_pdf_bytes
 from app.rag.embed import EmbeddingError
 from app.rag.generate import GenerationError, answer
@@ -104,6 +105,7 @@ app.mount(ADMIN_PREFIX, admin_app)
 app.include_router(sign_in_router)
 app.include_router(account_router)
 app.include_router(holding_reply_router)
+app.include_router(private_mode_router)
 app.include_router(writing_style_router)
 
 # Dev CORS so the dashboard can call this API cross-origin. The regex covers any

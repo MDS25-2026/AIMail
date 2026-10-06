@@ -1,6 +1,6 @@
 # Local model: drafting on the user's own GPU, with masking unchanged
 
-- **Status:** baseline run 2026-10-06 (Gemma 4 E2B passes on the critic; human rating pending)
+- **Status:** Private mode built 2026-10-06 (Gemma 4 E2B; blind human rating running)
 - **Owner:** veyroxie (experiment); Lane C (Hanif) for any change to `email_agent.py` / `gemini_client.py`
 - **Related issue:** conversation of 2026-09-30; guide `local-llm-guide.pdf` (kept outside the repo)
 - **Last updated:** 2026-09-30
@@ -49,28 +49,39 @@ Harness and data in `~/llm-lab` (`benchmark.json`, `compare.py`, `summary.py`).
 - **Fine-tune trial:** a QLoRA adapter on a 1B model from masked draft/sent pairs (see
   [`writing-profile.md`](./writing-profile.md), phase 0, for where the pairs come from).
 
-**In scope (only if the baseline passes)**
-- A provider setting for Lane C: `gemini` (default) or `local`, with the Ollama address in `.env`
-  (`LOCAL_LLM_URL`, default `http://localhost:11434`) and in `.env.example`.
-- Drafting through the existing pre-generation poller, so per-draft latency is invisible to the user.
+**In scope: Private mode (built 2026-10-06, after the baseline; the human rating is running)**
+- **Company gate:** `LOCAL_LLM_URL` (default `http://localhost:11434`) and `LOCAL_LLM_MODEL` (e.g.
+  `gemma4:e2b`) in `.env`. With no model set, Private mode is not offered and the backend refuses it.
+- **Per-user choice:** Settings > Private mode, stored as `user_preferences.draft_provider`
+  (`gemini` or `local`, migration 0022).
+- **Every agent model call** for that user's emails goes to the local model: router, summary, action
+  items, draft, critic, refine rounds, the user's own refine, and translation. One switch point:
+  `email_agent.call_gemini`, routed by the request's `provider` field.
+- **No retrieval in Private mode:** retrieval embeds the email with Gemini, so it is skipped and the
+  card says company documents are not searched. Drafts then carry the "not grounded" review reason.
+- Drafting still runs through the pre-generation poller (one email at a time), so the local
+  model's 8 to 30 s per draft is mostly invisible.
 
 **Out of scope**
 - Dropping masking for the local path (see Protected decisions).
+- Local retrieval (a local embedding model, or full-text search, which cannot split Chinese words).
+- `/ask` and document upload, which still use Gemini; the card says so.
 - Serving the model to other machines over the network.
-- Summaries, translation and the critic on the local model: drafting first, the rest only if it works.
 
 ## Acceptance criteria
 
 - [ ] **Experiment gate.** On the same masked emails, the local model's drafts score "send as is"
-      or "small edits" at least as often as Gemini's minus one. Below that, this spec is archived
-      with the results recorded here.
-- [ ] Given `LLM_PROVIDER=local`, when a draft is generated, then no request reaches any Gemini
-      endpoint (asserted by a test that fails on any outbound call to the Gemini base URL).
-- [ ] Given `LLM_PROVIDER=local` and Ollama is not running, then generation fails with the same
-      typed `UNAVAILABLE` code the Gemini client uses, and the draft is retried later; it never
-      falls back to Gemini silently.
-- [ ] Given the local provider, then every draft still passes the existing critic gates (PII,
-      grounding, markers unchanged) before it is shown.
+      or "small edits" at least as often as Gemini's minus one (blind human rating). Below that,
+      Private mode stays labelled "beta" and this section records the result.
+- [x] Baseline (critic as a proxy): see "Baseline result" above.
+- [ ] Given Private mode, when a draft, a refine or a translation is made, then no request reaches
+      the Gemini generation endpoint or the embedding call (asserted by a test that fails on either).
+- [ ] Given Private mode and Ollama is not running, then the request fails with the typed
+      `UNAVAILABLE` code and the draft is retried later; it never falls back to Gemini.
+- [ ] Given Private mode is not configured, then the card does not offer it and
+      `PUT /settings/private-mode` refuses `enabled: true` with `409 private_mode_unavailable`.
+- [ ] Given the local provider, then every draft still passes the fixed-rule gates (Presidio's PII
+      scan, unsupported figures, markers). The critic is the local model, so it is a weaker gate.
 - [ ] The prompt a local draft is generated from contains only masked text, identical to what the
       Gemini path sends.
 

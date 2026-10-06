@@ -187,6 +187,8 @@ class UserPreferences(Base):
     priority_bias: Mapped[int]
     default_sort: Mapped[str] = mapped_column(Text)
     default_tone: Mapped[str] = mapped_column(Text)
+    # Private mode (migration 0022): "gemini" or "local".
+    draft_provider: Mapped[str] = mapped_column(Text, default="gemini")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

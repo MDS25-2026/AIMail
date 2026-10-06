@@ -73,6 +73,7 @@ migrate:  ## create all tables; run BEFORE starting a newer listener (it writes 
 	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0019_holding_reply.sql
 	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0020_writing_style.sql
 	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0021_needs_reconnect.sql
+	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0022_private_mode.sql
 
 seed:  ## load sample policy chunks
 	cd backend && ../$(VENV)/python scripts/seed_demo.py

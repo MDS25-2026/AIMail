@@ -41,6 +41,7 @@ from app.gmail_send import SendError, SendOutcomeUnknownError, send_reply
 from app.normalise.quantities import quantities_in
 from app.personalisation import DEFAULT_POLICY, Policy, apply_policy, load_policy
 from app.plain_text import plain_text
+from app.private_mode import DraftProvider, provider_for
 from app.rag.embed import EmbeddingError
 from app.rag.retrieve import retrieve
 from app.rag.utils import format_rag_context
@@ -379,13 +380,17 @@ async def _generate(message: Message, tone: str, thread: list[Message], details:
     The chunks ride along under "rag_sources" so the caller stores what the draft was grounded on.
     """
     try:
-        chunks = await retrieve(message.body_masked or "", k=5, scope=Scope(owner_id=message.user_id))
+        provider = await provider_for(message.user_id)
+        # Retrieval embeds the email with Gemini, so Private mode drafts without company documents.
+        chunks = ([] if provider == DraftProvider.LOCAL
+                  else await retrieve(message.body_masked or "", k=5, scope=Scope(owner_id=message.user_id)))
         payload = {
             "thread_context": thread_context(message, thread, details),
             "email_body": details.renumber(str(message.id), message.body_masked or ""),
             "rag_context": format_rag_context(chunks),
             "tone": _TONE_PROMPTS.get(tone, _TONE_PROMPTS["professional"]),
             "sign_off": details.owner or "",
+            "provider": provider,
             **await _style_fields(message.user_id),
         }
         try:
@@ -671,6 +676,7 @@ async def _refine(
         "rag_context": _stored_rag_context(message),
         "action_items": message.action_items or [],
         "sign_off": details.owner or "",
+        "provider": await provider_for(message.user_id),
         **await _style_fields(message.user_id),
     }
     try:
@@ -733,7 +739,8 @@ async def translate_email(message_id: str, language: str, *, scope: Scope) -> di
     if len(text) > MAX_TRANSLATE_CHARS:
         raise TranslationError("email_too_long_to_translate", 413)
     try:
-        translated = await _call_agent("/translate", {"text": text, "language": language})
+        translated = await _call_agent("/translate", {"text": text, "language": language,
+                                                      "provider": await provider_for(message.user_id)})
     except httpx.HTTPStatusError as exc:
         await audit("translate_email", f"message={message_id} language={language}", success=False)
         raise TranslationError(_agent_error_code(exc.response), exc.response.status_code) from exc

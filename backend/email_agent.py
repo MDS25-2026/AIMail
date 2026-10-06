@@ -3,6 +3,9 @@ import logging
 import math
 import os
 import re
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from enum import StrEnum
 
 import httpx
@@ -29,6 +32,7 @@ from gemini_client import (
     generate,
     track_calls,
 )
+from local_client import generate_local
 
 load_dotenv()
 
@@ -63,6 +67,13 @@ app.middleware("http")(request_context)
 
 # ---------- Pydantic schemas: request/response contract ----------
 
+class Provider(StrEnum):
+    """Which model answers a request. LOCAL is Private mode (specs/features/local-model.md)."""
+
+    GEMINI = "gemini"
+    LOCAL = "local"
+
+
 class ProcessEmailRequest(BaseModel):
     thread_context: str
     email_body: str
@@ -73,6 +84,7 @@ class ProcessEmailRequest(BaseModel):
     # The user's writing style (specs/features/writing-profile.md), masked before it was stored.
     style_hint: str = ""
     style_examples: list[str] = Field(default_factory=list)
+    provider: Provider = Provider.GEMINI
 
 
 class ProcessEmailResponse(BaseModel):
@@ -100,10 +112,25 @@ class ProcessEmailResponse(BaseModel):
 
 # ---------- LLM helpers (Gemini-backed, see gemini_client.py) ----------
 
+# Set once per request, so every model call in it (router, summary, draft, critic, refine,
+# translation) goes to the same place without threading a parameter through each stage.
+_provider: ContextVar[Provider] = ContextVar("provider", default=Provider.GEMINI)
+
+
+@contextmanager
+def using(provider: Provider) -> Iterator[None]:
+    token = _provider.set(provider)
+    try:
+        yield
+    finally:
+        _provider.reset(token)
+
+
 async def call_gemini(prompt: str, response_schema: dict | None = None,
                       max_output_tokens: int | None = None) -> dict | str:
-    return await generate(prompt, response_schema=response_schema,
-                          max_output_tokens=max_output_tokens)
+    """The one place every model call passes through: Gemini, or the local model in Private mode."""
+    answer = generate_local if _provider.get() == Provider.LOCAL else generate
+    return await answer(prompt, response_schema=response_schema, max_output_tokens=max_output_tokens)
 
 
 async def call_llm(system_prompt: str, user_prompt: str, max_tokens: int = DRAFT_MAX_TOKENS) -> str:
@@ -597,7 +624,7 @@ def _unavailable(error: GeminiError) -> HTTPException:
 async def process_email(req: ProcessEmailRequest) -> ProcessEmailResponse:
     calls: list[dict] = []
     try:
-        with deadline(), track_calls() as calls:
+        with deadline(), track_calls() as calls, using(req.provider):
             response = await _process_email(req)
     except GeminiError as error:
         # The failed draft is the one whose attempts most need explaining; they are not stored,
@@ -690,6 +717,7 @@ UNFAITHFUL_TRANSLATION = "translation_unfaithful"
 class TranslateRequest(BaseModel):
     text: str = Field(max_length=MAX_TRANSLATE_CHARS)
     language: TranslationLanguage
+    provider: Provider = Provider.GEMINI
 
 
 def translation_problems(source: str, translation: str) -> list[str]:
@@ -749,7 +777,7 @@ Rules:
 async def translate(req: TranslateRequest) -> dict:
     """Translate masked text. 422 when the result fails the faithfulness checks."""
     try:
-        with deadline():
+        with deadline(), using(req.provider):
             translated = await translate_text(req.text, req.language)
     except GeminiError as error:
         raise _unavailable(error) from error
@@ -772,6 +800,7 @@ class RefineRequest(BaseModel):
     sign_off: str = ""
     style_hint: str = ""
     style_examples: list[str] = Field(default_factory=list)
+    provider: Provider = Provider.GEMINI
 
 
 class RefineResponse(BaseModel):
@@ -810,7 +839,7 @@ async def refine(req: RefineRequest) -> RefineResponse:
     )
     calls: list[dict] = []
     try:
-        with deadline(), track_calls() as calls:
+        with deadline(), track_calls() as calls, using(req.provider):
             revised = await call_llm(system_prompt, user_prompt, max_tokens=DRAFT_MAX_TOKENS)
             evaluation = await evaluate_reply(req.thread_context, req.rag_context, req.email_body,
                                               revised, req.tone, req.action_items, style)

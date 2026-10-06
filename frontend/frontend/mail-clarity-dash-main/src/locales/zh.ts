@@ -330,6 +330,20 @@ export const zh: Translations = {
       "Google 已停止 AIMail 对您 Gmail 的访问，因此新邮件不会到达，回复也无法发送。测试访问有效期为 7 天。",
     signIn: "重新登录",
   },
+  privateMode: {
+    title: "私密模式",
+    switch: "让我的邮件留在公司内部",
+    intro:
+      "您的邮件由运行在公司自有电脑上的 {{model}} 起草、检查、修改和翻译。收件箱中的任何内容都不会发送给 Google。",
+    on: "私密模式已开启。新草稿留在公司内部。",
+    off: "私密模式已关闭。草稿使用 Google 的 Gemini。",
+    failed: "无法更改私密模式，请稍后重试。",
+    notes: {
+      n1: "私密模式暂不搜索公司文件，因此草稿不会引用您的政策。",
+      n2: "草稿需要稍长时间，且 AI 的自我检查较宽松，发送前请仔细阅读每份草稿。",
+      n3: "“询问 AIMail”和文件上传仍使用 Google。",
+    },
+  },
   account: {
     title: "账户",
     signedInAs: "当前登录：{{email}}。",

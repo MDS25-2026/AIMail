@@ -350,6 +350,20 @@ export const ms: Translations = {
       "Google telah menghentikan akses AIMail ke Gmail anda, jadi e-mel baharu tidak masuk dan balasan tidak boleh dihantar. Akses ujian bertahan 7 hari.",
     signIn: "Log masuk semula",
   },
+  privateMode: {
+    title: "Mod peribadi",
+    switch: "Simpan e-mel saya dalam syarikat",
+    intro:
+      "E-mel anda didraf, disemak, diperhalusi dan diterjemah oleh {{model}} yang berjalan pada komputer syarikat anda sendiri. Tiada apa-apa daripada peti masuk anda dihantar kepada Google.",
+    on: "Mod peribadi dihidupkan. Draf baharu kekal dalam syarikat.",
+    off: "Mod peribadi dimatikan. Draf menggunakan Gemini Google.",
+    failed: "Tidak dapat menukar mod peribadi. Cuba lagi sebentar lagi.",
+    notes: {
+      n1: "Dokumen syarikat belum dicari dalam mod peribadi, jadi draf tidak akan memetik polisi anda.",
+      n2: "Draf mengambil masa lebih sedikit, dan semakan AI sendiri kurang ketat, jadi baca setiap draf sebelum menghantar.",
+      n3: "Tanya AIMail dan muat naik dokumen masih menggunakan Google.",
+    },
+  },
   account: {
     title: "Akaun",
     signedInAs: "Log masuk sebagai {{email}}.",

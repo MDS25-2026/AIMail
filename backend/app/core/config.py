@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     dashboard_url: str = "http://localhost:8090"
     # Masks uploaded documents before storage (app/rag/mask.py); shared with the listener and agent.
     presidio_analyzer_url: str = "http://localhost:5001/analyze"
+    # Private mode (specs/features/local-model.md): the company's local model; "" = not offered.
+    local_llm_model: str = ""
     # Reuse the listener's OAuth creds (gmail.send scope) to send approved replies. Best-practice
     # upgrade: a service account + domain-wide delegation so the backend has its own credentials.
     gmail_credentials_path: str = str(_REPO_ROOT / "listener" / "credentials.json")

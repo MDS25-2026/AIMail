@@ -367,3 +367,18 @@ export async function hideStyleHabit(id: string): Promise<void> {
 export async function deleteWritingStyle(): Promise<void> {
   await styleRequest("", { method: "DELETE" });
 }
+
+/** Private mode (specs/features/local-model.md). Not offered when `available` is false. */
+export type PrivateMode = { available: boolean; enabled: boolean; model: string };
+
+export async function fetchPrivateMode(): Promise<PrivateMode> {
+  const res = await apiFetch("/settings/private-mode");
+  if (!res.ok) throw new Error(`GET /settings/private-mode failed (${res.status})`);
+  return res.json();
+}
+
+export async function savePrivateMode(enabled: boolean): Promise<PrivateMode> {
+  const res = await apiFetch("/settings/private-mode", jsonBody("PUT", { enabled }));
+  if (!res.ok) throw new Error(`PUT /settings/private-mode failed (${res.status})`);
+  return res.json();
+}

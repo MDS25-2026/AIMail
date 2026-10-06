@@ -339,6 +339,20 @@ export const en = {
       "Google has stopped AIMail's access to your Gmail, so new emails aren't arriving and replies can't be sent. Test access lasts 7 days.",
     signIn: "Sign in again",
   },
+  privateMode: {
+    title: "Private mode",
+    switch: "Keep my email inside the company",
+    intro:
+      "Your emails are drafted, checked, refined and translated by {{model}}, running on your company's own computer. Nothing from your inbox is sent to Google.",
+    on: "Private mode is on. New drafts stay in the company.",
+    off: "Private mode is off. Drafts use Google's Gemini.",
+    failed: "Couldn't change Private mode. Try again in a moment.",
+    notes: {
+      n1: "Company documents aren't searched in Private mode yet, so drafts won't quote your policies.",
+      n2: "Drafts take a little longer, and the AI's own check is less strict, so read each draft before you send it.",
+      n3: "Ask AIMail and document uploads still use Google.",
+    },
+  },
   account: {
     title: "Account",
     signedInAs: "Signed in as {{email}}.",
