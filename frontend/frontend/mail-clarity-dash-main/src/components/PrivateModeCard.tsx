@@ -16,7 +16,9 @@ export default function PrivateModeCard() {
     mutationFn: savePrivateMode,
     onSuccess: (saved) => queryClient.setQueryData(PRIVATE_MODE_KEY, saved),
   });
-  if (!mode.data?.available) return null;
+  // Still shown when it is on but no longer offered, so the user can always switch it off.
+  if (!mode.data || !(mode.data.available || mode.data.enabled)) return null;
+  const isStranded = mode.data.enabled && !mode.data.available;
   return (
     <section className="space-y-3 rounded-lg border border-line bg-surface p-4">
       <h2 className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">
@@ -32,7 +34,15 @@ export default function PrivateModeCard() {
         />
         {t("privateMode.switch")}
       </label>
-      <p className="text-sm text-fg-muted">{t("privateMode.intro", { model: mode.data.model })}</p>
+      {isStranded ? (
+        <p role="alert" className="text-sm text-danger">
+          {t("privateMode.notSetUp")}
+        </p>
+      ) : (
+        <p className="text-sm text-fg-muted">
+          {t("privateMode.intro", { model: mode.data.model })}
+        </p>
+      )}
       <ul className="list-disc space-y-1 pl-5 text-xs text-fg-subtle">
         {NOTES.map((note) => (
           <li key={note}>{t(`privateMode.notes.${note}`)}</li>

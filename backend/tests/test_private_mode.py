@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import email_agent
+import gemini_client
 from app import dashboard, private_mode_routes
 from app.core.ownership import EVERYTHING
 from app.private_mode import DraftProvider
@@ -36,6 +37,8 @@ def local_only(monkeypatch):
         return _answer_from(response_schema) if response_schema else "Hi [PERSON_1], noted. [PERSON_9]"
 
     monkeypatch.setattr(email_agent, "generate", gemini)
+    # Also where a request actually leaves, so a stage calling the client directly is caught too.
+    monkeypatch.setattr(gemini_client, "call_model", gemini)
     monkeypatch.setattr(email_agent, "generate_local", local)
     return asked
 
@@ -85,3 +88,20 @@ def test_private_mode_cannot_be_switched_on_where_the_company_has_not_set_it_up(
     monkeypatch.setattr(private_mode_routes, "is_offered", lambda: False)
     response = _signed_in().put("/settings/private-mode", json={"enabled": True}, headers=CLIENT)
     assert response.status_code == 409 and response.json()["detail"] == "private_mode_unavailable"
+
+
+def test_private_mode_can_always_be_switched_off_even_where_it_is_no_longer_set_up(calls, monkeypatch):  # noqa: F811
+    saved = []
+
+    async def save(user_id, provider):
+        saved.append(provider)
+
+    async def still_local(_user_id):
+        return DraftProvider.GEMINI if saved else DraftProvider.LOCAL
+
+    monkeypatch.setattr(private_mode_routes, "is_offered", lambda: False)
+    monkeypatch.setattr(private_mode_routes, "_save_choice", save)
+    monkeypatch.setattr(private_mode_routes, "provider_for", still_local)
+    response = _signed_in().put("/settings/private-mode", json={"enabled": False}, headers=CLIENT)
+    assert response.status_code == 200 and saved == [DraftProvider.GEMINI]
+    assert response.json() == {"available": False, "enabled": False, "model": ""}

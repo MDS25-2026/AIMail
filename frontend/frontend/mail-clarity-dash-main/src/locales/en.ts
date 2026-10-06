@@ -340,6 +340,8 @@ export const en = {
     signIn: "Sign in again",
   },
   privateMode: {
+    notSetUp:
+      "Private mode is on, but this AIMail has no private model set up, so your emails can't be drafted here. Switch it off to draft with Gemini.",
     title: "Private mode",
     switch: "Keep my email inside the company",
     intro:

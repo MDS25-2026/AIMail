@@ -77,9 +77,14 @@ Harness and data in `~/llm-lab` (`benchmark.json`, `compare.py`, `summary.py`).
 - [ ] Given Private mode, when a draft, a refine or a translation is made, then no request reaches
       the Gemini generation endpoint or the embedding call (asserted by a test that fails on either).
 - [ ] Given Private mode and Ollama is not running, then the request fails with the typed
-      `UNAVAILABLE` code and the draft is retried later; it never falls back to Gemini.
-- [ ] Given Private mode is not configured, then the card does not offer it and
+      `UNAVAILABLE` code and the background drafter retries (up to 5 times); it never falls back
+      to Gemini.
+- [ ] Given Private mode is not configured, then the card does not offer switching it on and
       `PUT /settings/private-mode` refuses `enabled: true` with `409 private_mode_unavailable`.
+      A user who already has it on still sees the card, with a warning and the off switch.
+- [ ] Given drafting gave up on some emails (5 failed attempts, e.g. Ollama was down), when the
+      user switches Private mode on or off, then those emails are drafted again. While it stays on,
+      Regenerate retries one email.
 - [ ] Given the local provider, then every draft still passes the fixed-rule gates (Presidio's PII
       scan, unsupported figures, markers). The critic is the local model, so it is a weaker gate.
 - [ ] The prompt a local draft is generated from contains only masked text, identical to what the

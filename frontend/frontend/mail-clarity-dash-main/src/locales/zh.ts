@@ -331,6 +331,8 @@ export const zh: Translations = {
     signIn: "重新登录",
   },
   privateMode: {
+    notSetUp:
+      "私密模式已开启，但此 AIMail 未设置私有模型，因此无法在此起草您的邮件。关闭它即可使用 Gemini 起草。",
     title: "私密模式",
     switch: "让我的邮件留在公司内部",
     intro:

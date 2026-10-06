@@ -351,6 +351,8 @@ export const ms: Translations = {
     signIn: "Log masuk semula",
   },
   privateMode: {
+    notSetUp:
+      "Mod peribadi dihidupkan, tetapi AIMail ini tiada model peribadi, jadi e-mel anda tidak boleh didraf di sini. Matikannya untuk mendraf dengan Gemini.",
     title: "Mod peribadi",
     switch: "Simpan e-mel saya dalam syarikat",
     intro:
