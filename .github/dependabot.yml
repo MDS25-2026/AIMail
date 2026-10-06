@@ -1,0 +1,37 @@
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /backend
+    schedule:
+      interval: monthly
+    groups:
+      backend: # bundle ALL pip updates into one PR instead of one-per-package
+        patterns: ["*"]
+  - package-ecosystem: npm
+    directory: /frontend/frontend/mail-clarity-dash-main
+    schedule:
+      interval: monthly
+    groups:
+      frontend:
+        patterns: ["*"]
+    ignore:
+      # typescript-eslint caps its typescript peer at <6.1.0, and no released version supports
+      # TypeScript 7. Bumping typescript past that breaks `npm install` outright, which has now
+      # happened twice: fixed in #51, reintroduced by #56. Unignore when typescript-eslint
+      # publishes a release whose peer range includes the version being bumped to.
+      - dependency-name: typescript
+        versions: [">=6.1.0"]
+  - package-ecosystem: gomod
+    directory: /listener
+    schedule:
+      interval: monthly
+    groups:
+      listener:
+        patterns: ["*"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]

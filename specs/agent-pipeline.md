@@ -44,7 +44,7 @@ flowchart TD
   - Action items requested by the sender.
   - Intent (what does the sender actually want — confirmation, decision, info, scheduling, etc.).
 - **Model tier:** mid (DeepSeek for reasoning, Claude Sonnet, or GPT-5).
-- **Parallelism:** all three run concurrently. They don't depend on each other. Joining is a fan-in step in the orchestration framework.
+- **Parallelism:** all three run concurrently. They don't depend on each other. Joining is implemented as `asyncio.gather` over the three reasoner coroutines (see [ADR 0002](../docs/adr/0002-orchestration-framework.md)).
 - **Failure mode:** if one reasoner fails, the drafter still gets the others. We don't block on the slowest.
 
 ### Layer 3 — Drafter
@@ -118,17 +118,19 @@ When a new email lands in an existing thread, the pipeline reads the most recent
 
 ---
 
-## Open questions (decide before the first implementation spec)
+## Decisions
 
-- [ ] Where does the rubric live? Hard-coded in `backend/app/agents/rubric.py`, or per-user configurable?
-- [ ] How many recent `conversation` rows go into context? (Token-budget vs. recall.)
-- [ ] Where does PII masking sit relative to the pipeline? Before classifier? Per-layer?  *Default: once at ingress, un-mask once at egress.*
-- [ ] Self-evaluator: same model as drafter (cheap, biased) or different model (expensive, less biased)?
-- [ ] Latency budget: end-to-end target from ingestion to first draft? *Suggest 60s for sprint-1 demo.*
+Sprint-1 answers to the questions that previously sat open. Each is reversible once Loop B feedback or production telemetry shows it should be.
+
+- **Rubric location.** Lives in `backend/app/agents/rubric.py` as plain Python — hard-coded for sprint 1. Per-user configuration is deferred to sprint 3 and tracked separately.
+- **Conversation context window.** The classifier receives the last **10** `conversation` rows for the same `chat`, hard-capped at **30k input tokens**. Older rows are summarised into a single synthetic row by a background job (deferred to sprint 2).
+- **PII masking placement.** Masked **once at ingress** (before the classifier sees the body); un-masked **once at egress** (after the evaluator approves a draft). Every layer in between operates exclusively on masked content. No per-layer masking.
+- **Self-evaluator model.** Same model as the drafter for sprint 1. The bias is acknowledged and acceptable at this stage. Switch to a different evaluator model (e.g., Sonnet evaluating Opus drafts) once Loop B data shows where same-model bias materially hurts pick rates.
+- **End-to-end latency budget.** **60 seconds** from `listener` receive to first draft persisted in the DB. Sprint-1 demo target. Revisit when prompt caching is in place — realistic budget likely drops to 20-30 seconds.
 
 ---
 
 ## Status
 
-**Status:** draft — needs review by team before any implementation begins.
-**Last updated:** 2026-04-29.
+**Status:** accepted — sprint 1 implementation may proceed.
+**Last updated:** 2026-05-07.

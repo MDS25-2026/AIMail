@@ -1,0 +1,5 @@
+# Listener scaffold deps. Python 3.11+.
+fastapi>=0.115
+uvicorn[standard]>=0.30
+httpx>=0.27
+pydantic>=2.10

@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AImail - Policy Retrieval (Lane B)</title>
+    <style>
+      :root { --bg: #f7f8fa; --card: #fff; --ink: #1a1c20; --muted: #6b7280; --accent: #2563eb; --line: #e5e7eb; }
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--ink); }
+      main { max-width: 780px; margin: 0 auto; padding: 40px 20px 80px; }
+      h1 { font-size: 22px; margin: 0 0 4px; }
+      h2 { font-size: 15px; margin: 0 0 10px; }
+      p.sub { color: var(--muted); margin: 0 0 24px; font-size: 14px; }
+      form { display: flex; gap: 8px; margin-bottom: 8px; }
+      input, textarea, button { font: inherit; }
+      input[type="text"], input:not([type]), textarea { padding: 12px 14px; font-size: 15px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); }
+      #q { flex: 1; }
+      button { padding: 12px 20px; font-size: 15px; font-weight: 600; border: 0; border-radius: 8px; background: var(--accent); color: #fff; cursor: pointer; }
+      button:disabled { opacity: .6; cursor: default; }
+      .hint { color: var(--muted); font-size: 13px; margin: 0 0 20px; }
+      .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin-bottom: 12px; }
+      .card .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 12px; }
+      .src { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+      .score { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 13px; color: var(--accent); white-space: nowrap; }
+      .bar { height: 5px; background: var(--line); border-radius: 3px; overflow: hidden; margin-bottom: 10px; }
+      .bar > span { display: block; height: 100%; background: var(--accent); }
+      .content { font-size: 14px; line-height: 1.5; }
+      .status { color: var(--muted); font-size: 14px; padding: 8px 2px; }
+      .trace { font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); margin: 0 0 12px; }
+      .score em { font-family: ui-monospace, monospace; font-weight: 400; font-size: 11px; font-style: normal; color: var(--muted); }
+      section.panel { margin-top: 34px; border-top: 1px solid var(--line); padding-top: 18px; }
+      .doc { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+      .doc:last-child { border-bottom: 0; }
+      .doc .title { font-weight: 600; font-size: 14px; }
+      .doc .from { font-size: 12px; color: var(--muted); }
+      .doc .count { font-size: 12px; color: var(--accent); font-weight: 700; white-space: nowrap; }
+      details.add summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--muted); }
+      .field { margin-top: 12px; }
+      .field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+      details.add input:not([type]), details.add textarea { width: 100%; }
+      details.add textarea { min-height: 110px; resize: vertical; }
+      .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+      hr.or { border: 0; border-top: 1px dashed var(--line); margin: 18px 0; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Policy Retrieval</h1>
+      <p class="sub">Lane B - RAG semantic search. Type a question; the pipeline embeds it and returns the closest company-policy passages by cosine similarity.</p>
+
+      <form id="f">
+        <input id="q" type="text" placeholder="e.g. Can I accept a gift from a supplier?" autocomplete="off" />
+        <button id="btn" type="submit">Search</button>
+      </form>
+      <p class="hint">Each result shows the source document it came from and its match score.</p>
+      <div id="out"></div>
+
+      <section class="panel">
+        <h2>Knowledge base</h2>
+        <div id="kb"><p class="status">Loading...</p></div>
+      </section>
+
+      <details class="panel add">
+        <summary>Add to the knowledge base</summary>
+
+        <div class="field">
+          <label>Upload a PDF</label>
+          <div class="row">
+            <input id="dfile" type="file" accept="application/pdf" />
+            <button id="uploadbtn" type="button">Upload PDF</button>
+          </div>
+        </div>
+
+        <hr class="or" />
+
+        <div class="field">
+          <label>Or paste policy text</label>
+          <input id="dtitle" placeholder="Policy title (e.g. Code of Conduct)" autocomplete="off" />
+          <textarea id="dtext" placeholder="Paste policy text here. It gets chunked, embedded, and persisted - searchable immediately."></textarea>
+          <button id="addbtn" type="button" style="margin-top:10px">Add text</button>
+        </div>
+
+        <p id="addstatus" class="status"></p>
+      </details>
+    </main>
+
+    <script>
+      const out = document.getElementById("out");
+      const btn = document.getElementById("btn");
+      const addStatus = document.getElementById("addstatus");
+      let kbTotal = 0;
+
+      document.getElementById("f").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const query = document.getElementById("q").value.trim();
+        if (!query) return;
+        btn.disabled = true;
+        out.innerHTML = '<p class="status">Retrieving...</p>';
+        try {
+          const res = await fetch("/search", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ query, k: 5 }),
+          });
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          renderResults(await res.json());
+        } catch (err) {
+          out.innerHTML = '<p class="status">Error: ' + err.message + "</p>";
+        } finally {
+          btn.disabled = false;
+        }
+      });
+
+      function renderResults(chunks) {
+        if (!chunks.length) {
+          out.innerHTML = '<p class="status">No matches. Is the knowledge base empty?</p>';
+          return;
+        }
+        const trace =
+          '<p class="trace">embedded query (1536-d) &rarr; cosine search over ' +
+          kbTotal + " chunks &rarr; top " + chunks.length + "</p>";
+        out.innerHTML = trace + chunks
+          .map((c) => {
+            const pct = Math.round(c.similarity_score * 100);
+            return (
+              '<div class="card"><div class="top">' +
+              '<span class="src">' + escapeHtml(c.source_title) + "</span>" +
+              '<span class="score">' + pct + "% match <em>cos " +
+              c.similarity_score.toFixed(3) + "</em></span></div>" +
+              '<div class="bar"><span style="width:' + pct + '%"></span></div>' +
+              '<div class="content">' + escapeHtml(c.content) + "</div></div>"
+            );
+          })
+          .join("");
+      }
+
+      async function loadKB() {
+        const kb = document.getElementById("kb");
+        try {
+          const res = await fetch("/documents");
+          const docs = await res.json();
+          kbTotal = docs.reduce((a, d) => a + d.chunk_count, 0);
+          if (!docs.length) {
+            kb.innerHTML = '<p class="status">Empty. Upload a PDF or paste text below.</p>';
+            return;
+          }
+          kb.innerHTML = docs
+            .map(
+              (d) =>
+                '<div class="doc"><div><div class="title">' +
+                escapeHtml(d.title) +
+                '</div><div class="from">' +
+                escapeHtml(d.source) +
+                '</div></div><div class="count">' +
+                d.chunk_count +
+                " chunks</div></div>"
+            )
+            .join("");
+        } catch (err) {
+          kb.innerHTML = '<p class="status">Could not load knowledge base: ' + err.message + "</p>";
+        }
+      }
+
+      document.getElementById("uploadbtn").addEventListener("click", async () => {
+        const input = document.getElementById("dfile");
+        if (!input.files.length) {
+          addStatus.textContent = "Choose a PDF first.";
+          return;
+        }
+        const body = new FormData();
+        body.append("file", input.files[0]);
+        addStatus.textContent = "Reading PDF, embedding, storing...";
+        try {
+          const res = await fetch("/documents/upload", { method: "POST", body });
+          if (!res.ok) throw new Error((await res.json()).detail || "HTTP " + res.status);
+          const data = await res.json();
+          addStatus.textContent = "Uploaded - " + data.chunks + " chunks. Now searchable.";
+          input.value = "";
+          loadKB();
+        } catch (err) {
+          addStatus.textContent = "Error: " + err.message;
+        }
+      });
+
+      document.getElementById("addbtn").addEventListener("click", async () => {
+        const title = document.getElementById("dtitle").value.trim();
+        const text = document.getElementById("dtext").value.trim();
+        if (!title || !text) {
+          addStatus.textContent = "Title and text are both required.";
+          return;
+        }
+        addStatus.textContent = "Embedding and storing...";
+        try {
+          const res = await fetch("/documents", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title, text }),
+          });
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          const data = await res.json();
+          addStatus.textContent = 'Added "' + title + '" - ' + data.chunks + " chunks. Now searchable.";
+          document.getElementById("dtext").value = "";
+          loadKB();
+        } catch (err) {
+          addStatus.textContent = "Error: " + err.message;
+        }
+      });
+
+      function escapeHtml(s) {
+        const d = document.createElement("div");
+        d.textContent = s;
+        return d.innerHTML;
+      }
+
+      loadKB();
+    </script>
+  </body>
+</html>

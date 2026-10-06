@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Runs the same checks CI runs, before you push — so failures surface locally, not in the PR.
+# Install once with:  make hooks
+# Skip in a pinch with: git push --no-verify
+
+set -e
+echo "pre-push: running 'make check' (ruff + pytest + tsc)..."
+make check
+echo "pre-push: all checks passed."

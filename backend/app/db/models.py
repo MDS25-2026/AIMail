@@ -1,0 +1,163 @@
+"""ORM models for the RAG policy-grounding tables.
+
+The DDL source of truth is app/db/migrations/0001_rag_tables.sql; these models
+mirror it for querying and inserts. See specs/context/db-schema.md.
+"""
+
+from datetime import datetime
+from uuid import UUID, uuid4
+
+from pgvector.sqlalchemy import Vector
+from sqlalchemy import DateTime, ForeignKey, Text, func
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.core.constants import EMBEDDING_DIM
+from app.db.base import Base
+
+
+class Document(Base):
+    __tablename__ = "document"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    source: Mapped[str] = mapped_column(Text, unique=True)
+    title: Mapped[str | None] = mapped_column(Text)
+    doc_type: Mapped[str | None] = mapped_column(Text)
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    chunks: Mapped[list["Chunk"]] = relationship(
+        back_populates="document", cascade="all, delete-orphan"
+    )
+
+
+class Chunk(Base):
+    __tablename__ = "chunk"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    document_id: Mapped[UUID] = mapped_column(ForeignKey("document.id", ondelete="CASCADE"))
+    chunk_idx: Mapped[int]
+    content: Mapped[str] = mapped_column(Text)
+    token_count: Mapped[int | None]
+    # 'metadata' is reserved on DeclarativeBase, so the attribute is 'meta'.
+    meta: Mapped[dict | None] = mapped_column("metadata", JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    document: Mapped["Document"] = relationship(back_populates="chunks")
+    embeddings: Mapped[list["Embedding"]] = relationship(
+        back_populates="chunk", cascade="all, delete-orphan"
+    )
+
+
+class Embedding(Base):
+    __tablename__ = "embedding"
+
+    # Append-only: a re-embed writes a new row, so there is no updated_at.
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    chunk_id: Mapped[UUID] = mapped_column(ForeignKey("chunk.id", ondelete="CASCADE"))
+    embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIM))
+    model_name: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    chunk: Mapped["Chunk"] = relationship(back_populates="embeddings")
+
+
+class AuditLog(Base):
+    """Pipeline action trail. Lane A's Go listener writes ingestion rows (setup_watch,
+    fetch_message, store_message); Lane B writes generation, refinement and send rows so the
+    half of the pipeline after ingestion is auditable too. Columns mirror the listener's
+    AuditLogEntry struct exactly — see 0002_messages.sql."""
+
+    __tablename__ = "audit_log"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    action: Mapped[str | None] = mapped_column(Text)
+    detail: Mapped[str | None] = mapped_column(Text)
+    success: Mapped[bool | None]
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Message(Base):
+    """Ingested email. Lane A writes the top block via PostgREST; Lane B writes the priority block."""
+
+    __tablename__ = "messages"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    gmail_message_id: Mapped[str | None] = mapped_column(Text)
+    from_addr: Mapped[str | None] = mapped_column(Text)
+    subject: Mapped[str | None] = mapped_column(Text)
+    body_masked: Mapped[str | None] = mapped_column(Text)
+    snippet_masked: Mapped[str | None] = mapped_column(Text)
+    emails_masked: Mapped[int | None]
+    phones_masked: Mapped[int | None]
+    received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    importance: Mapped[int | None]
+    importance_confidence: Mapped[float | None]
+    deadline_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    importance_model_version: Mapped[str | None] = mapped_column(Text)
+    # Lane C generation, cached so opening an email doesn't regenerate every time.
+    ai_summary: Mapped[str | None] = mapped_column(Text)
+    draft_reply: Mapped[str | None] = mapped_column(Text)
+    action_items: Mapped[list[str] | None] = mapped_column(JSONB)
+    critic_confidence: Mapped[float | None]
+    critic_attempts: Mapped[int | None]
+    critic_checks: Mapped[dict | None] = mapped_column(JSONB)
+    needs_human_review: Mapped[bool | None]
+    generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class UserProfile(Base):
+    """The mailbox owner. Keyed by email because that is the identifier every lane already shares."""
+
+    __tablename__ = "user_profile"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    email: Mapped[str] = mapped_column(Text, unique=True)
+    display_name: Mapped[str | None] = mapped_column(Text)
+    role: Mapped[str | None] = mapped_column(Text)
+    responsibilities: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class UserPreferences(Base):
+    """Defaults reproduce today's behaviour, so an unconfigured user sees no change."""
+
+    __tablename__ = "user_preferences"
+
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("user_profile.id"), primary_key=True)
+    priority_bias: Mapped[int]
+    default_sort: Mapped[str] = mapped_column(Text)
+    default_tone: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class SenderRule(Base):
+    """Exact-sender override. A lookup — never prompt input."""
+
+    __tablename__ = "sender_rule"
+
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("user_profile.id"), primary_key=True)
+    from_addr: Mapped[str] = mapped_column(Text, primary_key=True)
+    priority: Mapped[int]
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class KeywordRule(Base):
+    """Topic override, same shape as SenderRule."""
+
+    __tablename__ = "keyword_rule"
+
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("user_profile.id"), primary_key=True)
+    keyword: Mapped[str] = mapped_column(Text, primary_key=True)
+    priority: Mapped[int]
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

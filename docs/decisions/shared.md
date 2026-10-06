@@ -1,0 +1,124 @@
+# Shared — cross-lane decisions
+
+Schema, CI, seams, the thin slice, and anything touching more than one lane. Everyone logs
+here when their change crosses a lane boundary. Schema and public contracts are "ask first"
+(both CLAUDE.md files) — log the decision here *and* update `specs/context/` in the same PR.
+
+## Log
+
+### 2026-09-11 — The review gate reads the critic's four checks, not its self-reported score
+- Decision: `needs_human_review` is now a conjunction over the checks the critic already computes
+  (grounding, PII, completeness) plus a deterministic PII scan of the generated draft and an
+  `attempts > 0` term, instead of one comparison against a self-reported scalar. Tone is advisory
+  and never blocks. Refine and review thresholds are split (0.8 / 0.9). Confidence is clamped to
+  [0,1]. Quoted history is stripped inside `extract_actions()` only.
+- Why: measured over 43 drafts, the gate had never fired. The repair loop ran on the same constant
+  as the flag, so it resolved anything that would have tripped it, and the four real checks were
+  computed and discarded — they appeared nowhere in the code outside the prompt and schema.
+  Verified after the change: a draft echoing an email address and phone number, scoring exactly
+  0.8, now flags on two independent grounds; under the old comparison it passed.
+- Why not just move the threshold: the scalar has no definition and is documented to saturate at
+  the ceiling (Xiong et al., ICLR 2024, arXiv 2306.13063 — our values were 0.85/0.9/0.95/1.0,
+  their "80-100% in multiples of 5"). Recalibrating leaves the gate reading a number nobody can
+  defend in a viva.
+- Why the PII scan is deterministic: the draft is generated from masked text, so any format-clear
+  PII in it was invented or leaked. Presidio with ad-hoc MY_NRIC and MY_PHONE recognizers, verified
+  live against the running analyzer; an unreachable scanner yields `pii_clean: None`, not True.
+- Cross-lane: this edits `backend/email_agent.py`, which is Lane C's. Done at the Lane B owner's
+  direction without waiting for Hanif; design rationale in
+  [`../../specs/features/critic-evaluation-gates.md`](../../specs/features/critic-evaluation-gates.md).
+  **Hanif should review and is free to redo any of it** — the seam (`/process-email` response) only
+  gained fields, so nothing downstream breaks.
+- Affects: `backend/email_agent.py`, `app/dashboard.py`, `app/db/models.py`, migration 0010,
+  `Makefile` (lint now covers `email_agent.py`, which neither it nor CI checked before).
+  `.github/workflows/ci.yml` still runs `ruff check app tests scripts` and should be brought into
+  line — a workflow edit, so left for a separate ask.
+- Status: proposed — needs Hanif's review as owner of the file.
+
+### 2026-09-09 — Thread identity is captured at ingestion, not fetched at send
+- Decision: `messages` gains `thread_id`, `rfc822_message_id`, `thread_refs` (Lane A, from the
+  message the listener already fetches) and `sent_message_id` (backend, for its own replies).
+  Migration 0009 — independent of 0006, 0007 and 0008, so no ordering constraint between them.
+  (0008 went to `critic_attempts`, which needs no co-sign and could land immediately; these
+  columns wait on Lane A.)
+- Why: approved replies send as standalone mail because nothing stores what threading needs. Four
+  planned items need that identity in the database, not just at send time — sent-mail indexing
+  (backlog 2), the thread view (backlog 4), the Chrome extension (Gmail's URL fragment names the
+  *thread*, not the message), and the history-ID ingestion fix.
+- Why not fetch at send time: cheaper this week — no migration, no cross-lane change — but it
+  serves one caller, makes the other three pay their own round trip, and fails if the original is
+  deleted. Kept as the fallback if the schedule forces it; the header-construction code is the same
+  either way, so it is not throwaway work.
+- Naming and shape: `thread_refs` because `references` is a reserved SQL keyword; it holds the whole
+  chain, not just the parent's ID, so ancestry survives past depth one (RFC 5322 §3.6.4). Column
+  semantics are documented in `specs/context/db-schema.md`.
+- Open: confirm Gmail preserves a client-supplied `Message-ID` on `messages.send` before relying on
+  `sent_message_id`. Store only these four fields, not the full header block.
+- Affects: Lane A (`listener/main.go`, `StoredMessage`), Lane B (`app/gmail_send.py`, `dashboard.py`),
+  `specs/context/db-schema.md` (this PR), migration 0009.
+- Status: proposed — needs JiaJun's co-sign as owner of the `messages` table and the listener.
+
+### 2026-08-31 — Seam 1 resolved: canonical column is `messages.body_masked`
+- Decision: the masked-email column is `messages.body_masked`; `masked_body` is retired.
+  Closes finding 1 of the 2026-08-06 integration-sync entry.
+- Why: the code is already unified — the Go struct, migration `0002_messages.sql`, ORM model
+  `app/db/models.py`, and every consumer use `body_masked`; `grep -rn masked_body backend
+  --include='*.py'` returns nothing. Only docs still carried the old name (audit item 8).
+- Why not rename to `masked_body`: Lane A owns the `messages` table and its writer already
+  ships `body_masked`; renaming a live column costs a migration plus every consumer, for nothing.
+- Affects: Lanes A + B; `specs/context/db-schema.md` (already declared canonical),
+  `specs/architecture.md` (Seam-1 row + reconciliation TODO cleared),
+  `docs/decisions/lane-a-spine.md` (seam name corrected). Older dated entries naming
+  `masked_body` stay verbatim as history.
+- Status: accepted — JiaJun co-sign pending as table owner.
+
+### 2026-07-07 — Schema authority order for reconciliation
+- Decision: when the pasted research, the repo design specs, and the proposal report
+  disagree, resolve as: **proposal R-IDs = fixed contract > repo design specs (in flux) >
+  research (one input)**.
+- Why: the proposal is the graded, submitted team contract; the repo specs are a scaffold
+  that has already drifted (see below); the research is one member's external exploration.
+- Affects: `specs/context/db-schema.md`, all lane schemas.
+- Status: proposed
+- Reference: full reconciled schema drafted in scratchpad (not yet committed to db-schema.md).
+
+### 2026-07-07 — Repo drift found while reading specs (needs team decision)
+- Decision: none yet — flagging two stale/contradictory spots.
+  1. `specs/architecture.md` describes `Gmail -> n8n -> listener`; proposal moved to
+     **Go webhook + Pub/Sub** (Table 3 marks n8n "prototyping only"; `main.go` is a draft
+     webhook). Architecture.md needs updating to match, or the migration finished.
+  2. ADR 0001 "no chrome extension" contradicts **R04.5** (chrome extension required).
+- Why logged: both were written into the repo before the proposal's final architecture; a
+  new session would trust the stale version.
+- Affects: architecture.md, ADR 0001, Lane A + Lane D.
+- Status: proposed — raise at next sprint planning.
+
+### 2026-08-06 — Integration sync: divergences found across lane branches
+- Context: first sync; `main` still on scaffold, all four lanes on their own branches (none merged).
+- Found:
+  1. **Seam 1 field mismatch (blocking):** Lane A (JiaJun) persists `body_masked`; Lane B expects
+     `masked_body`. Align on one name — recommend `body_masked` (Lane A owns the email table).
+  2. **Two frontends:** Han's Vite dashboard vs the Next.js scaffold. Keep Han's; retire the scaffold.
+  3. **Two listeners:** JiaJun's Go listener vs the Python stub. Keep Go; retire the stub.
+  4. **DB access split:** Lane A writes via Supabase PostgREST (`SUPABASE_SERVICE_KEY`); Lane B reads
+     via asyncpg (`DATABASE_URL`). Same project required; column names must match in `db-schema.md`.
+  5. **One shared Supabase project** — all lanes must point at the same project or writes/reads never meet.
+- Status: proposed — resolve at the sync meeting. Reflected in `specs/architecture.md`.
+
+### 2026-07-30 — Lane B demo endpoints recorded in api-contracts (provisional)
+- Decision: documented `/search`, `/ask`, `GET|POST /documents`, `/documents/upload` in
+  `specs/context/api-contracts.md` as a **provisional** Lane B demo surface, not the finalised contract.
+- Why: they exist in `backend/app/main.py` (the retrieval demo) and were undocumented — real drift.
+  Recording them lets Lane C/D see the shapes; final shapes/auth/error-envelope get pinned with Lane D.
+- Why not treat as final: they skip the `{error:{...}}` envelope and have no auth; that alignment is a
+  follow-up when the contract is agreed.
+- Affects: `specs/context/api-contracts.md`, Lane B, Lane D.
+- Status: proposed
+
+### 2026-07-07 — Decision-log convention created
+- Decision: per-lane append-only logs under `docs/decisions/`, lighter tier below ADRs.
+- Why: a lane's rationale trail survives reassignment (build-split reopened ownership);
+  one owner per lane makes it effectively per-person without breaking on a swap.
+- Why not per-person files: they break the moment a lane is reassigned.
+- Affects: repo docs convention.
+- Status: accepted

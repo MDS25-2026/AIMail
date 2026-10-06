@@ -1,0 +1,37 @@
+{
+  "k": 5,
+  "queries": [
+    {
+      "query": "Can I accept an expensive present from someone we do business with?",
+      "relevant": ["gift"]
+    },
+    {
+      "query": "Am I allowed to share internal company information with outsiders?",
+      "relevant": ["confidential", "secrecy"]
+    },
+    {
+      "query": "What if my personal situation clashes with the company's interests?",
+      "relevant": ["conflict of interest"]
+    },
+    {
+      "query": "What are the rules on bribery and dishonest practices?",
+      "relevant": ["corruption", "irregular"]
+    },
+    {
+      "query": "Can I use my role to benefit my relatives?",
+      "relevant": ["families", "relatives", "related persons", "spouses"]
+    },
+    {
+      "query": "Are there limits on business hospitality and entertainment?",
+      "relevant": ["entertainment"]
+    },
+    {
+      "query": "How are we expected to treat our customers?",
+      "relevant": ["customers"]
+    },
+    {
+      "query": "What ethical duties apply to company directors?",
+      "relevant": ["directors"]
+    }
+  ]
+}

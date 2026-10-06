@@ -1,0 +1,4 @@
+# Every change to main requires the lead's review (see docs/git-workflow.md).
+# The lead is a repo admin and can self-merge via admin bypass; everyone else
+# needs this code-owner approval before merging.
+* @veyroxie

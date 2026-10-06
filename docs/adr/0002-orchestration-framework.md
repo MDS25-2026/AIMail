@@ -1,31 +1,41 @@
 # ADR 0002 — Orchestration framework choice (LangChain vs. direct SDK)
 
-- **Status:** Proposed — **decision pending team meeting**
+- **Status:** Accepted
 - **Date opened:** 2026-04-29
-- **Deciders:** MDS25 team (decision deferred)
+- **Date accepted:** 2026-05-07
+- **Deciders:** MDS25 team
 - **Supersedes:** —
 
 ## Context
 
 In the 2026-04-27 supervisor meeting, Alim referenced "long chain" (LangChain) as a way to chain LLM calls together for the multi-layer pipeline described in [`../../specs/agent-pipeline.md`](../../specs/agent-pipeline.md).
 
-The team needs to decide whether to:
+The team needed to decide whether to:
 
 1. Use **LangChain / LangGraph** (Python framework for chaining LLM calls), or
 2. Use **direct Anthropic SDK calls** with hand-rolled async orchestration (`asyncio.gather` for fan-out, plain Python for sequencing).
 
-This ADR documents both sides so the team can decide at the next meeting. **No decision has been made.**
+## Decision
 
-## Options
+**AImail uses direct Anthropic SDK calls with `asyncio`-based orchestration.** LangChain and LangGraph are not adopted.
 
-### Option A — LangChain / LangGraph
+## Rationale
+
+- **Pipeline shape maps 1:1 to Anthropic's published patterns.** The classifier → reasoners → drafter + evaluator pipeline is *Routing + Parallelization + Evaluator-optimizer* from Anthropic's "Building Effective Agents" guide. Reference implementations of all three exist as short direct-SDK examples. A framework would translate that code into framework concepts without adding capability.
+- **Performance evidence rejects the alternative.** The supervisor flagged LangChain as too slow in prior work. A team member's internship using LangGraph on a comparable pipeline confirmed similar latency overhead. With a 60-second end-to-end sprint-1 budget (see [`../../specs/agent-pipeline.md`](../../specs/agent-pipeline.md)), framework overhead is unacceptable.
+- **Examiner-readability matters.** FYP scoring rewards code an examiner can follow. `asyncio.gather(summary(), actions(), intent())` is parseable in seconds. A LangGraph state graph requires the reader to learn LangGraph first.
+- **Reversibility is cheap.** If a future sprint genuinely needs DAG checkpointing or human-pause-mid-pipeline, porting only the orchestrator to LangGraph is a one-day job because each layer is a pure function. Those features are not needed today.
+- **Smallest dependency surface.** One SDK plus stdlib `asyncio`. No framework version churn, no abstraction layers to debug through.
+
+## Alternatives considered
+
+### LangChain / LangGraph
 
 **Pros**
 
 - Built-in primitives for multi-step pipelines, memory, tool use, RAG.
-- Large ecosystem of tutorials, examples, integrations.
-- LangGraph specifically models DAG-style flows — fits our classifier → reasoner → drafter shape well.
-- Familiar pattern if anyone on the team already knows it.
+- Large ecosystem of tutorials and integrations.
+- LangGraph specifically models DAG-style flows.
 
 **Cons**
 
@@ -33,53 +43,25 @@ This ADR documents both sides so the team can decide at the next meeting. **No d
 - Debugging across abstraction layers is painful when things break.
 - Industry sentiment has shifted: many teams have removed LangChain after hitting leaky abstractions.
 - Anthropic's own docs recommend direct SDK usage with simple patterns for most cases.
-- Adds a non-trivial dependency surface for a 12-week project.
+- Concrete latency concerns from team members' prior experience (see Rationale).
+- Non-trivial dependency surface for a 12-week project.
 
-### Option B — Direct Anthropic SDK + hand-rolled orchestration
-
-**Pros**
-
-- Smallest dependency surface. One SDK, plus `asyncio` / `httpx` from stdlib.
-- Total control over retries, timeouts, error handling, logging.
-- Easier to reason about for new contributors — no framework concepts to learn.
-- Aligns with Anthropic's recommended pattern.
-- Code maps 1:1 to the agent-pipeline spec — no abstraction layer to translate through.
-
-**Cons**
-
-- We re-implement primitives LangChain provides for free (memory abstraction, prompt templates, retry decorators).
-- Boilerplate grows as the pipeline grows; ~200 lines for the orchestration layer is plausible.
-- No built-in tracing/eval tooling — would have to roll our own observability.
-
-## Recommendation (for the meeting to evaluate)
-
-**Provisional lean: Option B (direct SDK)**, because:
-
-- The pipeline shape ([`../../specs/agent-pipeline.md`](../../specs/agent-pipeline.md)) is small enough that LangChain's abstractions don't pay for themselves.
-- FYP scope rewards transparency — the examiner can read the orchestration code and follow it. LangChain hides flow inside framework calls.
-- If we hit a primitive we genuinely need (e.g., RAG retrieval), we can pull in a single targeted dependency (e.g., `chromadb` or pgvector queries directly) without committing to the whole framework.
-
-This lean is **not binding**. The team should weigh it against:
-
-- Whether anyone on the team already has LangChain experience.
-- Whether the supervisor specifically wants LangChain visible in the deliverable.
-- Whether we'd use enough of LangChain's primitives to justify the dependency.
-
-## Decision required by
-
-Before the first agent-pipeline implementation PR. Sprint 2 latest. Pin the choice here, then update [`../../specs/context/tech-stack.md`](../../specs/context/tech-stack.md) to reflect it.
+The pros do not outweigh the latency cost or the readability cost for this project's shape.
 
 ## Consequences
 
-Both options have downstream effects on the project layout:
+- `backend/app/agents/` is plain Python modules — `classifier.py`, `reasoners.py`, `drafter.py`, `evaluator.py`, plus an `orchestrator.py` that wires them with `asyncio`.
+- `pyproject.toml` does **not** add `langchain` or `langgraph` deps.
+- We re-implement primitives LangChain provides for free (memory abstraction, prompt templates, retry decorators). Each is small, written when first needed, no earlier.
+- No built-in tracing/eval tooling — replaced by a structured-logging decorator on each layer.
+- Boilerplate grows linearly with the pipeline; ~200 lines for the orchestration layer is plausible. This is accepted.
 
-- **If A:** `backend/app/agents/` becomes LangChain chains/graphs. Tech stack adds `langchain`, `langgraph` as deps. Docs link to LangChain conventions.
-- **If B:** `backend/app/agents/` is plain Python modules — `classifier.py`, `reasoners.py`, `drafter.py`, `evaluator.py`, plus an `orchestrator.py` that wires them with `asyncio`.
+## Revisit conditions
 
-Either choice can be reversed later, but the cost grows fast. Aim to lock in by sprint 2.
+Reopen this decision if any of these become true:
 
-## Open question for the meeting
+- The pipeline grows to need stateful pause/resume across hours or days (e.g., human-in-the-loop at multiple checkpoints) and DB rows are no longer enough to model it.
+- A specific Anthropic SDK capability lands behind LangGraph integration only.
+- A second-product use case appears that needs RAG over many sources, where LangChain's retrieval primitives would save meaningful work.
 
-> Does anyone on the team have a strong preference, prior experience, or concrete blocker that should drive this decision?
-
-Bring concrete examples (good or bad) of LangChain in past projects if anyone has them.
+Until then: **the answer is direct SDK.**
