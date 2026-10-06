@@ -1,7 +1,7 @@
 import { placeholderPattern } from "./details";
 
 // Mirrors backend/app/core/redaction.py REDACTION_MARKER: markers no vault can fill back in.
-const REDACTION_MARKER = /\[(?:[A-Z_]+_REDACTED|Redacted|REDACTED)\]/g;
+const REDACTION_MARKER = /\[(?:[A-Z_]+_REDACTED|Redacted|REDACTED)\]|\((?:hidden|name)\)/g;
 // Any short bracketed text; the model sometimes writes "[Your Name]" or "[Company]" itself.
 const BRACKETED = /\[[^[\]\n]{1,40}\]/g;
 

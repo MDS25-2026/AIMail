@@ -1,11 +1,16 @@
 """Writing style (specs/features/writing-profile.md): masked before storage, learned in the open."""
 
+import asyncio
+
 import pytest
 from fastapi.testclient import TestClient
 
 import email_agent
-from app import writing_style, writing_style_routes
+from app import dashboard, writing_style, writing_style_routes
 from app.admin.app import admin_app
+from app.core.ownership import EVERYTHING
+from app.core.redaction import has_redaction_marker
+from app.db.models import StyleHabit
 from app.main import app
 from app.rag.mask import DocumentMaskingError
 from app.writing_style import (
@@ -24,6 +29,7 @@ from app.writing_style import (
 )
 from tests.conftest import AUTH_HEADERS
 from tests.test_account import _signed_in, calls  # noqa: F401  (fixture)
+from tests.test_restorable_masking import _Session, mailbox  # noqa: F401  (fixture)
 
 CLIENT = {"X-AIMail-Client": "1"}
 
@@ -44,7 +50,6 @@ def test_a_pasted_example_is_masked_then_neutralised(monkeypatch):
         return text.replace("Aisyah", "[Redacted]")
 
     monkeypatch.setattr(writing_style, "mask_document", presidio)
-    import asyncio
     masked = asyncio.run(writing_style.mask_for_style("Hi Aisyah, re [PERSON_3]'s claim. Thanks!"))
     assert masked == f"Hi {HIDDEN}, re {HIDDEN}'s claim. Thanks!"
 
@@ -135,6 +140,49 @@ def test_draft_and_refine_requests_accept_the_style_and_default_to_none():
     assert email_agent.ProcessEmailRequest(thread_context="", email_body="", rag_context="").style_examples == []
     refine = email_agent.RefineRequest(email_body="", draft="", instruction="", style_hint="Brief.")
     assert refine.style_hint == "Brief."
+
+
+@pytest.mark.parametrize("draft", ["Hi (name), thanks", "Call me on (hidden)."])
+def test_a_style_mark_copied_into_a_draft_can_never_be_sent(draft):
+    assert has_redaction_marker(draft)
+
+
+def test_the_greeting_hint_never_quotes_the_name_mark():
+    habit = StyleHabit(kind=HabitKind.GREETING, value="Hi (name),", evidence=4, out_of=5)
+    assert writing_style._habit_line(habit) == 'Opens with "Hi" and the recipient\'s name.'
+
+
+# ---------- what a send records ----------
+
+def _send(mailbox, monkeypatch, is_learning: bool) -> list:  # noqa: F811
+    message, relearned = mailbox["message"], []
+
+    async def learning(*_args):
+        return is_learning
+
+    async def relearn(user_id):
+        relearned.append(user_id)
+
+    monkeypatch.setattr(dashboard, "get_sessionmaker", lambda: lambda: _Session(message))
+    monkeypatch.setattr(dashboard, "is_learning", learning)
+    monkeypatch.setattr(dashboard, "_relearn_after_send", relearn)
+    asyncio.run(dashboard.approve_and_send(str(message.id), "Hi [PERSON_1], noted with thanks.",
+                                           scope=EVERYTHING))
+    return relearned
+
+
+def test_with_learning_off_a_send_records_no_pair(mailbox, monkeypatch):  # noqa: F811
+    assert _send(mailbox, monkeypatch, is_learning=False) == []
+    assert mailbox["message"].draft_shown is None and mailbox["message"].edit_ratio is None
+
+
+def test_with_learning_on_a_send_records_the_draft_shown_and_how_much_it_changed(mailbox, monkeypatch):  # noqa: F811
+    message = mailbox["message"]
+    assert _send(mailbox, monkeypatch, is_learning=True) == [message.user_id]
+    assert message.draft_shown == "Hi [PERSON_1], noted."
+    assert message.draft_reply == "Hi [PERSON_1], noted with thanks."
+    # "noted." became "noted" and two words were added: 3 edits over the 5 words sent.
+    assert message.edit_ratio == pytest.approx(3 / 5)
 
 
 # ---------- routes ----------

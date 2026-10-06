@@ -74,7 +74,8 @@ export default function WritingStyleCard() {
       ) : null}
       {style.data ? (
         <>
-          <Description saved={style.data.description} />
+          {/* Keyed by the stored text, so deleting everything empties the box too. */}
+          <Description key={style.data.description} saved={style.data.description} />
           <Examples style={style.data} />
           <Learning style={style.data} />
           <DeleteEverything />

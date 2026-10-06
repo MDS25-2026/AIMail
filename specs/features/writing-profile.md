@@ -110,6 +110,9 @@ The agent's `/process-email` and `/refine` gain `style_hint` (string) and `style
 
 ## Security & privacy notes
 
+- **`(hidden)` and `(name)` can never be sent:** they count as redaction marks
+  (`app/core/redaction.py`), so a draft that copied one is flagged by the critic's PII scan, warned
+  about in the dashboard, and refused at send. The greeting habit is phrased without the mark.
 - **Only masked text is stored** for descriptions and examples. Learned habits come from placeholder
   text and pass the screen above, so a name can only reach a habit by slipping past both.
 - **Employer visibility:** the style is the employee's data about how they write. The admin console

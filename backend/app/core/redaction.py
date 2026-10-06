@@ -8,7 +8,8 @@ filled in at send time (specs/features/restorable-masking.md).
 
 import re
 
-REDACTION_MARKER = re.compile(r"\[(?:[A-Z_]+_REDACTED|Redacted|REDACTED)\]")
+# The parenthesised two are the writing style's (app/writing_style.py): copied from an example.
+REDACTION_MARKER = re.compile(r"\[(?:[A-Z_]+_REDACTED|Redacted|REDACTED)\]|\((?:hidden|name)\)")
 
 DETAIL_KINDS = ("PERSON", "EMAIL", "PHONE", "IC", "PASSPORT", "ACCOUNT", "CARD", "LOCATION", "ORG")
 PLACEHOLDER = re.compile(r"\[(" + "|".join(DETAIL_KINDS) + r")_(\d+)\]")

@@ -239,6 +239,9 @@ async def relearn(session: AsyncSession, user_id: UUID) -> None:
 
 def _habit_line(habit: StyleHabit) -> str:
     match habit.kind:
+        case HabitKind.GREETING if NAME in habit.value:
+            # Never quoted with the mark itself: a model copies a quoted "(name)" into the draft.
+            return f'Opens with "{habit.value.partition(NAME)[0].strip()}" and the recipient\'s name.'
         case HabitKind.GREETING:
             return f'Opens with "{habit.value}".'
         case HabitKind.SIGNOFF:
