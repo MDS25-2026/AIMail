@@ -1,6 +1,6 @@
 # Local model: drafting on the user's own GPU, with masking unchanged
 
-- **Status:** idea (the baseline experiment decides whether it becomes a draft)
+- **Status:** baseline run 2026-10-06 (Gemma 4 E2B passes on the critic; human rating pending)
 - **Owner:** veyroxie (experiment); Lane C (Hanif) for any change to `email_agent.py` / `gemini_client.py`
 - **Related issue:** conversation of 2026-09-30; guide `local-llm-guide.pdf` (kept outside the repo)
 - **Last updated:** 2026-09-30
@@ -18,6 +18,28 @@ text, masked or not, reaches a model provider, while every other privacy guarant
   tokens/s, so about 10 s for a 150-word reply.
 - Quality: small errors already visible in simple prompts (wrong pinyin, one line when two were
   asked for). A 3B model is not expected to match Gemini, especially in Malay and Chinese.
+
+## Baseline result (2026-10-06)
+
+Nine made-up emails (3 English, 3 Malay, 3 Chinese, in placeholder form, four with a policy
+snippet), the production drafting prompt for every model, Gemini's critic scoring every draft.
+Harness and data in `~/llm-lab` (`benchmark.json`, `compare.py`, `summary.py`).
+
+| Model | Median time | Right language | Placeholders kept | Critic: tone | Critic: complete | Critic confidence (median) |
+|---|---|---|---|---|---|---|
+| Gemini 2.5 Flash | 1.3 s | 9/9 | 8/9 | 9/9 | 9/9 | 0.95 |
+| **Gemma 4 E2B** | 6.2 s | 6/9, **9/9 with a language rule** | 9/9 | 8/9 | 8/9 | 0.95 |
+| Qwen2.5 3B | 5.3 s | 9/9 | 9/9 | 6/9 | 6/9 | 0.5 |
+| Qwen3 4B (instruct) | 9.5 s | 9/9 | 9/9 | 4/9 | 3/9 | 0.2 |
+
+- **Gemma 4 E2B is the local candidate.** It answered three Malay/Chinese emails in English until
+  the prompt said "Write the reply in the same language as the email_body"; with that line all
+  five rechecked emails came back in the right language.
+- Gemma 4 E2B is 4.6 GB, more than the 4 GB card, so part of it runs on the CPU; still about 6 s.
+- `qwen3:4b` is the thinking edition and writes its reasoning into the reply; only the
+  `-instruct` edition is usable for drafting.
+- **Not yet done:** the human rating the experiment gate asks for (send as is / small edits /
+  unusable). The critic is a proxy, and Gemini judging Gemini is biased in Gemini's favour.
 
 ## Scope
 
