@@ -1,7 +1,8 @@
 # Holding reply: the user's own words, sent only when they would want it sent
 
 - **Status:** built 2026-10-06 (owner: "1 then", the meeting 30 task "quiet hours, auto-reply
-  templates"); live send test with the owner pending
+  templates"); checked live 2026-10-06: a real email after hours was scheduled, re-checked at
+  the end of the hold window and sent 7 s later, Gmail confirmed, every step audited
 - **Owner:** veyroxie (touches Lane A, Lane B and Lane D; each lane owner reviews their part)
 - **Related issue:** product brainstorm 2026-09-30 ("safe" and "understood" for a work inbox)
 - **Last updated:** 2026-10-06
