@@ -5,6 +5,7 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 
+from app.core.ownership import Scope
 from app.db.models import Chunk, Document
 from app.db.session import get_sessionmaker
 
@@ -17,7 +18,7 @@ class DocumentSummary(TypedDict):
     chunk_count: int
 
 
-async def list_documents() -> list[DocumentSummary]:
+async def list_documents(scope: Scope) -> list[DocumentSummary]:
     stmt = (
         select(
             Document.id,
@@ -27,6 +28,7 @@ async def list_documents() -> list[DocumentSummary]:
             func.count(Chunk.id),
         )
         .outerjoin(Chunk, Chunk.document_id == Document.id)
+        .where(scope.where(Document.user_id))
         .group_by(Document.id)
         .order_by(Document.title)
     )

@@ -1,0 +1,215 @@
+{
+  "_why": "One source for the semantic colours; scripts/check-palette.py generates src/palette.css from it and verifies it: WCAG 2.1 contrast in both themes and both colour sets. Text is neutral dark grey (about 12:1 for body text, readable without the glare of black on white). The brand navy carries the sidebar, buttons, links and selection, and tints the page and lines faintly; text is never tinted, which is what made the earlier palette read as all blue. Status colours come in two sets, chosen per reader in Settings: 'light'/'dark' carry the conventional green, amber and red, which must differ by at least dE 20 under normal vision; 'friendly' replaces them with colours that stay at least dE 20 apart under normal, protan, deutan and tritan vision too (Machado et al. 2009). Teal, green and rust accents were rejected: they merge with success for red-green colour-blind readers. Info reuses the brand blue: a second blue merged with green under tritan vision.",
+  "light": {
+    "app": "#eff2f7",
+    "surface": "#ffffff",
+    "surface-muted": "#f7f9fc",
+    "surface-sunken": "#e3e8f0",
+    "fg": "#1b1d21",
+    "fg-body": "#33363c",
+    "fg-muted": "#4f535b",
+    "fg-subtle": "#5e626b",
+    "line": "#dde3ec",
+    "line-subtle": "#e9edf3",
+    "line-strong": "#868a93",
+    "brand": "#1e3a6e",
+    "brand-strong": "#16294d",
+    "brand-soft": "#e9f0fb",
+    "brand-line": "#c9d8ef",
+    "on-brand": "#ffffff",
+    "rail": "#0f1f3d",
+    "rail-hover": "#16294d",
+    "rail-active": "#1d3157",
+    "rail-fg": "#c3cee6",
+    "on-rail": "#ffffff",
+    "success": "#17722f",
+    "success-soft": "#e6f4ea",
+    "success-line": "#9fd4ae",
+    "warning": "#8a5a00",
+    "warning-soft": "#fdf3d7",
+    "warning-line": "#e9c46a",
+    "danger": "#c4232e",
+    "danger-soft": "#fde8e9",
+    "danger-line": "#f0a8ad",
+    "info": "#1e3a6e",
+    "info-soft": "#e9f0fb",
+    "info-line": "#c9d8ef"
+  },
+  "dark": {
+    "app": "#121620",
+    "surface": "#1a1e27",
+    "surface-muted": "#1f2430",
+    "surface-sunken": "#0d1018",
+    "fg": "#ececee",
+    "fg-body": "#d0d1d5",
+    "fg-muted": "#a6a8ae",
+    "fg-subtle": "#90929a",
+    "line": "#2b313d",
+    "line-subtle": "#232833",
+    "line-strong": "#6b7383",
+    "brand": "#8fb3ef",
+    "brand-strong": "#b3cbf5",
+    "brand-soft": "#1b2a47",
+    "brand-line": "#34507f",
+    "on-brand": "#0b1220",
+    "rail": "#0c1426",
+    "rail-hover": "#14203a",
+    "rail-active": "#1b2946",
+    "rail-fg": "#adbbd8",
+    "on-rail": "#ffffff",
+    "success": "#4ac26b",
+    "success-soft": "#12261a",
+    "success-line": "#2b6a3d",
+    "warning": "#e3b341",
+    "warning-soft": "#2d2410",
+    "warning-line": "#7a5f1c",
+    "danger": "#f47067",
+    "danger-soft": "#3a1618",
+    "danger-line": "#8c3a3a",
+    "info": "#8fb3ef",
+    "info-soft": "#1b2a47",
+    "info-line": "#34507f"
+  },
+  "friendly": {
+    "light": {
+      "success": "#007551",
+      "success-soft": "#e2f4ec",
+      "success-line": "#8fcdb3",
+      "warning": "#7a4a00",
+      "warning-soft": "#fdf1d8",
+      "warning-line": "#e6b85c",
+      "danger": "#bd00ab",
+      "danger-soft": "#fbe8f7",
+      "danger-line": "#e7a3de"
+    },
+    "dark": {
+      "success": "#51fcd8",
+      "success-soft": "#0d2f28",
+      "success-line": "#1f6b5a",
+      "warning": "#f2c46b",
+      "warning-soft": "#332508",
+      "warning-line": "#7a5a17",
+      "danger": "#e1636c",
+      "danger-soft": "#3a1519",
+      "danger-line": "#823640"
+    }
+  },
+  "text_pairs": [
+    [
+      "fg",
+      "surface"
+    ],
+    [
+      "fg",
+      "app"
+    ],
+    [
+      "fg-body",
+      "surface"
+    ],
+    [
+      "fg-muted",
+      "surface"
+    ],
+    [
+      "fg-muted",
+      "surface-muted"
+    ],
+    [
+      "fg-subtle",
+      "surface"
+    ],
+    [
+      "fg-muted",
+      "app"
+    ],
+    [
+      "brand",
+      "surface"
+    ],
+    [
+      "on-brand",
+      "brand"
+    ],
+    [
+      "rail-fg",
+      "rail"
+    ],
+    [
+      "on-rail",
+      "rail-active"
+    ],
+    [
+      "success",
+      "success-soft"
+    ],
+    [
+      "warning",
+      "warning-soft"
+    ],
+    [
+      "danger",
+      "danger-soft"
+    ],
+    [
+      "info",
+      "info-soft"
+    ],
+    [
+      "brand",
+      "brand-soft"
+    ],
+    [
+      "success",
+      "surface"
+    ],
+    [
+      "danger",
+      "surface"
+    ],
+    [
+      "fg",
+      "warning-soft"
+    ],
+    [
+      "fg-body",
+      "surface-sunken"
+    ],
+    [
+      "fg-subtle",
+      "surface-muted"
+    ],
+    [
+      "fg-body",
+      "warning-soft"
+    ]
+  ],
+  "non_text_pairs": [
+    [
+      "line-strong",
+      "surface"
+    ],
+    [
+      "brand",
+      "surface"
+    ],
+    [
+      "success",
+      "surface"
+    ],
+    [
+      "warning",
+      "surface"
+    ],
+    [
+      "danger",
+      "surface"
+    ]
+  ],
+  "must_differ": [
+    "success",
+    "warning",
+    "danger",
+    "brand"
+  ]
+}

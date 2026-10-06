@@ -30,3 +30,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Chrome extension build output (make extension)
+extension-dist
+aimail-extension.zip

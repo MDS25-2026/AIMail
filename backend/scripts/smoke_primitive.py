@@ -17,10 +17,11 @@ from sqlalchemy import select
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.core.constants import EMBEDDING_MODEL
+from app.core.constants import EMBEDDING_TAG
+from app.core.ownership import LEGACY
 from app.db.models import Chunk, Document, Embedding
 from app.db.session import get_sessionmaker
-from app.rag.embed import embed_texts
+from app.rag.embed import embed_documents
 from app.rag.retrieve import retrieve
 
 _SOURCE = "smoke://primitive"
@@ -28,7 +29,7 @@ _CONTENT = "The travel reimbursement policy allows claims within 30 days of the 
 
 
 async def main() -> None:
-    vectors = await embed_texts([_CONTENT])
+    vectors = await embed_documents([_CONTENT])
     norm = float(np.linalg.norm(vectors[0]))
     assert abs(norm - 1.0) < 1e-3, f"embedding is not L2-normalized (norm={norm})"
     print(f"embed OK  dim={len(vectors[0])} norm={norm:.6f}")
@@ -41,9 +42,9 @@ async def main() -> None:
         chunk = Chunk(document_id=document.id, chunk_idx=0, content=_CONTENT, token_count=12)
         session.add(chunk)
         await session.flush()
-        session.add(Embedding(chunk_id=chunk.id, embedding=vectors[0], model_name=EMBEDDING_MODEL))
+        session.add(Embedding(chunk_id=chunk.id, embedding=vectors[0], model_name=EMBEDDING_TAG))
 
-    hits = await retrieve("How many days do I have to claim reimbursement?", k=1)
+    hits = await retrieve("How many days do I have to claim reimbursement?", k=1, scope=LEGACY)
     assert hits, "retrieve returned nothing"
     print(f"retrieve OK  score={hits[0]['similarity_score']:.4f}  title={hits[0]['source_title']}")
     assert hits[0]["similarity_score"] > 0.3, "semantically-related query scored too low"

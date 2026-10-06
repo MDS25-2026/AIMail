@@ -10,7 +10,7 @@ AImail is an AI-powered corporate email assistant. It ingests email threads, mas
 
 Three services, split into four ownership lanes. `specs/architecture.md` is the authoritative version of this section — if the two disagree, that file wins.
 
-1. **`listener/`** (Lane A, **Go**) — receives Gmail Pub/Sub push notifications, pulls the message, **masks PII here** (ordered regex floor for email/phone/Malaysian IC, then Presidio NER for names, locations, and context-gated account numbers; degrades to regex-only if Presidio is down), and writes the masked row plus an audit entry to Supabase via PostgREST. Stateless.
+1. **`listener/`** (Lane A, **Go**) — receives Gmail Pub/Sub push notifications, pulls the message, **masks PII here** (ordered regex floor for email/phone/Malaysian IC, then Presidio NER for names, locations, and context-gated account numbers; quarantines the message with no content until it can be masked if Presidio is down), and writes the masked row plus an audit entry to Supabase via PostgREST. Stateless.
 2. **`backend/`** (Lanes B + C, Python/FastAPI) — reads masked rows via asyncpg. Lane B (`app/`) does retrieval, the priority classifier, and the REST surface; Lane C (`email_agent.py`, served separately on :8001) does router/generator/critic/refine generation on Gemini. Also sends approved replies via the Gmail API.
 3. **`frontend/frontend/mail-clarity-dash-main/`** (Lane D) — **Vite + React + TypeScript + Tailwind** dashboard (not Next.js). Talks to the backend via REST only.
 
@@ -22,7 +22,14 @@ Generation runs on **Google Gemini**, not Claude or Qwen.
 
 ## Auth
 
-Every backend route except `GET /` requires `Authorization: Bearer <BACKEND_API_TOKEN>` (see `backend/app/core/auth.py`). The token lives in the repo-root `.env`; the dashboard reads the same value as `VITE_BACKEND_API_TOKEN` via `envDir` in its `vite.config.ts`. An unset token makes the backend refuse **all** requests rather than silently run open. The Lane C agent on :8001 has no token of its own and must stay bound to `127.0.0.1`.
+People sign in to the dashboard with Google through Supabase (`docs/adr/0005`); the backend keeps
+the session in HttpOnly cookies and checks it on every route except `GET /` and the `/auth` sign-in
+routes (`backend/app/core/auth.py`). Signing in with Google also connects the user's Gmail, and
+every email and document query is scoped to its owner (`backend/app/core/ownership.py`); rows with
+no owner belong to the original `token.json` mailbox's account until it connects. Scripts and tests use `Authorization: Bearer <BACKEND_API_TOKEN>`,
+which stays server-side and must never be put in a `VITE_` variable. Cookie requests that change
+state carry `X-AIMail-Client: 1`. The admin console has its own sign-in (`docs/adr/0004`). The
+Lane C agent on :8001 has no token of its own and must stay bound to `127.0.0.1`.
 
 ## Folder ownership
 
@@ -83,4 +90,4 @@ When you finish exploring a service or subsystem for the first time, **offer** t
 
 ## Running it
 
-`make dev` starts everything: Presidio containers, backend (:8000), Lane C agent (:8001), dashboard (:8090), and the listener. Ports 8000/8001/8090 are freed first; **:8080 is deliberately left alone** for other local projects. `make check` runs backend tests, ruff, and the dashboard typecheck. Stop the stack with Ctrl+C, never Ctrl+Z — a suspended run keeps holding the ports and the next start fails to bind.
+`make dev` starts everything: Presidio containers, backend (:8000), Lane C agent (:8001), dashboard (:8090), and the listener. Ports 8000/8001/8090 are freed first; **:8080 is deliberately left alone** for other local projects. `make check` runs the backend tests and ruff, then the dashboard typecheck, eslint, unit tests and palette (contrast and colour-blind) check. `go test ./...` in `listener/` and `make test-reader` cover Lane A. Stop the stack with Ctrl+C, never Ctrl+Z — a suspended run keeps holding the ports and the next start fails to bind.

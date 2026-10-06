@@ -6,6 +6,199 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-05 — Restorable masking: numbered placeholders and an encrypted per-email vault
+- Decision: the listener masks each detail as a numbered placeholder (`[PERSON_1]`) instead of a
+  fixed marker and seals the placeholder-to-value map into `messages.pii_vault` with `PII_VAULT_KEY`
+  (owner and Gmail id as associated data). The backend opens a thread's vaults per request to show
+  the owner the real details, turns typed text back into placeholders before the agent, and fills
+  placeholders in when sending; `draft_reply` keeps placeholders. Vaults expire after 30 days, or
+  7 days after the reply. The owner's sign-off is itself a placeholder. Full design: ADR 0006 and
+  `specs/features/restorable-masking.md`.
+- Why: masking hid details from the person replying too (the 5 Oct test could not greet "Aisyah"),
+  and a forgotten marker reached customers as "[Redacted]". The AI's view does not change.
+- Affects: Lane A (placeholders, Go-side replacement, vault sealing; the Presidio anonymizer is no
+  longer used), Lane B (vault opening, thread map, send fill-in, `details`, retention job), Lane C
+  (`email_agent.py`: placeholder rule in the generator, refine and critic; `sign_off` field;
+  placeholder numbers are not figures; translations preserve placeholders), Lane D (highlighted
+  details, Hide details, template-gap warning). JiaJun, Hanif and Han to review their parts.
+- Known limit: if an earlier email in a thread is released from quarantine after a draft was
+  written, later placeholder numbers shift; the editor shows the restored text, so the reader sees
+  the name before sending (not in Hide details mode).
+- Status: built 2026-10-05, migration 0018 applied; live end-to-end check pending `PII_VAULT_KEY`.
+
+### 2026-10-05 — Neutral palette with one navy accent; a colour-blind friendly set readers choose
+- Decision: the dashboard and extension move from blue-tinted greys, navy text and a navy sidebar to
+  neutral dark-grey text (about 12:1 for body text) on white cards, with the brand navy on the
+  sidebar, buttons, links and selection and a faint navy tint on the page (the owner chose option A,
+  found it too grey, then chose "navy sidebar + soft tint" from rendered previews). Text is never
+  tinted. Status colours come in two sets
+  readers pick in Settings (the extension's eye button keeps its own copy): the conventional green,
+  amber and red, and a colour-blind friendly set (`data-colours="friendly"`) that stays at least
+  dE 20 apart under protan, deutan and tritan vision. `check-palette.py` now verifies contrast for
+  both sets in both themes and the colour-blind separation of the friendly set.
+- Why: "too blue" was the neutrals, not the buttons (every grey carried 20 to 29% blue); the 60-30-10
+  rule keeps colour for what should stand out. Teal, green and rust accents were rejected because
+  they merge with "success" for red-green colour-blind readers.
+- Affects: Lane D only (palette, preferences, Settings, extension panel). Han to be told.
+- Status: built 2026-10-05.
+
+### 2026-10-05 — The Chrome extension is built, from the dashboard project, on the session cookie
+- Decision: the extension (proposal Goal 1) is a Manifest V3 side panel built from the dashboard
+  project (`vite.extension.config.ts`, no new dependency), reusing its components; the dashboard's
+  `/extension` preview renders the same `SidePanel`. A content script reads only the open thread's
+  id; the panel calls the new `GET /emails/by-thread/{thread_id}` with the dashboard's HttpOnly
+  session cookie, so no credential lives in the extension. This deviates from ADR 0005, which
+  planned a Supabase bearer token for the extension; whether Chrome sends the SameSite=Strict
+  cookie from the extension is pending the owner's live test, with the bearer flow as fallback. Distributed unpacked (`make extension`); the Web Store is a later, operational step.
+- Why: the owner chose to read originals in Gmail through the extension (restorable-masking.md),
+  and asked for it to be streamlined. Gmail shows the thread, so the panel drops the thread list
+  and folds the summary and sources.
+- Affects: Lane D (new `src/extension/`, `SidePanel`, `PanelSummary`; `ExtensionPanel` removed;
+  `readPreferences` moved to its own file so shared code builds without TanStack Start), Lane B
+  (the route). Han to be told.
+- Status: built 2026-10-05; the panel's states were rendered in headless Chromium against the real
+  backend; the live check inside Gmail is the owner's.
+
+### 2026-10-05 — Per-user mailboxes: every row has an owner, every query is scoped to it
+- Decision: each user who signs in with Google and grants Gmail access gets a `mailbox_connection`
+  row (sealed refresh token, migration 0016). Every email and document query filters on the
+  owner (`app/core/ownership.py`); another user's email id answers `404`, like an unknown id.
+  `GET /auth/session`'s `hasMailbox` means "has connected Gmail, or owns the original mailbox".
+  Rows with no owner are the original `token.json` mailbox's, visible only to its account, and
+  move to it when it connects. Knowledge bases are per user (`document.user_id`, migration 0017).
+- Why: the owner asked that anyone can sign up and see their own Gmail, and that each user see
+  only their own mail (ADR 0005 stage 2; `specs/features/per-user-mailboxes.md`).
+- Affects: Lane B (every route), Lane C (none: payloads unchanged), Lane D (`hasMailbox` text,
+  `send_not_granted`), Lane A (rows carry `user_id`).
+- Status: built by veyroxie on `feat/per-user-mailboxes`; migrations 0016 and 0017 applied.
+
+### 2026-10-05 — `403 send_not_granted`; replies go out from the owner's own Gmail
+- Decision: a reply uses its email owner's own refresh token, refreshed with the Google web client
+  configured in Supabase (`GOOGLE_OAUTH_CLIENT_ID/SECRET`). A user who granted read but not send
+  gets `403 send_not_granted` before anything is claimed. Unowned rows still send via `token.json`.
+- Why: Google lets people untick "send" on the consent screen; a 502 would wrongly say "try again".
+- Status: built 2026-10-05; live send pending the client secret in `.env`.
+
+### 2026-10-05 — The listener's duplicate key is per mailbox; Pub/Sub auth is interim
+- Decision: the listener upserts on `(user_id, gmail_message_id)` (`UNIQUE NULLS NOT DISTINCT`,
+  migration 0017), since Gmail ids are only unique per mailbox. The old global
+  `messages_gmail_message_id_key` stays until every running listener uses the new key; step 5
+  drops it. Pub/Sub still authenticates as the `token.json` account until a service account
+  replaces it (audit finding 4). Only one listener should run on the subscription: Pub/Sub splits
+  notifications between subscribers, so an old listener would take some users' notifications
+  (the per-mailbox baseline recovers them on the next one).
+- Affects: Lane A (`listener/mailboxes.go`, `dedupe.go`, `quarantine.go`), for JiaJun's review.
+- Status: built 2026-10-05; live run pending the client secret in `.env`.
+
+### 2026-10-04 — Row-level security on every table
+- Decision: migration 0015 enables RLS on all nine application tables with no policies, so the
+  REST API answers nothing to the publishable key or a user's token. New tables enable it in the
+  same migration that creates them.
+- Why: found while starting per-user mailboxes. With RLS off, a request using only the publishable
+  key returned rows from `messages`, `audit_log` and `document`; verified, then verified blocked
+  (0 rows) after applying. The backend (`postgres`) and listener (`service_role`) bypass RLS and
+  were checked to still read and write.
+- Affects: the database only; no code change. Applied to Supabase 2026-10-04.
+- Status: applied by veyroxie.
+
+### 2026-10-04 — Sender name and address are stored unmasked, on purpose
+- Decision: `messages.from_addr` and `reply_to` keep the sender's display name and address as
+  Gmail gives them. They are personal data under the PDPA, but storing them is necessary for the
+  service (the reader must see who wrote, and a reply needs the address), and they never enter a
+  model payload: `thread_context` labels earlier messages by position, never by sender.
+- Why: the 30 Sep audit listed this as a leak; the mailbox owner decided it is a documented, minimal
+  use instead. Masking the name would show "[Redacted]" for every sender in the inbox.
+- Revisit when: anything starts sending `from_addr` to a model, or a retention policy is written
+  (then these columns follow it like the rest of the row).
+- Status: decided by the mailbox owner, 2026-10-04.
+
+### 2026-10-04 — Refined drafts are reviewed like generated ones; typed text is masked
+- Decision: Lane C's `/refine` runs the critic, the PII scan and the figures check on the revision
+  and returns the same review fields as `/process-email`; the backend stores them with the draft,
+  replacing the old verdict. The backend masks fixed formats (email, IC, passport, card with a Luhn
+  check, phone) in text the user typed before any model sees it; names stay, by the owner's choice,
+  since masking them would fill every refined draft with [Redacted].
+- Why: phase 0 of the 30 Sep audit, raised again at meeting 30. A refined draft skipped every check
+  while the previous "checked" badge stayed on screen, and typed phone numbers reached Gemini.
+- Affects: Lane C (`email_agent.py` `/refine`), Lane B (`app/dashboard.py`, `app/main.py`, new
+  `app/core/typed_text.py`). No dashboard change: it already re-reads the stored verdict.
+- Status: implemented by veyroxie, 2026-10-04.
+
+### 2026-10-04 — A reply is sent at most once, and the server checks what it sends
+- Decision: `send_reply` splits failures by whether Gmail could have acted. Failing to connect, or an
+  error status from Gmail, is `SendError` (claim released, can be approved again). A read timeout,
+  a cut connection or an unreadable 2xx is `SendOutcomeUnknownError`: the claim is kept, an audit row
+  `send_outcome_unknown` is written, and the route answers `504`. `/send` also refuses empty drafts,
+  drafts with redaction markers (422) and quarantined emails (409). The marker pattern moved to
+  `app/core/redaction.py`, shared with the agent.
+- Why: phase 0 of the 30 Sep audit. Any failure after the POST released the claim, so a second
+  press sent a second copy; and the dashboard's marker warning could be bypassed by calling the API.
+- Affects: Lane B (`app/gmail_send.py`, `app/dashboard.py`, `app/main.py`), Lane C
+  (`email_agent.py` imports the shared pattern), Lane D (`lib/api.ts`, `useDraftWorkflow.ts`).
+- Status: implemented by veyroxie, 2026-10-04.
+
+### 2026-09-30 — Regenerate and refine report failure instead of returning the old draft
+- Decision: both routes raise `DraftNotUpdatedError` when the draft did not change, answered as
+  `502 agent_unavailable`, `422 draft_refused` or `409 masking_pending` (see
+  `specs/context/api-contracts.md`). `_generate_and_store` returns a `GenerationOutcome` instead
+  of a bool, so the caller can tell "no reply needed" from "the agent failed".
+- Why: with the agent down, both answered `200` with the unchanged email, so the dashboard said
+  "Draft refined" when nothing had happened. Found while verifying the Lane D draft-error fix.
+- Affects: Lane B (`app/dashboard.py`, `app/main.py`) and its one consumer, Lane D (already
+  handles non-2xx on both routes). No schema change.
+- Status: implemented by veyroxie, approved by the mailbox owner 2026-09-30.
+
+### 2026-09-29 — Masking fails closed; admin console on Supabase Auth
+- Decision (#109): a message whose NER masking cannot complete is quarantined
+  (`messages.masking_status = 'pending'`, no content) and completed by the listener when Presidio
+  recovers. Lane B never drafts, refines, translates or scores a pending row; Lane D shows it as
+  awaiting masking. Migration 0012 applied.
+- Decision (ADR 0004): the admin console authenticates Supabase users with
+  `app_metadata.role = "admin"`, tokens held in HttpOnly cookies by the backend. The rest of the
+  API keeps the shared token until it moves to the same JWTs.
+- Why: the previous "degrade to regex-only" policy stored real names (observed, #109; the admin
+  console shows 5 such stores in the last 30 days). The shared token is compiled into the browser
+  bundle, so it cannot gate operator data.
+- Affects: Lane A (`listener/quarantine.go`, `main.go`), Lane B (`app/admin/`, `app/dashboard.py`,
+  `app/main.py` CORS credentials, migration 0012), Lane D (`/admin`, quarantine notice), CI.
+- Status: implemented; needs JiaJun's review of the quarantine loop and Elyesa's of the admin API.
+
+### 2026-09-29 — One PR across all four lanes: resilience, reading, normalisation, surfaces
+- Decision: a single bundled PR (branch `feat/hackathon-reuse`, stacked on #113) carries work in
+  every lane, approved by the mailbox owner on 2026-09-29 as one reviewable unit. The cross-lane
+  seams it changes:
+  - `DashboardEmail` gains `sources` fields (`chunkId`, `excerpt`, `score`) and `quantities`;
+    both additive. `POST /emails/{id}/translate` is new (Lane B route, Lane C `/translate`).
+  - Lane C (`email_agent.py`) now imports shared backend modules: `app.core.logging_setup`,
+    `app.core.middleware` and `app.normalise`, instead of keeping private copies. The figures gate
+    and the translation checks read numbers through the same layer the dashboard does.
+  - Lane A's attachment reader is a new local container replacing `presidio-image-redactor`.
+  - Migrations 0009 (thread identity) and 0011 (`rag_sources`) are applied.
+- Why one PR: the owner's review queue is the bottleneck, and the pieces share contracts (the
+  normalisation layer feeds the gate, the dashboard and translation).
+- Why the agent imports `app.*` rather than copying: a second copy of number parsing is how the
+  gate and the dashboard would come to disagree about what "18.400,00" means.
+- Affects: all lanes. Owners to review their folders: JiaJun (`listener/`), Elyesa
+  (`backend/app/`), Hanif (`email_agent.py`, `gemini_client.py`), Han (the dashboard).
+- Status: implemented; awaiting each owner's review.
+
+### 2026-09-29 — Replies read the original's headers from Gmail at send time
+- Decision: the send path reads Subject, From, Reply-To, Message-ID, References and threadId
+  from Gmail (`format=metadata`, headers only) when the reply is approved, and sends with
+  `threadId`, `In-Reply-To` and `References`. The listener also stores `thread_id`,
+  `rfc822_message_id` and `thread_refs` at ingest, per the 2026-09-09 decision, for the thread
+  view and the extension. After sending, the backend reads back the `Message-ID` Gmail assigned
+  and stores it as `sent_message_id`, which settles that decision's open question without
+  relying on Gmail keeping a client-supplied one.
+- Why: Gmail threads a reply only when the Subject matches the original's
+  (developers.google.com/workspace/gmail/api/guides/threads), and the stored subject is masked.
+  Replies were going out as new threads titled "Re: ... [Redacted]". The real subject now lives
+  only in memory for the length of the send.
+- Why not store the raw subject: it is content, and storing it would break mask-before-storage.
+- Affects: Lane A (`listener/thread.go`, `StoredMessage`), Lane B (`app/gmail_send.py`,
+  `app/dashboard.py`, `app/db/models.py`), migration 0009 (applied).
+- Status: implemented — needs JiaJun's review of the listener change.
+
 ### 2026-09-11 — The review gate reads the critic's four checks, not its self-reported score
 - Decision: `needs_human_review` is now a conjunction over the checks the critic already computes
   (grounding, PII, completeness) plus a deterministic PII scan of the generated draft and an
@@ -56,7 +249,8 @@ here when their change crosses a lane boundary. Schema and public contracts are 
   `sent_message_id`. Store only these four fields, not the full header block.
 - Affects: Lane A (`listener/main.go`, `StoredMessage`), Lane B (`app/gmail_send.py`, `dashboard.py`),
   `specs/context/db-schema.md` (this PR), migration 0009.
-- Status: proposed — needs JiaJun's co-sign as owner of the `messages` table and the listener.
+- Status: implemented 2026-09-29 (migration 0009 applied). Still needs JiaJun's co-sign as owner
+  of the `messages` table and the listener; see the 2026-09-29 entry for what the build settled.
 
 ### 2026-08-31 — Seam 1 resolved: canonical column is `messages.body_masked`
 - Decision: the masked-email column is `messages.body_masked`; `masked_body` is retired.

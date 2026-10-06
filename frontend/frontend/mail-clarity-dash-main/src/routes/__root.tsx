@@ -9,25 +9,28 @@ import {
 } from "@tanstack/react-router";
 import type { ErrorComponentProps } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 
 import appCss from "../styles.css?url";
+import PreferencesProvider from "../components/PreferencesProvider";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { coloursAttribute, SYSTEM_THEME_SCRIPT, Theme } from "../lib/preferences";
+import { readPreferences } from "../lib/readPreferences";
 
 function NotFoundComponent() {
+  const { t } = useTranslation();
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-7xl font-bold text-foreground">404</h1>
-        <h2 className="mt-4 text-xl font-semibold text-foreground">Page not found</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          The page you're looking for doesn't exist or has been moved.
-        </p>
+        <h2 className="mt-4 text-xl font-semibold text-foreground">{t("page.notFoundTitle")}</h2>
+        <p className="mt-2 text-sm text-muted-foreground">{t("page.notFoundBody")}</p>
         <div className="mt-6">
           <Link
             to="/"
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            Go home
+            {t("page.goHome")}
           </Link>
         </div>
       </div>
@@ -36,6 +39,7 @@ function NotFoundComponent() {
 }
 
 function ErrorComponent({ error, reset }: ErrorComponentProps) {
+  const { t } = useTranslation();
   console.error(error);
   const router = useRouter();
   useEffect(() => {
@@ -46,11 +50,9 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          This page didn't load
+          {t("page.crashTitle")}
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Something went wrong on our end. You can try refreshing or head back home.
-        </p>
+        <p className="mt-2 text-sm text-muted-foreground">{t("page.crashBody")}</p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {
@@ -59,13 +61,13 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
             }}
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            Try again
+            {t("page.tryAgain")}
           </button>
           <a
             href="/"
             className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
           >
-            Go home
+            {t("page.goHome")}
           </a>
         </div>
       </div>
@@ -74,18 +76,17 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  // Cookie-backed, so the server renders the reader's theme and language on the first paint.
+  beforeLoad: () => ({ preferences: readPreferences() }),
   head: () => ({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
+      { title: "AIMail" },
+      {
+        name: "description",
+        content: "AI inbox assistant: masked mail, grounded drafts, human-approved replies.",
+      },
     ],
     links: [
       {
@@ -102,13 +103,25 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 });
 
 function RootShell({ children }: { children: ReactNode }) {
+  const { preferences } = Route.useRouteContext();
   return (
-    <html lang="en">
+    // suppressHydrationWarning: under "system" the inline script may add the dark class before
+    // React hydrates, which is the point of it.
+    <html
+      lang={preferences.language}
+      className={preferences.theme === Theme.Dark ? "dark" : undefined}
+      data-colours={coloursAttribute(preferences.colours)}
+      suppressHydrationWarning
+    >
       <head>
         <HeadContent />
+        {preferences.theme === Theme.System ? (
+          <script dangerouslySetInnerHTML={{ __html: SYSTEM_THEME_SCRIPT }} />
+        ) : null}
       </head>
       <body>
-        {children}
+        {/* In the shell, not the root component, so the 404 and error pages are translated too. */}
+        <PreferencesProvider initial={preferences}>{children}</PreferencesProvider>
         <Scripts />
       </body>
     </html>

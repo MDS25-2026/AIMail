@@ -1,7 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
+import type { ReactNode } from "react";
+import { Trans, useTranslation } from "react-i18next";
 
+import AccountCard from "../components/AccountCard";
 import AppShell from "../components/AppShell";
 import { PageError, PageLoading } from "../components/PageState";
+import { usePreferences } from "../lib/usePreferences";
+import { Language, StatusColours, Theme, UnitSystem } from "../lib/preferences";
 import { useSystemInfo } from "../lib/queries";
 import { CRITIC_CONFIDENCE_THRESHOLD } from "../types/email";
 
@@ -16,56 +21,70 @@ export const Route = createFileRoute("/settings")({
 });
 
 /**
- * Read-only on purpose. Every value here is set in the repo-root .env and read at startup, so
- * an editable form would either lie (edits lost on restart) or need a settings table nothing
- * else uses yet. Showing the live configuration is honest and is what the values are for.
+ * The server values are read-only on purpose. Every one is set in the repo-root .env and read at
+ * startup, so an editable form would either lie (edits lost on restart) or need a settings table
+ * nothing else uses yet. The appearance card is the exception: it is this browser's own choice.
  */
 function SettingsPage() {
+  const { t } = useTranslation();
   const info = useSystemInfo();
 
   return (
     <AppShell>
-      <section className="min-w-0 flex-1 overflow-y-auto bg-slate-50 p-6">
+      <section className="relative min-w-0 flex-1 overflow-y-auto bg-surface-muted p-6">
         <header className="mb-5">
-          <h1 className="text-xl font-semibold text-slate-800">Settings</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            What this instance is running. Values come from the server's environment; change them
-            in <code className="rounded bg-slate-200 px-1 text-xs">.env</code> and restart.
+          <h1 className="text-xl font-semibold text-fg">{t("settings.title")}</h1>
+          <p className="mt-1 text-sm text-fg-muted">
+            <Trans
+              i18nKey="settings.description"
+              components={{ code: <code className="rounded bg-surface-sunken px-1 text-xs" /> }}
+            />
           </p>
         </header>
 
-        {info.isPending ? <PageLoading label="system information" /> : null}
-        {info.isError ? <PageError label="system information" error={info.error} /> : null}
+        <div className="mb-4 grid gap-4 lg:grid-cols-2">
+          <AppearanceCard />
+          <AccountCard />
+        </div>
+
+        {info.isPending ? <PageLoading label={t("settings.label")} /> : null}
+        {info.isError ? <PageError label={t("settings.label")} error={info.error} /> : null}
 
         {info.data ? (
           <div className="grid gap-4 sm:grid-cols-2">
-            <Card title="Models">
-              <Row label="Generation" value={info.data.chat_model} />
-              <Row label="Embedding" value={info.data.embedding_model} />
-              <Row label="Embedding dimensions" value={String(info.data.embedding_dim)} />
-              <Row label="Priority classifier" value={info.data.priority_model} />
+            <Card title={t("settings.models")}>
+              <Row label={t("settings.generation")} value={info.data.chat_model} />
+              <Row label={t("settings.embedding")} value={info.data.embedding_model} />
+              <Row label={t("settings.embeddingDim")} value={String(info.data.embedding_dim)} />
+              <Row label={t("settings.classifier")} value={info.data.priority_model} />
             </Card>
 
-            <Card title="Knowledge base">
-              <Row label="Documents" value={String(info.data.document_count)} />
-              <Row label="Chunks" value={String(info.data.chunk_count)} />
+            <Card title={t("knowledge.heading")}>
+              <Row label={t("settings.documents")} value={String(info.data.document_count)} />
+              <Row label={t("settings.chunks")} value={String(info.data.chunk_count)} />
             </Card>
 
-            <Card title="Safety">
+            <Card title={t("settings.safety")}>
               <Row
-                label="API authentication"
-                value={info.data.auth_enabled ? "Required on every route" : "Not configured"}
+                label={t("settings.auth")}
+                value={info.data.auth_enabled ? t("settings.authOn") : t("settings.authOff")}
               />
               <Row
-                label="Critic confidence threshold"
-                value={`${CRITIC_CONFIDENCE_THRESHOLD} — below this a draft is flagged for review`}
+                label={t("settings.threshold")}
+                value={t("settings.thresholdValue", { value: CRITIC_CONFIDENCE_THRESHOLD })}
               />
-              <Row label="Sending" value="Manual approval only; no automatic send path" />
+              <Row label={t("settings.sending")} value={t("settings.sendingValue")} />
             </Card>
 
-            <Card title="Draft pre-generation">
-              <Row label="Enabled" value={info.data.auto_generate ? "Yes" : "No"} />
-              <Row label="Poll interval" value={`${info.data.generate_poll_seconds}s`} />
+            <Card title={t("settings.pregen")}>
+              <Row
+                label={t("settings.enabled")}
+                value={info.data.auto_generate ? t("settings.yes") : t("settings.no")}
+              />
+              <Row
+                label={t("settings.poll")}
+                value={t("settings.seconds", { count: info.data.generate_poll_seconds })}
+              />
             </Card>
           </div>
         ) : null}
@@ -74,10 +93,103 @@ function SettingsPage() {
   );
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function AppearanceCard() {
+  const { t } = useTranslation();
+  const { preferences, setTheme, setLanguage, setUnits, setColours } = usePreferences();
+
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">{title}</h2>
+    <section className="space-y-3 rounded-lg border border-line bg-surface p-4">
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">
+        {t("settings.appearance")}
+      </h2>
+      <Choice
+        label={t("settings.theme")}
+        value={preferences.theme}
+        onChange={setTheme}
+        options={[
+          { value: Theme.Light, label: t("settings.themeLight") },
+          { value: Theme.Dark, label: t("settings.themeDark") },
+          { value: Theme.System, label: t("settings.themeSystem") },
+        ]}
+      />
+      <Choice
+        label={t("settings.language")}
+        value={preferences.language}
+        onChange={setLanguage}
+        // Each language named in itself, so a reader can always find their own.
+        options={Object.values(Language).map((language) => ({
+          value: language,
+          label: t(`languages.${language}`),
+          lang: language,
+        }))}
+      />
+      <Choice
+        label={t("settings.units")}
+        value={preferences.units}
+        onChange={setUnits}
+        options={[
+          { value: UnitSystem.Metric, label: t("settings.metric") },
+          { value: UnitSystem.Imperial, label: t("settings.imperial") },
+        ]}
+      />
+      <Choice
+        label={t("settings.colours")}
+        value={preferences.colours}
+        onChange={setColours}
+        options={[
+          { value: StatusColours.Standard, label: t("settings.coloursStandard") },
+          { value: StatusColours.Friendly, label: t("settings.coloursFriendly") },
+        ]}
+      />
+      <p className="text-xs text-fg-muted">{t("settings.coloursHint")}</p>
+      <p className="pt-1 text-xs text-fg-subtle">{t("settings.preferencesNote")}</p>
+    </section>
+  );
+}
+
+type ChoiceProps<T extends string> = {
+  label: string;
+  value: T;
+  onChange: (value: T) => void;
+  options: { value: T; label: string; lang?: string }[];
+};
+
+/** A segmented radio group: every option visible at once, keyboard-operable as native radios. */
+function Choice<T extends string>({ label, value, onChange, options }: ChoiceProps<T>) {
+  return (
+    <fieldset className="flex flex-wrap items-center justify-between gap-2">
+      <legend className="float-left text-sm text-fg-muted">{label}</legend>
+      <div className="inline-flex flex-wrap rounded-md border border-line bg-surface-muted p-0.5">
+        {options.map((option) => (
+          <label
+            key={option.value}
+            lang={option.lang}
+            className={`cursor-pointer rounded px-2.5 py-1 text-xs font-medium focus-within:ring-2 focus-within:ring-brand ${
+              option.value === value
+                ? "bg-surface text-fg shadow-sm"
+                : "text-fg-muted hover:text-fg-body"
+            }`}
+          >
+            <input
+              type="radio"
+              className="sr-only"
+              name={label}
+              value={option.value}
+              checked={option.value === value}
+              onChange={() => onChange(option.value)}
+            />
+            {option.label}
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
+function Card({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="rounded-lg border border-line bg-surface p-4">
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">{title}</h2>
       <dl className="mt-3 space-y-2">{children}</dl>
     </div>
   );
@@ -86,8 +198,8 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-4">
-      <dt className="text-sm text-slate-500">{label}</dt>
-      <dd className="text-right text-sm font-medium text-slate-800">{value}</dd>
+      <dt className="text-sm text-fg-muted">{label}</dt>
+      <dd className="text-right text-sm font-medium text-fg">{value}</dd>
     </div>
   );
 }

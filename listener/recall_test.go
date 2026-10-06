@@ -49,10 +49,10 @@ func loadFixtures(t *testing.T) piiFixtures {
 }
 
 // presidioIsLive reports whether the NER layer can be scored in this run.
+// presidioIsLive needs both containers, like the listener's own health check: with only the
+// analyzer up, NER cases degrade and would understate recall.
 func presidioIsLive() bool {
-	url := getEnvOrDefault("PRESIDIO_ANALYZER_URL", "http://localhost:5001/analyze")
-	_, err := presidioPost(context.Background(), url, []byte(`{"text":"ping","language":"en"}`))
-	return err == nil
+	return presidioHealthy(context.Background())
 }
 
 func TestMaskingRecallMeetsTarget(t *testing.T) {
@@ -65,7 +65,7 @@ func TestMaskingRecallMeetsTarget(t *testing.T) {
 		if c.Layer == "ner" && !live {
 			continue // scoring these without the containers would understate real recall
 		}
-		got, _, _, _ := maskText(context.Background(), c.Text)
+		got, _, _, _ := maskText(context.Background(), c.Text, newDetailVault())
 		for _, want := range c.MustMask {
 			total++
 			if strings.Contains(got, want) {
@@ -99,7 +99,7 @@ func TestMaskingLeavesBusinessTextIntact(t *testing.T) {
 	fixtures := loadFixtures(t)
 	for _, n := range fixtures.Negatives {
 		t.Run(n.Name, func(t *testing.T) {
-			got, _, _, _ := maskText(context.Background(), n.Text)
+			got, _, _, _ := maskText(context.Background(), n.Text, newDetailVault())
 			for _, keep := range n.MustKeep {
 				if !strings.Contains(got, keep) {
 					t.Errorf("over-masked %q: %q", keep, got)

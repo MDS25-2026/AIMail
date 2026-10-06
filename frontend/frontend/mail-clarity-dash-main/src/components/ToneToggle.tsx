@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 import type { Tone } from "../types/email";
 
 type ToneToggleProps = {
@@ -9,21 +11,24 @@ type ToneToggleProps = {
 const TONES: Tone[] = ["professional", "casual"];
 
 export default function ToneToggle({ emailId, tone, onToneChange }: ToneToggleProps) {
+  const { t } = useTranslation();
   return (
-    <div className="inline-flex rounded-md border border-slate-200 bg-slate-50 p-0.5">
+    <div
+      role="group"
+      aria-label={t("tone.label")}
+      className="inline-flex rounded-md border border-line bg-surface-muted p-0.5"
+    >
       {TONES.map((option) => (
         <button
           key={option}
           type="button"
           aria-pressed={tone === option}
           onClick={() => onToneChange(emailId, option)}
-          className={`rounded px-2.5 py-1 text-xs font-medium capitalize transition-colors ${
-            tone === option
-              ? "bg-white text-slate-900 shadow-sm"
-              : "text-slate-500 hover:text-slate-700"
+          className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+            tone === option ? "bg-surface text-fg shadow-sm" : "text-fg-muted hover:text-fg-body"
           }`}
         >
-          {option}
+          {t(`tone.${option}`)}
         </button>
       ))}
     </div>

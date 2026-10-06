@@ -5,15 +5,20 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
+	"slices"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -62,12 +67,6 @@ func supabaseTimeout() time.Duration {
 // Presidio's NER below. Splitting by PII *nature* rather than by tool is what removes the
 // "different-length numbers, wrong type" mis-tagging: no two patterns fight over one span.
 
-const (
-	emailToken = "[EMAIL_REDACTED]"
-	phoneToken = "[PHONE_REDACTED]"
-	icToken    = "[IC_REDACTED]"
-)
-
 var (
 	emailRegex = regexp.MustCompile(`[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}`)
 	// Malaysian IC: dashed YYMMDD-PB-###G is unambiguous; a bare 12-digit run counts as an IC
@@ -82,6 +81,15 @@ var (
 	// MY branch allows a separator and parens after the country code ("+60 (12) 345 6789").
 	// The final branch is a short local number ("555-0142"): separator required, so it cannot
 	// swallow a bare digit run, and it runs after the IC pass so an IC is already redacted.
+	// International numbers outside Malaysia ("+65 9123 4567", "+44 20 7946 0958"): a "+" and a
+	// country code, then two to five digit groups. Runs after the Malaysian branch.
+	intlPhoneRegex = regexp.MustCompile(`\+[1-9]\d{0,2}[\s.-]?\(?\d{1,4}\)?(?:[\s.-]?\d{2,5}){1,4}`)
+	// Passports: one or two capitals then seven or eight digits ("A12345678"). The digits-only
+	// account pattern can never match after a letter, so this sits in the floor.
+	passportRegex = regexp.MustCompile(`\b[A-Z]{1,2}\d{7,8}\b`)
+	// Links: the query and fragment carry reset tokens and encoded addresses; only the host is
+	// needed, by the agent's phishing check.
+	urlRegex   = regexp.MustCompile(`https?://[^\s<>"')\]]+`)
 	phoneRegex = regexp.MustCompile(`(?:\+?60|\b0)[\s.-]?\(?\d{1,2}\)?[\s.-]?\d{3,4}[\s.-]?\d{3,4}\b|\(\d{3}\)[\s.-]?\d{3}[\s.-]?\d{4}|\b\d{3}[\s.-]\d{3}[\s.-]\d{4}\b|\b\d{3}[.-]\d{4}\b`)
 )
 
@@ -96,31 +104,53 @@ func isICDate(twelveDigits string) bool {
 	return month >= 1 && month <= 12 && day >= 1 && day <= 31
 }
 
-// maskPII redacts format-clear PII by ordered regex (email -> IC -> phone) and returns the
-// masked text plus email/phone counts for the audit log. IC is redacted too (over-masking is
-// preferred) but not separately counted — the persisted metric tracks the 80% email/phone floor.
-func maskPII(text string) (masked string, emailsMasked, phonesMasked int) {
-	masked = emailRegex.ReplaceAllStringFunc(text, func(string) string {
+// maskPII replaces format-clear PII by ordered regex (email -> IC -> passport -> phone) with
+// numbered placeholders from v, and returns the masked text plus email/phone counts for the audit
+// log. IC is masked too (over-masking is preferred) but not separately counted — the persisted
+// metric tracks the 80% email/phone floor.
+func maskPII(text string, v *detailVault) (masked string, emailsMasked, phonesMasked int) {
+	as := func(kind detailKind) func(string) string {
+		return func(value string) string { return v.placeholder(kind, value) }
+	}
+	masked = urlRegex.ReplaceAllStringFunc(text, withoutQuery)
+	masked = emailRegex.ReplaceAllStringFunc(masked, func(value string) string {
 		emailsMasked++
-		return emailToken
+		return v.placeholder(kindEmail, value)
 	})
-	masked = icDashedRegex.ReplaceAllString(masked, icToken)
-	masked = icBareRegex.ReplaceAllStringFunc(masked, func(s string) string {
-		if isICDate(s) {
-			return icToken
+	masked = icDashedRegex.ReplaceAllStringFunc(masked, as(kindIC))
+	masked = icBareRegex.ReplaceAllStringFunc(masked, func(value string) string {
+		if isICDate(value) {
+			return v.placeholder(kindIC, value)
 		}
-		return s
+		return value
 	})
-	masked = phoneRegex.ReplaceAllStringFunc(masked, func(string) string {
+	masked = passportRegex.ReplaceAllStringFunc(masked, as(kindPassport))
+	countPhone := func(value string) string {
 		phonesMasked++
-		return phoneToken
-	})
+		return v.placeholder(kindPhone, value)
+	}
+	masked = phoneRegex.ReplaceAllStringFunc(masked, countPhone)
+	masked = intlPhoneRegex.ReplaceAllStringFunc(masked, countPhone)
 	return masked, emailsMasked, phonesMasked
+}
+
+// withoutQuery keeps a link's scheme, host and path. An unparseable link is cut at the first
+// "?" or "#" instead, so a token never survives a parse error.
+func withoutQuery(link string) string {
+	parsed, err := url.Parse(link)
+	if err != nil {
+		if cut := strings.IndexAny(link, "?#"); cut >= 0 {
+			return link[:cut]
+		}
+		return link
+	}
+	parsed.RawQuery, parsed.Fragment, parsed.RawFragment = "", "", ""
+	return parsed.String()
 }
 
 // --- Presidio NER masking (layered on top of the regex floor) ---------------
 //
-// Presidio (two local containers: analyzer + anonymizer) catches context-dependent PII the
+// Presidio (the analyzer container) catches context-dependent PII the
 // regex can't — names, locations, organizations, and account numbers (identifiable only by
 // nearby words). It runs AFTER maskPII on the already-floored text, so the email/phone/IC
 // floor holds even when the containers are down: any Presidio error degrades to the regex
@@ -157,22 +187,6 @@ type presidioResult struct {
 	Start      int     `json:"start"`
 	End        int     `json:"end"`
 	Score      float64 `json:"score"`
-}
-
-// presidioReplacement is the typed anonymizer config (avoids a map[string]interface{}).
-type presidioReplacement struct {
-	Type     string `json:"type"`
-	NewValue string `json:"new_value"`
-}
-
-type presidioAnonymizeRequest struct {
-	Text           string                         `json:"text"`
-	AnalyzeResults []presidioResult               `json:"analyzer_results"`
-	Anonymizers    map[string]presidioReplacement `json:"anonymizers,omitempty"`
-}
-
-type presidioAnonymizeResponse struct {
-	Text string `json:"text"`
 }
 
 // localeRecognizers holds only the context-gated account recogniser. IC and phone moved to the
@@ -230,38 +244,45 @@ func filterAllowedLocations(text string, results []presidioResult) []presidioRes
 // NER on the floored text. On any Presidio error it degrades to the regex result — raw text
 // is never returned. emails/phones counts come from the regex pass so they stay honest in
 // both modes; degraded reports whether Presidio ran, for the audit log.
-func maskText(ctx context.Context, text string) (masked string, emailsMasked, phonesMasked int, degraded bool) {
-	masked, emailsMasked, phonesMasked = maskPII(text)
-	presidioMasked, err := maskWithPresidio(ctx, masked)
-	if err != nil {
-		log.Printf("presidio degraded, regex-only for this field: %v", err)
-		return masked, emailsMasked, phonesMasked, true
+// maskText runs the regex floor over the whole text, then NER over it in pieces. The floor is never
+// chunked: an email address cut across two pieces would match in neither. NER is, because one
+// Presidio call on a long body or a 20-page PDF can outrun presidioClient's timeout.
+func maskText(ctx context.Context, text string, v *detailVault) (masked string, emailsMasked, phonesMasked int, degraded bool) {
+	masked, emailsMasked, phonesMasked = maskPII(text, v)
+	var pieces []string
+	for _, chunk := range chunkText(masked, nerChunkChars) {
+		piece, err := maskWithPresidio(ctx, chunk, v)
+		if err != nil {
+			log.Printf("presidio degraded, regex-only for this field: %v", err)
+			return masked, emailsMasked, phonesMasked, true
+		}
+		pieces = append(pieces, piece)
 	}
-	return presidioMasked, emailsMasked, phonesMasked, false
+	return strings.Join(pieces, ""), emailsMasked, phonesMasked, false
 }
 
-// maskWithPresidio detects PII via the analyzer container and redacts it via the anonymizer
-// container. Any error is returned so the caller can degrade to the regex floor.
-func maskWithPresidio(ctx context.Context, text string) (string, error) {
+// maskWithPresidio detects PII with the analyzer container and replaces each entity with a
+// numbered placeholder from v. Replacement happens here rather than in the anonymizer container so
+// the value behind every placeholder is known and can be sealed into the vault. Any error is
+// returned so the caller can degrade to the regex floor.
+func maskWithPresidio(ctx context.Context, text string, v *detailVault) (string, error) {
 	if strings.TrimSpace(text) == "" {
 		return text, nil
 	}
 	analyzerURL := getEnvOrDefault("PRESIDIO_ANALYZER_URL", "http://localhost:5001/analyze")
-	anonymizerURL := getEnvOrDefault("PRESIDIO_ANONYMIZER_URL", "http://localhost:5002/anonymize")
-
 	analyzePayload, err := json.Marshal(presidioAnalyzeRequest{
 		Text:           text,
 		Language:       "en",
 		ScoreThreshold: 0.6,
-		// CREDIT_CARD is Presidio's built-in recogniser and validates the Luhn checksum, so it
-		// cannot fire on an invoice or order number that merely looks card-shaped.
-		Entities:         []string{"PERSON", "LOCATION", "ORGANIZATION", "ACCOUNT_NUMBER", "CREDIT_CARD"},
+		// CREDIT_CARD and IBAN_CODE are Presidio built-ins that validate their checksums, so they
+		// cannot fire on an invoice or order number that merely looks card- or IBAN-shaped. SWIFT/BIC
+		// is left out on purpose: it names a bank, which is public, not a person.
+		Entities:         []string{"PERSON", "LOCATION", "ORGANIZATION", "ACCOUNT_NUMBER", "CREDIT_CARD", "IBAN_CODE", "PHONE_NUMBER", "EMAIL_ADDRESS"},
 		AdHocRecognizers: localeRecognizers,
 	})
 	if err != nil {
 		return "", fmt.Errorf("marshal analyze request: %w", err)
 	}
-
 	raw, err := presidioPost(ctx, analyzerURL, analyzePayload)
 	if err != nil {
 		return "", fmt.Errorf("presidio analyzer: %w", err)
@@ -270,29 +291,62 @@ func maskWithPresidio(ctx context.Context, text string) (string, error) {
 	if err := json.Unmarshal(raw, &results); err != nil {
 		return "", fmt.Errorf("decode analyze results: %w", err)
 	}
-	results = filterAllowedLocations(text, results)
-	if len(results) == 0 {
-		return text, nil // no PII beyond the regex floor
-	}
+	return replaceEntities(text, filterAllowedLocations(text, results), v), nil
+}
 
-	anonymizePayload, err := json.Marshal(presidioAnonymizeRequest{
-		Text:           text,
-		AnalyzeResults: results,
-		Anonymizers:    map[string]presidioReplacement{"DEFAULT": {Type: "replace", NewValue: "[Redacted]"}},
+// entityKinds maps Presidio's entity names to placeholder kinds. An unlisted entity is still
+// masked, as an account-like identifier.
+var entityKinds = map[string]detailKind{
+	"PERSON": kindPerson, "LOCATION": kindLocation, "ORGANIZATION": kindOrg,
+	"ACCOUNT_NUMBER": kindAccount, "IBAN_CODE": kindAccount, "CREDIT_CARD": kindCard,
+	"PHONE_NUMBER": kindPhone, "EMAIL_ADDRESS": kindEmail,
+}
+
+func entityKind(entity string) detailKind {
+	if kind, ok := entityKinds[entity]; ok {
+		return kind
+	}
+	return kindAccount
+}
+
+// replaceEntities swaps each detected entity for its placeholder. Offsets are Python character
+// indices, so the text is handled as runes. Where entities overlap the longest wins, and anything
+// touching a placeholder the regex floor already wrote is left alone.
+func replaceEntities(text string, results []presidioResult, v *detailVault) string {
+	runes := []rune(text)
+	taken := runeSpans(text, placeholderRegex.FindAllStringIndex(text, -1))
+	sort.SliceStable(results, func(i, j int) bool {
+		li, lj := results[i].End-results[i].Start, results[j].End-results[j].Start
+		return li > lj || (li == lj && results[i].Score > results[j].Score)
 	})
-	if err != nil {
-		return "", fmt.Errorf("marshal anonymize request: %w", err)
+	var chosen []presidioResult
+	for _, r := range results {
+		if r.Start < 0 || r.End > len(runes) || r.Start >= r.End || overlapsAny(r.Start, r.End, taken) {
+			continue
+		}
+		taken = append(taken, [2]int{r.Start, r.End})
+		chosen = append(chosen, r)
 	}
+	// Numbered in reading order, then replaced from the end so earlier offsets stay valid.
+	sort.Slice(chosen, func(i, j int) bool { return chosen[i].Start < chosen[j].Start })
+	tokens := make([][]rune, len(chosen))
+	for i, r := range chosen {
+		tokens[i] = []rune(v.placeholder(entityKind(r.EntityType), string(runes[r.Start:r.End])))
+	}
+	for i := len(chosen) - 1; i >= 0; i-- {
+		r := chosen[i]
+		runes = append(runes[:r.Start], append(tokens[i], runes[r.End:]...)...)
+	}
+	return string(runes)
+}
 
-	raw, err = presidioPost(ctx, anonymizerURL, anonymizePayload)
-	if err != nil {
-		return "", fmt.Errorf("presidio anonymizer: %w", err)
+func overlapsAny(start, end int, spans [][2]int) bool {
+	for _, s := range spans {
+		if start < s[1] && s[0] < end {
+			return true
+		}
 	}
-	var out presidioAnonymizeResponse
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return "", fmt.Errorf("decode anonymize response: %w", err)
-	}
-	return out.Text, nil
+	return false
 }
 
 // presidioPost POSTs a JSON payload to a Presidio endpoint and returns the raw response body.
@@ -322,16 +376,40 @@ func getEnvOrDefault(key, fallback string) string {
 
 // --- Supabase storage + audit log -------------------------------------------
 
+// MaskedContent is every content column, all of it masked. It is written whole or not at all:
+// a quarantined row has none of it, and completing that row later patches exactly these fields.
+type MaskedContent struct {
+	Subject       string `json:"subject"`
+	BodyMasked    string `json:"body_masked"`
+	SnippetMasked string `json:"snippet_masked"`
+	EmailsMasked  int    `json:"emails_masked"`
+	PhonesMasked  int    `json:"phones_masked"`
+	MaskingStatus string `json:"masking_status"`
+	// The sealed placeholder-to-value map (details.go), as PostgREST's `\x` hex; omitted when empty.
+	PiiVault string `json:"pii_vault,omitempty"`
+}
+
 // StoredMessage is what we persist for each processed email, post-masking.
 type StoredMessage struct {
+	UserID         string    `json:"user_id,omitempty"` // the mailbox owner; omitted (NULL) for token.json
 	GmailMessageID string    `json:"gmail_message_id"`
 	FromAddr       string    `json:"from_addr"`
-	Subject        string    `json:"subject"`
-	BodyMasked     string    `json:"body_masked"`
-	SnippetMasked  string    `json:"snippet_masked"`
-	EmailsMasked   int       `json:"emails_masked"`
-	PhonesMasked   int       `json:"phones_masked"`
+	ReplyTo        string    `json:"reply_to,omitempty"` // where an approved reply goes; shown to the approver
 	ReceivedAt     time.Time `json:"received_at"`
+	ThreadIdentity
+	MaskedContent
+}
+
+// QuarantinedMessage is the row for a message whose masking could not complete (#109): enough to
+// show it exists and to finish it later, and no content at all.
+type QuarantinedMessage struct {
+	UserID         string    `json:"user_id,omitempty"`
+	GmailMessageID string    `json:"gmail_message_id"`
+	FromAddr       string    `json:"from_addr"`
+	ReplyTo        string    `json:"reply_to,omitempty"`
+	ReceivedAt     time.Time `json:"received_at"`
+	MaskingStatus  string    `json:"masking_status"`
+	ThreadIdentity
 }
 
 // AuditLogEntry records every pipeline action for traceability — required
@@ -444,20 +522,28 @@ func saveToken(path string, token *oauth2.Token) {
 	json.NewEncoder(f).Encode(token)
 }
 
-// Registers Gmail Watch request to route mailbox changes to GCP Pub/Sub
-func setupWatch(ctx context.Context, srv *gmail.Service) {
-	req := &gmail.WatchRequest{
-		TopicName: TopicName,
-		LabelIds:  []string{"INBOX"},
-	}
-	res, err := srv.Users.Watch("me", req).Do()
+// startTokenFileMailbox watches the original token.json mailbox, unless its account has connected
+// with Google, in which case that connection already serves it. A failure is logged, not fatal:
+// every connected user's mailbox still works without it.
+func startTokenFileMailbox(ctx context.Context, srv *gmail.Service) {
+	profile, err := srv.Users.GetProfile("me").Context(ctx).Do()
 	if err != nil {
-		writeAuditLog(ctx, "setup_watch", fmt.Sprintf("watch registration failed: %v", err), false)
-		log.Fatalf("Unable to set up Gmail Watch: %v", err)
+		log.Printf("token.json mailbox not started: %v", err)
+		writeAuditLog(ctx, "setup_watch", fmt.Sprintf("token.json profile failed: %v", err), false)
+		return
 	}
-	fmt.Printf("Gmail Watch established! Expiration: %d, HistoryId: %d\n", res.Expiration, res.HistoryId)
-	writeAuditLog(ctx, "setup_watch", fmt.Sprintf("watch established, expiration %d, historyId %d", res.Expiration, res.HistoryId), true)
-	atomic.StoreUint64(&lastHistoryID, res.HistoryId)
+	if existing := lookupMailbox(profile.EmailAddress); existing != nil {
+		log.Printf("token.json mailbox is connected as user %s; using the connection", existing.ownerID)
+		return
+	}
+	mb := &mailbox{email: strings.ToLower(profile.EmailAddress), srv: srv}
+	if err := watchMailbox(ctx, mb); err != nil {
+		log.Printf("token.json mailbox not started: %v", err)
+		writeAuditLog(ctx, "setup_watch", fmt.Sprintf("watch registration failed: %v", err), false)
+		return
+	}
+	registerMailbox(mb)
+	writeAuditLog(ctx, "setup_watch", "token.json mailbox watch established", true)
 }
 
 // Gmail expires a watch after roughly seven days. #83: nothing renewed it, so a listener left
@@ -465,7 +551,7 @@ func setupWatch(ctx context.Context, srv *gmail.Service) {
 // during development, which is why it went unnoticed.
 const watchRenewInterval = 24 * time.Hour
 
-func renewWatchPeriodically(ctx context.Context, srv *gmail.Service) {
+func renewWatchPeriodically(ctx context.Context) {
 	ticker := time.NewTicker(watchRenewInterval)
 	defer ticker.Stop()
 	for {
@@ -473,22 +559,27 @@ func renewWatchPeriodically(ctx context.Context, srv *gmail.Service) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			req := &gmail.WatchRequest{TopicName: TopicName, LabelIds: []string{"INBOX"}}
-			res, err := srv.Users.Watch("me", req).Do()
-			if err != nil {
-				// Loud on purpose: a silent renewal failure is the original bug wearing a hat.
-				log.Printf("WATCH RENEWAL FAILED: %v — mail will stop arriving when the current watch expires", err)
-				writeAuditLog(ctx, "renew_watch", fmt.Sprintf("renewal failed: %v", err), false)
-				continue
+			for _, mb := range allMailboxes() {
+				renewWatch(ctx, mb)
 			}
-			fmt.Printf("Gmail Watch renewed. Expiration: %d, HistoryId: %d\n", res.Expiration, res.HistoryId)
-			writeAuditLog(ctx, "renew_watch", fmt.Sprintf("renewed, expiration %d", res.Expiration), true)
 		}
 	}
 }
 
-// Listens to GCP Pub/Sub subscription using your OAuth token source
-func listenToPubSub(ctx context.Context, ts oauth2.TokenSource, srv *gmail.Service) {
+func renewWatch(ctx context.Context, mb *mailbox) {
+	if err := watchMailbox(ctx, mb); err != nil {
+		// Loud on purpose: a silent renewal failure is the original bug wearing a hat.
+		log.Printf("WATCH RENEWAL FAILED for user %q: %v — this mailbox stops receiving mail when the current watch expires",
+			mb.ownerID, err)
+		writeAuditLog(ctx, "renew_watch", fmt.Sprintf("user %q: renewal failed: %v", mb.ownerID, err), false)
+		return
+	}
+	writeAuditLog(ctx, "renew_watch", fmt.Sprintf("user %q: renewed", mb.ownerID), true)
+}
+
+// Listens to the Pub/Sub subscription. Interim: it authenticates as the token.json account (pubsub
+// scope); a service account replaces that before token.json retires (audit finding 4).
+func listenToPubSub(ctx context.Context, ts oauth2.TokenSource) {
 	client, err := pubsub.NewClient(ctx, ProjectID, option.WithTokenSource(ts))
 	if err != nil {
 		log.Fatalf("Failed to create Pub/Sub client: %v", err)
@@ -510,21 +601,38 @@ func listenToPubSub(ctx context.Context, ts oauth2.TokenSource, srv *gmail.Servi
 			return
 		}
 
-		fmt.Printf("\nNew email event received for: %s (History ID: %d)\n", payload.EmailAddress, payload.HistoryID)
+		mb := lookupMailbox(payload.EmailAddress)
+		if mb == nil {
+			// A mailbox that disconnected, or one connected since the last sync; nothing to do
+			// with it now, and redelivering would not change that.
+			log.Printf("notification for a mailbox that is not connected (history %d); ignored", payload.HistoryID)
+			msg.Ack()
+			return
+		}
+		log.Printf("new mail event for user %q (history %d)", mb.ownerID, payload.HistoryID)
 
 		// #84: acking first meant a failure during masking or storage lost the email silently,
 		// with no redelivery. Acking after success risks a poison message redelivering forever,
 		// so the two are separated: a message that fails repeatedly is acked and recorded rather
 		// than left to loop. Pub/Sub's own delivery count is what distinguishes them.
-		if err := ingestHistory(ctx, srv, payload.HistoryID); err != nil {
+		if err := ingestHistory(ctx, mb, payload.HistoryID); err != nil {
 			if msg.DeliveryAttempt != nil && *msg.DeliveryAttempt >= maxDeliveryAttempts {
 				log.Printf("GIVING UP on history %d after %d attempts: %v",
 					payload.HistoryID, *msg.DeliveryAttempt, err)
 				writeAuditLog(ctx, "ingest_abandoned",
 					fmt.Sprintf("history %d abandoned after %d attempts: %v",
 						payload.HistoryID, *msg.DeliveryAttempt, err), false)
+				// Past this range, or every later notification would list it again, hit the same
+				// failure first, and no newer mail would arrive until a restart.
+				advanceBaseline(mb, payload.HistoryID)
 				msg.Ack()
 				return
+			}
+			if msg.DeliveryAttempt == nil {
+				warnNoDeadLetter.Do(func() {
+					log.Printf("WARNING: subscription %s has no dead-letter policy, so failed notifications "+
+						"are retried forever; see infra/pubsub-dead-letter.md", SubscriptionID)
+				})
 			}
 			log.Printf("Ingest failed for history %d, will retry: %v", payload.HistoryID, err)
 			msg.Nack()
@@ -544,20 +652,23 @@ func listenToPubSub(ctx context.Context, ts oauth2.TokenSource, srv *gmail.Servi
 // missing row, not a duplicate one, which is invisible unless you go looking.
 const maxDeliveryAttempts = 5
 
-// The last history ID successfully processed. history.list needs a starting point, and the
-// notification's own ID is the *end* of the range, not the start.
-var lastHistoryID uint64
+// Pub/Sub counts deliveries only when the subscription has a dead-letter policy; said once, not
+// on every failure.
+var warnNoDeadLetter sync.Once
 
-func ingestHistory(ctx context.Context, srv *gmail.Service, historyID uint64) error {
-	start := atomic.LoadUint64(&lastHistoryID)
+// ingestHistory stores what a notification announced. mb.lastHistoryID is the last history ID
+// successfully processed: history.list needs a starting point, and the notification's own ID is
+// the *end* of the range, not the start.
+func ingestHistory(ctx context.Context, mb *mailbox, historyID uint64) error {
+	start := atomic.LoadUint64(&mb.lastHistoryID)
 	if start == 0 {
-		// No baseline yet — first notification after startup. Fall back to the newest INBOX
-		// message so nothing is dropped, then let the baseline advance from here.
-		atomic.StoreUint64(&lastHistoryID, historyID)
-		return ingestNewestInbox(ctx, srv)
+		// No baseline yet. Fall back to the newest INBOX message so nothing is dropped, then let
+		// the baseline advance from here.
+		advanceBaseline(mb, historyID)
+		return ingestNewestInbox(ctx, mb)
 	}
 
-	call := srv.Users.History.List("me").StartHistoryId(start).HistoryTypes("messageAdded").LabelId("INBOX")
+	call := mb.srv.Users.History.List("me").StartHistoryId(start).HistoryTypes("messageAdded").LabelId("INBOX")
 	var ids []string
 	err := call.Pages(ctx, func(page *gmail.ListHistoryResponse) error {
 		for _, record := range page.History {
@@ -574,32 +685,65 @@ func ingestHistory(ctx context.Context, srv *gmail.Service, historyID uint64) er
 		// Fall back rather than fail the message forever.
 		log.Printf("history.list from %d failed (%v); falling back to newest INBOX message", start, err)
 		writeAuditLog(ctx, "fetch_history", fmt.Sprintf("history %d: %v (fell back)", start, err), false)
-		atomic.StoreUint64(&lastHistoryID, historyID)
-		return ingestNewestInbox(ctx, srv)
-	}
-
-	atomic.StoreUint64(&lastHistoryID, historyID)
-	if len(ids) == 0 {
-		fmt.Println("No new INBOX messages in this history range.")
-		return nil
+		advanceBaseline(mb, historyID)
+		return ingestNewestInbox(ctx, mb)
 	}
 
 	for _, msgID := range ids {
-		if err := ingestMessage(ctx, srv, msgID); err != nil {
+		err := ingestMessage(ctx, mb, msgID)
+		if isPermanentIngestFailure(err) {
+			// Retrying cannot help (deleted before the fetch, or a row the database refuses), and
+			// failing the range would hold every newer message behind this one.
+			writeAuditLog(ctx, "ingest_skipped", fmt.Sprintf("msg %s: %v", msgID, err), false)
+			continue
+		}
+		if err != nil {
+			// The baseline stays put, so the redelivery lists this range again and retries the
+			// message; the ones already stored are skipped by messageStored.
 			return fmt.Errorf("message %s: %w", msgID, err)
 		}
 	}
+	advanceBaseline(mb, historyID)
 	return nil
+}
+
+// isPermanentIngestFailure is a failure that will recur on every retry: the message is gone from
+// Gmail, or the database refused the row itself (a 4xx, not an outage).
+func isPermanentIngestFailure(err error) bool {
+	return err != nil && (isGone(err) || errors.Is(err, errRowRejected))
+}
+
+// advanceBaseline moves a mailbox's baseline forward only, and saves it so a restart resumes there.
+// Notifications are handled concurrently, and a slower, older one must not move the baseline back
+// and make a newer range be listed twice.
+func advanceBaseline(mb *mailbox, historyID uint64) {
+	if !raiseBaseline(mb, historyID) {
+		return
+	}
+	saveConnectionState(context.Background(), mb, map[string]interface{}{"history_id": historyID})
+}
+
+// raiseBaseline reports whether historyID was newer and is now the baseline.
+func raiseBaseline(mb *mailbox, historyID uint64) bool {
+	for {
+		current := atomic.LoadUint64(&mb.lastHistoryID)
+		if historyID <= current {
+			return false
+		}
+		if atomic.CompareAndSwapUint64(&mb.lastHistoryID, current, historyID) {
+			return true
+		}
+	}
 }
 
 // ingestNewestInbox is the fallback for when history is unusable: the pre-#85 behaviour, kept
 // because dropping the notification entirely would be worse than occasionally re-fetching.
-func ingestNewestInbox(ctx context.Context, srv *gmail.Service) error {
+func ingestNewestInbox(ctx context.Context, mb *mailbox) error {
 	// INBOX only, matching the label the watch is registered against (setupWatch). Without it
 	// this fetches the newest message anywhere in the mailbox — including a reply the system
 	// just sent, which Gmail files in the same mailbox. That made AImail ingest its own outgoing
 	// mail and generate replies to itself.
-	list, err := srv.Users.Messages.List("me").LabelIds("INBOX").MaxResults(1).Do()
+	list, err := mb.srv.Users.Messages.List("me").LabelIds("INBOX").MaxResults(1).Do()
 	if err != nil {
 		writeAuditLog(ctx, "fetch_message", fmt.Sprintf("list error: %v", err), false)
 		return fmt.Errorf("list messages: %w", err)
@@ -607,73 +751,107 @@ func ingestNewestInbox(ctx context.Context, srv *gmail.Service) error {
 	if len(list.Messages) == 0 {
 		return nil
 	}
-	return ingestMessage(ctx, srv, list.Messages[0].Id)
+	return ingestMessage(ctx, mb, list.Messages[0].Id)
 }
 
 // ingestMessage fetches one message by ID, masks its PII, and persists it plus an audit entry.
-func ingestMessage(ctx context.Context, srv *gmail.Service, msgID string) error {
-	msg, err := srv.Users.Messages.Get("me", msgID).Format("full").Do()
+func ingestMessage(ctx context.Context, mb *mailbox, msgID string) error {
+	// A failed lookup falls through to a normal ingest: dropping a message is worse than paying
+	// for OCR twice, and the insert's on_conflict still keeps the row single.
+	isStored, err := messageStored(ctx, mb.ownerID, msgID)
 	if err != nil {
-		log.Printf("Could not retrieve message details: %v", err)
-		writeAuditLog(ctx, "fetch_message", fmt.Sprintf("get error for %s: %v", msgID, err), false)
-		return fmt.Errorf("get message %s: %w", msgID, err)
+		log.Printf("could not check whether %s is stored, ingesting anyway: %v", msgID, err)
+	}
+	if isStored {
+		return nil
 	}
 
-	var subject, from string
-	for _, h := range msg.Payload.Headers {
-		if h.Name == "Subject" {
-			subject = h.Value
-		}
-		if h.Name == "From" {
-			from = h.Value
-		}
+	msg, err := fetchMessage(ctx, mb.srv, msgID)
+	if err != nil {
+		return err
 	}
-
-	body := getBody(msg.Payload)
-
-	// #82: text inside image attachments. The image is redacted by Presidio before anything reads
-	// it, so this arrives already free of PII — but it still goes through maskText below like any
-	// other untrusted text, because a second net costs nothing and OCR can misread a redaction box.
-	body += ocrAttachments(ctx, srv, msgID, msg.Payload)
-
-	// Mask PII before anything touches storage or logs: regex floor first, then Presidio NER.
-	maskedBody, bodyEmails, bodyPhones, degradedBody := maskText(ctx, body)
-	maskedSnippet, snipEmails, snipPhones, degradedSnip := maskText(ctx, msg.Snippet)
-	maskedSubject, subEmails, subPhones, degradedSubj := maskText(ctx, subject)
-	totalEmails := bodyEmails + snipEmails + subEmails
-	totalPhones := bodyPhones + snipPhones + subPhones
-	presidioDegraded := degradedBody || degradedSnip || degradedSubj
-
-	fmt.Println("-------------------------------------------")
-	fmt.Printf("FROM: %s\n", from)
-	fmt.Printf("SUBJECT (masked): %s\n", maskedSubject)
-	fmt.Printf("BODY SNIPPET (masked): %s\n", maskedSnippet)
-	fmt.Printf("FULL BODY LENGTH: %d bytes | masked %d emails, %d phones\n", len(body), totalEmails, totalPhones)
-	fmt.Println("-------------------------------------------")
+	if msg.Payload == nil {
+		// Nothing to read or mask; a nil payload must not panic the Pub/Sub callback.
+		writeAuditLog(ctx, "fetch_message", fmt.Sprintf("msg %s: no payload", msgID), false)
+		return nil
+	}
+	if isOwnSentReply(msg) {
+		// A reply sent from AIMail lands in the same thread and history can list it; it is
+		// already shown under the email it answers, so storing it would add a fake new email.
+		return nil
+	}
+	identity := threadIdentity(msg)
+	content, isComplete := maskMessage(ctx, mb.srv, msg, mb.ownerID)
+	if !isComplete {
+		return quarantine(ctx, mb.ownerID, msgID, msg.Payload.Headers, identity)
+	}
 
 	stored := StoredMessage{
+		UserID:         mb.ownerID,
 		GmailMessageID: msgID,
-		FromAddr:       from, // sender address kept as-is for reply threading; masking here is a policy call for the team to confirm
-		Subject:        maskedSubject,
-		BodyMasked:     maskedBody,
-		SnippetMasked:  maskedSnippet,
-		EmailsMasked:   totalEmails,
-		PhonesMasked:   totalPhones,
+		FromAddr:       headerValue(msg.Payload.Headers, "From"), // kept unmasked on purpose: docs/decisions/shared.md, 2026-10-04
+		ReplyTo:        headerValue(msg.Payload.Headers, "Reply-To"),
 		ReceivedAt:     time.Now().UTC(),
+		ThreadIdentity: identity,
+		MaskedContent:  content,
 	}
-
-	if err := supabaseInsert(ctx, "messages", stored, "gmail_message_id"); err != nil {
-		log.Printf("Could not store message: %v", err)
+	isInserted, err := insertMessage(ctx, stored)
+	if err != nil {
+		log.Printf("could not store message %s: %v", msgID, err)
 		writeAuditLog(ctx, "store_message", fmt.Sprintf("msg %s: %v", msgID, err), false)
 		return fmt.Errorf("store message %s: %w", msgID, err)
 	}
-
-	detail := fmt.Sprintf("msg %s stored, %d emails / %d phones masked", msgID, totalEmails, totalPhones)
-	if presidioDegraded {
-		detail += " (presidio degraded: regex-only)"
+	if !isInserted {
+		log.Printf("%s already stored; the insert was ignored", msgID)
+		return nil
 	}
-	writeAuditLog(ctx, "store_message", detail, true)
+	// Counts only: the sender, subject and body are never written to stdout.
+	log.Printf("stored %s: %d bytes, %d emails / %d phones masked", msgID, len(content.BodyMasked),
+		content.EmailsMasked, content.PhonesMasked)
+	writeAuditLog(ctx, "store_message", fmt.Sprintf("msg %s stored, %d emails / %d phones masked",
+		msgID, content.EmailsMasked, content.PhonesMasked), true)
 	return nil
+}
+
+// isOwnSentReply is a message the mailbox sent, not received. Mail to yourself carries both SENT
+// and INBOX and is still ingested.
+func isOwnSentReply(msg *gmail.Message) bool {
+	return slices.Contains(msg.LabelIds, "SENT") && !slices.Contains(msg.LabelIds, "INBOX")
+}
+
+func fetchMessage(ctx context.Context, srv *gmail.Service, msgID string) (*gmail.Message, error) {
+	msg, err := srv.Users.Messages.Get("me", msgID).Format("full").Context(ctx).Do()
+	if err != nil {
+		log.Printf("could not retrieve message %s: %v", msgID, err)
+		writeAuditLog(ctx, "fetch_message", fmt.Sprintf("get error for %s: %v", msgID, err), false)
+		return nil, fmt.Errorf("get message %s: %w", msgID, err)
+	}
+	return msg, nil
+}
+
+// maskMessage masks every content field. isComplete is false when NER was unavailable for any
+// of them: the caller must then store nothing of the content (#109). Attachment text is masked on
+// its own and dropped rather than degraded, so it never decides the outcome.
+func maskMessage(ctx context.Context, srv *gmail.Service, msg *gmail.Message, ownerID string) (MaskedContent, bool) {
+	// One vault for every field, so a person named in the subject and the body is one placeholder.
+	v := newDetailVault()
+	maskedBody, bodyEmails, bodyPhones, degradedBody := maskText(ctx, getBody(msg.Payload), v)
+	maskedSnippet, snipEmails, snipPhones, degradedSnip := maskText(ctx, msg.Snippet, v)
+	maskedSubject, subEmails, subPhones, degradedSubj := maskText(ctx, headerValue(msg.Payload.Headers, "Subject"), v)
+	if degradedBody || degradedSnip || degradedSubj {
+		return MaskedContent{}, false
+	}
+	attachments, attachEmails, attachPhones := maskAttachmentText(ctx, msg.Id,
+		ocrAttachments(ctx, srv, msg.Id, msg.Payload), v)
+	return MaskedContent{
+		Subject:       maskedSubject,
+		BodyMasked:    maskedBody + attachments,
+		SnippetMasked: maskedSnippet,
+		EmailsMasked:  bodyEmails + snipEmails + subEmails + attachEmails,
+		PhonesMasked:  bodyPhones + snipPhones + subPhones + attachPhones,
+		MaskingStatus: maskingComplete,
+		PiiVault:      v.sealed(ownerID, msg.Id),
+	}, true
 }
 
 // getBody prefers the text/html part so the dashboard can render the email like a normal inbox;
@@ -700,6 +878,9 @@ var (
 	htmlDropRegex  = regexp.MustCompile(`(?is)<(script|style)[^>]*>.*?</(script|style)>`)
 	htmlBreakRegex = regexp.MustCompile(`(?i)<(br\s*/?|/p|/div|/tr|/li|/h[1-6])>`)
 	htmlTagRegex   = regexp.MustCompile(`<[^>]*>`)
+	// A link's target is kept as text: stripping tags would otherwise erase the only sign that a
+	// "verify your account" email points somewhere, which the agent's phishing check reads.
+	htmlLinkRegex  = regexp.MustCompile(`(?is)<a\b[^>]*\bhref\s*=\s*["'](https?://[^"'\s]+)["'][^>]*>(.*?)</a>`)
 	blankLineRegex = regexp.MustCompile(`\n{3,}`)
 )
 
@@ -709,6 +890,7 @@ var (
 // together, which would confuse NER as much as the tags did.
 func htmlToText(markup string) string {
 	text := htmlDropRegex.ReplaceAllString(markup, " ")
+	text = htmlLinkRegex.ReplaceAllString(text, "$2 ($1)")
 	text = htmlBreakRegex.ReplaceAllString(text, "\n")
 	text = htmlTagRegex.ReplaceAllString(text, "")
 	text = html.UnescapeString(text)
@@ -785,12 +967,16 @@ func main() {
 		log.Println("WARNING: SUPABASE_URL / SUPABASE_SERVICE_KEY not set — storage and audit log writes will fail. Set these env vars before running.")
 	}
 
-	// 1. Establish Watch hook on Gmail API
-	setupWatch(ctx, srv)
+	// 1. Watch every connected user's mailbox, then the token.json one unless it is among them.
+	syncConnections(ctx)
+	startTokenFileMailbox(ctx, srv)
+	go syncConnectionsPeriodically(ctx)
 
-	// #83: keep the watch alive. Gmail expires it after about a week and nothing renewed it.
-	go renewWatchPeriodically(ctx, srv)
+	// #83: keep the watches alive. Gmail expires them after about a week.
+	go renewWatchPeriodically(ctx)
+	// #109: finish messages quarantined while Presidio was down.
+	go remaskQuarantinedPeriodically(ctx)
 
 	// 2. Start live Pub/Sub listener loop
-	listenToPubSub(ctx, tokenSource, srv)
+	listenToPubSub(ctx, tokenSource)
 }

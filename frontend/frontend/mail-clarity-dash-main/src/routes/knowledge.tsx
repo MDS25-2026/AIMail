@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import AppShell from "../components/AppShell";
 import { PageEmpty, PageError, PageLoading } from "../components/PageState";
+import { UploadError } from "../lib/api";
 import { useAddDocument, useDocuments, useUploadDocument } from "../lib/queries";
 
 export const Route = createFileRoute("/knowledge")({
@@ -19,6 +21,7 @@ export const Route = createFileRoute("/knowledge")({
 });
 
 function KnowledgePage() {
+  const { t } = useTranslation();
   const documents = useDocuments();
   const upload = useUploadDocument();
   const paste = useAddDocument();
@@ -38,13 +41,10 @@ function KnowledgePage() {
 
   return (
     <AppShell>
-      <section className="min-w-0 flex-1 overflow-y-auto bg-slate-50 p-6">
+      <section className="relative min-w-0 flex-1 overflow-y-auto bg-surface-muted p-6">
         <header className="mb-5">
-          <h1 className="text-xl font-semibold text-slate-800">Knowledge base</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Policy documents AImail retrieves from when grounding a reply. Every draft cites the
-            chunks it used.
-          </p>
+          <h1 className="text-xl font-semibold text-fg">{t("knowledge.heading")}</h1>
+          <p className="mt-1 text-sm text-fg-muted">{t("knowledge.description")}</p>
         </header>
 
         <div className="mb-6 grid gap-4 sm:grid-cols-2">
@@ -66,43 +66,42 @@ function KnowledgePage() {
           />
         </div>
 
-        {documents.isPending ? <PageLoading label="the knowledge base" /> : null}
-        {documents.isError ? <PageError label="the knowledge base" error={documents.error} /> : null}
+        {documents.isPending ? <PageLoading label={t("knowledge.label")} /> : null}
+        {documents.isError ? (
+          <PageError label={t("knowledge.label")} error={documents.error} />
+        ) : null}
         {documents.data?.length === 0 ? (
-          <PageEmpty
-            title="No documents yet"
-            hint="Upload a policy PDF above. Without one, drafts have nothing to ground themselves in."
-          />
+          <PageEmpty title={t("knowledge.emptyTitle")} hint={t("knowledge.emptyHint")} />
         ) : null}
 
         {documents.data && documents.data.length > 0 ? (
-          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+          <div className="relative overflow-x-auto rounded-lg border border-line bg-surface">
             <table className="w-full text-left text-sm">
-              <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+              <thead className="border-b border-line text-xs uppercase tracking-wide text-fg-muted">
                 <tr>
-                  <th className="px-4 py-3 font-semibold">Document</th>
-                  <th className="px-4 py-3 font-semibold">Type</th>
-                  <th className="px-4 py-3 text-right font-semibold">Chunks</th>
+                  <th className="px-4 py-3 font-semibold">{t("knowledge.document")}</th>
+                  <th className="px-4 py-3 font-semibold">{t("knowledge.type")}</th>
+                  <th className="px-4 py-3 text-right font-semibold">{t("knowledge.chunks")}</th>
                 </tr>
               </thead>
               <tbody>
                 {documents.data.map((doc) => (
-                  <tr key={doc.document_id} className="border-b border-slate-100 last:border-0">
+                  <tr key={doc.document_id} className="border-b border-line-subtle last:border-0">
                     <td className="px-4 py-3">
-                      <div className="font-medium text-slate-800">{doc.title}</div>
-                      <div className="truncate text-xs text-slate-400">{doc.source}</div>
+                      <div className="font-medium text-fg">{doc.title}</div>
+                      <div className="truncate text-xs text-fg-subtle">{doc.source}</div>
                     </td>
-                    <td className="px-4 py-3 text-slate-600">{doc.doc_type}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-slate-700">
+                    <td className="px-4 py-3 text-fg-body">{doc.doc_type}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-fg-body">
                       {doc.chunk_count}
                     </td>
                   </tr>
                 ))}
               </tbody>
-              <tfoot className="border-t border-slate-200 text-slate-600">
+              <tfoot className="border-t border-line text-fg-body">
                 <tr>
                   <td className="px-4 py-3 text-xs uppercase tracking-wide" colSpan={2}>
-                    {documents.data.length} document{documents.data.length === 1 ? "" : "s"}
+                    {t("knowledge.documents", { count: documents.data.length })}
                   </td>
                   <td className="px-4 py-3 text-right font-semibold tabular-nums">{totalChunks}</td>
                 </tr>
@@ -123,18 +122,25 @@ type UploadCardProps = {
 };
 
 function UploadCard({ onUpload, isPending, error, chunks }: UploadCardProps) {
+  const { t } = useTranslation();
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
-      <h2 className="text-sm font-semibold text-slate-800">Upload a PDF</h2>
-      <p className="mt-1 text-xs text-slate-500">Up to 10 MB. Must be a real PDF.</p>
+    <div className="rounded-lg border border-line bg-surface p-4">
+      <h2 className="text-sm font-semibold text-fg">{t("knowledge.uploadTitle")}</h2>
+      <p className="mt-1 text-xs text-fg-muted">{t("knowledge.uploadHint")}</p>
       <input
         type="file"
         accept="application/pdf"
         disabled={isPending}
+        aria-label={t("knowledge.uploadTitle")}
         onChange={(e) => onUpload(e.target.files?.[0])}
-        className="mt-3 block w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-blue-600 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-blue-700"
+        className="mt-3 block w-full text-sm text-fg-body file:mr-3 file:rounded-md file:border-0 file:bg-brand file:px-3 file:py-2 file:text-sm file:font-semibold file:text-on-brand hover:file:bg-brand-strong"
       />
-      <ResultLine isPending={isPending} error={error} chunks={chunks} verb="Uploading" />
+      <ResultLine
+        isPending={isPending}
+        error={error}
+        chunks={chunks}
+        pending={t("knowledge.uploading")}
+      />
     </div>
   );
 }
@@ -160,32 +166,40 @@ function PasteCard({
   error,
   chunks,
 }: PasteCardProps) {
+  const { t } = useTranslation();
   const canSubmit = title.trim().length > 0 && text.trim().length > 0 && !isPending;
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
-      <h2 className="text-sm font-semibold text-slate-800">Paste policy text</h2>
+    <div className="rounded-lg border border-line bg-surface p-4">
+      <h2 className="text-sm font-semibold text-fg">{t("knowledge.pasteTitle")}</h2>
       <input
         value={title}
         onChange={(e) => onTitle(e.target.value)}
-        placeholder="Document title"
-        className="mt-3 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+        placeholder={t("knowledge.titlePlaceholder")}
+        aria-label={t("knowledge.titlePlaceholder")}
+        className="mt-3 w-full rounded-md border border-line-strong px-3 py-2 text-sm"
       />
       <textarea
         value={text}
         onChange={(e) => onText(e.target.value)}
-        placeholder="Paste the policy text"
+        placeholder={t("knowledge.textPlaceholder")}
+        aria-label={t("knowledge.textPlaceholder")}
         rows={3}
-        className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+        className="mt-2 w-full rounded-md border border-line-strong px-3 py-2 text-sm"
       />
       <button
         type="button"
         disabled={!canSubmit}
         onClick={onSubmit}
-        className="mt-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+        className="mt-2 rounded-md bg-brand px-4 py-2 text-sm font-semibold text-on-brand hover:bg-brand-strong disabled:cursor-not-allowed disabled:bg-surface-sunken disabled:text-fg-subtle"
       >
-        Add document
+        {t("knowledge.add")}
       </button>
-      <ResultLine isPending={isPending} error={error} chunks={chunks} verb="Adding" />
+      <ResultLine
+        isPending={isPending}
+        error={error}
+        chunks={chunks}
+        pending={t("knowledge.adding")}
+      />
     </div>
   );
 }
@@ -194,21 +208,30 @@ function ResultLine({
   isPending,
   error,
   chunks,
-  verb,
+  pending,
 }: {
   isPending: boolean;
   error: unknown;
   chunks: number | undefined;
-  verb: string;
+  pending: string;
 }) {
-  if (isPending) return <p className="mt-2 text-xs text-slate-500">{verb}…</p>;
+  const { t } = useTranslation();
+  if (isPending) return <p className="mt-2 text-xs text-fg-muted">{pending}</p>;
   if (error)
     return (
-      <p role="alert" className="mt-2 text-xs text-red-700">
-        {error instanceof Error ? error.message : "Failed"}
+      <p role="alert" className="mt-2 text-xs text-danger">
+        {t(
+          error instanceof UploadError
+            ? `knowledge.errors.${error.failure}`
+            : "knowledge.errors.failed",
+        )}
       </p>
     );
   if (chunks !== undefined)
-    return <p className="mt-2 text-xs text-emerald-700">Stored {chunks} chunks.</p>;
+    return (
+      <p role="status" className="mt-2 text-xs text-success">
+        {t("knowledge.stored", { count: chunks })}
+      </p>
+    );
   return null;
 }

@@ -17,10 +17,9 @@ refine (R04.2) - most likely beat to hang on a live API call, proves nothing the
 
 ## Prep checklist (before rehearsal)
 
-0. **Set `BACKEND_API_TOKEN` and `VITE_BACKEND_API_TOKEN` to the same value in `.env`** or the
-   backend fails closed and every request returns 503. Generate:
-   `python -c "import secrets; print(secrets.token_urlsafe(32))"`. Restart the dashboard after
-   changing it - Vite bakes env vars in at build time.
+0. **Sign-in is set up** (`specs/features/google-sign-in.md`, "Setup"): `MAILBOX_OWNER_EMAIL` is the
+   Google account you will demo with, and you are signed in at `localhost:8090/signin` before the
+   audience arrives. `BACKEND_API_TOKEN` is only for scripts and curl.
 1. `make dev` (starts Presidio containers, backend :8000, agent :8001, dashboard :8090,
    listener). Wait for "Gmail Watch established!".
 2. **Backfill priorities or the Triage beat lies.** `priority_label(None)` renders MEDIUM for

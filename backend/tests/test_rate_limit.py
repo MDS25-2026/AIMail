@@ -12,7 +12,7 @@ import pytest
 
 from app.core import ratelimit
 from app.core.constants import INGEST_RATE_LIMIT, INGEST_RATE_WINDOW_SECONDS
-from app.core.ratelimit import _hits
+from app.core.ratelimit import rate_limit_ingest
 from tests.conftest import AUTH_HEADERS as AUTH
 
 UPLOAD_PATH = "/documents/upload"
@@ -22,9 +22,9 @@ NOT_A_PDF = {"file": ("notes.pdf", b"plain text, not a pdf", "application/pdf")}
 
 @pytest.fixture
 def client(api_client):
-    _hits.clear()
+    rate_limit_ingest.reset()
     yield api_client
-    _hits.clear()
+    rate_limit_ingest.reset()
 
 
 def test_requests_within_the_quota_are_not_throttled(client):

@@ -1,0 +1,98 @@
+/* Generated from scripts/palette.json by scripts/check-palette.py --write. Do not edit. */
+:root {
+  color-scheme: light;
+  --app: oklch(0.9603 0.0074 260.73);
+  --surface: oklch(1.0000 0.0000 0.00);
+  --surface-muted: oklch(0.9814 0.0045 258.32);
+  --surface-sunken: oklch(0.9295 0.0121 259.82);
+  --fg: oklch(0.2303 0.0083 264.40);
+  --fg-body: oklch(0.3323 0.0113 264.41);
+  --fg-muted: oklch(0.4415 0.0141 264.42);
+  --fg-subtle: oklch(0.4958 0.0152 266.59);
+  --line: oklch(0.9139 0.0139 258.35);
+  --line-subtle: oklch(0.9448 0.0092 258.34);
+  --line-strong: oklch(0.6330 0.0142 266.64);
+  --brand: oklch(0.3566 0.0964 261.55);
+  --brand-strong: oklch(0.2860 0.0707 261.95);
+  --brand-soft: oklch(0.9531 0.0166 259.42);
+  --brand-line: oklch(0.8781 0.0357 258.87);
+  --on-brand: oklch(1.0000 0.0000 0.00);
+  --rail: oklch(0.2437 0.0614 261.77);
+  --rail-hover: oklch(0.2860 0.0707 261.95);
+  --rail-active: oklch(0.3175 0.0729 262.10);
+  --rail-fg: oklch(0.8505 0.0355 265.96);
+  --on-rail: oklch(1.0000 0.0000 0.00);
+  --success: oklch(0.4853 0.1310 147.50);
+  --success-soft: oklch(0.9540 0.0199 154.90);
+  --success-line: oklch(0.8227 0.0765 153.33);
+  --warning: oklch(0.5078 0.1080 73.30);
+  --warning-soft: oklch(0.9647 0.0381 90.65);
+  --warning-line: oklch(0.8342 0.1170 87.43);
+  --danger: oklch(0.5321 0.1946 24.14);
+  --danger-soft: oklch(0.9481 0.0230 14.26);
+  --danger-line: oklch(0.8017 0.0853 14.57);
+  --info: oklch(0.3566 0.0964 261.55);
+  --info-soft: oklch(0.9531 0.0166 259.42);
+  --info-line: oklch(0.8781 0.0357 258.87);
+}
+
+.dark {
+  color-scheme: dark;
+  --app: oklch(0.2010 0.0211 267.58);
+  --surface: oklch(0.2351 0.0184 266.19);
+  --surface-muted: oklch(0.2609 0.0238 267.11);
+  --surface-sunken: oklch(0.1739 0.0174 268.60);
+  --fg: oklch(0.9437 0.0027 286.35);
+  --fg-body: oklch(0.8611 0.0056 274.95);
+  --fg-muted: oklch(0.7318 0.0089 271.29);
+  --fg-subtle: oklch(0.6608 0.0120 274.81);
+  --line: oklch(0.3125 0.0232 264.16);
+  --line-subtle: oklch(0.2768 0.0216 265.81);
+  --line-strong: oklch(0.5544 0.0267 264.33);
+  --brand: oklch(0.7630 0.0953 260.41);
+  --brand-strong: oklch(0.8384 0.0646 261.58);
+  --brand-soft: oklch(0.2874 0.0572 262.59);
+  --brand-line: oklch(0.4322 0.0853 260.26);
+  --on-brand: oklch(0.1831 0.0309 263.38);
+  --rail: oklch(0.1940 0.0385 264.90);
+  --rail-hover: oklch(0.2473 0.0525 264.20);
+  --rail-active: oklch(0.2841 0.0569 263.65);
+  --rail-fg: oklch(0.7908 0.0441 264.93);
+  --on-rail: oklch(1.0000 0.0000 0.00);
+  --success: oklch(0.7257 0.1643 149.45);
+  --success-soft: oklch(0.2473 0.0349 156.38);
+  --success-line: oklch(0.4707 0.0972 150.40);
+  --warning: oklch(0.7904 0.1386 85.24);
+  --warning-soft: oklch(0.2652 0.0354 85.75);
+  --warning-line: oklch(0.5001 0.0895 85.89);
+  --danger: oklch(0.7017 0.1642 26.07);
+  --danger-soft: oklch(0.2557 0.0571 18.59);
+  --danger-line: oklch(0.4600 0.1123 22.52);
+  --info: oklch(0.7630 0.0953 260.41);
+  --info-soft: oklch(0.2874 0.0572 262.59);
+  --info-line: oklch(0.4322 0.0853 260.26);
+}
+
+:root[data-colours="friendly"] {
+  --success: oklch(0.4976 0.1070 163.34);
+  --success-soft: oklch(0.9516 0.0217 167.47);
+  --success-line: oklch(0.7988 0.0737 166.56);
+  --warning: oklch(0.4544 0.0996 68.13);
+  --warning-soft: oklch(0.9611 0.0353 85.41);
+  --warning-line: oklch(0.8059 0.1220 82.77);
+  --danger: oklch(0.5495 0.2459 333.69);
+  --danger-soft: oklch(0.9504 0.0284 332.84);
+  --danger-line: oklch(0.7990 0.1106 331.24);
+}
+
+.dark[data-colours="friendly"] {
+  --success: oklch(0.8953 0.1477 175.60);
+  --success-soft: oklch(0.2780 0.0414 177.17);
+  --success-line: oklch(0.4771 0.0782 174.76);
+  --warning: oklch(0.8430 0.1195 82.40);
+  --warning-soft: oklch(0.2745 0.0476 82.37);
+  --warning-line: oklch(0.4888 0.0907 81.33);
+  --danger: oklch(0.6576 0.1574 18.14);
+  --danger-soft: oklch(0.2542 0.0587 15.60);
+  --danger-line: oklch(0.4395 0.1051 14.42);
+}

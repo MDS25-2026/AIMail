@@ -8,9 +8,10 @@ demo of the loop, not that pipeline.
 import asyncio
 
 import httpx
-from google import genai
+from google.genai import errors
 
 from app.core.config import get_settings
+from app.rag.gemini import gemini_client
 from app.rag.retrieve import ContextChunk
 
 _PROMPT = """You are a company-policy assistant. Answer the question using ONLY the policy \
@@ -39,7 +40,7 @@ async def answer(question: str, chunks: list[ContextChunk]) -> str:
     if not chunks:
         return "The knowledge base has no policy to answer from yet."
     settings = get_settings()
-    client = genai.Client(api_key=settings.gemini_api_key)
+    client = gemini_client()
     prompt = _PROMPT.format(context=_format_context(chunks), question=question)
     try:
         response = await asyncio.to_thread(
@@ -47,6 +48,6 @@ async def answer(question: str, chunks: list[ContextChunk]) -> str:
             model=settings.gemini_chat_model,
             contents=prompt,
         )
-    except httpx.HTTPError as exc:
+    except (httpx.HTTPError, errors.APIError) as exc:
         raise GenerationError("could not reach the Gemini generation API") from exc
     return response.text or ""

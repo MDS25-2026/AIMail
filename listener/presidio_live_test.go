@@ -16,16 +16,17 @@ func requireLivePresidio(t *testing.T) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	url := getEnvOrDefault("PRESIDIO_ANALYZER_URL", "http://localhost:5001/analyze")
-	if _, err := presidioPost(ctx, url, []byte(`{"text":"ping","language":"en"}`)); err != nil {
-		t.Skipf("presidio analyzer unreachable (%v) — start it: docker compose up -d", err)
+	// Both containers: with only the analyzer up, masking degrades and every assertion would fail
+	// for a reason that is the environment, not the code.
+	if !presidioHealthy(ctx) {
+		t.Skip("presidio analyzer or anonymizer unreachable — start them: docker compose up -d")
 	}
 }
 
 func TestMaskTextLiveMasksNamesAndLocations(t *testing.T) {
 	requireLivePresidio(t)
 
-	masked, _, _, degraded := maskText(context.Background(), "Please ask Sarah Tan in Kuala Lumpur to reply to the vendor.")
+	masked, _, _, degraded := maskText(context.Background(), "Please ask Sarah Tan in Kuala Lumpur to reply to the vendor.", newDetailVault())
 
 	if degraded {
 		t.Fatal("degraded=true with a live analyzer")
@@ -43,7 +44,7 @@ func TestMaskTextLiveMasksNamesAndLocations(t *testing.T) {
 func TestMaskTextLiveMasksAccountNumberWithContext(t *testing.T) {
 	requireLivePresidio(t)
 
-	masked, _, _, degraded := maskText(context.Background(), "Wire the deposit to my Maybank account 512837465920 by Friday.")
+	masked, _, _, degraded := maskText(context.Background(), "Wire the deposit to my Maybank account 512837465920 by Friday.", newDetailVault())
 
 	if degraded {
 		t.Fatal("degraded=true with a live analyzer")
@@ -56,9 +57,23 @@ func TestMaskTextLiveMasksAccountNumberWithContext(t *testing.T) {
 func TestMaskTextLiveLeavesContextFreeDigitRun(t *testing.T) {
 	requireLivePresidio(t)
 
-	masked, _, _, _ := maskText(context.Background(), "We shipped 93842716 widgets on Friday.")
+	masked, _, _, _ := maskText(context.Background(), "We shipped 93842716 widgets on Friday.", newDetailVault())
 
 	if !strings.Contains(masked, "93842716") {
 		t.Fatalf("context-free digit run over-masked: %q", masked)
+	}
+}
+
+// An IBAN names one person's account. Presidio's built-in recogniser validates the checksum, so a
+// reference that merely looks IBAN-shaped is left alone.
+func TestMaskTextLiveMasksAnIBAN(t *testing.T) {
+	requireLivePresidio(t)
+
+	masked, _, _, _ := maskText(context.Background(), "Please pay into GB82 WEST 1234 5698 7654 32 by Friday.", newDetailVault())
+	if strings.Contains(masked, "WEST") || strings.Contains(masked, "GB82") {
+		t.Fatalf("IBAN leaked past masking: %q", masked)
+	}
+	if !strings.Contains(masked, "by Friday") {
+		t.Fatalf("masking ate the sentence around the IBAN: %q", masked)
 	}
 }

@@ -1,7 +1,8 @@
 """Auth gate on the API (audit OWASP API1).
 
 The property under test is that no unauthenticated caller can reach a mutating route —
-POST /emails/{id}/send dispatches a real Gmail reply, so this is the load-bearing check.
+POST /emails/{id}/send dispatches a real Gmail reply, so this is the load-bearing check. Signed-in
+users (cookie or Supabase bearer) are covered in test_user_auth.py; these are the shared-token paths.
 Authorized requests are asserted only to get *past* auth (not 401/503): what happens after
 belongs to the route's own tests and would need a database here.
 """
@@ -45,11 +46,15 @@ def test_demo_page_stays_open_as_the_liveness_check(client):
     assert client.get("/").status_code != 401
 
 
-def test_unset_token_fails_closed_rather_than_disabling_auth(api_client, monkeypatch):
+def test_an_unset_shared_token_never_lets_a_request_through(api_client, monkeypatch):
+    # Empty must not mean "auth off": with no token configured, a script's bearer is treated as a
+    # user session and fails verification, and a bare request is still signed out.
     monkeypatch.setenv("BACKEND_API_TOKEN", "")
     get_settings.cache_clear()
     try:
-        res = TestClient(app).post(SEND_PATH, json=SEND_BODY)
-        assert res.status_code == 503
+        client = TestClient(app)
+        assert client.post(SEND_PATH, json=SEND_BODY).status_code == 401
+        assert client.post(SEND_PATH, json=SEND_BODY,
+                           headers={"Authorization": "Bearer "}).status_code in (401, 403)
     finally:
         get_settings.cache_clear()

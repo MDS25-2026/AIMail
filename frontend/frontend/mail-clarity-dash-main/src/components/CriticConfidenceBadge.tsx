@@ -1,26 +1,28 @@
+import { CircleCheck, TriangleAlert } from "lucide-react";
+import { useTranslation } from "react-i18next";
+
 import { CRITIC_CONFIDENCE_THRESHOLD } from "../types/email";
 
-/** The value drives the styling — 0.8 and above is the project goal. */
+/** The value drives the styling — 0.8 and above is the project goal. The icon and the words
+ *  carry the verdict too, so it never rests on colour alone (WCAG 1.4.1). */
 export default function CriticConfidenceBadge({ value }: { value: number }) {
+  const { t } = useTranslation();
   const percent = Math.round(value * 100);
-  const passing = value >= CRITIC_CONFIDENCE_THRESHOLD;
+  const target = CRITIC_CONFIDENCE_THRESHOLD * 100;
+  const isPassing = value >= CRITIC_CONFIDENCE_THRESHOLD;
+  const Icon = isPassing ? CircleCheck : TriangleAlert;
 
   return (
     <span
-      title={
-        passing
-          ? `Critic Agent confidence ${percent}% (target ${CRITIC_CONFIDENCE_THRESHOLD * 100}%)`
-          : `Critic Agent confidence ${percent}% — below the ${
-              CRITIC_CONFIDENCE_THRESHOLD * 100
-            }% target, review recommended`
-      }
-      className={`inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ${
-        passing
-          ? "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200"
-          : "bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-300"
+      title={t(isPassing ? "critic.passingTitle" : "critic.reviewTitle", { percent, target })}
+      className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset ${
+        isPassing
+          ? "bg-success-soft text-success ring-success-line"
+          : "bg-warning-soft text-warning ring-warning-line"
       }`}
     >
-      {passing ? `Critic ${percent}%` : `Critic ${percent}% · review recommended`}
+      <Icon aria-hidden className="size-3" />
+      {t(isPassing ? "critic.passing" : "critic.review", { percent })}
     </span>
   );
 }
