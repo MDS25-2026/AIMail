@@ -16,7 +16,8 @@ class Settings(BaseSettings):
     )
 
     database_url: str
-    gemini_api_key: str
+    # One Google AI key for everything: the backend's embeddings and the agent's drafting.
+    google_api_key: str
     # Shared bearer token every API caller must present (see app/core/auth.py). Empty means
     # the API refuses all requests rather than silently running unauthenticated.
     backend_api_token: str = ""

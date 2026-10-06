@@ -88,7 +88,7 @@ Change a shape there **first**, log it in `docs/decisions/shared.md`, then both 
    Han's is the real one — retire the scaffold.
 4. **One listener (to confirm).** JiaJun's Go listener vs the Python stub in `listener/`. Keep the
    Go one; retire the stub.
-5. **Consolidate `.env.example`** with every lane's vars: `DATABASE_URL`, `GEMINI_API_KEY`,
+5. **Consolidate `.env.example`** with every lane's vars: `DATABASE_URL`, `GOOGLE_API_KEY`,
    `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `ANTHROPIC_API_KEY`, listener/Gmail vars.
 
 ## Governing principle

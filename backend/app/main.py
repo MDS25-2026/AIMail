@@ -163,7 +163,7 @@ async def _ai_service_unreachable(request: Request, exc: Exception) -> JSONRespo
         content={
             "error": {
                 "code": "AI_SERVICE_UNREACHABLE",
-                "message": "Cannot reach the Gemini AI service - check GEMINI_API_KEY and connectivity.",
+                "message": "Cannot reach the Gemini AI service - check GOOGLE_API_KEY and connectivity.",
             }
         },
     )

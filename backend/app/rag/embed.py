@@ -40,7 +40,7 @@ def _embed_sync(texts: list[str], task_type: str) -> list[list[float]]:
         raise EmbeddingError(
             "could not reach the Gemini embeddings API - check connectivity "
             "(generativelanguage.googleapis.com must resolve to a real IP, not 127.0.0.1) "
-            "and that GEMINI_API_KEY is set"
+            "and that GOOGLE_API_KEY is set"
         ) from exc
     raw = np.array([e.values for e in result.embeddings], dtype=np.float32)
     return _l2_normalize(raw).tolist()

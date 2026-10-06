@@ -1,6 +1,6 @@
 """Run the retrieval eval set and report per-query + aggregate metrics (S4).
 
-Usage (from backend/, needs a live DB + GEMINI_API_KEY and an ingested corpus):
+Usage (from backend/, needs a live DB + GOOGLE_API_KEY and an ingested corpus):
 
     python scripts/eval_retrieval.py [scripts/eval_set.json]        # S3 baseline (raw query)
     python scripts/eval_retrieval.py [scripts/eval_set.json] --reformulate   # S5 (reformulated)

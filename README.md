@@ -47,7 +47,7 @@ cd backend
 
 **The four services:**
 ```bash
-make backend                                                  # Lane B/C API   :8000  (DATABASE_URL, GEMINI_API_KEY)
+make backend                                                  # Lane B/C API   :8000  (DATABASE_URL, GOOGLE_API_KEY)
 cd backend && uvicorn email_agent:app --reload --port 8001    # Lane C agent   :8001  (GOOGLE_API_KEY)
 cd listener && go run .                                        # Lane A listener       (SUPABASE_*, Gmail/Pub-Sub)  (owner: JiaJun)
 cd frontend/frontend/mail-clarity-dash-main && npm install && npm run dev -- --port 8090 --strictPort   # Lane D dashboard :8090  (owner: Han)

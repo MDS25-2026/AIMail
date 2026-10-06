@@ -13,7 +13,7 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt -c constraints.txt   # the versions make check last passed with
 pytest                                # offline logic tests (no DB / network)
 
-# with DATABASE_URL + GEMINI_API_KEY set in the repo-root .env:
+# with DATABASE_URL + GOOGLE_API_KEY set in the repo-root .env:
 make migrate                          # (from repo root) create all tables
 make seed                             # load sample policy chunks
 uvicorn app.main:app --reload         # dashboard API + retrieval on http://localhost:8000
@@ -33,7 +33,7 @@ uvicorn app.main:app --reload         # dashboard API + retrieval on http://loca
 Defined in the repo-root [`../.env.example`](../.env.example). Expected keys:
 
 - `DATABASE_URL` — Supabase Postgres (Session pooler)
-- `GEMINI_API_KEY` — Gemini embeddings (RAG) + query reformulation (Lane B)
+- `GOOGLE_API_KEY` — the one Google AI (Gemini) key: embeddings, query reformulation, and the agent
 - `GEMINI_CHAT_MODEL` — optional, defaults to `gemini-2.5-flash`
 - `GOOGLE_API_KEY` — Gemini for the Lane C agent
 - `FRONTEND_ORIGIN` — dev CORS origin for the dashboard (default `http://localhost:3000`)

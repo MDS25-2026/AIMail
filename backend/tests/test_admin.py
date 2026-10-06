@@ -54,7 +54,7 @@ def client(monkeypatch):
     monkeypatch.setenv("SUPABASE_ANON_KEY", "publishable-test-key")
     monkeypatch.setenv("BACKEND_API_TOKEN", "test-token-not-a-real-secret")
     monkeypatch.setenv("DATABASE_URL", "postgresql://unused:unused@127.0.0.1:5432/unused")
-    monkeypatch.setenv("GEMINI_API_KEY", "unused")
+    monkeypatch.setenv("GOOGLE_API_KEY", "unused")
     get_settings.cache_clear()
     monkeypatch.setattr(supabase_auth, "_jwks", lambda base: _FakeJwks())
 

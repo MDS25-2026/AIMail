@@ -5,7 +5,7 @@ across the corpus so labels aren't all from one mailbox, parses subject+body out
 and batches emails per Gemini call to stay under the free-tier rate limit. Output is a CSV with
 `text,label` columns, ready for `make baseline DATASET=... TEXT=text LABEL=label`.
 
-Usage (from backend/, needs GEMINI_API_KEY or GOOGLE_API_KEY in ../.env):
+Usage (from backend/, needs GOOGLE_API_KEY in ../.env):
     python scripts/label_dataset.py <emails.csv | archive.zip> --limit 1500 --out labeled.csv
 """
 
@@ -24,7 +24,7 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
-_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+_API_KEY = os.getenv("GOOGLE_API_KEY")
 # gemini-3.5-flash is a step up from flash-lite with usable free quota (Pro is quota-locked on the
 # free tier). Override with --model. The label quality mostly comes from the rubric below anyway.
 _DEFAULT_MODEL = "gemini-3.5-flash"
@@ -135,7 +135,7 @@ def main() -> None:
     args = parser.parse_args()
 
     if not _API_KEY:
-        raise SystemExit("no GEMINI_API_KEY / GOOGLE_API_KEY in ../.env")
+        raise SystemExit("no GOOGLE_API_KEY in ../.env")
     url = _URL_TEMPLATE.format(model=args.model)
     print(f"labeling with {args.model}", flush=True)
 
