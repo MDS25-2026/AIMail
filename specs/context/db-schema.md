@@ -226,7 +226,7 @@ lowercased.
 - [ ] `conversation` — one row per LLM generation event (subtable of `chat`). Stores: prompt sent, context window included, model used, raw AI response, rubric score, version label. Multiple rows per `chat` allow self-evaluation loop (2–3 revisions before user sees output) and multi-version offerings (showing the user 2–3 drafts to pick from). FK → `chat`.
 - [ ] `draft` — generated reply drafts surfaced to the user, status, audit trail. FK → `chat` and the chosen `conversation` row.
 - [ ] `draft_feedback` — user thumbs up/down + which version they picked + their final edited text. Drives model-selection learning. FK → `draft`.
-- [ ] `style_profile` — per-user writing-style entries; proposed as `style_entry` in [`../features/writing-profile.md`](../features/writing-profile.md).
+- [x] `writing_style`, `style_example`, `style_habit`, `messages.draft_shown`, `messages.edit_ratio` — per-user writing style, masked before storage; see [`../features/writing-profile.md`](../features/writing-profile.md) (migration 0020).
 - [ ] `holding_reply_settings`, `holding_reply`, `messages.is_automated` — proposed in [`../features/holding-reply.md`](../features/holding-reply.md).
 - [ ] `email_embedding` — pgvector index over historical replies for retrieval.
 

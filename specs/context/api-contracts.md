@@ -30,6 +30,17 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   `GET /holding-replies?limit=` lists `{id, emailId, recipient, language, scheduledFor, sentAt,
   cancelledReason}` newest first; `DELETE /holding-replies/{id}` cancels one still waiting (`409`
   once sent). All per signed-in user; `403 account_only` for the script token.
+- <a id="writing-style"></a>**Writing style (2026-10-06, `specs/features/writing-profile.md`):**
+  `GET /profile/writing` returns `{description, learning, examples: [{id, text, source, createdAt}],
+  habits: [{id, kind, value, evidence, outOf}], maxExamples}`; every text is the masked copy that
+  was stored. `PUT /profile/writing/description` `{description}` and `POST /profile/writing/examples`
+  `{text}` or `{emailId}` mask before storing and return the stored copy (`503 masking_unavailable`,
+  nothing stored; `409 too_many_examples`; `404` for an email that is not the user's or not sent;
+  `422 empty`/`too_long`). `PUT /profile/writing/learning` `{enabled}`.
+  `DELETE /profile/writing/examples/{id}`, `DELETE /profile/writing/habits/{id}` (hidden for good)
+  and `DELETE /profile/writing` (everything, learning off) return `204`. Per signed-in user;
+  `403 account_only` for the script token. The agent's `/process-email` and `/refine` take
+  `style_hint: str = ""` and `style_examples: list[str] = []`, fenced as data.
 - **Account (2026-10-05, `specs/features/per-user-mailboxes.md` "Disconnect and delete account"):**
   `DELETE /account/gmail` revokes the Google token, deletes the user's stored emails and their
   connection (`204`; `404 not_connected`). `DELETE /account` also deletes their documents, profile
