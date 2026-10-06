@@ -280,6 +280,60 @@ export const en = {
       other: "Not sent",
     },
   },
+  writingStyle: {
+    title: "Your writing style",
+    intro:
+      "Tell AIMail how you write, or show it. Drafts follow your style. Names, numbers and addresses are hidden before anything is saved, and no AI is trained on your email.",
+    loadFailed: "Couldn't load your writing style.",
+    describe: "Describe how you write",
+    describePlaceholder: 'Warm but brief, no jargon, close with "Thanks,"',
+    aiSees: "What the AI sees",
+    save: "Save",
+    saving: "Saving…",
+    examples_one: "Example replies ({{count}} of {{max}})",
+    examples_other: "Example replies ({{count}} of {{max}})",
+    examplesHint:
+      'Paste a reply that sounds like you, or use "Use as an example" on a reply you sent. The AI copies the style, never the content.',
+    examplePlaceholder: "Paste a reply you wrote",
+    addExample: "Add example",
+    remove: "Remove",
+    source: {
+      pasted: "Pasted",
+      sent: "From a reply you sent",
+    },
+    learn: "Learn from the replies I send",
+    learnHint:
+      "Off unless you switch it on. AIMail notices habits you repeat at least 3 times, such as your greeting or words you always change, and lists them here.",
+    nothingYet: "Nothing learned yet. A habit shows up after you use it in 3 replies.",
+    evidence_one: "In {{count}} of your last {{outOf}} replies",
+    evidence_other: "In {{count}} of your last {{outOf}} replies",
+    forget: "Forget",
+    habit: {
+      greeting: 'Opens with "{{value}}"',
+      signoff: 'Closes with "{{value}}"',
+      swap: 'Writes "{{after}}" instead of "{{before}}"',
+      length: {
+        short: "Keeps replies short (under 60 words)",
+        medium: "Writes medium-length replies",
+        long: "Writes detailed replies",
+      },
+    },
+    deleteEverything: "Delete my writing style",
+    deleteConfirm:
+      "Delete the description, examples, habits and everything recorded from your sends?",
+    deleteYes: "Delete everything",
+    keep: "Keep",
+    useAsExample: "Use as an example",
+    addedAsExample: "Added to your writing style.",
+    errors: {
+      masking_unavailable:
+        "Couldn't hide personal details right now, so nothing was saved. Try again in a moment.",
+      too_many_examples: "You already have 3 examples. Remove one first.",
+      empty: "There's nothing to save.",
+      not_found: "That reply couldn't be found.",
+      failed: "Something went wrong. Try again.",
+    },
+  },
   account: {
     title: "Account",
     signedInAs: "Signed in as {{email}}.",

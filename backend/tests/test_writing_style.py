@@ -49,6 +49,16 @@ def test_a_pasted_example_is_masked_then_neutralised(monkeypatch):
     assert masked == f"Hi {HIDDEN}, re {HIDDEN}'s claim. Thanks!"
 
 
+@pytest.mark.parametrize("text", ["Cheers,\nElyesa", "Thanks,\nJia Jun", "Ok.\n\nBest regards,\nSiti Nur Aisyah"])
+def test_a_name_signed_under_a_closing_is_hidden_even_if_the_masker_missed_it(text):
+    assert writing_style.hide_closing_name(text).endswith(f"\n{HIDDEN}")
+
+
+@pytest.mark.parametrize("text", ["Cheers,\nsee you soon", "We agreed.\nNext Monday", "Thanks"])
+def test_a_last_line_that_is_not_a_signature_is_left_alone(text):
+    assert writing_style.hide_closing_name(text) == text
+
+
 # ---------- the learner ----------
 
 def test_an_unedited_send_has_ratio_zero_and_a_rewrite_ratio_one():

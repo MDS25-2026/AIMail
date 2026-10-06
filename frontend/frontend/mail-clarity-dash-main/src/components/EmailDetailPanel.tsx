@@ -19,6 +19,7 @@ import PriorityBadge from "./PriorityBadge";
 import DetailsToggle from "./DetailsToggle";
 import MissingDetailsNotice from "./MissingDetailsNotice";
 import WithDetails from "./WithDetails";
+import UseAsExampleButton from "./UseAsExampleButton";
 
 type EmailDetailPanelProps = {
   email: Email | null;
@@ -123,11 +124,14 @@ export default function EmailDetailPanel({
             <DraftStatus {...status} />
 
             <div className="flex items-center justify-between gap-3 border-t border-line-subtle pt-4">
-              <p className="text-xs text-fg-subtle">
-                {email.sentAt
-                  ? t("detail.sentAt", { when: format.timestamp(email.sentAt) })
-                  : t("detail.notSentYet")}
-              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-xs text-fg-subtle">
+                  {email.sentAt
+                    ? t("detail.sentAt", { when: format.timestamp(email.sentAt) })
+                    : t("detail.notSentYet")}
+                </p>
+                {email.sentAt ? <UseAsExampleButton key={email.id} emailId={email.id} /> : null}
+              </div>
               <DraftActionsBar
                 emailId={email.id}
                 onRegenerate={onRegenerate}

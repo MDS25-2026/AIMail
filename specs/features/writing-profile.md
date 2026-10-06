@@ -119,7 +119,8 @@ The agent's `/process-email` and `/refine` gain `style_hint` (string) and `style
 ## Open questions
 
 - Presidio is called with `language: "en"`, so a name in a Malay or Chinese example may not be
-  detected. The card shows the masked text so the user can see and fix it; a multilingual model
+  detected. A short capitalised line under a closing phrase is always hidden as a signature,
+  since Presidio missed an unusual first name there in the live check. The card shows the masked text so the user can see and fix it; a multilingual model
   would close the gap.
 
 ## Out-of-scope future extensions

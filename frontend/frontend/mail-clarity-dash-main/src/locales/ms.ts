@@ -290,6 +290,61 @@ export const ms: Translations = {
       other: "Tidak dihantar",
     },
   },
+  writingStyle: {
+    title: "Gaya penulisan anda",
+    intro:
+      "Beritahu AIMail cara anda menulis, atau tunjukkan. Draf mengikut gaya anda. Nama, nombor dan alamat disembunyikan sebelum apa-apa disimpan, dan tiada AI dilatih dengan e-mel anda.",
+    loadFailed: "Tidak dapat memuatkan gaya penulisan anda.",
+    describe: "Terangkan cara anda menulis",
+    describePlaceholder: 'Mesra tetapi ringkas, tiada jargon, tutup dengan "Terima kasih,"',
+    aiSees: "Apa yang dilihat oleh AI",
+    save: "Simpan",
+    saving: "Menyimpan…",
+    examples_one: "Contoh balasan ({{count}} daripada {{max}})",
+    examples_other: "Contoh balasan ({{count}} daripada {{max}})",
+    examplesHint:
+      'Tampal balasan yang berbunyi seperti anda, atau guna "Guna sebagai contoh" pada balasan yang anda hantar. AI meniru gayanya, bukan kandungannya.',
+    examplePlaceholder: "Tampal balasan yang anda tulis",
+    addExample: "Tambah contoh",
+    remove: "Buang",
+    source: {
+      pasted: "Ditampal",
+      sent: "Daripada balasan yang anda hantar",
+    },
+    learn: "Belajar daripada balasan yang saya hantar",
+    learnHint:
+      "Dimatikan melainkan anda menghidupkannya. AIMail mengesan tabiat yang anda ulang sekurang-kurangnya 3 kali, seperti salam anda atau perkataan yang selalu anda ubah, dan menyenaraikannya di sini.",
+    nothingYet:
+      "Belum ada yang dipelajari. Tabiat muncul selepas anda menggunakannya dalam 3 balasan.",
+    evidence_one: "Dalam {{count}} daripada {{outOf}} balasan terakhir anda",
+    evidence_other: "Dalam {{count}} daripada {{outOf}} balasan terakhir anda",
+    forget: "Lupakan",
+    habit: {
+      greeting: 'Bermula dengan "{{value}}"',
+      signoff: 'Ditutup dengan "{{value}}"',
+      swap: 'Menulis "{{after}}" dan bukan "{{before}}"',
+      length: {
+        short: "Balasan ringkas (bawah 60 perkataan)",
+        medium: "Balasan sederhana panjang",
+        long: "Balasan terperinci",
+      },
+    },
+    deleteEverything: "Padam gaya penulisan saya",
+    deleteConfirm:
+      "Padam penerangan, contoh, tabiat dan semua yang direkodkan daripada balasan anda?",
+    deleteYes: "Padam semua",
+    keep: "Simpan",
+    useAsExample: "Guna sebagai contoh",
+    addedAsExample: "Ditambah ke gaya penulisan anda.",
+    errors: {
+      masking_unavailable:
+        "Tidak dapat menyembunyikan butiran peribadi sekarang, jadi tiada apa yang disimpan. Cuba lagi sebentar lagi.",
+      too_many_examples: "Anda sudah ada 3 contoh. Buang satu dahulu.",
+      empty: "Tiada apa untuk disimpan.",
+      not_found: "Balasan itu tidak dijumpai.",
+      failed: "Ada masalah. Cuba lagi.",
+    },
+  },
   account: {
     title: "Akaun",
     signedInAs: "Log masuk sebagai {{email}}.",

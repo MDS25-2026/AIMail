@@ -267,6 +267,13 @@ export class HoldingReplySettingsError extends Error {
   }
 }
 
+/** The backend's `detail` code from an error response, or `fallback` when there is none. */
+async function errorCode(res: Response, fallback: string): Promise<string> {
+  const body: unknown = await res.json().catch(() => null);
+  const detail = typeof body === "object" && body !== null && "detail" in body ? body.detail : null;
+  return typeof detail === "string" ? detail : fallback;
+}
+
 export async function fetchHoldingReplySettings(): Promise<HoldingReplySettings> {
   const res = await apiFetch("/settings/holding-reply");
   if (!res.ok) throw new Error(`GET /settings/holding-reply failed (${res.status})`);
@@ -281,12 +288,7 @@ export async function saveHoldingReplySettings(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(settings),
   });
-  if (res.status === 422) {
-    const body: unknown = await res.json().catch(() => null);
-    const detail =
-      typeof body === "object" && body !== null && "detail" in body ? body.detail : null;
-    throw new HoldingReplySettingsError(typeof detail === "string" ? detail : "invalid");
-  }
+  if (res.status === 422) throw new HoldingReplySettingsError(await errorCode(res, "invalid"));
   if (!res.ok) throw new Error(`PUT /settings/holding-reply failed (${res.status})`);
   return res.json();
 }
@@ -300,4 +302,63 @@ export async function fetchHoldingReplies(): Promise<HoldingReplyRecord[]> {
 export async function cancelHoldingReply(id: string): Promise<void> {
   const res = await apiFetch(`/holding-replies/${encodeURIComponent(id)}`, { method: "DELETE" });
   if (!res.ok) throw new Error(`DELETE /holding-replies failed (${res.status})`);
+}
+
+/** Writing style (specs/features/writing-profile.md). Every text is the masked copy that was stored. */
+export type StyleHabitKind = "greeting" | "signoff" | "length" | "swap";
+
+export type WritingStyle = {
+  description: string;
+  learning: boolean;
+  examples: { id: string; text: string; source: "pasted" | "sent"; createdAt: string }[];
+  habits: { id: string; kind: StyleHabitKind; value: string; evidence: number; outOf: number }[];
+  maxExamples: number;
+};
+
+export class WritingStyleError extends Error {
+  constructor(public readonly code: string) {
+    super(code);
+  }
+}
+
+async function styleRequest(path: string, init?: ApiInit): Promise<Response> {
+  const res = await apiFetch(`/profile/writing${path}`, init);
+  if (!res.ok) throw new WritingStyleError(await errorCode(res, `failed_${res.status}`));
+  return res;
+}
+
+const jsonBody = (method: string, body: object): ApiInit => ({
+  method,
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(body),
+});
+
+export async function fetchWritingStyle(): Promise<WritingStyle> {
+  return (await styleRequest("")).json();
+}
+
+export async function saveStyleDescription(description: string): Promise<WritingStyle> {
+  return (await styleRequest("/description", jsonBody("PUT", { description }))).json();
+}
+
+export async function setStyleLearning(enabled: boolean): Promise<WritingStyle> {
+  return (await styleRequest("/learning", jsonBody("PUT", { enabled }))).json();
+}
+
+export async function addStyleExample(
+  source: { text: string } | { emailId: string },
+): Promise<WritingStyle> {
+  return (await styleRequest("/examples", jsonBody("POST", source))).json();
+}
+
+export async function deleteStyleExample(id: string): Promise<void> {
+  await styleRequest(`/examples/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export async function hideStyleHabit(id: string): Promise<void> {
+  await styleRequest(`/habits/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export async function deleteWritingStyle(): Promise<void> {
+  await styleRequest("", { method: "DELETE" });
 }

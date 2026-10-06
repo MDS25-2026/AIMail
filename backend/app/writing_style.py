@@ -47,6 +47,8 @@ _GREETINGS = re.compile(
 _SIGNOFFS = re.compile(
     r"^(thanks|thank you|regards|best|cheers|sincerely|warm|kind|many thanks|terima kasih|salam"
     r"|sekian|谢谢|此致|祝好)", re.IGNORECASE)
+# One to three capitalised words: the shape of a name signed under a closing.
+_SIGNATURE = re.compile(r"[A-Z][\w'-]*(?: [A-Z][\w'-]*){0,2}")
 _UNSAFE = re.compile(r"\d|@|https?://|www\.|\[|\]")
 _CAPITALISED = re.compile(r"\b[A-Z][a-z]+")
 _SENTENCE_START = re.compile(r"(?:^|[.!?]\s+)([A-Z][a-z]+)")
@@ -91,9 +93,17 @@ def neutralise(text: str) -> str:
     return ANY_MASK.sub(HIDDEN, text)
 
 
+def hide_closing_name(text: str) -> str:
+    """A short capitalised last line under a closing is a signature, whatever Presidio made of it."""
+    lines = text.rstrip().split("\n")
+    if len(lines) < 2 or not _SIGNOFFS.match(lines[-2].strip()) or not _SIGNATURE.fullmatch(lines[-1].strip()):
+        return text
+    return "\n".join([*lines[:-1], HIDDEN])
+
+
 async def mask_for_style(text: str) -> str:
     """Masked and neutralised. Raises DocumentMaskingError when the masker is unreachable."""
-    return neutralise(await mask_document(neutralise(text.strip())))
+    return hide_closing_name(neutralise(await mask_document(neutralise(text.strip()))))
 
 
 def edit_ratio(shown: str, sent: str) -> float:
