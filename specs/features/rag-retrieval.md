@@ -93,6 +93,9 @@ Separating `embedding` from `chunk` lets us re-embed with a new model without re
 - **Headings the rule cannot see** (unnumbered, or a numbered step with no full stop): the
   document is chunked by size as before, or a short step becomes its own small section.
 - **Duplicate uploads** — same source re-uploaded should replace, not duplicate, its chunks/embeddings.
+- **Removing a document:** the Remove button on the knowledge page (two clicks) calls
+  `DELETE /documents/{id}`; its chunks and vectors go with it, so drafts stop citing it at once.
+  Past replies are not listed there and cannot be removed this way.
 
 ## Security & privacy notes
 

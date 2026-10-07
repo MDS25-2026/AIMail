@@ -141,6 +141,12 @@ export const en = {
     stored_one: "Stored {{count}} chunk.",
     stored_other: "Stored {{count}} chunks.",
     failed: "Failed",
+    remove: "Remove",
+    removeNamed: "Remove {{title}}",
+    removeYes: "Yes, remove",
+    removeNo: "Keep",
+    removing: "Removing…",
+    removeFailed: "Couldn't remove it. Try again.",
     errors: {
       too_large: "That file is over the 10 MB limit.",
       rate_limited: "Too many uploads just now. Wait a minute and retry.",

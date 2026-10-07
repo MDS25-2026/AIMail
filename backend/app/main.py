@@ -13,14 +13,24 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Literal
+from uuid import UUID
 
-from fastapi import Depends, FastAPI, HTTPException, Request, UploadFile, status
+from fastapi import (
+    Depends,
+    FastAPI,
+    HTTPException,
+    Request,
+    Response,
+    UploadFile,
+    status,
+)
 from fastapi import Path as PathParam
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from app.account_routes import router as account_router
 from app.admin.app import admin_app
+from app.audit import audit
 from app.contracts import DashboardEmail
 from app.core import mailbox
 from app.core.auth import (
@@ -73,7 +83,7 @@ from app.rag.chunk import extract_pdf_bytes
 from app.rag.embed import EmbeddingError
 from app.rag.generate import GenerationError, answer
 from app.rag.ingest import embed_pending, embed_pending_locally, ingest_text
-from app.rag.library import DocumentSummary, list_documents
+from app.rag.library import DocumentSummary, delete_document, list_documents
 from app.rag.mask import DocumentMaskingError
 from app.rag.retrieve import ContextChunk, retrieve
 from app.sign_in import router as sign_in_router
@@ -414,6 +424,16 @@ async def add_document(request: DocumentRequest, http: Request) -> dict[str, int
     count = await ingest_text(f"paste://{request.title}", request.title, request.text,
                               scope=scope_of(http).owner_of_new_rows())
     return {"chunks": count}
+
+
+@app.delete("/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT,
+            dependencies=[Depends(require_mailbox)])
+async def remove_document(document_id: UUID, http: Request) -> Response:
+    """Chunks and both kinds of vector go with it (ON DELETE CASCADE)."""
+    if not await delete_document(document_id, scope_of(http)):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "document not found")
+    await audit("document_deleted", f"document={document_id}")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 async def _read_capped(file: UploadFile) -> bytes:

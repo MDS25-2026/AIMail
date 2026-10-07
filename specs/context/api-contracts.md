@@ -30,6 +30,9 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   `GET /holding-replies?limit=` lists `{id, emailId, recipient, language, scheduledFor, sentAt,
   cancelledReason}` newest first; `DELETE /holding-replies/{id}` cancels one still waiting (`409`
   once sent). All per signed-in user; `403 account_only` for the script token.
+- **Removing a document (2026-10-07, `specs/features/rag-retrieval.md`):** `DELETE /documents/{id}`
+  returns `204` and removes the document, its chunks and both kinds of vector; `404` when it is not
+  in the caller's library (someone else's, a past reply, or unknown); `422` for a malformed id.
 - <a id="writing-style"></a>**Writing style (2026-10-06, `specs/features/writing-profile.md`):**
   `GET /profile/writing` returns `{description, learning, examples: [{id, text, source, createdAt}],
   habits: [{id, kind, value, evidence, outOf}], maxExamples}`; every text is the masked copy that

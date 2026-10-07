@@ -135,6 +135,12 @@ export const zh: Translations = {
     stored_one: "已保存 {{count}} 个片段。",
     stored_other: "已保存 {{count}} 个片段。",
     failed: "失败",
+    remove: "删除",
+    removeNamed: "删除 {{title}}",
+    removeYes: "确认删除",
+    removeNo: "保留",
+    removing: "正在删除…",
+    removeFailed: "无法删除，请重试。",
     errors: {
       too_large: "该文件超过 10 MB 限制。",
       rate_limited: "上传次数过多。请稍等一分钟后重试。",

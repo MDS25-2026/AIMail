@@ -148,6 +148,12 @@ export const ms: Translations = {
     stored_one: "{{count}} bahagian disimpan.",
     stored_other: "{{count}} bahagian disimpan.",
     failed: "Gagal",
+    remove: "Buang",
+    removeNamed: "Buang {{title}}",
+    removeYes: "Ya, buang",
+    removeNo: "Simpan",
+    removing: "Membuang…",
+    removeFailed: "Tidak dapat membuangnya. Cuba lagi.",
     errors: {
       too_large: "Fail itu melebihi had 10 MB.",
       rate_limited: "Terlalu banyak muat naik sekarang. Tunggu seminit dan cuba lagi.",

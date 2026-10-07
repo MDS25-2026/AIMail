@@ -25,6 +25,7 @@ import {
 } from "./adminApi";
 import {
   addDocument,
+  deleteDocument,
   fetchDocuments,
   fetchEmail,
   fetchEmails,
@@ -157,6 +158,17 @@ function useIngestMutation<TInput>(mutationFn: (input: TInput) => Promise<number
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.documents });
+      queryClient.invalidateQueries({ queryKey: queryKeys.systemInfo });
+    },
+  });
+}
+
+export function useDeleteDocument() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: deleteDocument,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.documents });
       queryClient.invalidateQueries({ queryKey: queryKeys.systemInfo });

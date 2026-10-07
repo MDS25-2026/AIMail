@@ -185,6 +185,12 @@ export async function fetchDocuments(): Promise<PolicyDocument[]> {
   return res.json();
 }
 
+/** Remove a document and everything stored for it; drafts stop citing it at once. */
+export async function deleteDocument(documentId: string): Promise<void> {
+  const res = await apiFetch(`/documents/${documentId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`DELETE /documents/${documentId} failed (${res.status})`);
+}
+
 /** Ingest pasted text as a document; returns the number of chunks stored. */
 export async function addDocument(title: string, text: string): Promise<number> {
   const res = await apiFetch(`/documents`, {
