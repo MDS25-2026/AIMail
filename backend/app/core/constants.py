@@ -9,6 +9,10 @@ EMBEDDING_DIM = 1536
 # comparable with the other. Bump it whenever that changes; embed_pending re-embeds under the new
 # tag, and the old rows stay so a rollback is a one-line change.
 EMBEDDING_TAG = f"{EMBEDDING_MODEL}/retrieval-task"
+# Private mode's local embedding model (embeddinggemma); its vectors live in local_embedding.
+LOCAL_EMBEDDING_DIM = 768
+# How often pending chunks are embedded, so switching Private mode on or off catches up by itself.
+EMBED_POLL_SECONDS = 60
 
 # Answer-generation model for the /ask demo. Override via the GEMINI_CHAT_MODEL env var.
 # If a call returns "model not found", swap this (e.g. gemini-flash-latest, gemini-3.6-flash).

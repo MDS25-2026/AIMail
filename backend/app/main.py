@@ -9,7 +9,7 @@ that belongs in specs/context/api-contracts.md with Lane D.
 import asyncio
 import logging
 import os
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Literal
@@ -34,6 +34,7 @@ from app.core.config import get_settings
 from app.core.constants import (
     ADMIN_PREFIX,
     DEFAULT_ADMIN_ORIGINS,
+    EMBED_POLL_SECONDS,
     MAX_DRAFT_CHARS,
     MAX_PASTE_CHARS,
     MAX_UPLOAD_BYTES,
@@ -71,7 +72,7 @@ from app.private_mode_routes import router as private_mode_router
 from app.rag.chunk import extract_pdf_bytes
 from app.rag.embed import EmbeddingError
 from app.rag.generate import GenerationError, answer
-from app.rag.ingest import embed_pending, ingest_text
+from app.rag.ingest import embed_pending, embed_pending_locally, ingest_text
 from app.rag.library import DocumentSummary, list_documents
 from app.rag.mask import DocumentMaskingError
 from app.rag.retrieve import ContextChunk, retrieve
@@ -83,11 +84,11 @@ configure_logging()
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    """Background work for the life of the process: embed any pending chunks once, and poll for
-    drafts to pre-generate. Both are held (asyncio keeps only weak references to tasks) and both
+    """Background work for the life of the process: embed pending chunks, and poll for drafts to
+    pre-generate. Both are held (asyncio keeps only weak references to tasks) and both
     are cancelled on shutdown."""
     await mailbox.resolve_owner()
-    tasks = [asyncio.create_task(_embed_missing()), asyncio.create_task(expire_vaults_daily()),
+    tasks = [asyncio.create_task(_embed_missing_loop()), asyncio.create_task(expire_vaults_daily()),
              asyncio.create_task(holding_replies_loop())]
     if get_settings().auto_generate:
         tasks.append(asyncio.create_task(_pregen_loop()))
@@ -143,16 +144,26 @@ async def _pregen_loop() -> None:
             logger.exception("pre-generation poll failed")
 
 
-async def _embed_missing() -> None:
-    """Chunks without a vector under the current EMBEDDING_TAG get one. Free when none are
-    pending; after a tag bump or on a fresh database it stops retrieval silently returning nothing."""
+async def _embed_missing_loop() -> None:
+    """Chunks without a vector get one, on each side, from startup on. Free when none are pending;
+    it also catches up after a tag bump, a fresh database, or a user switching Private mode."""
+    while True:
+        await _embed_missing("Gemini", embed_pending)
+        await _embed_missing("local", embed_pending_locally)
+        try:
+            await asyncio.sleep(EMBED_POLL_SECONDS)
+        except asyncio.CancelledError:
+            break
+
+
+async def _embed_missing(side: str, embed: Callable[[], Awaitable[int]]) -> None:
     try:
-        count = await embed_pending()
+        count = await embed()
     except Exception:
-        logger.exception("startup embedding of pending chunks failed; retrieval may be empty")
+        logger.exception("%s embedding of pending chunks failed; retrieval may be empty", side)
         return
     if count:
-        logger.info("embedded %d pending chunk(s) under the current tag", count)
+        logger.info("embedded %d pending chunk(s) with the %s model", count, side)
 
 
 

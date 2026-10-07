@@ -23,8 +23,14 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.constants import EMBEDDING_DIM
+from app.core.constants import EMBEDDING_DIM, LOCAL_EMBEDDING_DIM
 from app.db.base import Base
+
+
+class DocType(StrEnum):
+    POLICY = "policy"
+    # A reply the user sent while writing-style learning was on (specs/features/writing-profile.md).
+    SENT_REPLY = "sent_reply"
 
 
 class Document(Base):
@@ -79,6 +85,18 @@ class Embedding(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     chunk: Mapped["Chunk"] = relationship(back_populates="embeddings")
+
+
+class LocalEmbedding(Base):
+    """Private mode's vectors (migration 0023); never compared with a Gemini vector."""
+
+    __tablename__ = "local_embedding"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    chunk_id: Mapped[UUID] = mapped_column(ForeignKey("chunk.id", ondelete="CASCADE"))
+    embedding: Mapped[list[float]] = mapped_column(Vector(LOCAL_EMBEDDING_DIM))
+    model_name: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class AuditLog(Base):

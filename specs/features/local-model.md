@@ -89,15 +89,27 @@ scale well"; the proof of concept waits for the testing data.
 - **Every agent model call** for that user's emails goes to the local model: router, summary, action
   items, draft, critic, refine rounds, the user's own refine, and translation. One switch point:
   `email_agent.call_gemini`, routed by the request's `provider` field.
-- **No retrieval in Private mode:** retrieval embeds the email with Gemini, so it is skipped and the
-  card says company documents are not searched. Drafts then carry the "not grounded" review reason.
+- **Local search in Private mode (2026-10-07):** documents, and past replies (see
+  [`writing-profile.md`](./writing-profile.md)), are searched with a local embedding model,
+  `LOCAL_EMBEDDING_MODEL` (e.g. `embeddinggemma`, 768 dimensions, 2048-token input) on the same
+  Ollama. Its vectors live in their own table, `local_embedding` (migration 0023), with their own
+  index: a Gemini vector and a local one are not comparable and are never searched together.
+  With no local embedding model set, Private mode drafts without search, as before, and the
+  draft carries the "not grounded" review reason.
+- **No Gemini embedding for a Private-mode user:** while a user is in Private mode, their chunks
+  are embedded only locally. Every chunk gets a local vector (it never leaves the machine), so
+  switching Private mode on finds documents at once. A background pass every `EMBED_POLL_SECONDS`
+  (60 s) fills in whichever side is missing, so switching back to Gemini catches up on its own. Documents
+  embedded with Gemini before the user switched were already sent to Google; switching does not
+  undo that.
 - Drafting still runs through the pre-generation poller (one email at a time), so the local
   model's 8 to 30 s per draft is mostly invisible.
 
 **Out of scope**
 - Dropping masking for the local path (see Protected decisions).
-- Local retrieval (a local embedding model, or full-text search, which cannot split Chinese words).
-- `/ask` and document upload, which still use Gemini; the card says so.
+- Full-text search instead of a local embedding model: it matches words, not meaning, and cannot
+  split Chinese words.
+- `/ask`, which still answers with Gemini and searches Gemini vectors; the card says so.
 - Serving the model to other machines over the network.
 
 ## Acceptance criteria
@@ -121,6 +133,10 @@ scale well"; the proof of concept waits for the testing data.
       scan, unsupported figures, markers). The critic is the local model, so it is a weaker gate.
 - [ ] The prompt a local draft is generated from contains only masked text, identical to what the
       Gemini path sends.
+- [ ] Given Private mode and a local embedding model, when a draft is made, then the search uses
+      only `local_embedding`, and the Gemini embedding call is never made for that user's chunks,
+      at upload, at send, or in the background pass (asserted by a test that fails if it is).
+- [ ] Given two embedding passes at once, then no chunk gets two vectors from the same model.
 
 ## Edge cases & failure modes
 
@@ -128,6 +144,8 @@ scale well"; the proof of concept waits for the testing data.
   sharply. The poller's per-attempt timeout must allow for that, then count it as a failed attempt.
 - **Several emails arrive at once:** on 4 GB, one generation at a time (`OLLAMA_NUM_PARALLEL=1`).
   Ten emails queue for about two minutes in the background, which is acceptable.
+- **Two models on 4 GB:** the embedding model (about 0.6 GB) and the drafting model may swap in
+  and out of VRAM on each draft. That costs load time, not correctness.
 - **Model unloaded after idling:** the first draft after a pause pays a few seconds of load time.
   `OLLAMA_KEEP_ALIVE` trades that against holding the VRAM permanently.
 

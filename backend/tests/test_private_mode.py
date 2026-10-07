@@ -5,12 +5,17 @@ import json
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.dialects import postgresql
 
 import email_agent
 import gemini_client
 from app import dashboard, private_mode_routes
+from app.core.config import get_settings
+from app.core.constants import LOCAL_EMBEDDING_DIM
 from app.core.ownership import EVERYTHING
 from app.private_mode import DraftProvider
+from app.rag import ingest
+from app.rag import retrieve as retrieve_module
 from gemini_client import GeminiError, GeminiErrorCode
 from tests.test_account import _signed_in, calls  # noqa: F401  (fixture)
 from tests.test_restorable_masking import mailbox  # noqa: F401  (fixture)
@@ -70,18 +75,62 @@ def test_without_the_local_model_a_private_draft_fails_and_does_not_fall_back(mo
     assert response.status_code == 503
 
 
-def test_a_private_draft_skips_retrieval_and_asks_for_the_local_model(mailbox, monkeypatch):  # noqa: F811
-    async def no_retrieval(*_args, **_kwargs):
-        raise AssertionError("retrieval embeds the email with Gemini")
+def test_a_private_draft_searches_locally_and_asks_for_the_local_model(mailbox, monkeypatch):  # noqa: F811
+    searched = []
+
+    async def retrieve(_email, k, *, scope, provider):
+        searched.append(provider)
+        return []
 
     async def local(_user_id):
         return DraftProvider.LOCAL
 
-    monkeypatch.setattr(dashboard, "retrieve", no_retrieval)
+    monkeypatch.setattr(dashboard, "retrieve", retrieve)
     monkeypatch.setattr(dashboard, "provider_for", local)
     asyncio.run(dashboard.regenerate_email(str(mailbox["message"].id), scope=EVERYTHING))
     payload = json.loads(mailbox["payloads"][0])
-    assert payload["provider"] == "local" and payload["rag_context"] == ""
+    assert payload["provider"] == "local" and searched == [DraftProvider.LOCAL]
+
+
+@pytest.fixture
+def no_gemini_embedding(monkeypatch):
+    async def gemini(*_args, **_kwargs):
+        raise AssertionError("a Private mode search reached the Gemini embedding call")
+
+    monkeypatch.setattr(retrieve_module, "embed_query", gemini)
+
+
+def test_a_private_search_without_a_local_embedding_model_finds_nothing(test_settings, no_gemini_embedding):
+    found = asyncio.run(retrieve_module.retrieve("Is Thursday still on?", 5, scope=EVERYTHING,
+                                                 provider=DraftProvider.LOCAL))
+    assert found == []
+
+
+def test_a_private_search_embeds_and_searches_only_locally(test_settings, no_gemini_embedding, monkeypatch):
+    monkeypatch.setenv("LOCAL_EMBEDDING_MODEL", "embeddinggemma")
+    get_settings.cache_clear()
+    embedded = []
+
+    async def local(text):
+        embedded.append(text)
+        return [0.0] * LOCAL_EMBEDDING_DIM
+
+    monkeypatch.setattr(retrieve_module, "embed_query_locally", local)
+    statement = asyncio.run(retrieve_module._local_search("Is Thursday still on?", 5, EVERYTHING))
+    sql = str(statement)
+    assert embedded == ["Is Thursday still on?"]
+    assert "local_embedding" in sql and "JOIN embedding " not in sql
+
+
+def test_the_gemini_embedding_pass_leaves_out_private_mode_users_chunks():
+    sql = str(ingest._pending_for_gemini(10).compile(compile_kwargs={"literal_binds": True}))
+    assert "user_preferences.draft_provider = 'local'" in sql and "NOT IN" in sql
+
+
+def test_two_embedding_passes_never_take_the_same_chunk():
+    for pending in (ingest._pending_for_gemini, ingest._pending_for_local):
+        sql = str(pending(10).compile(dialect=postgresql.dialect()))
+        assert "FOR UPDATE OF chunk SKIP LOCKED" in sql
 
 
 def test_private_mode_cannot_be_switched_on_where_the_company_has_not_set_it_up(calls, monkeypatch):  # noqa: F811

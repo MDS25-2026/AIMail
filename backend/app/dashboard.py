@@ -41,7 +41,7 @@ from app.gmail_send import SendError, SendOutcomeUnknownError, send_reply
 from app.normalise.quantities import quantities_in
 from app.personalisation import DEFAULT_POLICY, Policy, apply_policy, load_policy
 from app.plain_text import plain_text
-from app.private_mode import DraftProvider, provider_for
+from app.private_mode import provider_for
 from app.rag.embed import EmbeddingError
 from app.rag.retrieve import retrieve
 from app.rag.utils import format_rag_context
@@ -381,9 +381,8 @@ async def _generate(message: Message, tone: str, thread: list[Message], details:
     """
     try:
         provider = await provider_for(message.user_id)
-        # Retrieval embeds the email with Gemini, so Private mode drafts without company documents.
-        chunks = ([] if provider == DraftProvider.LOCAL
-                  else await retrieve(message.body_masked or "", k=5, scope=Scope(owner_id=message.user_id)))
+        chunks = await retrieve(message.body_masked or "", k=5, scope=Scope(owner_id=message.user_id),
+                                provider=provider)
         payload = {
             "thread_context": thread_context(message, thread, details),
             "email_body": details.renumber(str(message.id), message.body_masked or ""),

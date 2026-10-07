@@ -35,6 +35,7 @@ Defined in the repo-root [`../.env.example`](../.env.example). Expected keys:
 - `DATABASE_URL` — Supabase Postgres (Session pooler)
 - `GOOGLE_API_KEY` — the one Google AI (Gemini) key: embeddings, query reformulation, and the agent
 - `LOCAL_LLM_URL`, `LOCAL_LLM_MODEL` — Private mode's local model in Ollama (e.g. `gemma4:e2b`); empty model = not offered
+- `LOCAL_EMBEDDING_MODEL` — Private mode's search model on the same Ollama (e.g. `embeddinggemma`); empty = Private mode drafts without search
 - `GEMINI_CHAT_MODEL` — optional, defaults to `gemini-2.5-flash`
 - `GOOGLE_API_KEY` — Gemini for the Lane C agent
 - `FRONTEND_ORIGIN` — dev CORS origin for the dashboard (default `http://localhost:3000`)

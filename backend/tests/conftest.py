@@ -27,6 +27,7 @@ def test_settings(monkeypatch):
     monkeypatch.setenv("GOOGLE_API_KEY", "unused-in-tests")
     # A developer's .env may switch Private mode on; tests start from "not set up".
     monkeypatch.setenv("LOCAL_LLM_MODEL", "")
+    monkeypatch.setenv("LOCAL_EMBEDDING_MODEL", "")
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
