@@ -323,7 +323,7 @@ export const ms: Translations = {
     },
     learn: "Belajar daripada balasan yang saya hantar",
     learnHint:
-      "Dimatikan melainkan anda menghidupkannya. AIMail mengesan tabiat yang anda ulang sekurang-kurangnya 3 kali, seperti salam anda atau perkataan yang selalu anda ubah, dan menyenaraikannya di sini.",
+      "Dimatikan melainkan anda menghidupkannya. AIMail mengesan tabiat yang anda ulang sekurang-kurangnya 3 kali, seperti salam anda atau perkataan yang selalu anda ubah, dan menyenaraikannya di sini. Ia juga menyimpan setiap balasan, dengan butiran peribadi disembunyikan, supaya draf kemudian untuk e-mel yang serupa boleh menggunakan semula cara anda menjawab.",
     nothingYet:
       "Belum ada yang dipelajari. Tabiat muncul selepas anda menggunakannya dalam 3 balasan.",
     evidence_one: "Dalam {{count}} daripada {{outOf}} balasan terakhir anda",

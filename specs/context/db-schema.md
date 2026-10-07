@@ -28,7 +28,7 @@ The canonical three-table split from [`../features/rag-retrieval.md`](../feature
 | `id` | `UUID PK` | `gen_random_uuid()` |
 | `source` | `TEXT NOT NULL` | filename or URL; **unique**, to support replace-on-reupload |
 | `title` | `TEXT` | display title (`source_title` in Seam 2) |
-| `doc_type` | `TEXT` | e.g. `policy`; reserved for a future past-sent-email type |
+| `doc_type` | `TEXT` | `policy`, or `sent_reply` for a past reply stored while writing-style learning is on (one chunk, `source = sent://<message id>`) |
 | `uploaded_at` | `TIMESTAMPTZ DEFAULT now()` | |
 | `created_at` / `updated_at` | `TIMESTAMPTZ DEFAULT now()` | |
 

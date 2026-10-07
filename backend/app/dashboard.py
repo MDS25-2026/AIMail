@@ -39,6 +39,7 @@ from app.db.models import MaskingStatus, Message, UserProfile
 from app.db.session import get_sessionmaker
 from app.gmail_send import SendError, SendOutcomeUnknownError, send_reply
 from app.normalise.quantities import quantities_in
+from app.past_replies import remember_reply
 from app.personalisation import DEFAULT_POLICY, Policy, apply_policy, load_policy
 from app.plain_text import plain_text
 from app.private_mode import provider_for
@@ -634,6 +635,7 @@ async def approve_and_send(message_id: str, draft: str, *, scope: Scope) -> Dash
     await audit("approve_and_send", f"message={message_id} restored={reply.restored}")
     if is_learning_style:
         await _relearn_after_send(stored.user_id)
+        await remember_reply(stored.user_id, pk, message.body_masked or "", reply.stored)
     return email
 
 

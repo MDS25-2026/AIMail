@@ -38,7 +38,9 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   nothing stored; `409 too_many_examples`; `404` for an email that is not the user's or not sent;
   `422 empty`/`too_long`). `PUT /profile/writing/learning` `{enabled}`.
   `DELETE /profile/writing/examples/{id}`, `DELETE /profile/writing/habits/{id}` (hidden for good)
-  and `DELETE /profile/writing` (everything, learning off) return `204`. Per signed-in user;
+  and `DELETE /profile/writing` (everything, including stored past replies; learning off) return `204`.
+  While learning is on, a send also stores a past reply that drafts may cite as `rag_sources` with
+  `label: "Your earlier reply"`; `GET /documents` never lists them. Per signed-in user;
   `403 account_only` for the script token. The agent's `/process-email` and `/refine` take
   `style_hint: str = ""` and `style_examples: list[str] = []`, fenced as data.
 - **Expired Google access (2026-10-06, `specs/features/per-user-mailboxes.md`):** `GET /auth/session`

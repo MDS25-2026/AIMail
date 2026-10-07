@@ -1,17 +1,20 @@
 """Writing style (specs/features/writing-profile.md): masked before storage, learned in the open."""
 
 import asyncio
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import SQLAlchemyError
 
 import email_agent
-from app import dashboard, writing_style, writing_style_routes
+from app import dashboard, past_replies, writing_style, writing_style_routes
 from app.admin.app import admin_app
 from app.core.ownership import EVERYTHING
 from app.core.redaction import has_redaction_marker
-from app.db.models import StyleHabit
+from app.db.models import DocType, StyleHabit
 from app.main import app
+from app.rag import library
 from app.rag.mask import DocumentMaskingError
 from app.writing_style import (
     HIDDEN,
@@ -154,8 +157,11 @@ def test_the_greeting_hint_never_quotes_the_name_mark():
 
 # ---------- what a send records ----------
 
-def _send(mailbox, monkeypatch, is_learning: bool) -> list:  # noqa: F811
+def _send(mailbox, monkeypatch, is_learning: bool, remembered: list | None = None) -> list:  # noqa: F811
     message, relearned = mailbox["message"], []
+
+    async def remember(*args):
+        (remembered if remembered is not None else []).append(args)
 
     async def learning(*_args):
         return is_learning
@@ -166,6 +172,7 @@ def _send(mailbox, monkeypatch, is_learning: bool) -> list:  # noqa: F811
     monkeypatch.setattr(dashboard, "get_sessionmaker", lambda: lambda: _Session(message))
     monkeypatch.setattr(dashboard, "is_learning", learning)
     monkeypatch.setattr(dashboard, "_relearn_after_send", relearn)
+    monkeypatch.setattr(dashboard, "remember_reply", remember)
     asyncio.run(dashboard.approve_and_send(str(message.id), "Hi [PERSON_1], noted with thanks.",
                                            scope=EVERYTHING))
     return relearned
@@ -183,6 +190,86 @@ def test_with_learning_on_a_send_records_the_draft_shown_and_how_much_it_changed
     assert message.draft_reply == "Hi [PERSON_1], noted with thanks."
     # "noted." became "noted" and two words were added: 3 edits over the 5 words sent.
     assert message.edit_ratio == pytest.approx(3 / 5)
+
+
+# ---------- past replies ----------
+
+def test_a_send_made_while_learning_is_off_is_not_kept_as_a_past_reply(mailbox, monkeypatch):  # noqa: F811
+    remembered = []
+    _send(mailbox, monkeypatch, is_learning=False, remembered=remembered)
+    assert remembered == []
+
+
+def test_a_send_made_while_learning_is_on_is_kept_as_a_past_reply(mailbox, monkeypatch):  # noqa: F811
+    message, remembered = mailbox["message"], []
+    body = message.body_masked
+    _send(mailbox, monkeypatch, is_learning=True, remembered=remembered)
+    assert remembered == [(message.user_id, message.id, body, "Hi [PERSON_1], noted with thanks.")]
+
+
+@pytest.fixture
+def stored_items(monkeypatch):
+    stored = []
+
+    async def as_is(text):
+        return text
+
+    async def store(source, title, chunks, *, scope, doc_type):
+        stored.append({"source": source, "title": title, "chunks": chunks, "owner": scope.owner_id,
+                       "doc_type": doc_type})
+
+    monkeypatch.setattr(writing_style, "mask_document", as_is)
+    monkeypatch.setattr(past_replies, "store_chunks", store)
+    return stored
+
+
+def test_a_past_reply_is_stored_with_every_placeholder_hidden(stored_items):
+    user, message = uuid4(), uuid4()
+    asyncio.run(past_replies.remember_reply(user, message, "Hi, I'm [PERSON_1]. Write to [EMAIL_1]?",
+                                            "Hi [PERSON_1], [EMAIL_1] works.\n\nThanks,\n[PERSON_2]"))
+    [item] = stored_items
+    [chunk] = item["chunks"]
+    assert "[" not in chunk and HIDDEN in chunk and "works." in chunk
+    assert (item["title"], item["owner"], item["doc_type"]) == ("Your earlier reply", user, DocType.SENT_REPLY)
+    assert item["source"] == f"sent://{message}"
+
+
+def test_a_long_email_never_crowds_out_the_reply():
+    text = past_replies.past_reply_text("word " * 5000, "Thanks, noted.")
+    assert len(text) <= past_replies.PAST_REPLY_MAX_CHARS + len("They wrote:\n\n\nYou replied:\n")
+    assert text.endswith("Thanks, noted.")
+
+
+@pytest.mark.parametrize("failure", [DocumentMaskingError("presidio unreachable"), SQLAlchemyError("db down")])
+def test_a_past_reply_that_cannot_be_stored_never_fails_the_send(stored_items, monkeypatch, failure):
+    async def fail(*_args, **_kwargs):
+        raise failure
+
+    monkeypatch.setattr(past_replies, "store_chunks", fail)
+    asyncio.run(past_replies.remember_reply(uuid4(), uuid4(), "Is Thursday ok?", "Yes."))
+
+
+def test_past_replies_are_left_out_of_the_document_library(monkeypatch):
+    asked = []
+
+    class _Rows:
+        def all(self):
+            return []
+
+    class _Session:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return False
+
+        async def execute(self, statement):
+            asked.append(str(statement.compile(compile_kwargs={"literal_binds": True})))
+            return _Rows()
+
+    monkeypatch.setattr(library, "get_sessionmaker", lambda: _Session)
+    assert asyncio.run(library.list_documents(EVERYTHING)) == []
+    assert "doc_type IS DISTINCT FROM 'sent_reply'" in asked[0]
 
 
 # ---------- routes ----------

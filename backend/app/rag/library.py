@@ -6,7 +6,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 
 from app.core.ownership import Scope
-from app.db.models import Chunk, Document
+from app.db.models import Chunk, DocType, Document
 from app.db.session import get_sessionmaker
 
 
@@ -28,7 +28,8 @@ async def list_documents(scope: Scope) -> list[DocumentSummary]:
             func.count(Chunk.id),
         )
         .outerjoin(Chunk, Chunk.document_id == Document.id)
-        .where(scope.where(Document.user_id))
+        # Past replies are search items the user manages on the writing-style card, not documents.
+        .where(scope.where(Document.user_id), Document.doc_type.is_distinct_from(DocType.SENT_REPLY))
         .group_by(Document.id)
         .order_by(Document.title)
     )

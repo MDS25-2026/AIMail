@@ -310,7 +310,7 @@ export const en = {
     },
     learn: "Learn from the replies I send",
     learnHint:
-      "Off unless you switch it on. AIMail notices habits you repeat at least 3 times, such as your greeting or words you always change, and lists them here.",
+      "Off unless you switch it on. AIMail notices habits you repeat at least 3 times, such as your greeting or words you always change, and lists them here. It also keeps each reply, with personal details hidden, so a later draft for a similar email can reuse how you answered.",
     nothingYet: "Nothing learned yet. A habit shows up after you use it in 3 replies.",
     evidence_one: "In {{count}} of your last {{outOf}} replies",
     evidence_other: "In {{count}} of your last {{outOf}} replies",

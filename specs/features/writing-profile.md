@@ -30,6 +30,11 @@ One "Your writing style" card in Settings with three independent parts. Any mix 
 - **Learn from what I send:** a switch, **off by default**. While on, each send records the draft
   as shown and what was sent, and a rule-based learner lists habits (greeting, sign-off phrase,
   typical length, repeated word swaps) with their evidence.
+- **Reuse my past replies (added 2026-10-07):** while learning is on, each send also stores the
+  email and the reply as one searchable item, so a later draft for a similar email can see how the
+  user answered before. It is found by the same search as documents (Gemini vectors normally,
+  local ones in Private mode) and shown in the draft's sources as "Your earlier reply". Only sends
+  made while the switch is on are stored. It never appears in the document library.
 - **Masked before storage:** every description, example and learned habit is masked before it is
   stored, and only the masked text is kept. The card shows exactly that text ("What the AI sees").
 
@@ -57,8 +62,14 @@ One "Your writing style" card in Settings with three independent parts. Any mix 
       word swaps: a rewrite says the draft missed, not how the user phrases things.
 - [ ] Given a learned habit, then the card shows it with its evidence ("in 7 of your last 10
       replies") and a delete control; a deleted habit never returns.
-- [ ] Given "Delete everything", then the description, examples, habits and every stored pair are
-      removed, and learning is switched off. Deleting the account removes them too.
+- [ ] Given learning is on, when the user sends, then the email and the reply are stored as one
+      search item of at most `PAST_REPLY_MAX_CHARS` (4000), masked with `mask_for_style`, so every
+      placeholder is `(hidden)`: a copied placeholder can never be filled from another thread's
+      details. A failure here (masker or database down) is logged and never fails the send.
+- [ ] Given a stored past reply, then it is labelled "Your earlier reply" (never the subject, which
+      is not masked) and is left out of the document library.
+- [ ] Given "Delete everything", then the description, examples, habits, every stored pair and
+      every stored past reply are removed, and learning is switched off. Deleting the account removes them too.
 - [ ] No admin route returns style data (asserted by a test over the admin app's route table).
 - [ ] Given a style, then the draft and refine requests carry at most `STYLE_HINT_CHARS` (1200) of
       hint and at most `MAX_EXAMPLES` examples of at most `MAX_EXAMPLE_CHARS` (1500) each, fenced as
@@ -71,6 +82,8 @@ One "Your writing style" card in Settings with three independent parts. Any mix 
 - The tone picker (professional / casual) still applies; the style hint refines it.
 - Examples are style only. The prompt tells the model never to copy their names, facts or figures,
   and they are not a grounding source.
+- Past replies are context, like a document: the draft may reuse an answer, and the critic
+  weighs them as context, not as company policy.
 
 ## API surface
 
@@ -93,6 +106,8 @@ The agent's `/process-email` and `/refine` gain `style_hint` (string) and `style
 - `style_example`: `id`, `user_id`, `text` (masked), `source` (`pasted|sent`), `created_at`.
 - `style_habit`: `id`, `user_id`, `kind` (`greeting|signoff|length|swap`), `value`, `evidence`,
   `out_of`, `suppressed`, `updated_at`; unique on (`user_id`, `kind`, `value`).
+- Past replies: a `document` row with `doc_type = 'sent_reply'` and `source = sent://<message id>`,
+  one chunk, embedded like any other chunk.
 - `messages.draft_shown` (`TEXT NULL`) and `messages.edit_ratio` (`REAL NULL`), written only while
   learning is on.
 

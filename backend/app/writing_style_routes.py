@@ -14,6 +14,7 @@ from app.account_routes import account_user_id
 from app.audit import audit
 from app.db.models import Message, StyleExample, StyleHabit, WritingStyle
 from app.db.session import get_sessionmaker
+from app.past_replies import forget_replies
 from app.writing_style import (
     MAX_DESCRIPTION_CHARS,
     MAX_EXAMPLE_CHARS,
@@ -176,7 +177,7 @@ async def delete_habit(habit_id: UUID, request: Request) -> Response:
 
 @router.delete("", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_everything(request: Request) -> Response:
-    """Description, examples, habits, hidden markers and every recorded draft/sent pair."""
+    """Description, examples, habits, hidden markers, every recorded draft/sent pair and past reply."""
     user_id = account_user_id(request)
     async with get_sessionmaker()() as session, session.begin():
         await session.execute(delete(StyleExample).where(StyleExample.user_id == user_id))
@@ -184,5 +185,6 @@ async def delete_everything(request: Request) -> Response:
         await session.execute(delete(WritingStyle).where(WritingStyle.user_id == user_id))
         await session.execute(update(Message).where(Message.user_id == user_id, Message.edit_ratio.is_not(None))
                               .values(draft_shown=None, edit_ratio=None))
+        await forget_replies(session, user_id)
     await audit("writing_style_deleted", f"user={user_id}")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
