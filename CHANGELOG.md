@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/MDS25-2026/AIMail/compare/v1.4.0...v1.5.0) (2026-10-07)
+
+
+### Features
+
+* holding reply, writing style, Private mode, sender verification and audit chain, privacy receipt ([#162](https://github.com/MDS25-2026/AIMail/issues/162)) ([6c837b3](https://github.com/MDS25-2026/AIMail/commit/6c837b3bff5dd9e15ad7eeacb0506579cc6f9462))
+
 ## [1.4.0](https://github.com/MDS25-2026/AIMail/compare/v1.3.0...v1.4.0) (2026-10-05)
 
 
