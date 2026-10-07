@@ -30,6 +30,13 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   `GET /holding-replies?limit=` lists `{id, emailId, recipient, language, scheduledFor, sentAt,
   cancelledReason}` newest first; `DELETE /holding-replies/{id}` cancels one still waiting (`409`
   once sent). All per signed-in user; `403 account_only` for the script token.
+- **Sender verification and audit (2026-10-07, `specs/features/sender-verification-and-audit.md`):**
+  every email carries `authStatus`: `pass`, `spoof_detected` or `sender_confirmed`. For a
+  `spoof_detected` email, regenerate and refine answer `409 sender_unverified`, and so does send.
+  `POST /emails/{id}/confirm-sender` returns the email, now `sender_confirmed` (404 if not the
+  caller's). `GET /audit?limit=` (1-100, default 50) returns `{is_chain_intact, total_records,
+  verified_records, head_hash, events: [{id, created_at, action, detail, success, prev_hash,
+  current_hash, user_id, is_verified}]}`: the caller's own rows, or every row for the script token.
 - **Removing a document (2026-10-07, `specs/features/rag-retrieval.md`):** `DELETE /documents/{id}`
   returns `204` and removes the document, its chunks and both kinds of vector; `404` when it is not
   in the caller's library (someone else's, a past reply, or unknown); `422` for a malformed id.
