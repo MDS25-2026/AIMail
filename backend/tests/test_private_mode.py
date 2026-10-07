@@ -127,7 +127,7 @@ def test_the_gemini_embedding_pass_leaves_out_private_mode_users_chunks():
     assert "user_preferences.draft_provider = 'local'" in sql and "NOT IN" in sql
 
 
-def test_two_embedding_passes_never_take_the_same_chunk():
+def test_two_embedding_passes_never_take_the_same_chunk(test_settings):
     for pending in (ingest._pending_for_gemini, ingest._pending_for_local):
         sql = str(pending(10).compile(dialect=postgresql.dialect()))
         assert "FOR UPDATE OF chunk SKIP LOCKED" in sql

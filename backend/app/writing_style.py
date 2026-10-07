@@ -47,8 +47,10 @@ _GREETINGS = re.compile(
 _SIGNOFFS = re.compile(
     r"^(thanks|thank you|regards|best|cheers|sincerely|warm|kind|many thanks|terima kasih|salam"
     r"|sekian|谢谢|此致|祝好)", re.IGNORECASE)
-# One to three capitalised words: the shape of a name signed under a closing.
-_SIGNATURE = re.compile(r"[A-Z][\w'-]*(?: [A-Z][\w'-]*){0,2}")
+# A name signed under a closing: one to three capitalised words. Checked word by word, not with a
+# regex, which backtracked badly on a long run of capitals (CodeQL py/polynomial-redos).
+MAX_SIGNATURE_WORDS = 3
+_NAME_PUNCTUATION = frozenset("'-_")
 _UNSAFE = re.compile(r"\d|@|https?://|www\.|\[|\]")
 _CAPITALISED = re.compile(r"\b[A-Z][a-z]+")
 _SENTENCE_START = re.compile(r"(?:^|[.!?]\s+)([A-Z][a-z]+)")
@@ -93,10 +95,19 @@ def neutralise(text: str) -> str:
     return ANY_MASK.sub(HIDDEN, text)
 
 
+def _is_signature(line: str) -> bool:
+    words = line.split(" ")
+    return 1 <= len(words) <= MAX_SIGNATURE_WORDS and all(
+        word[:1].isascii() and word[:1].isupper()
+        and all(char.isalnum() or char in _NAME_PUNCTUATION for char in word)
+        for word in words
+    )
+
+
 def hide_closing_name(text: str) -> str:
     """A short capitalised last line under a closing is a signature, whatever Presidio made of it."""
     lines = text.rstrip().split("\n")
-    if len(lines) < 2 or not _SIGNOFFS.match(lines[-2].strip()) or not _SIGNATURE.fullmatch(lines[-1].strip()):
+    if len(lines) < 2 or not _SIGNOFFS.match(lines[-2].strip()) or not _is_signature(lines[-1].strip()):
         return text
     return "\n".join([*lines[:-1], HIDDEN])
 

@@ -317,3 +317,11 @@ def test_every_drafting_prompt_asks_for_the_emails_own_language(monkeypatch):
     asyncio.run(email_agent.generate_reply("STANDARD", "", "", "Salam", "warm"))
     asyncio.run(email_agent.refine_reply("", "", "Salam", "draft", {}))
     assert all(email_agent._LANGUAGE_RULE in prompt for prompt in prompts) and len(prompts) == 2
+
+
+@pytest.mark.parametrize(("line", "is_name"), [
+    ("Elyesa", True), ("Elyesa Tee", True), ("Mary-Jane O'Neil", True),
+    ("Ali Bin Abu Bakar", False), ("aisyah", False), ("Tee 2026", False), ("A" * 50_000 + "!", False),
+])
+def test_only_a_short_capitalised_line_counts_as_a_signature(line, is_name):
+    assert writing_style._is_signature(line) is is_name
