@@ -203,6 +203,43 @@ export const en = {
     show: "Show details",
     unavailable: "Some details are no longer kept here. Open the email in Gmail to see them.",
   },
+  hiddenDetails: {
+    intro_one: "This draft has {{count}} detail the AI never saw. Tap it to type the real value.",
+    intro_other:
+      "This draft has {{count}} details the AI never saw. Tap one to type the real value.",
+    explain:
+      "The AI never saw this detail, and AIMail can't fill it back in. Type the real value here and it replaces this spot in your draft.",
+    typeHere: "Type the real value",
+    fill: "Fill in",
+    kind: {
+      name: "hidden name",
+      email: "hidden email",
+      phone: "hidden phone",
+      id: "hidden ID number",
+      account: "hidden account number",
+      card: "hidden card number",
+      place: "hidden place",
+      organisation: "hidden organisation",
+      other: "hidden detail",
+    },
+  },
+  receipt: {
+    open: "Privacy receipt",
+    title: "Privacy receipt",
+    description:
+      "Exactly what this email looked like when it went to the AI, and what stayed with you.",
+    hiddenTitle: "Hidden before the AI saw it",
+    noneHidden: "Nothing in this email needed hiding.",
+    count_one: "{{count}} {{kind}}",
+    count_other: "{{count}} × {{kind}}",
+    sentTitle: "What the AI was given",
+    sentHint: "The email text, with each detail replaced by a placeholder.",
+    keptTitle: "What stayed with you",
+    keptHint: "The real values, kept sealed in AIMail and shown only to you.",
+    noneKept: "No details are kept for this email.",
+    alsoSent:
+      "Earlier messages in the thread, matched policy passages and your writing style go to the AI the same way, with details hidden.",
+  },
   holdingReply: {
     title: "Holding reply",
     intro:

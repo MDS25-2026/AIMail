@@ -211,6 +211,44 @@ export const ms: Translations = {
     unavailable:
       "Sesetengah butiran tidak lagi disimpan di sini. Buka e-mel dalam Gmail untuk melihatnya.",
   },
+  hiddenDetails: {
+    intro_one:
+      "Draf ini ada {{count}} butiran yang tidak pernah dilihat AI. Ketik untuk menaip nilai sebenar.",
+    intro_other:
+      "Draf ini ada {{count}} butiran yang tidak pernah dilihat AI. Ketik satu untuk menaip nilai sebenar.",
+    explain:
+      "AI tidak pernah melihat butiran ini, dan AIMail tidak dapat mengisinya semula. Taip nilai sebenar di sini untuk menggantikan tempat ini dalam draf anda.",
+    typeHere: "Taip nilai sebenar",
+    fill: "Isi",
+    kind: {
+      name: "nama tersembunyi",
+      email: "e-mel tersembunyi",
+      phone: "telefon tersembunyi",
+      id: "nombor pengenalan tersembunyi",
+      account: "nombor akaun tersembunyi",
+      card: "nombor kad tersembunyi",
+      place: "tempat tersembunyi",
+      organisation: "organisasi tersembunyi",
+      other: "butiran tersembunyi",
+    },
+  },
+  receipt: {
+    open: "Resit privasi",
+    title: "Resit privasi",
+    description:
+      "Rupa sebenar e-mel ini semasa dihantar kepada AI, dan apa yang kekal dengan anda.",
+    hiddenTitle: "Disembunyikan sebelum AI melihatnya",
+    noneHidden: "Tiada apa-apa dalam e-mel ini yang perlu disembunyikan.",
+    count_one: "{{count}} {{kind}}",
+    count_other: "{{count}} × {{kind}}",
+    sentTitle: "Apa yang diberikan kepada AI",
+    sentHint: "Teks e-mel, dengan setiap butiran diganti dengan pemegang tempat.",
+    keptTitle: "Apa yang kekal dengan anda",
+    keptHint: "Nilai sebenar, disimpan dimeterai dalam AIMail dan hanya ditunjukkan kepada anda.",
+    noneKept: "Tiada butiran disimpan untuk e-mel ini.",
+    alsoSent:
+      "Mesej terdahulu dalam bebenang, petikan polisi yang sepadan dan gaya penulisan anda dihantar kepada AI dengan cara yang sama, dengan butiran disembunyikan.",
+  },
   holdingReply: {
     title: "Balasan sementara",
     intro:

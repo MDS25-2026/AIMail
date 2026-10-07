@@ -196,6 +196,41 @@ export const zh: Translations = {
     show: "显示详情",
     unavailable: "部分详情已不再保存在这里。请在 Gmail 中打开邮件查看。",
   },
+  hiddenDetails: {
+    intro_one: "此草稿中有 {{count}} 项人工智能从未看到的信息。点按即可输入真实内容。",
+    intro_other: "此草稿中有 {{count}} 项人工智能从未看到的信息。点按其中一项即可输入真实内容。",
+    explain:
+      "人工智能从未看到此信息，AIMail 也无法自动填回。请在此输入真实内容，它会替换草稿中的这个位置。",
+    typeHere: "输入真实内容",
+    fill: "填入",
+    kind: {
+      name: "已隐藏的姓名",
+      email: "已隐藏的电邮",
+      phone: "已隐藏的电话",
+      id: "已隐藏的证件号码",
+      account: "已隐藏的账号",
+      card: "已隐藏的卡号",
+      place: "已隐藏的地点",
+      organisation: "已隐藏的机构",
+      other: "已隐藏的信息",
+    },
+  },
+  receipt: {
+    open: "隐私回执",
+    title: "隐私回执",
+    description: "这封邮件发送给人工智能时的确切样子，以及哪些内容留在您这里。",
+    hiddenTitle: "在人工智能看到之前已隐藏",
+    noneHidden: "这封邮件中没有需要隐藏的内容。",
+    count_one: "{{count}} 个{{kind}}",
+    count_other: "{{count}} 个{{kind}}",
+    sentTitle: "提供给人工智能的内容",
+    sentHint: "邮件正文，每项信息都已替换为占位符。",
+    keptTitle: "留在您这里的内容",
+    keptHint: "真实内容在 AIMail 中加密保存，只向您显示。",
+    noneKept: "这封邮件没有保存任何信息。",
+    alsoSent:
+      "对话中的早前邮件、匹配的政策段落和您的写作风格也以同样方式发送给人工智能，信息均已隐藏。",
+  },
   holdingReply: {
     title: "自动回复",
     intro:

@@ -9,6 +9,8 @@ import { AuthStatus, type Email, type Tone } from "../types/email";
 import AISummaryCard from "./AISummaryCard";
 import EmailBody from "./EmailBody";
 import QuarantineNotice from "./QuarantineNotice";
+import HiddenDetailChips from "./HiddenDetailChips";
+import PrivacyReceipt from "./PrivacyReceipt";
 import SecurityNotice from "./SecurityNotice";
 import ActionItemsList from "./ActionItemsList";
 import ConversationMessages from "./ConversationMessages";
@@ -78,6 +80,7 @@ export default function EmailDetailPanel({
               {t("security.spoofBadge")}
             </span>
           ) : null}
+          <PrivacyReceipt email={email} />
           {email.details?.length ? <DetailsToggle /> : null}
           <PriorityBadge priority={email.priority} />
         </div>
@@ -125,6 +128,14 @@ export default function EmailDetailPanel({
                 onDraftChange={onDraftChange}
                 onToneChange={onToneChange}
                 // A tone change regenerates the draft, so it is blocked mid-send like the rest.
+                disabled={isDraftBusy}
+              />
+
+              <HiddenDetailChips
+                key={`hidden-${email.id}`}
+                draft={draft}
+                values={detailValues(email.details)}
+                onDraftChange={onDraftChange}
                 disabled={isDraftBusy}
               />
 
