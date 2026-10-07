@@ -16,54 +16,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sqlalchemy import text
 
+from app.audit_routes import _SUMMARY
 from app.db.session import get_sessionmaker
 
 BACKUP_FILE = Path(__file__).parent / ".tamper_backup.json"
 
 
 async def check_status():
-    sql = """
-    SELECT 
-        id,
-        action,
-        detail,
-        current_hash = encode(digest(
-            COALESCE(prev_hash, '0000000000000000000000000000000000000000000000000000000000000000') || 
-            COALESCE(action, '') || 
-            COALESCE(detail, '') || 
-            COALESCE(success::text, 'false') || 
-            COALESCE(user_id::text, '') || 
-            extract(epoch from created_at)::text,
-            'sha256'
-        ), 'hex') AS is_valid
-    FROM audit_log
-    WHERE current_hash IS NOT NULL
-    ORDER BY created_at DESC, id DESC
-    LIMIT 10
-    """
     async with get_sessionmaker()() as session:
-        res = await session.execute(text(sql))
-        rows = res.fetchall()
-
-    if not rows:
-        print("[!] No hashed audit rows found.")
-        return
-
-    invalid_rows = [r for r in rows if r[3] is False]
-    if invalid_rows:
-        print(f"[!] TAMPERING DETECTED! Found {len(invalid_rows)} compromised records:")
-        for r in invalid_rows:
-            print(f"    - ID: {r[0]} | Action: {r[1]} | Detail: {r[2][:60]}")
-    else:
-        print(
-            f"[OK] Ledger is perfectly intact. Verified {len(rows)} recent records without tampering."
-        )
+        summary = (await session.execute(_SUMMARY)).one()
+    state = "[OK] chain intact" if summary.is_intact else "[!] TAMPERING DETECTED: the chain is broken"
+    print(f"{state} ({summary.chained} chained records)")
 
 
 async def tamper_record():
     async with get_sessionmaker()() as session:
-        # Pick the most recent hashed row
-        sql_find = "SELECT id, detail FROM audit_log WHERE current_hash IS NOT NULL ORDER BY created_at DESC, id DESC LIMIT 1"
+        sql_find = "SELECT id, detail FROM audit_log WHERE chain_seq IS NOT NULL ORDER BY chain_seq DESC LIMIT 1"
         res = await session.execute(text(sql_find))
         row = res.fetchone()
         if not row:

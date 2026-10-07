@@ -35,7 +35,7 @@ export const Route = createFileRoute("/audit")({
       { title: "AIMail Audit Trail" },
       {
         name: "description",
-        content: "Cryptographic, tamper-evident PDPA compliance audit ledger.",
+        content: "Your audit trail, linked record to record by SHA-256 hashes.",
       },
     ],
   }),
@@ -189,7 +189,7 @@ function AuditPage() {
                   <div className="flex items-center gap-2 self-end sm:self-auto">
                     <span className="font-mono text-xs text-fg-muted">Algorithm:</span>
                     <span className="inline-flex items-center rounded border border-line bg-surface px-2 py-0.5 font-mono text-xs text-fg-body">
-                      SHA-256 HMAC-chained
+                      SHA-256 hash chain
                     </span>
                   </div>
                 </div>

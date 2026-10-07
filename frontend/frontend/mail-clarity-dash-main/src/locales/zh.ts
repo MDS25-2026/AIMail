@@ -425,6 +425,11 @@ export const zh: Translations = {
     spoofBody:
       "此邮件未通过发件人域名验证（SPF、DKIM 或 DMARC 验证失败）。为了防止钓鱼或仿冒攻击，AIMail 已禁用此邮件的 AI 自动草稿生成。",
     viewInGmail: "如果该发件人合法，请在 Gmail 中查看或手动回复。",
+    confirmSender: "我已核实此发件人",
+    confirmQuestion: "仅在确认发件人真实时才确认。要起草回复吗？",
+    confirmYes: "是，发件人真实",
+    confirmNo: "取消",
+    confirmFailed: "无法确认发件人，请重试。",
   },
   admin: {
     title: "管理",
@@ -492,10 +497,11 @@ export const zh: Translations = {
   },
   audit: {
     title: "审计追踪",
-    subtitle: "防篡改的密码学账本，记录所有人工智能处理和数据保护事件。",
+    subtitle:
+      "您的人工智能和数据保护事件，每条都通过 SHA-256 哈希与上一条相连，因此修改或删除记录都会被发现。",
     chainIntact: "账本完整：SHA-256 哈希链验证通过",
     chainBroken: "账本受损：检测到哈希链不匹配",
-    verifiedCount: "{{verified}} / {{total}} 条记录已完成数学链条验证",
+    verifiedCount: "{{verified}} / {{total}} 条记录已在哈希链中验证",
     empty: "暂无审计记录。",
     exportJson: "导出审计凭证 (JSON)",
     headers: {
@@ -522,16 +528,17 @@ export const zh: Translations = {
     },
     modal: {
       title: "密码学验证凭证",
-      subtitle: "通过 SHA-256 哈希链确保记录不可篡改的数学验证。",
+      subtitle: "这条记录如何与上一条记录相连。",
       recordId: "记录 ID",
       timestamp: "记录时间",
       action: "操作类型",
       prevHash: "前一区块哈希 (父级)",
       currentHash: "当前区块哈希 (自身)",
       formula: "摘要算法公式",
-      formulaDesc: "SHA-256(prev_hash + action + detail + success + user_id + timestamp)",
+      formulaDesc:
+        "SHA-256(prev_hash | sequence | action | detail | success | user_id | timestamp)",
       intactMessage:
-        "该条目与前一条日志条目具有数学绑定。修改或删除任何历史记录都会使随后的整个哈希链失效。",
+        "这条记录的哈希包含上一条记录的哈希，因此修改或删除较早的记录会使检查失败。拥有完整数据库权限的人可以重建整条链；把最新哈希另行记录即可发现这种情况。",
       close: "关闭",
     },
   },

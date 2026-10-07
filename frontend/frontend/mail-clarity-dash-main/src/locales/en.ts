@@ -438,6 +438,11 @@ export const en = {
     spoofBody:
       "This email failed domain authentication (SPF, DKIM, or DMARC failed). To protect your corporate domain from phishing or impersonation attacks, AIMail has disabled automated draft generation for this message.",
     viewInGmail: "Open in Gmail to inspect headers or reply manually if this sender is legitimate.",
+    confirmSender: "I've checked this sender",
+    confirmQuestion: "Only confirm if you know this sender is real. Draft a reply?",
+    confirmYes: "Yes, the sender is real",
+    confirmNo: "Cancel",
+    confirmFailed: "Couldn't confirm the sender. Try again.",
   },
   admin: {
     title: "Admin",
@@ -509,10 +514,10 @@ export const en = {
   audit: {
     title: "Audit Trail",
     subtitle:
-      "Cryptographic, tamper-evident ledger tracking every AI operation and data protection event.",
+      "Your AI and data protection events, each linked by a SHA-256 hash to the one before, so a changed or deleted record shows.",
     chainIntact: "Ledger Intact: SHA-256 Hash Chain Verified",
     chainBroken: "Ledger Compromised: Hash Chain Discrepancy Detected",
-    verifiedCount: "{{verified}} of {{total}} records mathematically chained",
+    verifiedCount: "{{verified}} of {{total}} records verified in the hash chain",
     empty: "No audit records found yet.",
     exportJson: "Export Audit Receipt (JSON)",
     headers: {
@@ -538,17 +543,18 @@ export const en = {
       system: "System Event",
     },
     modal: {
-      title: "Cryptographic Verification Proof",
-      subtitle: "Mathematical verification of record immutability via SHA-256 hash chaining.",
+      title: "Hash chain check",
+      subtitle: "How this record is linked to the one before it.",
       recordId: "Record ID",
       timestamp: "Logged At",
       action: "Action Type",
       prevHash: "Previous Block Hash (Parent)",
       currentHash: "Current Block Hash (Self)",
       formula: "Digest Formula",
-      formulaDesc: "SHA-256(prev_hash + action + detail + success + user_id + timestamp)",
+      formulaDesc:
+        "SHA-256(prev_hash | sequence | action | detail | success | user_id | timestamp)",
       intactMessage:
-        "This entry is mathematically bound to its preceding log entry. Modifying or deleting any historical record invalidates the entire subsequent hash chain.",
+        "This record's hash covers the previous record's hash, so changing or deleting an earlier record breaks the check. Someone with full database access could rebuild the whole chain; the latest hash, recorded elsewhere, catches that.",
       close: "Close",
     },
   },

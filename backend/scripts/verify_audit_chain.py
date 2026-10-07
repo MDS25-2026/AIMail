@@ -1,59 +1,38 @@
+"""Check the whole audit hash chain (specs/features/sender-verification-and-audit.md).
+
+Usage (from backend/): python scripts/verify_audit_chain.py
+
+Uses the same check as GET /audit: each row's hash, its link to the row before, and no gap in
+chain_seq. Prints the head hash; recorded outside the database, it shows a rebuilt chain.
+"""
+
 import asyncio
-import hashlib
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sqlalchemy import text
 
+from app.audit_routes import _CHAIN, _SUMMARY
 from app.db.session import get_sessionmaker
 
+_BROKEN = text(_CHAIN + """
+SELECT a.chain_seq, a.id, a.action FROM audit_log a JOIN chain c ON c.id = a.id
+WHERE NOT c.is_valid ORDER BY a.chain_seq
+""")
 
-async def main():
-    print("Verifying cryptographic hash chain in audit_log...")
+
+async def main() -> int:
     async with get_sessionmaker()() as session:
-        result = await session.execute(
-            text(
-                "SELECT id, action, detail, success, extract(epoch from created_at), prev_hash, current_hash FROM audit_log ORDER BY created_at ASC, id ASC"
-            )
-        )
-        rows = result.fetchall()
-
-    if not rows:
-        print("Audit log is empty.")
-        return
-
-    last_hash = "0000000000000000000000000000000000000000000000000000000000000000"
-    errors = 0
-
-    for row in rows:
-        id_, action, detail, success, ts_epoch, prev_hash, current_hash = row
-        if prev_hash != last_hash:
-            print(
-                f"[X] BROKEN CHAIN at ID {id_}: expected prev_hash {last_hash}, got {prev_hash}"
-            )
-            errors += 1
-
-        detail_str = detail if detail is not None else ""
-        success_str = str(success).lower() if success is not None else "false"
-        ts_str = str(ts_epoch)
-
-        # Digest: last_hash + action + detail + success + timestamp
-        raw = f"{last_hash}{action}{detail_str}{success_str}{ts_str}"
-        computed_hash = hashlib.sha256(raw.encode("utf-8")).hexdigest()
-
-        if computed_hash != current_hash:
-            print(
-                f"[!] TAMPERING DETECTED at ID {id_}: computed hash {computed_hash}, db hash {current_hash}"
-            )
-            errors += 1
-
-        last_hash = current_hash
-
-    if errors == 0:
-        print(
-            f"[OK] Audit log is perfectly intact! Verified {len(rows)} chained records."
-        )
-    else:
-        print(f"[!] Verification failed with {errors} errors.")
+        summary = (await session.execute(_SUMMARY)).one()
+        broken = (await session.execute(_BROKEN)).all()
+    for row in broken:
+        print(f"[BROKEN] seq {row.chain_seq} id {row.id} action {row.action}")
+    print(f"{summary.chained} chained records; head hash {summary.head}")
+    print("[OK] chain intact" if summary.is_intact else f"[FAILED] {len(broken)} records break the chain")
+    return 0 if summary.is_intact else 1
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    sys.exit(asyncio.run(main()))

@@ -185,6 +185,13 @@ export async function fetchDocuments(): Promise<PolicyDocument[]> {
   return res.json();
 }
 
+/** The owner checked a sender that failed SPF/DKIM/DMARC and says they are real; drafting resumes. */
+export async function confirmSender(id: string): Promise<Email> {
+  const res = await apiFetch(`/emails/${id}/confirm-sender`, { method: "POST" });
+  if (!res.ok) throw new Error(`POST /emails/${id}/confirm-sender failed (${res.status})`);
+  return res.json();
+}
+
 /** Remove a document and everything stored for it; drafts stop citing it at once. */
 export async function deleteDocument(documentId: string): Promise<void> {
   const res = await apiFetch(`/documents/${documentId}`, { method: "DELETE" });
@@ -405,10 +412,12 @@ export type AuditTrailResponse = {
   is_chain_intact: boolean;
   total_records: number;
   verified_records: number;
+  /** The latest hash; recorded outside the database, it shows if the whole chain was rebuilt. */
+  head_hash: string | null;
   events: AuditLogEvent[];
 };
 
-/** Tamper-evident audit trail with SHA-256 cryptographic chain proof (#148 / PDPA). */
+/** The signed-in user's audit rows, and whether the whole SHA-256 hash chain is intact (#148). */
 export async function fetchAuditTrail(): Promise<AuditTrailResponse> {
   const res = await apiFetch("/audit");
   if (!res.ok) throw new Error(`GET /audit failed (${res.status})`);

@@ -454,6 +454,11 @@ export const ms: Translations = {
       "E-mel ini gagal pengesahan domain (SPF, DKIM, atau DMARC gagal). Untuk melindungi domain korporat anda daripada pancingan data, AIMail telah menyahdayakan penjanaan draf automatik untuk mesej ini.",
     viewInGmail:
       "Buka dalam Gmail untuk memeriksa pengepala atau membalas secara manual jika pengirim ini sah.",
+    confirmSender: "Saya telah menyemak pengirim ini",
+    confirmQuestion: "Sahkan hanya jika anda tahu pengirim ini sah. Draf balasan?",
+    confirmYes: "Ya, pengirim ini sah",
+    confirmNo: "Batal",
+    confirmFailed: "Tidak dapat mengesahkan pengirim. Cuba lagi.",
   },
   admin: {
     title: "Pentadbir",
@@ -525,10 +530,10 @@ export const ms: Translations = {
   audit: {
     title: "Jejak Audit",
     subtitle:
-      "Lejar kriptografi tidak boleh diubah yang merekod setiap operasi AI dan perlindungan data.",
+      "Peristiwa AI dan perlindungan data anda, setiap satu dipautkan dengan hash SHA-256 kepada yang sebelumnya, supaya rekod yang diubah atau dipadam dapat dikesan.",
     chainIntact: "Lejar Sah: Rantaian Hash SHA-256 Disahkan",
     chainBroken: "Lejar Terjejas: Percanggahan Rantaian Hash Dikesan",
-    verifiedCount: "{{verified}} daripada {{total}} rekod dirantai secara matematik",
+    verifiedCount: "{{verified}} daripada {{total}} rekod disahkan dalam rantaian hash",
     empty: "Tiada rekod audit ditemui lagi.",
     exportJson: "Eksport Resit Audit (JSON)",
     headers: {
@@ -555,16 +560,17 @@ export const ms: Translations = {
     },
     modal: {
       title: "Bukti Pengesahan Kriptografi",
-      subtitle: "Pengesahan matematik ketakbolehan ubah rekod melalui rantaian hash SHA-256.",
+      subtitle: "Cara rekod ini dipautkan kepada rekod sebelumnya.",
       recordId: "ID Rekod",
       timestamp: "Dicatat Pada",
       action: "Jenis Tindakan",
       prevHash: "Hash Blok Sebelumnya (Induk)",
       currentHash: "Hash Blok Semasa (Sendiri)",
       formula: "Formula Hash",
-      formulaDesc: "SHA-256(prev_hash + action + detail + success + user_id + timestamp)",
+      formulaDesc:
+        "SHA-256(prev_hash | sequence | action | detail | success | user_id | timestamp)",
       intactMessage:
-        "Entri ini terikat secara matematik dengan entri log sebelumnya. Mengubah atau memadam mana-mana rekod sejarah akan membatalkan keseluruhan rantaian hash seterusnya.",
+        "Hash rekod ini merangkumi hash rekod sebelumnya, jadi mengubah atau memadam rekod lebih awal akan menggagalkan semakan. Seseorang yang mempunyai akses penuh pangkalan data boleh membina semula seluruh rantaian; hash terkini yang direkodkan di tempat lain dapat mengesannya.",
       close: "Tutup",
     },
   },

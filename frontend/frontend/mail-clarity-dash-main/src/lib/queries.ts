@@ -25,6 +25,7 @@ import {
 } from "./adminApi";
 import {
   addDocument,
+  confirmSender,
   deleteDocument,
   fetchAuditTrail,
   fetchDocuments,
@@ -150,6 +151,10 @@ export function useSendEmail() {
       queryClient.invalidateQueries({ queryKey: queryKeys.emails });
     },
   });
+}
+
+export function useConfirmSender() {
+  return useDraftMutation(confirmSender);
 }
 
 export function useDocuments() {

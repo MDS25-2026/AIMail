@@ -5,7 +5,7 @@ import { splitAround } from "../lib/conversations";
 import { detailValues } from "../lib/details";
 import { DetailsContext } from "../lib/detailsContext";
 import { useFormat } from "../lib/useFormat";
-import type { Email, Tone } from "../types/email";
+import { AuthStatus, type Email, type Tone } from "../types/email";
 import AISummaryCard from "./AISummaryCard";
 import EmailBody from "./EmailBody";
 import QuarantineNotice from "./QuarantineNotice";
@@ -72,7 +72,7 @@ export default function EmailDetailPanel({
           <WithDetails text={email.subject} />
         </h1>
         <div className="flex shrink-0 items-center gap-2">
-          {email.authStatus === "spoof_detected" ? (
+          {email.authStatus === AuthStatus.SpoofDetected ? (
             <span className="flex items-center gap-1 rounded bg-danger-soft px-2 py-0.5 text-xs font-semibold text-danger">
               <ShieldAlert aria-hidden className="size-3.5" />
               {t("security.spoofBadge")}
@@ -114,8 +114,8 @@ export default function EmailDetailPanel({
           <AISummaryCard summary={email.aiSummary} />
           <ActionItemsList items={email.actionItems} />
 
-          {email.authStatus === "spoof_detected" ? (
-            <SecurityNotice />
+          {email.authStatus === AuthStatus.SpoofDetected ? (
+            <SecurityNotice emailId={email.id} />
           ) : (
             <section className="space-y-4 rounded-lg border border-line bg-surface p-4">
               <DraftReplyEditor
