@@ -396,4 +396,3 @@ func TestParseAuthStatus(t *testing.T) {
 		})
 	}
 }
-

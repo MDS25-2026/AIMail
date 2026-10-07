@@ -47,4 +47,3 @@ func parseAuthStatus(headers []*gmail.MessagePartHeader) string {
 	}
 	return "pass"
 }
-

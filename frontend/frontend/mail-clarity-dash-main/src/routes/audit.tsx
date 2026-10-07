@@ -68,18 +68,19 @@ function AuditPage() {
     URL.revokeObjectURL(url);
   };
 
+  const rawEvents = data?.events;
   const filteredEvents = useMemo(() => {
-    if (!data?.events) return [];
-    if (!filterQuery.trim()) return data.events;
+    if (!rawEvents) return [];
+    if (!filterQuery.trim()) return rawEvents;
     const q = filterQuery.toLowerCase();
-    return data.events.filter(
+    return rawEvents.filter(
       (ev) =>
         ev.action.toLowerCase().includes(q) ||
         ev.detail.toLowerCase().includes(q) ||
         ev.id.toLowerCase().includes(q) ||
         (ev.current_hash && ev.current_hash.toLowerCase().includes(q)),
     );
-  }, [data?.events, filterQuery]);
+  }, [rawEvents, filterQuery]);
 
   const getActionLabel = (action: string) => {
     switch (action) {
@@ -140,11 +141,7 @@ function AuditPage() {
           {/* Pending or Error States */}
           {isPending ? <PageLoading label={t("audit.title")} /> : null}
           {isError ? (
-            <PageError
-              label={t("audit.title")}
-              error={error}
-              onRetry={() => void refetch()}
-            />
+            <PageError label={t("audit.title")} error={error} onRetry={() => void refetch()} />
           ) : null}
 
           {/* Content */}
@@ -171,17 +168,13 @@ function AuditPage() {
                       <div className="flex items-center gap-2">
                         <span
                           className={`inline-block rounded px-1.5 py-0.5 font-mono text-[11px] font-bold ${
-                            data.is_chain_intact
-                              ? "bg-success text-white"
-                              : "bg-danger text-white"
+                            data.is_chain_intact ? "bg-success text-white" : "bg-danger text-white"
                           }`}
                         >
                           {data.is_chain_intact ? "[VERIFIED]" : "[FAILED]"}
                         </span>
                         <h2 className="text-sm font-semibold text-fg-header">
-                          {data.is_chain_intact
-                            ? t("audit.chainIntact")
-                            : t("audit.chainBroken")}
+                          {data.is_chain_intact ? t("audit.chainIntact") : t("audit.chainBroken")}
                         </h2>
                       </div>
                       <p className="mt-0.5 text-xs text-fg-muted">
@@ -220,23 +213,15 @@ function AuditPage() {
               </div>
 
               {/* Audit Ledger Table */}
-              <div className="overflow-hidden rounded-lg border border-line bg-surface shadow-xs">
+              <div className="relative overflow-hidden rounded-lg border border-line bg-surface shadow-xs">
                 <div className="relative max-h-[34rem] overflow-auto">
                   <table className="w-full text-left text-sm">
                     <thead className="sticky top-0 z-10 border-b border-line bg-surface-muted text-xs uppercase tracking-wider text-fg-muted">
                       <tr>
-                        <th className="px-4 py-3 font-semibold">
-                          {t("audit.headers.timestamp")}
-                        </th>
-                        <th className="px-4 py-3 font-semibold">
-                          {t("audit.headers.action")}
-                        </th>
-                        <th className="px-4 py-3 font-semibold">
-                          {t("audit.headers.status")}
-                        </th>
-                        <th className="px-4 py-3 font-semibold">
-                          {t("audit.headers.detail")}
-                        </th>
+                        <th className="px-4 py-3 font-semibold">{t("audit.headers.timestamp")}</th>
+                        <th className="px-4 py-3 font-semibold">{t("audit.headers.action")}</th>
+                        <th className="px-4 py-3 font-semibold">{t("audit.headers.status")}</th>
+                        <th className="px-4 py-3 font-semibold">{t("audit.headers.detail")}</th>
                         <th className="px-4 py-3 text-right font-semibold">
                           {t("audit.headers.proof")}
                         </th>
@@ -245,10 +230,7 @@ function AuditPage() {
                     <tbody className="divide-y divide-line-subtle">
                       {filteredEvents.length === 0 ? (
                         <tr>
-                          <td
-                            colSpan={5}
-                            className="px-4 py-8 text-center text-sm text-fg-subtle"
-                          >
+                          <td colSpan={5} className="px-4 py-8 text-center text-sm text-fg-subtle">
                             {t("audit.empty")}
                           </td>
                         </tr>
@@ -260,9 +242,7 @@ function AuditPage() {
                           >
                             {/* Timestamp */}
                             <td className="whitespace-nowrap px-4 py-3 text-xs text-fg-muted">
-                              {event.created_at
-                                ? format.timestamp(event.created_at)
-                                : "N/A"}
+                              {event.created_at ? format.timestamp(event.created_at) : "N/A"}
                             </td>
 
                             {/* Action */}
@@ -327,9 +307,7 @@ function AuditPage() {
                                   )}
                                 </button>
                               ) : (
-                                <span className="font-mono text-xs text-fg-subtle">
-                                  Legacy Log
-                                </span>
+                                <span className="font-mono text-xs text-fg-subtle">Legacy Log</span>
                               )}
                             </td>
                           </tr>
@@ -367,27 +345,19 @@ function AuditPage() {
               {/* Event Metadata */}
               <div className="grid grid-cols-2 gap-3 rounded-lg border border-line bg-surface-muted p-3 text-xs">
                 <div>
-                  <span className="font-medium text-fg-muted">
-                    {t("audit.modal.recordId")}:
-                  </span>
+                  <span className="font-medium text-fg-muted">{t("audit.modal.recordId")}:</span>
                   <p className="mt-0.5 font-mono text-[11px] text-fg-body break-all">
                     {selectedEvent.id}
                   </p>
                 </div>
                 <div>
-                  <span className="font-medium text-fg-muted">
-                    {t("audit.modal.timestamp")}:
-                  </span>
+                  <span className="font-medium text-fg-muted">{t("audit.modal.timestamp")}:</span>
                   <p className="mt-0.5 text-fg-body">
-                    {selectedEvent.created_at
-                      ? format.timestamp(selectedEvent.created_at)
-                      : "N/A"}
+                    {selectedEvent.created_at ? format.timestamp(selectedEvent.created_at) : "N/A"}
                   </p>
                 </div>
                 <div>
-                  <span className="font-medium text-fg-muted">
-                    {t("audit.modal.action")}:
-                  </span>
+                  <span className="font-medium text-fg-muted">{t("audit.modal.action")}:</span>
                   <p className="mt-0.5 font-medium text-fg-body">
                     {getActionLabel(selectedEvent.action)}
                   </p>
@@ -418,9 +388,7 @@ function AuditPage() {
                     {selectedEvent.prev_hash ? (
                       <button
                         type="button"
-                        onClick={() =>
-                          copyToClipboard(selectedEvent.prev_hash || "", "prev")
-                        }
+                        onClick={() => copyToClipboard(selectedEvent.prev_hash || "", "prev")}
                         className="inline-flex items-center gap-1 text-[11px] text-fg-muted hover:text-fg-header"
                       >
                         {copiedField === "prev" ? (
@@ -463,9 +431,7 @@ function AuditPage() {
                     {selectedEvent.current_hash ? (
                       <button
                         type="button"
-                        onClick={() =>
-                          copyToClipboard(selectedEvent.current_hash || "", "current")
-                        }
+                        onClick={() => copyToClipboard(selectedEvent.current_hash || "", "current")}
                         className="inline-flex items-center gap-1 text-[11px] text-fg-muted hover:text-fg-header"
                       >
                         {copiedField === "current" ? (

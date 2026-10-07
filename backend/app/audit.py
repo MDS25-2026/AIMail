@@ -17,7 +17,6 @@ whole point of the pipeline is that unmasked content does not spread. Message ID
 """
 
 import logging
-
 from uuid import UUID
 
 from sqlalchemy.exc import SQLAlchemyError

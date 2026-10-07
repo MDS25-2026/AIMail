@@ -20,8 +20,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from app.account_routes import router as account_router
-from app.audit_routes import router as audit_router
 from app.admin.app import admin_app
+from app.audit_routes import router as audit_router
 from app.contracts import DashboardEmail
 from app.core import mailbox
 from app.core.auth import (

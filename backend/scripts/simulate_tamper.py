@@ -14,8 +14,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.db.session import get_sessionmaker
 from sqlalchemy import text
+
+from app.db.session import get_sessionmaker
 
 BACKUP_FILE = Path(__file__).parent / ".tamper_backup.json"
 
