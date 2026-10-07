@@ -68,6 +68,7 @@ from app.dashboard import (
     SendRejectedError,
     TranslationError,
     approve_and_send,
+    confirm_sender,
     email_detail,
     email_for_thread,
     generate_pending,
@@ -286,6 +287,15 @@ async def email_for_thread_route(
 
 class RegenerateRequest(BaseModel):
     tone: str = "professional"  # "professional" | "casual"
+
+
+@app.post("/emails/{message_id}/confirm-sender", dependencies=[Depends(require_mailbox)])
+async def confirm_sender_route(message_id: str, request: Request) -> DashboardEmail:
+    # The owner checked a sender that failed SPF/DKIM/DMARC and says it is real; drafting resumes.
+    email = await confirm_sender(message_id, scope=scope_of(request))
+    if email is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "email not found")
+    return email
 
 
 @app.post("/emails/{message_id}/regenerate", dependencies=[Depends(rate_limit_generation), Depends(require_mailbox)])

@@ -35,7 +35,7 @@ from app.core.middleware import REQUEST_ID_HEADER
 from app.core.ownership import EVERYTHING, Scope
 from app.core.redaction import PLACEHOLDER, has_redaction_marker
 from app.core.vault import ThreadMap, build_thread_map
-from app.db.models import MaskingStatus, Message, UserProfile
+from app.db.models import AuthStatus, MaskingStatus, Message, UserProfile
 from app.db.session import get_sessionmaker
 from app.gmail_send import SendError, SendOutcomeUnknownError, send_reply
 from app.normalise.quantities import quantities_in
@@ -151,7 +151,7 @@ def _to_email(
         preview=details.renumber(key, message.snippet_masked or ""),
         body=details.renumber(key, message.body_masked or ""),
         timestamp=(message.received_at or message.created_at).isoformat(),
-        authStatus=message.auth_status or "pass",
+        authStatus=AuthStatus(message.auth_status or AuthStatus.PASS),
         # The classifier's prediction, then the user's policy on top of it.
         priority=apply_policy(message, policy),
         threadContext=_thread_view(thread or [], details),
@@ -227,6 +227,8 @@ class DraftErrorCode(StrEnum):
     AGENT_UNAVAILABLE = "agent_unavailable"  # the agent or retrieval failed; try again later
     DRAFT_REFUSED = "draft_refused"  # the model failed on this content; the old draft stays
     MASKING_PENDING = "masking_pending"  # quarantined: there is nothing masked to draft from
+    # The sender failed SPF, DKIM or DMARC and the owner has not confirmed them: no draft for a spoofer.
+    SENDER_UNVERIFIED = "sender_unverified"
 
 
 class DraftNotUpdatedError(RuntimeError):
@@ -244,6 +246,7 @@ class SendErrorCode(StrEnum):
     SEND_NOT_GRANTED = "send_not_granted"  # the owner allowed AIMail to read their Gmail, not send
     # A placeholder with no known value: invented by the model, or its vault expired or will not open.
     UNRESOLVED_PLACEHOLDERS = "unresolved_placeholders"
+    SENDER_UNVERIFIED = "sender_unverified"  # failed SPF, DKIM or DMARC, not confirmed by the owner
 
 
 @dataclass(frozen=True)
@@ -294,7 +297,7 @@ async def generate_pending(limit: int | None = None) -> int:
         .where(
             Message.generated_at.is_(None),
             Message.masking_status == MaskingStatus.COMPLETE,
-            Message.auth_status != "spoof_detected",
+            Message.auth_status.is_distinct_from(AuthStatus.SPOOF_DETECTED),
             Message.generation_attempts < MAX_GENERATION_ATTEMPTS,
         )
         .order_by(Message.generation_attempts, Message.created_at.desc())
@@ -454,6 +457,8 @@ async def _generate_and_store(
     """
     if not message.is_masked:
         return GenerationOutcome.SKIPPED  # quarantined (#109): no masked content to draft from yet
+    if message.is_spoofed:
+        return GenerationOutcome.SKIPPED  # covers drafting on open and the poller alike
     details = details or await _details_for(message, thread or [])
     generated = await _generate(message, tone, thread or [], details)
     if generated.get(NOT_DRAFTED) and message.draft_reply:
@@ -517,6 +522,29 @@ async def email_for_thread(thread_id: str, *, scope: Scope) -> DashboardEmail | 
     return await email_detail(str(pk), scope=scope)
 
 
+async def confirm_sender(message_id: str, *, scope: Scope) -> DashboardEmail | None:
+    """The owner checked a flagged sender and says they are real; drafting resumes on the next open.
+
+    Only spoof_detected moves, so a passing email is never relabelled and a repeat is harmless.
+    """
+    try:
+        pk = UUID(message_id)
+    except ValueError:
+        return None
+    loaded = await _load_with_thread(pk, scope)
+    if loaded is None:
+        return None
+    message, thread = loaded
+    if message.is_spoofed:
+        async with get_sessionmaker()() as session, session.begin():
+            await session.execute(update(Message).where(
+                Message.id == pk, Message.auth_status == AuthStatus.SPOOF_DETECTED,
+            ).values(auth_status=AuthStatus.SENDER_CONFIRMED, generation_attempts=0))
+        message.auth_status = AuthStatus.SENDER_CONFIRMED
+        await audit("confirm_sender", f"message={message_id}", user_id=message.user_id)
+    return _to_email(message, thread=thread, details=await _details_for(message, thread))
+
+
 async def regenerate_email(
     message_id: str, *, scope: Scope, tone: str = "professional"
 ) -> DashboardEmail | None:
@@ -535,6 +563,8 @@ async def regenerate_email(
     message, thread = loaded
     if message.sent_at is not None:
         raise AlreadySentError(message_id)
+    if message.is_spoofed:
+        raise DraftNotUpdatedError(DraftErrorCode.SENDER_UNVERIFIED, 409)
     details = await _details_for(message, thread)
     outcome = await _generate_and_store(message, thread, tone, details)
     _raise_unless_updated(message, outcome)
@@ -602,6 +632,8 @@ async def approve_and_send(message_id: str, draft: str, *, scope: Scope) -> Dash
         return None
     if not message.is_masked:
         raise SendRejectedError(SendErrorCode.MASKING_PENDING, 409)
+    if message.is_spoofed:
+        raise SendRejectedError(SendErrorCode.SENDER_UNVERIFIED, 409)
     reply = _outgoing(draft, await _details_for(message, await _thread_for(message)))
     if message.user_id is not None and not await connections.can_send(message.user_id):
         raise SendRejectedError(SendErrorCode.SEND_NOT_GRANTED, 403)
@@ -775,6 +807,8 @@ async def refine_email(
         raise AlreadySentError(message_id)
     if not message.is_masked:
         raise DraftNotUpdatedError(DraftErrorCode.MASKING_PENDING, 409)
+    if message.is_spoofed:
+        raise DraftNotUpdatedError(DraftErrorCode.SENDER_UNVERIFIED, 409)
     details = await _details_for(message, thread)
     try:
         refined = await _refine(message, thread, draft, instruction, details)

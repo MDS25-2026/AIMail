@@ -68,6 +68,8 @@ class Refusal(StrEnum):
     BEFORE_ENABLED = "before_enabled"
     MASKING_PENDING = "masking_pending"
     AUTOMATED = "automated"
+    # Failed SPF, DKIM or DMARC: an automatic answer would confirm the address to a spoofer.
+    SPOOFED = "spoofed"
     PHISHING = "phishing"
     REPLY_TO_DIFFERS = "reply_to_differs"
     NOT_ACTIVE = "not_active"
@@ -179,6 +181,7 @@ def refusal_on_arrival(message: Message, settings: HoldingReplySettings, owner_e
         (message.masking_status != MaskingStatus.COMPLETE, Refusal.MASKING_PENDING),
         (not sender or sender == owner_email.lower(), Refusal.NO_SENDER),
         (message.is_automated, Refusal.AUTOMATED),
+        (message.is_spoofed, Refusal.SPOOFED),
         (phishing_signal(message.body_masked or ""), Refusal.PHISHING),
         (bool(message.reply_to) and address_of(message.reply_to) != sender, Refusal.REPLY_TO_DIFFERS),
         (not is_active(settings, received), Refusal.NOT_ACTIVE),
