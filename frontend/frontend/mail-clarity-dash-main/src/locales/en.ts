@@ -333,7 +333,8 @@ export const en = {
   },
   audit: {
     title: "Audit Trail",
-    subtitle: "Cryptographic, tamper-evident ledger tracking every AI operation and data protection event.",
+    subtitle:
+      "Cryptographic, tamper-evident ledger tracking every AI operation and data protection event.",
     chainIntact: "Ledger Intact: SHA-256 Hash Chain Verified",
     chainBroken: "Ledger Compromised: Hash Chain Discrepancy Detected",
     verifiedCount: "{{verified}} of {{total}} records mathematically chained",
@@ -371,7 +372,8 @@ export const en = {
       currentHash: "Current Block Hash (Self)",
       formula: "Digest Formula",
       formulaDesc: "SHA-256(prev_hash + action + detail + success + user_id + timestamp)",
-      intactMessage: "This entry is mathematically bound to its preceding log entry. Modifying or deleting any historical record invalidates the entire subsequent hash chain.",
+      intactMessage:
+        "This entry is mathematically bound to its preceding log entry. Modifying or deleting any historical record invalidates the entire subsequent hash chain.",
       close: "Close",
     },
   },

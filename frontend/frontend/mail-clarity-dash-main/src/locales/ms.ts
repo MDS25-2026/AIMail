@@ -271,7 +271,8 @@ export const ms: Translations = {
     spoofTitle: "Pengesahan pengirim gagal — draf automatik dinyahdayakan",
     spoofBody:
       "E-mel ini gagal pengesahan domain (SPF, DKIM, atau DMARC gagal). Untuk melindungi domain korporat anda daripada pancingan data, AIMail telah menyahdayakan penjanaan draf automatik untuk mesej ini.",
-    viewInGmail: "Buka dalam Gmail untuk memeriksa pengepala atau membalas secara manual jika pengirim ini sah.",
+    viewInGmail:
+      "Buka dalam Gmail untuk memeriksa pengepala atau membalas secara manual jika pengirim ini sah.",
   },
   admin: {
     title: "Pentadbir",
@@ -342,7 +343,8 @@ export const ms: Translations = {
   },
   audit: {
     title: "Jejak Audit",
-    subtitle: "Lejar kriptografi tidak boleh diubah yang merekod setiap operasi AI dan perlindungan data.",
+    subtitle:
+      "Lejar kriptografi tidak boleh diubah yang merekod setiap operasi AI dan perlindungan data.",
     chainIntact: "Lejar Sah: Rantaian Hash SHA-256 Disahkan",
     chainBroken: "Lejar Terjejas: Percanggahan Rantaian Hash Dikesan",
     verifiedCount: "{{verified}} daripada {{total}} rekod dirantai secara matematik",
@@ -380,7 +382,8 @@ export const ms: Translations = {
       currentHash: "Hash Blok Semasa (Sendiri)",
       formula: "Formula Hash",
       formulaDesc: "SHA-256(prev_hash + action + detail + success + user_id + timestamp)",
-      intactMessage: "Entri ini terikat secara matematik dengan entri log sebelumnya. Mengubah atau memadam mana-mana rekod sejarah akan membatalkan keseluruhan rantaian hash seterusnya.",
+      intactMessage:
+        "Entri ini terikat secara matematik dengan entri log sebelumnya. Mengubah atau memadam mana-mana rekod sejarah akan membatalkan keseluruhan rantaian hash seterusnya.",
       close: "Tutup",
     },
   },

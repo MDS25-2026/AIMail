@@ -359,7 +359,8 @@ export const zh: Translations = {
       currentHash: "当前区块哈希 (自身)",
       formula: "摘要算法公式",
       formulaDesc: "SHA-256(prev_hash + action + detail + success + user_id + timestamp)",
-      intactMessage: "该条目与前一条日志条目具有数学绑定。修改或删除任何历史记录都会使随后的整个哈希链失效。",
+      intactMessage:
+        "该条目与前一条日志条目具有数学绑定。修改或删除任何历史记录都会使随后的整个哈希链失效。",
       close: "关闭",
     },
   },
