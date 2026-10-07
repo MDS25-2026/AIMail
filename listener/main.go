@@ -397,6 +397,7 @@ type StoredMessage struct {
 	ReplyTo        string    `json:"reply_to,omitempty"` // where an approved reply goes; shown to the approver
 	ReceivedAt     time.Time `json:"received_at"`
 	IsAutomated    bool      `json:"is_automated"` // never sent a holding reply (automated.go)
+	AuthStatus     string    `json:"auth_status"`
 	ThreadIdentity
 	MaskedContent
 }
@@ -788,6 +789,8 @@ func ingestMessage(ctx context.Context, mb *mailbox, msgID string) error {
 		return quarantine(ctx, mb.ownerID, msgID, msg.Payload.Headers, identity)
 	}
 
+	authStatus := parseAuthStatus(msg.Payload.Headers)
+
 	stored := StoredMessage{
 		UserID:         mb.ownerID,
 		GmailMessageID: msgID,
@@ -795,6 +798,7 @@ func ingestMessage(ctx context.Context, mb *mailbox, msgID string) error {
 		ReplyTo:        headerValue(msg.Payload.Headers, "Reply-To"),
 		ReceivedAt:     time.Now().UTC(),
 		IsAutomated:    isAutomated(msg.Payload.Headers),
+		AuthStatus:     authStatus,
 		ThreadIdentity: identity,
 		MaskedContent:  content,
 	}

@@ -31,6 +31,7 @@ from pydantic import BaseModel, Field
 from app.account_routes import router as account_router
 from app.admin.app import admin_app
 from app.audit import audit
+from app.audit_routes import router as audit_router
 from app.contracts import DashboardEmail
 from app.core import mailbox
 from app.core.auth import (
@@ -118,6 +119,7 @@ app.include_router(account_router)
 app.include_router(holding_reply_router)
 app.include_router(private_mode_router)
 app.include_router(writing_style_router)
+app.include_router(audit_router)
 
 # Dev CORS so the dashboard can call this API cross-origin. The regex covers any
 # localhost/127.0.0.1 port (they are distinct origins to the browser); FRONTEND_ORIGIN adds

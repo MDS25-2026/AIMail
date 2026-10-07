@@ -26,6 +26,7 @@ import {
 import {
   addDocument,
   deleteDocument,
+  fetchAuditTrail,
   fetchDocuments,
   fetchEmail,
   fetchEmails,
@@ -46,7 +47,13 @@ export const queryKeys = {
   documents: ["documents"] as const,
   systemInfo: ["system-info"] as const,
   translation: (id: string, language: string) => ["translation", id, language] as const,
+  auditTrail: ["audit-trail"] as const,
 };
+
+/** Fetch the user-facing cryptographic audit trail. */
+export function useAuditTrail() {
+  return useQuery({ queryKey: queryKeys.auditTrail, queryFn: fetchAuditTrail });
+}
 
 /** Who is signed in. No retry: a 401 is an answer, and the cache handler sends them to sign in. */
 export function useSession() {

@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     embedding_model: str = EMBEDDING_MODEL
     embedding_dim: int = EMBEDDING_DIM
     gemini_chat_model: str = CHAT_MODEL
-    email_agent_url: str = "http://localhost:8001"  # Lane C /process-email service
+    email_agent_url: str = "http://127.0.0.1:8001"  # Lane C /process-email service
     # Dashboard sign-in (docs/adr/0005): Supabase sends the user back to BACKEND_PUBLIC_URL, which
     # sends them on to DASHBOARD_URL once the session cookies are set.
     backend_public_url: str = "http://localhost:8000"
@@ -86,3 +86,4 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     # Required fields are supplied by the environment / .env at runtime.
     return Settings()  # type: ignore[call-arg]
+

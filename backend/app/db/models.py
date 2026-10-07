@@ -108,10 +108,13 @@ class AuditLog(Base):
     __tablename__ = "audit_log"
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    user_id: Mapped[UUID | None] = mapped_column(ForeignKey("user_profile.id", ondelete="SET NULL"))
     action: Mapped[str | None] = mapped_column(Text)
     detail: Mapped[str | None] = mapped_column(Text)
     success: Mapped[bool | None]
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    prev_hash: Mapped[str | None] = mapped_column(Text)
+    current_hash: Mapped[str | None] = mapped_column(Text)
 
 
 class MaskingStatus(StrEnum):
@@ -179,6 +182,7 @@ class Message(Base):
     def is_masked(self) -> bool:
         """Content exists and was masked with NER. Nothing reads or drafts from a row that is not."""
         return self.masking_status == MaskingStatus.COMPLETE
+    auth_status: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

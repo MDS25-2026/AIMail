@@ -6,6 +6,7 @@ const NAV_ITEMS = [
   { label: "nav.drafts", to: "/drafts" },
   { label: "nav.sent", to: "/sent" },
   { label: "nav.knowledge", to: "/knowledge" },
+  { label: "nav.audit", to: "/audit" },
   { label: "nav.settings", to: "/settings" },
   { label: "nav.admin", to: "/admin" },
 ] as const;

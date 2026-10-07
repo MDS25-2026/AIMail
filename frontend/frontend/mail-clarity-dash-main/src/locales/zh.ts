@@ -10,6 +10,7 @@ export const zh: Translations = {
     drafts: "草稿",
     sent: "已发送",
     knowledge: "知识库",
+    audit: "审计追踪",
     settings: "设置",
     admin: "管理",
   },
@@ -418,6 +419,13 @@ export const zh: Translations = {
     abandonedBody:
       "监听器多次尝试仍无法移除此邮件中的个人数据，或该邮件已先从 Gmail 中删除。其内容从未保存，因此没有可阅读或起草的内容。如需查看，请在 Gmail 中打开。",
   },
+  security: {
+    spoofBadge: "检测到伪造",
+    spoofTitle: "发件人身份验证失败 — 已禁用自动起草",
+    spoofBody:
+      "此邮件未通过发件人域名验证（SPF、DKIM 或 DMARC 验证失败）。为了防止钓鱼或仿冒攻击，AIMail 已禁用此邮件的 AI 自动草稿生成。",
+    viewInGmail: "如果该发件人合法，请在 Gmail 中查看或手动回复。",
+  },
   admin: {
     title: "管理",
     subtitle: "流水线健康状况、隐私事件和模型可靠性。仅显示计数和 ID，不含邮件内容。",
@@ -481,6 +489,51 @@ export const zh: Translations = {
     unknown: "未知",
     needsAttention: "需要关注",
     loading: "管理数据",
+  },
+  audit: {
+    title: "审计追踪",
+    subtitle: "防篡改的密码学账本，记录所有人工智能处理和数据保护事件。",
+    chainIntact: "账本完整：SHA-256 哈希链验证通过",
+    chainBroken: "账本受损：检测到哈希链不匹配",
+    verifiedCount: "{{verified}} / {{total}} 条记录已完成数学链条验证",
+    empty: "暂无审计记录。",
+    exportJson: "导出审计凭证 (JSON)",
+    headers: {
+      timestamp: "时间戳",
+      action: "事件 / 操作",
+      status: "状态",
+      detail: "事件摘要",
+      proof: "密码学凭证",
+    },
+    status: {
+      passed: "[通过]",
+      failed: "[失败]",
+      protected: "[已受保护]",
+      quarantined: "[已隔离]",
+      unknown: "[处理中]",
+    },
+    actions: {
+      generate_draft: "草稿已生成",
+      store_message: "邮件已入库",
+      pii_mask: "敏感信息已脱敏",
+      approve_and_send: "已审核并发送",
+      quarantine: "欺诈邮件已隔离",
+      system: "系统事件",
+    },
+    modal: {
+      title: "密码学验证凭证",
+      subtitle: "通过 SHA-256 哈希链确保记录不可篡改的数学验证。",
+      recordId: "记录 ID",
+      timestamp: "记录时间",
+      action: "操作类型",
+      prevHash: "前一区块哈希 (父级)",
+      currentHash: "当前区块哈希 (自身)",
+      formula: "摘要算法公式",
+      formulaDesc: "SHA-256(prev_hash + action + detail + success + user_id + timestamp)",
+      intactMessage:
+        "该条目与前一条日志条目具有数学绑定。修改或删除任何历史记录都会使随后的整个哈希链失效。",
+      close: "关闭",
+    },
   },
   draftStatus: {
     generating: "正在撰写草稿，最多可能需要 20 秒。",
