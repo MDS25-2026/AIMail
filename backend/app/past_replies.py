@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.ownership import Scope
 from app.db.models import DocType, Document
+from app.rag.chunk import Piece
 from app.rag.ingest import store_chunks
 from app.rag.mask import DocumentMaskingError
 from app.writing_style import mask_for_style
@@ -37,7 +38,7 @@ async def remember_reply(user_id: UUID, message_id: UUID, email: str, reply: str
     """Stored after the send; the background pass embeds it. A failure is logged, never raised."""
     try:
         masked = await mask_for_style(past_reply_text(email, reply))
-        await store_chunks(f"{SOURCE_PREFIX}{message_id}", PAST_REPLY_TITLE, [masked],
+        await store_chunks(f"{SOURCE_PREFIX}{message_id}", PAST_REPLY_TITLE, [Piece(masked)],
                            scope=Scope(owner_id=user_id), doc_type=DocType.SENT_REPLY)
     except (DocumentMaskingError, SQLAlchemyError):
         logger.exception("past replies: could not store the reply to message %s", message_id)

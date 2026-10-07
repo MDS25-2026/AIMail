@@ -8,8 +8,14 @@ from app.core.ownership import Scope
 from app.db.models import Chunk, Document, Embedding, LocalEmbedding
 from app.db.session import get_sessionmaker
 from app.private_mode import DraftProvider
+from app.rag.chunk import SECTION_KEY
 from app.rag.embed import embed_query
 from app.rag.local_embed import embed_query_locally, local_model, local_tag
+
+SECTION_SEPARATOR = " · "
+# A hit scoring below this share of the best one is dropped (specs/features/rag-retrieval.md).
+# Per model: Gemini's scores sit close together, the local model's spread wider.
+RELATIVE_CUTOFF = {DraftProvider.GEMINI: 0.93, DraftProvider.LOCAL: 0.85}
 
 
 async def _gemini_search(masked_email: str, k: int, scope: Scope) -> Select | None:
@@ -33,7 +39,8 @@ async def _local_search(masked_email: str, k: int, scope: Scope) -> Select | Non
 def _search(table: type[Embedding] | type[LocalEmbedding], tag: str, distance: ColumnElement[float], k: int,
             scope: Scope) -> Select:
     return (
-        select(Chunk.id, Chunk.content, Document.title, distance.label("distance"))
+        select(Chunk.id, Chunk.content, Document.title, Chunk.meta[SECTION_KEY].astext.label("section"),
+               distance.label("distance"))
         .join(table, table.chunk_id == Chunk.id)
         .join(Document, Document.id == Chunk.document_id)
         .where(table.model_name == tag, scope.where(Document.user_id))
@@ -57,12 +64,25 @@ async def retrieve(masked_email: str, k: int, *, scope: Scope,
         return []
     async with get_sessionmaker()() as session:
         rows = (await session.execute(stmt)).all()
-    return [
+    found = [
         ContextChunk(
             chunk_id=row.id,
             content=row.content,
             similarity_score=max(0.0, min(1.0, 1.0 - row.distance)),
-            source_title=row.title or "",
+            source_title=_label(row.title, row.section),
         )
         for row in rows
     ]
+    return close_to_best(found, RELATIVE_CUTOFF[provider])
+
+
+def _label(title: str | None, section: str | None) -> str:
+    return f"{title or ''}{SECTION_SEPARATOR}{section}" if section else title or ""
+
+
+def close_to_best(found: list[ContextChunk], cutoff: float) -> list[ContextChunk]:
+    """Hits within reach of the best one; rows arrive best first."""
+    if not found:
+        return []
+    floor = found[0]["similarity_score"] * cutoff
+    return [chunk for chunk in found if chunk["similarity_score"] >= floor]

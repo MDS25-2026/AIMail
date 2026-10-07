@@ -18,7 +18,13 @@ from app.db.models import (
 )
 from app.db.session import get_sessionmaker
 from app.private_mode import DraftProvider
-from app.rag.chunk import chunk_text, estimate_tokens, extract_pdf_text
+from app.rag.chunk import (
+    SECTION_KEY,
+    Piece,
+    chunk_sections,
+    estimate_tokens,
+    extract_pdf_text,
+)
 from app.rag.embed import EmbeddingError, embed_documents
 from app.rag.local_embed import embed_documents_locally, local_model, local_tag
 from app.rag.mask import mask_document
@@ -47,24 +53,26 @@ async def ingest_text(
     # Nothing to store: answered before masking, which needs Presidio and the settings.
     if not text.strip():
         return 0
-    chunks = chunk_text(await mask_document(text))
-    if not chunks:
+    pieces = chunk_sections(await mask_document(text))
+    if not pieces:
         return 0
-    await store_chunks(source, title, chunks, scope=scope, doc_type=doc_type)
+    await store_chunks(source, title, pieces, scope=scope, doc_type=doc_type)
     await embed_pending()
     await embed_pending_locally_logged()
-    return len(chunks)
+    return len(pieces)
 
 
 async def store_chunks(
-    source: str, title: str, chunks: list[str], *, scope: Scope, doc_type: DocType
+    source: str, title: str, pieces: list[Piece], *, scope: Scope, doc_type: DocType
 ) -> None:
     """Already-masked chunks under a source key, replacing that owner's earlier copy. Not embedded."""
     async with get_sessionmaker()() as session, session.begin():
         document = await _replace_document(session, scope, source, title, doc_type)
         session.add_all(
-            Chunk(document_id=document.id, chunk_idx=i, content=c, token_count=estimate_tokens(c))
-            for i, c in enumerate(chunks)
+            Chunk(document_id=document.id, chunk_idx=i, content=piece.content,
+                  token_count=estimate_tokens(piece.content),
+                  meta={SECTION_KEY: piece.section} if piece.section else None)
+            for i, piece in enumerate(pieces)
         )
 
 

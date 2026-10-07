@@ -228,7 +228,8 @@ def test_a_past_reply_is_stored_with_every_placeholder_hidden(stored_items):
     asyncio.run(past_replies.remember_reply(user, message, "Hi, I'm [PERSON_1]. Write to [EMAIL_1]?",
                                             "Hi [PERSON_1], [EMAIL_1] works.\n\nThanks,\n[PERSON_2]"))
     [item] = stored_items
-    [chunk] = item["chunks"]
+    [piece] = item["chunks"]
+    chunk = piece.content
     assert "[" not in chunk and HIDDEN in chunk and "works." in chunk
     assert (item["title"], item["owner"], item["doc_type"]) == ("Your earlier reply", user, DocType.SENT_REPLY)
     assert item["source"] == f"sent://{message}"
