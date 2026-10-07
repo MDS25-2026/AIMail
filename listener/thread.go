@@ -34,3 +34,17 @@ func headerValue(headers []*gmail.MessagePartHeader, name string) string {
 	}
 	return ""
 }
+
+// parseAuthStatus checks Authentication-Results headers for SPF, DKIM, or DMARC failures (#148).
+func parseAuthStatus(headers []*gmail.MessagePartHeader) string {
+	for _, h := range headers {
+		if strings.EqualFold(h.Name, "Authentication-Results") {
+			val := strings.ToLower(h.Value)
+			if strings.Contains(val, "spf=fail") || strings.Contains(val, "dkim=fail") || strings.Contains(val, "dmarc=fail") {
+				return "spoof_detected"
+			}
+		}
+	}
+	return "pass"
+}
+

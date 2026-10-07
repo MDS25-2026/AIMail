@@ -232,3 +232,29 @@ export async function fetchSystemInfo(): Promise<SystemInfo> {
   if (!res.ok) throw new Error(`GET /system/info failed (${res.status})`);
   return res.json();
 }
+
+export type AuditLogEvent = {
+  id: string;
+  created_at: string;
+  action: string;
+  detail: string;
+  success: boolean | null;
+  prev_hash: string | null;
+  current_hash: string | null;
+  user_id: string | null;
+  is_verified?: boolean | null;
+};
+
+export type AuditTrailResponse = {
+  is_chain_intact: boolean;
+  total_records: number;
+  verified_records: number;
+  events: AuditLogEvent[];
+};
+
+/** Tamper-evident audit trail with SHA-256 cryptographic chain proof (#148 / PDPA). */
+export async function fetchAuditTrail(): Promise<AuditTrailResponse> {
+  const res = await apiFetch("/audit");
+  if (!res.ok) throw new Error(`GET /audit failed (${res.status})`);
+  return res.json();
+}

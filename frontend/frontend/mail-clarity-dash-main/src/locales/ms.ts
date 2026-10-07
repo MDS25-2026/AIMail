@@ -14,6 +14,7 @@ export const ms: Translations = {
     drafts: "Draf",
     sent: "Dihantar",
     knowledge: "Pengetahuan",
+    audit: "Jejak Audit",
     settings: "Tetapan",
     admin: "Pentadbir",
   },
@@ -265,6 +266,13 @@ export const ms: Translations = {
     abandonedBody:
       "Pendengar mencuba berulang kali tetapi tidak dapat membuang data peribadi daripada e-mel ini, atau ia telah dipadam daripada Gmail terlebih dahulu. Kandungannya tidak pernah disimpan, jadi tiada apa untuk dibaca atau didraf. Bukanya dalam Gmail jika anda memerlukannya.",
   },
+  security: {
+    spoofBadge: "Penyamaran dikesan",
+    spoofTitle: "Pengesahan pengirim gagal — draf automatik dinyahdayakan",
+    spoofBody:
+      "E-mel ini gagal pengesahan domain (SPF, DKIM, atau DMARC gagal). Untuk melindungi domain korporat anda daripada pancingan data, AIMail telah menyahdayakan penjanaan draf automatik untuk mesej ini.",
+    viewInGmail: "Buka dalam Gmail untuk memeriksa pengepala atau membalas secara manual jika pengirim ini sah.",
+  },
   admin: {
     title: "Pentadbir",
     subtitle:
@@ -331,6 +339,50 @@ export const ms: Translations = {
     unknown: "Tidak diketahui",
     needsAttention: "perlu perhatian",
     loading: "data pentadbir",
+  },
+  audit: {
+    title: "Jejak Audit",
+    subtitle: "Lejar kriptografi tidak boleh diubah yang merekod setiap operasi AI dan perlindungan data.",
+    chainIntact: "Lejar Sah: Rantaian Hash SHA-256 Disahkan",
+    chainBroken: "Lejar Terjejas: Percanggahan Rantaian Hash Dikesan",
+    verifiedCount: "{{verified}} daripada {{total}} rekod dirantai secara matematik",
+    empty: "Tiada rekod audit ditemui lagi.",
+    exportJson: "Eksport Resit Audit (JSON)",
+    headers: {
+      timestamp: "Cap Masa",
+      action: "Peristiwa / Tindakan",
+      status: "Status",
+      detail: "Ringkasan Peristiwa",
+      proof: "Bukti Kriptografi",
+    },
+    status: {
+      passed: "[LULUS]",
+      failed: "[GAGAL]",
+      protected: "[DILINDUNGI]",
+      quarantined: "[DIKUARANTIN]",
+      unknown: "[BELUM SELESAI]",
+    },
+    actions: {
+      generate_draft: "Draf Dijana",
+      store_message: "Mesej Diterima",
+      pii_mask: "PII Diredaksi",
+      approve_and_send: "Dilulus & Dihantar",
+      quarantine: "Penyamaran Dikuarantin",
+      system: "Peristiwa Sistem",
+    },
+    modal: {
+      title: "Bukti Pengesahan Kriptografi",
+      subtitle: "Pengesahan matematik ketakbolehan ubah rekod melalui rantaian hash SHA-256.",
+      recordId: "ID Rekod",
+      timestamp: "Dicatat Pada",
+      action: "Jenis Tindakan",
+      prevHash: "Hash Blok Sebelumnya (Induk)",
+      currentHash: "Hash Blok Semasa (Sendiri)",
+      formula: "Formula Hash",
+      formulaDesc: "SHA-256(prev_hash + action + detail + success + user_id + timestamp)",
+      intactMessage: "Entri ini terikat secara matematik dengan entri log sebelumnya. Mengubah atau memadam mana-mana rekod sejarah akan membatalkan keseluruhan rantaian hash seterusnya.",
+      close: "Tutup",
+    },
   },
   draftStatus: {
     generating: "Sedang menulis draf. Ini boleh mengambil masa sehingga 20 saat.",

@@ -94,6 +94,7 @@ class DashboardEmail(BaseModel):
     preview: str  # short snippet for the inbox list
     body: str  # full masked email body for the detail view
     timestamp: str  # ISO 8601
+    authStatus: str # pass or spoof_detected
     priority: Literal["high", "medium", "low"]
     threadContext: list[ThreadMessage]
     aiSummary: str

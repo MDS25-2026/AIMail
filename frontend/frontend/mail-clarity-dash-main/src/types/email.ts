@@ -78,6 +78,8 @@ export type Email = {
   threadId?: string | null;
   /** The real values behind this email's placeholders; detail responses only, owner only. */
   details?: Detail[];
+  /** Sender domain verification status (SPF/DKIM/DMARC) */
+  authStatus?: "pass" | "spoof_detected";
 };
 
 /** Below this the draft is flagged "review recommended". */

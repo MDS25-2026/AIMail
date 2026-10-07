@@ -344,3 +344,56 @@ func TestTheMailboxsOwnSentReplyIsNotIngested(t *testing.T) {
 		t.Fatal("an ordinary incoming email was skipped")
 	}
 }
+
+// SPF, DKIM, and DMARC failures must be detected from Authentication-Results (#148).
+func TestParseAuthStatus(t *testing.T) {
+	cases := []struct {
+		name     string
+		headers  []*gmail.MessagePartHeader
+		expected string
+	}{
+		{
+			name: "Clean email passes",
+			headers: []*gmail.MessagePartHeader{
+				{Name: "Authentication-Results", Value: "mx.google.com; dkim=pass header.i=@example.com; spf=pass"},
+			},
+			expected: "pass",
+		},
+		{
+			name: "SPF fail flagged as spoof_detected",
+			headers: []*gmail.MessagePartHeader{
+				{Name: "Authentication-Results", Value: "mx.google.com; spf=fail (google.com: domain does not designate IP)"},
+			},
+			expected: "spoof_detected",
+		},
+		{
+			name: "DKIM fail flagged as spoof_detected",
+			headers: []*gmail.MessagePartHeader{
+				{Name: "Authentication-Results", Value: "mx.google.com; dkim=fail header.i=@bank.com"},
+			},
+			expected: "spoof_detected",
+		},
+		{
+			name: "DMARC fail flagged as spoof_detected",
+			headers: []*gmail.MessagePartHeader{
+				{Name: "Authentication-Results", Value: "mx.google.com; dmarc=fail action=none header.from=corporate.com"},
+			},
+			expected: "spoof_detected",
+		},
+		{
+			name:     "No authentication headers defaults to pass",
+			headers:  []*gmail.MessagePartHeader{},
+			expected: "pass",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := parseAuthStatus(tc.headers)
+			if got != tc.expected {
+				t.Fatalf("expected %q, got %q", tc.expected, got)
+			}
+		})
+	}
+}
+

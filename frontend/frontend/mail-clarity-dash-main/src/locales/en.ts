@@ -11,6 +11,7 @@ export const en = {
     drafts: "Drafts",
     sent: "Sent",
     knowledge: "Knowledge",
+    audit: "Audit Trail",
     settings: "Settings",
     admin: "Admin",
   },
@@ -256,6 +257,13 @@ export const en = {
     abandonedBody:
       "The listener tried repeatedly and could not remove personal data from this email, or it was deleted from Gmail first. Its content was never stored, so there is nothing to read or draft. Open it in Gmail if you need it.",
   },
+  security: {
+    spoofBadge: "Spoof detected",
+    spoofTitle: "Sender authentication failed — automated draft disabled",
+    spoofBody:
+      "This email failed domain authentication (SPF, DKIM, or DMARC failed). To protect your corporate domain from phishing or impersonation attacks, AIMail has disabled automated draft generation for this message.",
+    viewInGmail: "Open in Gmail to inspect headers or reply manually if this sender is legitimate.",
+  },
   admin: {
     title: "Admin",
     subtitle:
@@ -322,6 +330,50 @@ export const en = {
     unknown: "Unknown",
     needsAttention: "needs attention",
     loading: "admin data",
+  },
+  audit: {
+    title: "Audit Trail",
+    subtitle: "Cryptographic, tamper-evident ledger tracking every AI operation and data protection event.",
+    chainIntact: "Ledger Intact: SHA-256 Hash Chain Verified",
+    chainBroken: "Ledger Compromised: Hash Chain Discrepancy Detected",
+    verifiedCount: "{{verified}} of {{total}} records mathematically chained",
+    empty: "No audit records found yet.",
+    exportJson: "Export Audit Receipt (JSON)",
+    headers: {
+      timestamp: "Timestamp",
+      action: "Event / Action",
+      status: "Status",
+      detail: "Event Summary",
+      proof: "Cryptographic Proof",
+    },
+    status: {
+      passed: "[PASSED]",
+      failed: "[FAILED]",
+      protected: "[PROTECTED]",
+      quarantined: "[QUARANTINED]",
+      unknown: "[PENDING]",
+    },
+    actions: {
+      generate_draft: "Draft Generated",
+      store_message: "Message Ingested",
+      pii_mask: "PII Redacted",
+      approve_and_send: "Approved & Sent",
+      quarantine: "Spoof Quarantined",
+      system: "System Event",
+    },
+    modal: {
+      title: "Cryptographic Verification Proof",
+      subtitle: "Mathematical verification of record immutability via SHA-256 hash chaining.",
+      recordId: "Record ID",
+      timestamp: "Logged At",
+      action: "Action Type",
+      prevHash: "Previous Block Hash (Parent)",
+      currentHash: "Current Block Hash (Self)",
+      formula: "Digest Formula",
+      formulaDesc: "SHA-256(prev_hash + action + detail + success + user_id + timestamp)",
+      intactMessage: "This entry is mathematically bound to its preceding log entry. Modifying or deleting any historical record invalidates the entire subsequent hash chain.",
+      close: "Close",
+    },
   },
   draftStatus: {
     generating: "Writing a draft. This can take up to 20 seconds.",

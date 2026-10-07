@@ -147,6 +147,7 @@ def _to_email(
         preview=details.renumber(key, message.snippet_masked or ""),
         body=details.renumber(key, message.body_masked or ""),
         timestamp=(message.received_at or message.created_at).isoformat(),
+        authStatus=message.auth_status or "pass",
         # The classifier's prediction, then the user's policy on top of it.
         priority=apply_policy(message, policy),
         threadContext=_thread_view(thread or [], details),
@@ -289,6 +290,7 @@ async def generate_pending(limit: int | None = None) -> int:
         .where(
             Message.generated_at.is_(None),
             Message.masking_status == MaskingStatus.COMPLETE,
+            Message.auth_status != "spoof_detected",
             Message.generation_attempts < MAX_GENERATION_ATTEMPTS,
         )
         .order_by(Message.generation_attempts, Message.created_at.desc())

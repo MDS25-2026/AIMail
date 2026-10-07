@@ -396,6 +396,7 @@ type StoredMessage struct {
 	FromAddr       string    `json:"from_addr"`
 	ReplyTo        string    `json:"reply_to,omitempty"` // where an approved reply goes; shown to the approver
 	ReceivedAt     time.Time `json:"received_at"`
+	AuthStatus     string    `json:"auth_status"`
 	ThreadIdentity
 	MaskedContent
 }
@@ -786,12 +787,15 @@ func ingestMessage(ctx context.Context, mb *mailbox, msgID string) error {
 		return quarantine(ctx, mb.ownerID, msgID, msg.Payload.Headers, identity)
 	}
 
+	authStatus := parseAuthStatus(msg.Payload.Headers)
+
 	stored := StoredMessage{
 		UserID:         mb.ownerID,
 		GmailMessageID: msgID,
 		FromAddr:       headerValue(msg.Payload.Headers, "From"), // kept unmasked on purpose: docs/decisions/shared.md, 2026-10-04
 		ReplyTo:        headerValue(msg.Payload.Headers, "Reply-To"),
 		ReceivedAt:     time.Now().UTC(),
+		AuthStatus:     authStatus,
 		ThreadIdentity: identity,
 		MaskedContent:  content,
 	}
