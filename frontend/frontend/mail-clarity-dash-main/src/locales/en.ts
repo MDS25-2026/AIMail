@@ -357,9 +357,12 @@ export const en = {
     off: "Private mode is off. Drafts use Google's Gemini.",
     failed: "Couldn't change Private mode. Try again in a moment.",
     notes: {
-      n1: "Company documents aren't searched in Private mode yet, so drafts won't quote your policies.",
+      search:
+        "Your documents and earlier replies are searched on the company's computer too, so drafts can still quote them.",
+      noSearch:
+        "This AIMail has no private search set up, so drafts in Private mode won't quote your documents or earlier replies.",
       n2: "Drafts take a little longer, and the AI's own check is less strict, so read each draft before you send it.",
-      n3: "Ask AIMail and document uploads still use Google.",
+      n3: "Ask AIMail still uses Google.",
     },
   },
   account: {

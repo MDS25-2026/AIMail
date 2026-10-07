@@ -47,7 +47,8 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   also returns `needsReconnect` (bool). A send whose Google token was refused returns
   `409 google_access_expired`.
 - **Private mode (2026-10-06, `specs/features/local-model.md`):** `GET /settings/private-mode`
-  returns `{available, enabled, model}`; `PUT` `{enabled}` saves it (`409 private_mode_unavailable`
+  returns `{available, enabled, model, search}` (`search`: `LOCAL_EMBEDDING_MODEL` is set, so private
+  drafts search documents and past replies); `PUT` `{enabled}` saves it (`409 private_mode_unavailable`
   when the company has not set `LOCAL_LLM_MODEL`). The agent's `/process-email`, `/refine` and
   `/translate` take `provider: "gemini" | "local"` (default `gemini`); a local call that cannot
   reach Ollama returns the same `503` as an unreachable Gemini.

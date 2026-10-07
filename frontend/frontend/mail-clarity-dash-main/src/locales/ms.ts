@@ -371,9 +371,12 @@ export const ms: Translations = {
     off: "Mod peribadi dimatikan. Draf menggunakan Gemini Google.",
     failed: "Tidak dapat menukar mod peribadi. Cuba lagi sebentar lagi.",
     notes: {
-      n1: "Dokumen syarikat belum dicari dalam mod peribadi, jadi draf tidak akan memetik polisi anda.",
+      search:
+        "Dokumen dan balasan terdahulu anda juga dicari pada komputer syarikat, jadi draf masih boleh memetiknya.",
+      noSearch:
+        "AIMail ini tiada carian peribadi, jadi draf dalam mod peribadi tidak akan memetik dokumen atau balasan terdahulu anda.",
       n2: "Draf mengambil masa lebih sedikit, dan semakan AI sendiri kurang ketat, jadi baca setiap draf sebelum menghantar.",
-      n3: "Tanya AIMail dan muat naik dokumen masih menggunakan Google.",
+      n3: "Tanya AIMail masih menggunakan Google.",
     },
   },
   account: {

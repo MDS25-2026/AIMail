@@ -82,8 +82,10 @@ One "Your writing style" card in Settings with three independent parts. Any mix 
 - The tone picker (professional / casual) still applies; the style hint refines it.
 - Examples are style only. The prompt tells the model never to copy their names, facts or figures,
   and they are not a grounding source.
-- Past replies are context, like a document: the draft may reuse an answer, and the critic
-  weighs them as context, not as company policy.
+- Past replies are context, like a document: the draft may reuse how an earlier email was
+  answered. Each item opens with a line saying it answered a different email and that its dates,
+  figures and promises do not carry over. The critic's grounding check treats it like any other
+  retrieved source, so it does not catch an old date copied across; the user's review does.
 
 ## API surface
 

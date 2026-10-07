@@ -369,7 +369,7 @@ export async function deleteWritingStyle(): Promise<void> {
 }
 
 /** Private mode (specs/features/local-model.md). Not offered when `available` is false. */
-export type PrivateMode = { available: boolean; enabled: boolean; model: string };
+export type PrivateMode = { available: boolean; enabled: boolean; model: string; search: boolean };
 
 export async function fetchPrivateMode(): Promise<PrivateMode> {
   const res = await apiFetch("/settings/private-mode");

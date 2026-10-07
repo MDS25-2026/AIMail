@@ -109,7 +109,9 @@ scale well"; the proof of concept waits for the testing data.
 - Dropping masking for the local path (see Protected decisions).
 - Full-text search instead of a local embedding model: it matches words, not meaning, and cannot
   split Chinese words.
-- `/ask`, which still answers with Gemini and searches Gemini vectors; the card says so.
+- `/ask`, which still answers with Gemini and searches Gemini vectors; the card says so. A
+  Private-mode user's documents uploaded after switching have no Gemini vector, so `/ask` does not
+  find them.
 - Serving the model to other machines over the network.
 
 ## Acceptance criteria
@@ -144,8 +146,9 @@ scale well"; the proof of concept waits for the testing data.
   sharply. The poller's per-attempt timeout must allow for that, then count it as a failed attempt.
 - **Several emails arrive at once:** on 4 GB, one generation at a time (`OLLAMA_NUM_PARALLEL=1`).
   Ten emails queue for about two minutes in the background, which is acceptable.
-- **Two models on 4 GB:** the embedding model (about 0.6 GB) and the drafting model may swap in
-  and out of VRAM on each draft. That costs load time, not correctness.
+- **Two models on 4 GB:** measured 2026-10-07, EmbeddingGemma and Gemma 4 E2B stay loaded
+  together (3.4 of 4 GB). Warm, a search embeds in 0.1 s and a short Gemma call takes about 1 s;
+  the first call after both were unloaded took 65 s.
 - **Model unloaded after idling:** the first draft after a pause pays a few seconds of load time.
   `OLLAMA_KEEP_ALIVE` trades that against holding the VRAM permanently.
 

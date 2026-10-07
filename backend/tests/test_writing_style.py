@@ -236,7 +236,7 @@ def test_a_past_reply_is_stored_with_every_placeholder_hidden(stored_items):
 
 def test_a_long_email_never_crowds_out_the_reply():
     text = past_replies.past_reply_text("word " * 5000, "Thanks, noted.")
-    assert len(text) <= past_replies.PAST_REPLY_MAX_CHARS + len("They wrote:\n\n\nYou replied:\n")
+    assert len(text) <= past_replies.PAST_REPLY_MAX_CHARS + len(f"{past_replies.PAST_REPLY_HEADER}\n\nThey wrote:\n\n\nYou replied:\n")
     assert text.endswith("Thanks, noted.")
 
 

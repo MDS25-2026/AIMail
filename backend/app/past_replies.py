@@ -23,11 +23,14 @@ logger = logging.getLogger(__name__)
 PAST_REPLY_MAX_CHARS = 4000
 PAST_REPLY_TITLE = "Your earlier reply"
 SOURCE_PREFIX = "sent://"
+# The draft model reads the item as context; this keeps an old "by Friday" from becoming a new promise.
+PAST_REPLY_HEADER = ("An earlier reply to a different email. Reuse how it answers, never its dates, "
+                     "figures or promises.")
 
 
 def past_reply_text(email: str, reply: str) -> str:
     kept_reply = reply.strip()[:PAST_REPLY_MAX_CHARS // 2]
-    return f"They wrote:\n{email.strip()[:PAST_REPLY_MAX_CHARS - len(kept_reply)]}\n\nYou replied:\n{kept_reply}"
+    return f"{PAST_REPLY_HEADER}\n\nThey wrote:\n{email.strip()[:PAST_REPLY_MAX_CHARS - len(kept_reply)]}\n\nYou replied:\n{kept_reply}"
 
 
 async def remember_reply(user_id: UUID, message_id: UUID, email: str, reply: str) -> None:

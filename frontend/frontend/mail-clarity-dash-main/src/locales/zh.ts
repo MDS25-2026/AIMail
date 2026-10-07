@@ -348,9 +348,10 @@ export const zh: Translations = {
     off: "私密模式已关闭。草稿使用 Google 的 Gemini。",
     failed: "无法更改私密模式，请稍后重试。",
     notes: {
-      n1: "私密模式暂不搜索公司文件，因此草稿不会引用您的政策。",
+      search: "您的文件和以前的回复也在公司的电脑上搜索，因此草稿仍可引用它们。",
+      noSearch: "此 AIMail 未设置私密搜索，因此私密模式下的草稿不会引用您的文件或以前的回复。",
       n2: "草稿需要稍长时间，且 AI 的自我检查较宽松，发送前请仔细阅读每份草稿。",
-      n3: "“询问 AIMail”和文件上传仍使用 Google。",
+      n3: "“询问 AIMail”仍使用 Google。",
     },
   },
   account: {

@@ -14,6 +14,7 @@ from app.core.config import get_settings
 from app.db.models import Message, UserPreferences
 from app.db.session import get_sessionmaker
 from app.private_mode import DraftProvider, is_offered, provider_for
+from app.rag.local_embed import local_model
 
 router = APIRouter()
 
@@ -26,6 +27,8 @@ class PrivateModeView(BaseModel):
     available: bool
     enabled: bool
     model: str
+    # Whether drafts search documents and past replies; that needs LOCAL_EMBEDDING_MODEL too.
+    search: bool
 
 
 class PrivateModeBody(BaseModel):
@@ -46,7 +49,7 @@ async def _save_choice(user_id: UUID, provider: DraftProvider) -> None:
 async def _view(request: Request) -> PrivateModeView:
     provider = await provider_for(account_user_id(request))
     return PrivateModeView(available=is_offered(), enabled=provider == DraftProvider.LOCAL,
-                           model=get_settings().local_llm_model)
+                           model=get_settings().local_llm_model, search=bool(local_model()))
 
 
 @router.get("/settings/private-mode")

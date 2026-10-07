@@ -157,4 +157,15 @@ def test_private_mode_can_always_be_switched_off_even_where_it_is_no_longer_set_
     monkeypatch.setattr(private_mode_routes, "provider_for", still_local)
     response = _signed_in().put("/settings/private-mode", json={"enabled": False}, headers=CLIENT)
     assert response.status_code == 200 and saved == [DraftProvider.GEMINI]
-    assert response.json() == {"available": False, "enabled": False, "model": ""}
+    assert response.json() == {"available": False, "enabled": False, "model": "", "search": False}
+
+
+@pytest.mark.parametrize(("model", "is_searched"), [("embeddinggemma", True), ("", False)])
+def test_the_card_says_whether_private_drafts_search_documents(calls, monkeypatch, model, is_searched):  # noqa: F811
+    async def local(_user_id):
+        return DraftProvider.LOCAL
+
+    monkeypatch.setenv("LOCAL_EMBEDDING_MODEL", model)
+    get_settings.cache_clear()
+    monkeypatch.setattr(private_mode_routes, "provider_for", local)
+    assert _signed_in().get("/settings/private-mode").json()["search"] is is_searched
