@@ -41,6 +41,38 @@ Harness and data in `~/llm-lab` (`benchmark.json`, `compare.py`, `summary.py`).
 - **Not yet done:** the human rating the experiment gate asks for (send as is / small edits /
   unusable). The critic is a proxy, and Gemini judging Gemini is biased in Gemini's favour.
 
+## Human rating, pilot (2026-10-07)
+
+Blind page (`~/llm-lab/rating-template.html`, model key kept off the page in `rating-key.json`),
+each rater choosing the languages they read. One rater so far, 21 drafts (English, Malay, one Chinese):
+
+| Model | Send as is | Small edits | Unusable | Usable |
+|---|---|---|---|---|
+| Gemini 2.5 Flash | 4 | 3 | 0 | 7/7 |
+| Gemma 4 E2B | 1 | 5 | 1 | 6/7 |
+| Qwen2.5 3B | 4 | 1 | 2 | 5/7 |
+
+- Gemma meets the gate (usable at least Gemini's count minus one), on one rater only; more ratings,
+  above all in Chinese and Malay, are needed before it is more than a pilot.
+- The rater's edits to Gemma were about politeness, not correctness. The writing style covers that
+  without training: one line ("Always thank the sender first") changed Gemma's draft to open with
+  thanks. Quick picks in the card make it one tap (`writing-profile.md`).
+
+## Per-user training (roadmap, after user testing)
+
+Owner, 2026-10-07: "i do wanna use gemma, and it shld be like trainable per user but shdl also
+scale well"; the proof of concept waits for the testing data.
+
+1. **Now:** the writing style (description, quick picks, examples, learned habits) is the per-user
+   layer. It costs nothing per user and works the same with Gemma and Gemini.
+2. **During user testing:** testers switch on "Learn from the replies I send", which stores masked
+   draft/sent pairs (`writing-profile.md`). That is the training data.
+3. **After testing:** a LoRA adapter per user on the shared Gemma base (QLoRA, e.g. Unsloth), from
+   that user's pairs, once they have a few hundred. Served by a multi-adapter server (vLLM or
+   llama.cpp server), which keeps one base model in memory and applies each user's adapter per
+   request: hundreds of users per GPU. Ollama loads one adapter at a time, so it stays for the
+   demo only. Deleting a user's adapter file forgets them.
+
 ## Scope
 
 **In scope (experiment, outside the repo, in `~/llm-lab`)**

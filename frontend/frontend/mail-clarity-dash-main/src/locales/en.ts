@@ -281,6 +281,13 @@ export const en = {
     },
   },
   writingStyle: {
+    quickLabel: "Quick picks",
+    quick: {
+      formal: { label: "More formal", text: "Formal and courteous." },
+      thanks: { label: "Always say thank you", text: "Always thank the sender first." },
+      shorter: { label: "Shorter", text: "Keep replies short." },
+      warmer: { label: "Warmer", text: "Warm and friendly." },
+    },
     title: "Your writing style",
     intro:
       "Tell AIMail how you write, or show it. Drafts follow your style. Names, numbers and addresses are hidden before anything is saved, and no AI is trained on your email.",

@@ -13,15 +13,21 @@ import {
   setStyleLearning,
   type WritingStyle,
 } from "../lib/api";
-import { styleErrorText, WRITING_STYLE_KEY } from "../lib/writingStyle";
+import {
+  MAX_DESCRIPTION_CHARS,
+  styleErrorText,
+  togglePhrase,
+  WRITING_STYLE_KEY,
+} from "../lib/writingStyle";
 
 /**
  * Writing style (specs/features/writing-profile.md): how the reader's drafts should sound, in their
  * control. Everything shown is the masked copy the server stored, which is exactly what the AI gets.
  */
 
-const MAX_DESCRIPTION_CHARS = 300;
 const MAX_EXAMPLE_CHARS = 1500;
+const QUICK_PICKS = ["formal", "thanks", "shorter", "warmer"] as const;
+
 const REPLY_LENGTHS = ["short", "medium", "long"] as const;
 const isReplyLength = (value: string): value is (typeof REPLY_LENGTHS)[number] =>
   (REPLY_LENGTHS as readonly string[]).includes(value);
@@ -121,6 +127,27 @@ function Description({ saved }: { saved: string }) {
         placeholder={t("writingStyle.describePlaceholder")}
         className={INPUT}
       />
+      <div className="flex flex-wrap gap-2" role="group" aria-label={t("writingStyle.quickLabel")}>
+        {QUICK_PICKS.map((pick) => {
+          const phrase = t(`writingStyle.quick.${pick}.text`);
+          const isOn = text.includes(phrase);
+          return (
+            <button
+              key={pick}
+              type="button"
+              aria-pressed={isOn}
+              onClick={() => setText((current) => togglePhrase(current, phrase))}
+              className={`rounded-full border px-3 py-1 text-xs font-medium ${
+                isOn
+                  ? "border-brand bg-brand-soft text-fg"
+                  : "border-line text-fg-body hover:bg-surface-muted"
+              }`}
+            >
+              {t(`writingStyle.quick.${pick}.label`)}
+            </button>
+          );
+        })}
+      </div>
       {saved ? <AiSees text={saved} /> : null}
       {error ? (
         <p role="alert" className="text-sm text-danger">

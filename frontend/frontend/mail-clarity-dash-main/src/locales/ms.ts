@@ -291,6 +291,16 @@ export const ms: Translations = {
     },
   },
   writingStyle: {
+    quickLabel: "Pilihan pantas",
+    quick: {
+      formal: { label: "Lebih formal", text: "Formal dan sopan." },
+      thanks: {
+        label: "Sentiasa ucap terima kasih",
+        text: "Sentiasa ucap terima kasih kepada pengirim dahulu.",
+      },
+      shorter: { label: "Lebih ringkas", text: "Balasan yang ringkas." },
+      warmer: { label: "Lebih mesra", text: "Mesra dan ramah." },
+    },
     title: "Gaya penulisan anda",
     intro:
       "Beritahu AIMail cara anda menulis, atau tunjukkan. Draf mengikut gaya anda. Nama, nombor dan alamat disembunyikan sebelum apa-apa disimpan, dan tiada AI dilatih dengan e-mel anda.",

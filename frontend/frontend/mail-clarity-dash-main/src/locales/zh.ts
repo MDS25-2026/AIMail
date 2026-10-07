@@ -274,6 +274,13 @@ export const zh: Translations = {
     },
   },
   writingStyle: {
+    quickLabel: "快速选择",
+    quick: {
+      formal: { label: "更正式", text: "正式且礼貌。" },
+      thanks: { label: "总是道谢", text: "先感谢发件人。" },
+      shorter: { label: "更简短", text: "回复简短。" },
+      warmer: { label: "更亲切", text: "亲切友好。" },
+    },
     title: "您的写作风格",
     intro:
       "告诉 AIMail 您的写作方式，或给它看示例。草稿会遵循您的风格。保存前会隐藏姓名、号码和地址，也不会用您的邮件训练任何 AI。",

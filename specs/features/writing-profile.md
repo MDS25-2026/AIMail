@@ -23,7 +23,8 @@ optionally let it notice my habits, so that its drafts sound like me without me 
 One "Your writing style" card in Settings with three independent parts. Any mix can be used.
 
 **In scope**
-- **Describe it:** one free-text line ("Warm but brief, no jargon").
+- **Describe it:** one free-text line ("Warm but brief, no jargon"), with quick picks (More
+  formal, Always say thank you, Shorter, Warmer) that add or remove a phrase in one tap.
 - **Example replies:** up to `MAX_EXAMPLES` (3) replies that sound like the user, pasted in or
   added with "Use as an example" on a reply they sent.
 - **Learn from what I send:** a switch, **off by default**. While on, each send records the draft
