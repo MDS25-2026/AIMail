@@ -25,6 +25,8 @@ def test_settings(monkeypatch):
     monkeypatch.setenv("BACKEND_API_TOKEN", API_TOKEN)
     monkeypatch.setenv("DATABASE_URL", "postgresql://unused:unused@127.0.0.1:5432/unused")
     monkeypatch.setenv("GOOGLE_API_KEY", "unused-in-tests")
+    # A developer's .env may switch Private mode on; tests start from "not set up".
+    monkeypatch.setenv("LOCAL_LLM_MODEL", "")
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
