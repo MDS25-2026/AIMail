@@ -70,6 +70,12 @@ migrate:  ## create all tables; run BEFORE starting a newer listener (it writes 
 	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0016_mailbox_connection.sql
 	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0017_owner_scoping.sql
 	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0018_pii_vault.sql
+	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0019_holding_reply.sql
+	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0020_writing_style.sql
+	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0021_needs_reconnect.sql
+	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0022_private_mode.sql
+	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0023_local_embedding.sql
+	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0024_sender_auth_and_audit_chain.sql
 
 seed:  ## load sample policy chunks
 	cd backend && ../$(VENV)/python scripts/seed_demo.py

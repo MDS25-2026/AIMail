@@ -137,6 +137,29 @@ Both are in Settings > Account, each behind a confirmation that says exactly wha
 - Scripts holding the shared token get `403 account_only`: there is no account to act on.
 - Audit rows record counts only (`messages_deleted=12`), never content.
 
+## Expired Google access (built 2026-10-06)
+
+While the Google OAuth app is in Testing mode (up to 100 test users, no verification; the plan for
+user testing), Google expires every refresh token after 7 days. A tester's mailbox then stops
+receiving mail and sends fail, with nothing on screen saying why.
+
+- **Detect:** Google answers a refresh with `invalid_grant`. The listener sees it when it starts a
+  mailbox or renews its watch (daily); the backend sees it when it sends.
+- **Mark:** either one sets `mailbox_connection.needs_reconnect = true` (migration 0021).
+- **Tell:** `GET /auth/session` returns `needsReconnect`; the dashboard shows a banner, "Google has
+  stopped AIMail's access to your Gmail", with a sign-in button. A send refused for this reason
+  returns `409 google_access_expired`, and the draft stays as it was.
+- **Clear:** signing in again stores a new token and sets the flag back to false; the listener
+  restarts the mailbox with it, as it already does for any new token.
+
+Acceptance criteria:
+- [ ] Given Google refuses a user's refresh token with `invalid_grant`, when the backend sends for
+      them, then the connection is marked and the send fails with `google_access_expired`.
+- [ ] Given the listener's watch renewal or start fails with `invalid_grant`, then the connection
+      is marked. Any other failure does not mark it.
+- [ ] Given a marked connection, then the session says `needsReconnect: true` and the dashboard
+      shows the banner; after signing in again it says false.
+
 ## Audit findings that change the design (2026-10-04)
 
 A code audit of every single-mailbox assumption found these, each checked in code:

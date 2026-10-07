@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import AppShell from "../components/AppShell";
 import { PageEmpty, PageError, PageLoading } from "../components/PageState";
 import { UploadError } from "../lib/api";
-import { useAddDocument, useDocuments, useUploadDocument } from "../lib/queries";
+import { useAddDocument, useDeleteDocument, useDocuments, useUploadDocument } from "../lib/queries";
 
 export const Route = createFileRoute("/knowledge")({
   head: () => ({
@@ -82,6 +82,9 @@ function KnowledgePage() {
                   <th className="px-4 py-3 font-semibold">{t("knowledge.document")}</th>
                   <th className="px-4 py-3 font-semibold">{t("knowledge.type")}</th>
                   <th className="px-4 py-3 text-right font-semibold">{t("knowledge.chunks")}</th>
+                  <th className="px-4 py-3">
+                    <span className="sr-only">{t("knowledge.remove")}</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -95,6 +98,9 @@ function KnowledgePage() {
                     <td className="px-4 py-3 text-right tabular-nums text-fg-body">
                       {doc.chunk_count}
                     </td>
+                    <td className="px-4 py-3 text-right">
+                      <RemoveDocument documentId={doc.document_id} title={doc.title} />
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -104,6 +110,7 @@ function KnowledgePage() {
                     {t("knowledge.documents", { count: documents.data.length })}
                   </td>
                   <td className="px-4 py-3 text-right font-semibold tabular-nums">{totalChunks}</td>
+                  <td />
                 </tr>
               </tfoot>
             </table>
@@ -234,4 +241,49 @@ function ResultLine({
       </p>
     );
   return null;
+}
+
+/** Two steps, so a stray click never removes a policy that drafts rely on. */
+function RemoveDocument({ documentId, title }: { documentId: string; title: string }) {
+  const { t } = useTranslation();
+  const [isConfirming, setIsConfirming] = useState(false);
+  const remove = useDeleteDocument();
+  if (remove.isError) {
+    return (
+      <span role="alert" className="text-xs text-danger">
+        {t("knowledge.removeFailed")}
+      </span>
+    );
+  }
+  if (!isConfirming) {
+    return (
+      <button
+        type="button"
+        className="text-xs text-fg-muted underline hover:text-danger"
+        aria-label={t("knowledge.removeNamed", { title })}
+        onClick={() => setIsConfirming(true)}
+      >
+        {t("knowledge.remove")}
+      </button>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-2 whitespace-nowrap text-xs">
+      <button
+        type="button"
+        className="rounded-md border border-danger px-2 py-0.5 font-semibold text-danger"
+        disabled={remove.isPending}
+        onClick={() => remove.mutate(documentId)}
+      >
+        {remove.isPending ? t("knowledge.removing") : t("knowledge.removeYes")}
+      </button>
+      <button
+        type="button"
+        className="text-fg-muted underline"
+        onClick={() => setIsConfirming(false)}
+      >
+        {t("knowledge.removeNo")}
+      </button>
+    </span>
+  );
 }

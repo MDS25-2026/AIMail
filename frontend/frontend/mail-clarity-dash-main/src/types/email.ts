@@ -78,7 +78,15 @@ export type Email = {
   threadId?: string | null;
   /** The real values behind this email's placeholders; detail responses only, owner only. */
   details?: Detail[];
+  /** The sender's SPF/DKIM/DMARC check, or the owner's confirmation that the sender is real. */
+  authStatus?: AuthStatus;
 };
+
+export enum AuthStatus {
+  Pass = "pass",
+  SpoofDetected = "spoof_detected",
+  SenderConfirmed = "sender_confirmed",
+}
 
 /** Below this the draft is flagged "review recommended". */
 export const CRITIC_CONFIDENCE_THRESHOLD = 0.8;

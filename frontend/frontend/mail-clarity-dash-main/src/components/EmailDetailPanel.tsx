@@ -1,13 +1,17 @@
+import { ShieldAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { splitAround } from "../lib/conversations";
 import { detailValues } from "../lib/details";
 import { DetailsContext } from "../lib/detailsContext";
 import { useFormat } from "../lib/useFormat";
-import type { Email, Tone } from "../types/email";
+import { AuthStatus, type Email, type Tone } from "../types/email";
 import AISummaryCard from "./AISummaryCard";
 import EmailBody from "./EmailBody";
 import QuarantineNotice from "./QuarantineNotice";
+import HiddenDetailChips from "./HiddenDetailChips";
+import PrivacyReceipt from "./PrivacyReceipt";
+import SecurityNotice from "./SecurityNotice";
 import ActionItemsList from "./ActionItemsList";
 import ConversationMessages from "./ConversationMessages";
 import DraftReplyEditor from "./DraftReplyEditor";
@@ -19,6 +23,7 @@ import PriorityBadge from "./PriorityBadge";
 import DetailsToggle from "./DetailsToggle";
 import MissingDetailsNotice from "./MissingDetailsNotice";
 import WithDetails from "./WithDetails";
+import UseAsExampleButton from "./UseAsExampleButton";
 
 type EmailDetailPanelProps = {
   email: Email | null;
@@ -69,6 +74,13 @@ export default function EmailDetailPanel({
           <WithDetails text={email.subject} />
         </h1>
         <div className="flex shrink-0 items-center gap-2">
+          {email.authStatus === AuthStatus.SpoofDetected ? (
+            <span className="flex items-center gap-1 rounded bg-danger-soft px-2 py-0.5 text-xs font-semibold text-danger">
+              <ShieldAlert aria-hidden className="size-3.5" />
+              {t("security.spoofBadge")}
+            </span>
+          ) : null}
+          <PrivacyReceipt email={email} />
           {email.details?.length ? <DetailsToggle /> : null}
           <PriorityBadge priority={email.priority} />
         </div>
@@ -105,41 +117,56 @@ export default function EmailDetailPanel({
           <AISummaryCard summary={email.aiSummary} />
           <ActionItemsList items={email.actionItems} />
 
-          <section className="space-y-4 rounded-lg border border-line bg-surface p-4">
-            <DraftReplyEditor
-              email={email}
-              draft={draft}
-              tone={tone}
-              onDraftChange={onDraftChange}
-              onToneChange={onToneChange}
-              // A tone change regenerates the draft, so it is blocked mid-send like the rest.
-              disabled={isDraftBusy}
-            />
-
-            <SourcesChips key={email.id} sources={email.sources} draft={draft} />
-
-            <RefineInput emailId={email.id} onRefine={onRefine} disabled={isDraftBusy} />
-
-            <DraftStatus {...status} />
-
-            <div className="flex items-center justify-between gap-3 border-t border-line-subtle pt-4">
-              <p className="text-xs text-fg-subtle">
-                {email.sentAt
-                  ? t("detail.sentAt", { when: format.timestamp(email.sentAt) })
-                  : t("detail.notSentYet")}
-              </p>
-              <DraftActionsBar
-                emailId={email.id}
-                onRegenerate={onRegenerate}
-                onApproveSend={onApproveSend}
-                isRegenerating={isRegenerating}
-                isRefining={isRefining}
-                isSending={isSending}
-                isSent={Boolean(email.sentAt)}
-                isGenerating={status.isGenerating}
+          {email.authStatus === AuthStatus.SpoofDetected ? (
+            <SecurityNotice emailId={email.id} />
+          ) : (
+            <section className="space-y-4 rounded-lg border border-line bg-surface p-4">
+              <DraftReplyEditor
+                email={email}
+                draft={draft}
+                tone={tone}
+                onDraftChange={onDraftChange}
+                onToneChange={onToneChange}
+                // A tone change regenerates the draft, so it is blocked mid-send like the rest.
+                disabled={isDraftBusy}
               />
-            </div>
-          </section>
+
+              <HiddenDetailChips
+                key={`hidden-${email.id}`}
+                draft={draft}
+                values={detailValues(email.details)}
+                onDraftChange={onDraftChange}
+                disabled={isDraftBusy}
+              />
+
+              <SourcesChips key={email.id} sources={email.sources} draft={draft} />
+
+              <RefineInput emailId={email.id} onRefine={onRefine} disabled={isDraftBusy} />
+
+              <DraftStatus {...status} />
+
+              <div className="flex items-center justify-between gap-3 border-t border-line-subtle pt-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-xs text-fg-subtle">
+                    {email.sentAt
+                      ? t("detail.sentAt", { when: format.timestamp(email.sentAt) })
+                      : t("detail.notSentYet")}
+                  </p>
+                  {email.sentAt ? <UseAsExampleButton key={email.id} emailId={email.id} /> : null}
+                </div>
+                <DraftActionsBar
+                  emailId={email.id}
+                  onRegenerate={onRegenerate}
+                  onApproveSend={onApproveSend}
+                  isRegenerating={isRegenerating}
+                  isRefining={isRefining}
+                  isSending={isSending}
+                  isSent={Boolean(email.sentAt)}
+                  isGenerating={status.isGenerating}
+                />
+              </div>
+            </section>
+          )}
         </div>
       </div>
     </DetailsContext.Provider>

@@ -11,6 +11,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.db.models import AuthStatus
+
 
 class ContextChunk(TypedDict):
     """Seam 2 — Lane B retrieval -> Lane C generation (in-process).
@@ -94,6 +96,7 @@ class DashboardEmail(BaseModel):
     preview: str  # short snippet for the inbox list
     body: str  # full masked email body for the detail view
     timestamp: str  # ISO 8601
+    authStatus: AuthStatus  # the sender's SPF/DKIM/DMARC check, or the owner's confirmation
     priority: Literal["high", "medium", "low"]
     threadContext: list[ThreadMessage]
     aiSummary: str

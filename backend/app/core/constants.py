@@ -9,6 +9,10 @@ EMBEDDING_DIM = 1536
 # comparable with the other. Bump it whenever that changes; embed_pending re-embeds under the new
 # tag, and the old rows stay so a rollback is a one-line change.
 EMBEDDING_TAG = f"{EMBEDDING_MODEL}/retrieval-task"
+# Private mode's local embedding model (embeddinggemma); its vectors live in local_embedding.
+LOCAL_EMBEDDING_DIM = 768
+# How often pending chunks are embedded, so switching Private mode on or off catches up by itself.
+EMBED_POLL_SECONDS = 60
 
 # Answer-generation model for the /ask demo. Override via the GEMINI_CHAT_MODEL env var.
 # If a call returns "model not found", swap this (e.g. gemini-flash-latest, gemini-3.6-flash).
@@ -42,3 +46,12 @@ ADMIN_PREFIX = "/admin"
 # localhost only: from 127.0.0.1 the dashboard and an API on localhost are different sites, and
 # the SameSite=Strict session cookie would not travel anyway. Open the dashboard at localhost.
 DEFAULT_ADMIN_ORIGINS = "http://localhost:8090"
+
+# Holding replies (specs/features/holding-reply.md): product behaviour, not deployment config.
+# The wait before sending, so the user can still answer first.
+HOLD_WINDOW_MINUTES = 10
+# A reply not sent within this long after it fell due is cancelled: a day-late "I'll get back to
+# you" is worse than none.
+HOLDING_REPLY_STALE_MINUTES = 20
+HOLDING_REPLY_DAILY_CAP = 50
+HOLDING_REPLY_POLL_SECONDS = 60

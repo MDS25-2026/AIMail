@@ -1,124 +1,153 @@
-# Writing profile: drafts that sound like the user, learned in the open
+# Writing style: drafts that sound like the user, on their terms
 
-- **Status:** draft (phase 0 is the experiment; phases 1 and 2 depend on its result)
-- **Owner:** veyroxie (Lane B storage and extraction, Lane C prompt, Lane D settings card)
+- **Status:** accepted 2026-10-06 (owner: "okay all sounds good. i thk off by default, but shld
+  also be able to mask ah"); building
+- **Owner:** veyroxie (backend storage and learning, agent prompt, Settings card)
 - **Related issue:** product brainstorm 2026-09-30 ("understood"); feeds
   [`model-feedback-routing.md`](./model-feedback-routing.md)
-- **Last updated:** 2026-09-30
+- **Last updated:** 2026-10-06
 
 ## Goal
 
-Each edit the user makes to a draft teaches AImail how they write, so later drafts need fewer
-edits. The user can see everything learned, correct it and delete it. It belongs to them alone:
-AImail remembers them, and the model provider does not.
+Drafts open, close and phrase things the way the user does, so they need fewer edits. The user
+decides how AImail learns their style, sees exactly what the AI is given, and can delete any of it.
+No model is trained: the style is plain text added to the drafting prompt.
 
 ## User story
 
-As an employee, I want AImail's drafts to open, close and phrase things the way I do, and I want
-to see what it has learned about me, so that I trust the drafts and do not feel watched.
+As an employee, I want to tell AImail how I write, show it a few replies that sound like me, and
+optionally let it notice my habits, so that its drafts sound like me without me feeling watched.
 
 ## Scope
 
+One "Your writing style" card in Settings with three independent parts. Any mix can be used.
+
 **In scope**
-- **Phase 0, capture (the experiment):** at send, keep the draft as it was shown alongside what
-  was sent, plus an edit ratio. No learning and no UI. Run for two weeks of real use.
-- **Phase 1, learn:** a deterministic extractor turns the draft/sent pairs into profile entries:
-  greeting, sign-off, typical length, formality, language, and repeated phrase swaps ("Please
-  advise" becoming "Let me know").
-- **Phase 2, show and use:** a "How you write" card in Settings, and a short style hint appended
-  to the existing drafting profile (`Policy.profile_text`).
+- **Describe it:** one free-text line ("Warm but brief, no jargon"), with quick picks (More
+  formal, Always say thank you, Shorter, Warmer) that add or remove a phrase in one tap.
+- **Example replies:** up to `MAX_EXAMPLES` (3) replies that sound like the user, pasted in or
+  added with "Use as an example" on a reply they sent.
+- **Learn from what I send:** a switch, **off by default**. While on, each send records the draft
+  as shown and what was sent, and a rule-based learner lists habits (greeting, sign-off phrase,
+  typical length, repeated word swaps) with their evidence.
+- **Reuse my past replies (added 2026-10-07):** while learning is on, each send also stores the
+  email and the reply as one searchable item, so a later draft for a similar email can see how the
+  user answered before. It is found by the same search as documents (Gemini vectors normally,
+  local ones in Private mode) and shown in the draft's sources as "Your earlier reply". Only sends
+  made while the switch is on are stored. It never appears in the document library.
+- **Masked before storage:** every description, example and learned habit is masked before it is
+  stored, and only the masked text is kept. The card shows exactly that text ("What the AI sees").
 
 **Out of scope**
-- Fine-tuning or training any model on the user's email. The profile is a set of readable entries,
-  not weights.
+- Fine-tuning or training any model on the user's email.
 - Learning across users, or a team voice for shared inboxes.
-- Any admin view of a profile.
+- Any admin view of a style.
 
 ## Acceptance criteria
 
-- [ ] **Phase 0.** Given a draft shown to the user, when they send an edited version, then the
-      shown draft, the sent text and the edit ratio (normalised Levenshtein) are all stored, and
-      `draft_reply` still holds the sent text as it does today.
-- [ ] **Phase 0 exit.** After two weeks, a report lists how many sends were captured and which
-      features were consistent (same value in at least 70% of sends). Phase 1 starts only if at
-      least three features are consistent; otherwise this spec is revised.
-- [ ] **Phase 1.** Given a feature observed fewer than `MIN_EVIDENCE` (3) times, then no profile
-      entry exists for it. One reply to one colleague does not become a habit.
-- [ ] **Phase 1.** Given a candidate phrase swap containing a digit, `@`, a URL, or a capitalised
-      word not at sentence start, then it is dropped and never stored.
-- [ ] **Phase 2.** Given a learned entry, then the card shows the entry and its evidence ("in 7 of
-      your last 10 replies"), with edit and delete controls.
-- [ ] **Phase 2.** Given the user deletes an entry, then it never returns. Given they pause
-      learning, then no new entries are created. Given "delete everything", then the profile and
-      every stored draft/sent pair are removed.
-- [ ] **Phase 2.** No admin route returns profile entries or draft/sent pairs (asserted by a test
-      over the admin app's route table).
-- [ ] **Phase 2.** Given a profile, then the drafting request carries at most `STYLE_HINT_CHARS`
-      of style hint, fenced as data like the rest of the prompt, and no raw sent text.
-- [ ] **Outcome.** The median edit ratio over the most recent 30 sends is lower than over the
-      first 30 after phase 2 ships. This is the chart `model-feedback-routing.md` asks for.
+- [ ] Given a description or a pasted example, when it is saved, then names, email addresses, phone
+      numbers, IC and card numbers are replaced with `(hidden)` before storage, and the response
+      returns the stored text. If the masker is unreachable, nothing is stored (503).
+- [ ] Given "Use as an example" on a sent reply, then the stored example is that reply's sent text,
+      with its placeholders and any remaining detail masked the same way.
+- [ ] Given `MAX_EXAMPLES` examples, when another is added, then it is refused (409).
+- [ ] Given learning is off (the default), when the user sends, then no draft/sent pair is stored.
+- [ ] Given learning is on, when the user sends, then the draft as shown, the sent text (both in
+      placeholder form) and the edit ratio are stored on the message.
+- [ ] Given a habit observed in fewer than `MIN_EVIDENCE` (3) sends, then it is not listed. One
+      reply to one colleague does not become a habit.
+- [ ] Given a candidate habit containing a digit, `@`, a URL, a placeholder or masking mark, or a
+      capitalised word not at sentence start, then it is dropped and never stored.
+- [ ] Given a pair whose edit ratio is above `REWRITE_RATIO` (0.8), then it feeds only length, not
+      word swaps: a rewrite says the draft missed, not how the user phrases things.
+- [ ] Given a learned habit, then the card shows it with its evidence ("in 7 of your last 10
+      replies") and a delete control; a deleted habit never returns.
+- [ ] Given learning is on, when the user sends, then the email and the reply are stored as one
+      search item of at most `PAST_REPLY_MAX_CHARS` (4000), masked with `mask_for_style`, so every
+      placeholder is `(hidden)`: a copied placeholder can never be filled from another thread's
+      details. A failure here (masker or database down) is logged and never fails the send.
+- [ ] Given a stored past reply, then it is labelled "Your earlier reply" (never the subject, which
+      is not masked) and is left out of the document library.
+- [ ] Given "Delete everything", then the description, examples, habits, every stored pair and
+      every stored past reply are removed, and learning is switched off. Deleting the account removes them too.
+- [ ] No admin route returns style data (asserted by a test over the admin app's route table).
+- [ ] Given a style, then the draft and refine requests carry at most `STYLE_HINT_CHARS` (1200) of
+      hint and at most `MAX_EXAMPLES` examples of at most `MAX_EXAMPLE_CHARS` (1500) each, fenced as
+      data. The critic sees the same hint, so it does not mark a style-following draft off-tone.
+
+## Precedence
+
+- The sign-off **name** stays the owner placeholder chosen by the backend. A description or habit
+  may set the closing phrase ("Thanks," / "Best regards,"), never the name.
+- The tone picker (professional / casual) still applies; the style hint refines it.
+- Examples are style only. The prompt tells the model never to copy their names, facts or figures,
+  and they are not a grounding source.
+- Past replies are context, like a document: the draft may reuse how an earlier email was
+  answered. Each item opens with a line saying it answered a different email and that its dates,
+  figures and promises do not carry over. The critic's grounding check treats it like any other
+  retrieved source, so it does not catch an old date copied across; the user's review does.
 
 ## API surface
 
-To be added to `specs/context/api-contracts.md` in phase 2:
+See [`../context/api-contracts.md`](../context/api-contracts.md#writing-style).
 
-- `GET /profile/writing`: entries with evidence counts, and whether learning is paused.
-- `PATCH /profile/writing/{entry_id}`: edit the value.
-- `DELETE /profile/writing/{entry_id}`: delete one entry and suppress it permanently.
-- `PUT /profile/writing/learning`: pause or resume.
-- `DELETE /profile/writing`: delete everything, including the draft/sent pairs.
+- `GET /profile/writing`: description, examples, habits with evidence, and the learning switch.
+- `PUT /profile/writing/description`: `{description}`; returns the masked text that was stored.
+- `PUT /profile/writing/learning`: `{enabled}`.
+- `POST /profile/writing/examples`: `{text}` or `{emailId}` (a sent reply).
+- `DELETE /profile/writing/examples/{id}`.
+- `DELETE /profile/writing/habits/{id}`: hide a habit permanently.
+- `DELETE /profile/writing`: delete everything.
+
+The agent's `/process-email` and `/refine` gain `style_hint` (string) and `style_examples` (list).
 
 ## Data model
 
-- **Phase 0, `messages.draft_shown`** (`TEXT NULL`): the draft as it stood when the user pressed
-  send. `approve_and_send` copies `draft_reply` here before overwriting it with the sent text
-  (today the generated version is lost). Plus `messages.edit_ratio` (`REAL NULL`).
-- **Phase 1, `style_entry`** (the `style_profile` placeholder in `db-schema.md`): `id`, `user_id`,
-  `kind` (`greeting|signoff|length|formality|language|phrase_swap`, CHECK-constrained), `value`
-  (JSONB), `scope` (`all` or a correspondent's domain), `evidence`, `source` (`learned|user`),
-  `suppressed` (`BOOLEAN`), timestamps.
+- `writing_style` (one row per user): `user_id` PK, `description` (masked), `learning_enabled`
+  (default false), `updated_at`.
+- `style_example`: `id`, `user_id`, `text` (masked), `source` (`pasted|sent`), `created_at`.
+- `style_habit`: `id`, `user_id`, `kind` (`greeting|signoff|length|swap`), `value`, `evidence`,
+  `out_of`, `suppressed`, `updated_at`; unique on (`user_id`, `kind`, `value`).
+- Past replies: a `document` row with `doc_type = 'sent_reply'` and `source = sent://<message id>`,
+  one chunk, embedded like any other chunk.
+- `messages.draft_shown` (`TEXT NULL`) and `messages.edit_ratio` (`REAL NULL`), written only while
+  learning is on.
 
 ## Dependencies
 
 - `approve_and_send` in `backend/app/dashboard.py` (the capture point).
-- `app/personalisation.py` (`Policy.profile_text`, already the one prompt channel for the user profile).
-- No new third-party dependency: the edit ratio and feature extraction are standard-library code.
+- `app/rag/mask.py` (`mask_document`, Presidio plus the typed-text floor) for masking.
+- No new third-party dependency: the learner and edit ratio are standard-library code.
 
 ## Edge cases & failure modes
 
 - **Sent unedited:** still recorded (ratio 0). An accepted draft is evidence too.
-- **Rewritten from scratch:** a ratio near 1 says the draft missed, not how the user writes a
-  greeting. Pairs above `REWRITE_RATIO` (0.8) feed only length and language features, not
-  phrase swaps.
-- **Mixed-language replies:** language is recorded per reply, and scoped by correspondent's domain
-  once there is enough evidence.
-- **Contradictory habits:** a formal greeting for one domain and a casual one for another become
-  two scoped entries, not a flip-flopping global one.
+- **Masker down:** the save is refused with a clear message; nothing raw is stored.
+- **Habits change:** the learner looks at the last `LEARN_WINDOW` (20) recorded sends only.
+- **A learning failure never fails a send:** it is logged and the send result stands.
 
 ## Security & privacy notes
 
-- **Sent text is unmasked:** the user typed real names into it. It is stored in Postgres (as
-  `draft_reply` already is after a send) and never leaves the machine raw. Only extracted entries
-  that pass the PII screen can reach the model.
-- **Employer visibility:** the profile is the employee's data about how they write. The admin
-  console never reads it. Under the PDPA the employee can see and correct their own data, and the
-  settings card is where they do that.
-- **Delete everything means everything:** entries, suppressed markers and draft/sent pairs.
+- **`(hidden)` and `(name)` can never be sent:** they count as redaction marks
+  (`app/core/redaction.py`), so a draft that copied one is flagged by the critic's PII scan, warned
+  about in the dashboard, and refused at send. The greeting habit is phrased without the mark.
+- **Only masked text is stored** for descriptions and examples. Learned habits come from placeholder
+  text and pass the screen above, so a name can only reach a habit by slipping past both.
+- **Employer visibility:** the style is the employee's data about how they write. The admin console
+  never reads it. Under the PDPA the employee can see, correct and erase it on the card.
+- **Delete everything means everything:** description, examples, habits, suppressed markers and pairs.
 
 ## Open questions
 
-- Is the PII screen in phase 1 strict enough? It is deliberately crude (it drops anything with a
-  digit, `@`, URL or mid-sentence capital). The phase 0 data will show how many useful phrases it
-  loses.
-- Should the style hint also be scoped per correspondent when drafting? It needs `from_addr`
-  (unmasked) to pick the scope. The lookup is local, and only the resulting hint is sent, so the
-  address still never enters the payload.
+- Presidio is called with `language: "en"`, so a name in a Malay or Chinese example may not be
+  detected. A short capitalised line under a closing phrase is always hidden as a signature,
+  since Presidio missed an unusual first name there in the live check. The card shows the masked text so the user can see and fix it; a multilingual model
+  would close the gap.
 
 ## Out-of-scope future extensions
 
-- A local fine-tuned model for style (see the conversation of 2026-09-30). Only worth trying if
-  the phase 2 outcome criterion fails with a good profile.
-- Suggesting new holding-reply templates in the user's own voice.
+- A local fine-tuned model for style. Only worth trying if the edit ratio does not fall.
+- Suggesting holding-reply templates in the user's own voice.
 
 ## Protected decisions
 

@@ -16,14 +16,15 @@ class Settings(BaseSettings):
     )
 
     database_url: str
-    gemini_api_key: str
+    # One Google AI key for everything: the backend's embeddings and the agent's drafting.
+    google_api_key: str
     # Shared bearer token every API caller must present (see app/core/auth.py). Empty means
     # the API refuses all requests rather than silently running unauthenticated.
     backend_api_token: str = ""
     embedding_model: str = EMBEDDING_MODEL
     embedding_dim: int = EMBEDDING_DIM
     gemini_chat_model: str = CHAT_MODEL
-    email_agent_url: str = "http://localhost:8001"  # Lane C /process-email service
+    email_agent_url: str = "http://127.0.0.1:8001"  # Lane C /process-email service
     # Dashboard sign-in (docs/adr/0005): Supabase sends the user back to BACKEND_PUBLIC_URL, which
     # sends them on to DASHBOARD_URL once the session cookies are set.
     backend_public_url: str = "http://localhost:8000"
@@ -41,6 +42,11 @@ class Settings(BaseSettings):
     dashboard_url: str = "http://localhost:8090"
     # Masks uploaded documents before storage (app/rag/mask.py); shared with the listener and agent.
     presidio_analyzer_url: str = "http://localhost:5001/analyze"
+    # Private mode (specs/features/local-model.md): the company's local model; "" = not offered.
+    local_llm_model: str = ""
+    local_llm_url: str = "http://localhost:11434"
+    # Private mode's search: a local embedding model on the same Ollama; "" = no search in Private mode.
+    local_embedding_model: str = ""
     # Reuse the listener's OAuth creds (gmail.send scope) to send approved replies. Best-practice
     # upgrade: a service account + domain-wide delegation so the backend has its own credentials.
     gmail_credentials_path: str = str(_REPO_ROOT / "listener" / "credentials.json")
@@ -80,3 +86,4 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     # Required fields are supplied by the environment / .env at runtime.
     return Settings()  # type: ignore[call-arg]
+

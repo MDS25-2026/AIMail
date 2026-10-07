@@ -18,7 +18,7 @@ class AccountError(StrEnum):
     NOT_FULLY_DELETED = "account_not_fully_deleted"
 
 
-def _user_id(request: Request) -> UUID:
+def account_user_id(request: Request) -> UUID:
     """Only a signed-in person has an account; a script with the shared token does not."""
     user_id = principal_of(request).user_id
     if user_id is None:
@@ -29,7 +29,7 @@ def _user_id(request: Request) -> UUID:
 @router.delete("/gmail", status_code=status.HTTP_204_NO_CONTENT)
 async def disconnect_gmail(request: Request) -> Response:
     try:
-        await account.disconnect_gmail(_user_id(request))
+        await account.disconnect_gmail(account_user_id(request))
     except account.NotConnectedError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, AccountError.NOT_CONNECTED) from exc
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -38,7 +38,7 @@ async def disconnect_gmail(request: Request) -> Response:
 @router.delete("", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_account(request: Request) -> Response:
     try:
-        await account.delete_account(_user_id(request))
+        await account.delete_account(account_user_id(request))
     except account.AccountDeletionError as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, AccountError.NOT_FULLY_DELETED) from exc
     response = Response(status_code=status.HTTP_204_NO_CONTENT)

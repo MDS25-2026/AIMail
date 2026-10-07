@@ -14,7 +14,7 @@ class EmbeddingError(RuntimeError):
     """Raised when the embeddings API cannot be reached."""
 
 
-def _l2_normalize(vectors: np.ndarray) -> np.ndarray:
+def l2_normalize(vectors: np.ndarray) -> np.ndarray:
     norms = np.linalg.norm(vectors, axis=1, keepdims=True)
     norms[norms == 0] = 1.0  # never divide by zero on an all-zero vector
     return vectors / norms
@@ -40,10 +40,10 @@ def _embed_sync(texts: list[str], task_type: str) -> list[list[float]]:
         raise EmbeddingError(
             "could not reach the Gemini embeddings API - check connectivity "
             "(generativelanguage.googleapis.com must resolve to a real IP, not 127.0.0.1) "
-            "and that GEMINI_API_KEY is set"
+            "and that GOOGLE_API_KEY is set"
         ) from exc
     raw = np.array([e.values for e in result.embeddings], dtype=np.float32)
-    return _l2_normalize(raw).tolist()
+    return l2_normalize(raw).tolist()
 
 
 async def _embed(texts: list[str], task_type: str) -> list[list[float]]:

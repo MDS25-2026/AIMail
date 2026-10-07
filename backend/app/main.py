@@ -9,18 +9,29 @@ that belongs in specs/context/api-contracts.md with Lane D.
 import asyncio
 import logging
 import os
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Literal
+from uuid import UUID
 
-from fastapi import Depends, FastAPI, HTTPException, Request, UploadFile, status
+from fastapi import (
+    Depends,
+    FastAPI,
+    HTTPException,
+    Request,
+    Response,
+    UploadFile,
+    status,
+)
 from fastapi import Path as PathParam
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from app.account_routes import router as account_router
 from app.admin.app import admin_app
+from app.audit import audit
+from app.audit_routes import router as audit_router
 from app.contracts import DashboardEmail
 from app.core import mailbox
 from app.core.auth import (
@@ -34,6 +45,7 @@ from app.core.config import get_settings
 from app.core.constants import (
     ADMIN_PREFIX,
     DEFAULT_ADMIN_ORIGINS,
+    EMBED_POLL_SECONDS,
     MAX_DRAFT_CHARS,
     MAX_PASTE_CHARS,
     MAX_UPLOAD_BYTES,
@@ -56,6 +68,7 @@ from app.dashboard import (
     SendRejectedError,
     TranslationError,
     approve_and_send,
+    confirm_sender,
     email_detail,
     email_for_thread,
     generate_pending,
@@ -64,26 +77,31 @@ from app.dashboard import (
     regenerate_email,
     translate_email,
 )
-from app.gmail_send import SendError, SendOutcomeUnknownError
+from app.gmail_send import AccessExpiredSendError, SendError, SendOutcomeUnknownError
+from app.holding_reply_routes import router as holding_reply_router
+from app.holding_reply_scheduler import holding_replies_loop
+from app.private_mode_routes import router as private_mode_router
 from app.rag.chunk import extract_pdf_bytes
 from app.rag.embed import EmbeddingError
 from app.rag.generate import GenerationError, answer
-from app.rag.ingest import embed_pending, ingest_text
-from app.rag.library import DocumentSummary, list_documents
+from app.rag.ingest import embed_pending, embed_pending_locally, ingest_text
+from app.rag.library import DocumentSummary, delete_document, list_documents
 from app.rag.mask import DocumentMaskingError
 from app.rag.retrieve import ContextChunk, retrieve
 from app.sign_in import router as sign_in_router
 from app.vault_retention import expire_vaults_daily
+from app.writing_style_routes import router as writing_style_router
 
 configure_logging()
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    """Background work for the life of the process: embed any pending chunks once, and poll for
-    drafts to pre-generate. Both are held (asyncio keeps only weak references to tasks) and both
+    """Background work for the life of the process: embed pending chunks, and poll for drafts to
+    pre-generate. Both are held (asyncio keeps only weak references to tasks) and both
     are cancelled on shutdown."""
     await mailbox.resolve_owner()
-    tasks = [asyncio.create_task(_embed_missing()), asyncio.create_task(expire_vaults_daily())]
+    tasks = [asyncio.create_task(_embed_missing_loop()), asyncio.create_task(expire_vaults_daily()),
+             asyncio.create_task(holding_replies_loop())]
     if get_settings().auto_generate:
         tasks.append(asyncio.create_task(_pregen_loop()))
     try:
@@ -99,6 +117,10 @@ app.middleware("http")(request_context)
 app.mount(ADMIN_PREFIX, admin_app)
 app.include_router(sign_in_router)
 app.include_router(account_router)
+app.include_router(holding_reply_router)
+app.include_router(private_mode_router)
+app.include_router(writing_style_router)
+app.include_router(audit_router)
 
 # Dev CORS so the dashboard can call this API cross-origin. The regex covers any
 # localhost/127.0.0.1 port (they are distinct origins to the browser); FRONTEND_ORIGIN adds
@@ -135,16 +157,26 @@ async def _pregen_loop() -> None:
             logger.exception("pre-generation poll failed")
 
 
-async def _embed_missing() -> None:
-    """Chunks without a vector under the current EMBEDDING_TAG get one. Free when none are
-    pending; after a tag bump or on a fresh database it stops retrieval silently returning nothing."""
+async def _embed_missing_loop() -> None:
+    """Chunks without a vector get one, on each side, from startup on. Free when none are pending;
+    it also catches up after a tag bump, a fresh database, or a user switching Private mode."""
+    while True:
+        await _embed_missing("Gemini", embed_pending)
+        await _embed_missing("local", embed_pending_locally)
+        try:
+            await asyncio.sleep(EMBED_POLL_SECONDS)
+        except asyncio.CancelledError:
+            break
+
+
+async def _embed_missing(side: str, embed: Callable[[], Awaitable[int]]) -> None:
     try:
-        count = await embed_pending()
+        count = await embed()
     except Exception:
-        logger.exception("startup embedding of pending chunks failed; retrieval may be empty")
+        logger.exception("%s embedding of pending chunks failed; retrieval may be empty", side)
         return
     if count:
-        logger.info("embedded %d pending chunk(s) under the current tag", count)
+        logger.info("embedded %d pending chunk(s) with the %s model", count, side)
 
 
 
@@ -159,7 +191,7 @@ async def _ai_service_unreachable(request: Request, exc: Exception) -> JSONRespo
         content={
             "error": {
                 "code": "AI_SERVICE_UNREACHABLE",
-                "message": "Cannot reach the Gemini AI service - check GEMINI_API_KEY and connectivity.",
+                "message": "Cannot reach the Gemini AI service - check GOOGLE_API_KEY and connectivity.",
             }
         },
     )
@@ -257,6 +289,15 @@ class RegenerateRequest(BaseModel):
     tone: str = "professional"  # "professional" | "casual"
 
 
+@app.post("/emails/{message_id}/confirm-sender", dependencies=[Depends(require_mailbox)])
+async def confirm_sender_route(message_id: str, request: Request) -> DashboardEmail:
+    # The owner checked a sender that failed SPF/DKIM/DMARC and says it is real; drafting resumes.
+    email = await confirm_sender(message_id, scope=scope_of(request))
+    if email is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "email not found")
+    return email
+
+
 @app.post("/emails/{message_id}/regenerate", dependencies=[Depends(rate_limit_generation), Depends(require_mailbox)])
 async def regenerate_email_route(
     message_id: str, request: Request, body: RegenerateRequest | None = None
@@ -333,6 +374,8 @@ async def send_email_route(message_id: str, body: SendRequest, request: Request)
     except SendOutcomeUnknownError as exc:
         logger.warning("send outcome unknown for %s: %s", message_id, exc)
         raise HTTPException(status.HTTP_504_GATEWAY_TIMEOUT, "send_outcome_unknown") from exc
+    except AccessExpiredSendError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, "google_access_expired") from exc
     except SendError as exc:
         # The reason stays in the log: it can name local credential paths.
         logger.warning("send failed for %s: %s", message_id, exc)
@@ -393,6 +436,16 @@ async def add_document(request: DocumentRequest, http: Request) -> dict[str, int
     count = await ingest_text(f"paste://{request.title}", request.title, request.text,
                               scope=scope_of(http).owner_of_new_rows())
     return {"chunks": count}
+
+
+@app.delete("/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT,
+            dependencies=[Depends(require_mailbox)])
+async def remove_document(document_id: UUID, http: Request) -> Response:
+    """Chunks and both kinds of vector go with it (ON DELETE CASCADE)."""
+    if not await delete_document(document_id, scope_of(http)):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "document not found")
+    await audit("document_deleted", f"document={document_id}", user_id=scope_of(http).owner_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 async def _read_capped(file: UploadFile) -> bytes:

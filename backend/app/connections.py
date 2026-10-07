@@ -64,7 +64,8 @@ async def store_connection(
     try:
         async with get_sessionmaker()() as session, session.begin():
             await _upsert_profile(session, user_id, email, display_name)
-            values = {"email": email.lower(), "refresh_token_encrypted": sealed, "scopes": scopes}
+            values = {"email": email.lower(), "refresh_token_encrypted": sealed, "scopes": scopes,
+                      "needs_reconnect": False}
             await session.execute(insert(MailboxConnection).values(user_id=user_id, **values)
                                   .on_conflict_do_update(index_elements=["user_id"],
                                                          set_={**values, "updated_at": func.now()}))
@@ -72,6 +73,12 @@ async def store_connection(
                 await _hand_over_unowned_rows(session, user_id)
     except (SQLAlchemyError, OSError) as exc:
         raise ConnectionStoreError(f"database refused the connection: {type(exc).__name__}") from exc
+
+
+async def needs_reconnect(user_id: UUID) -> bool:
+    async with get_sessionmaker()() as session:
+        return bool(await session.scalar(select(MailboxConnection.needs_reconnect)
+                                         .where(MailboxConnection.user_id == user_id)))
 
 
 async def can_send(user_id: UUID) -> bool:

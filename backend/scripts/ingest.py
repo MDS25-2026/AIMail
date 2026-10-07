@@ -1,6 +1,6 @@
 """Ingest a policy PDF into the RAG store.
 
-Usage (from backend/, needs a live DB + GEMINI_API_KEY):
+Usage (from backend/, needs a live DB + GOOGLE_API_KEY):
 
     python scripts/ingest.py /path/to/policy.pdf ["Optional Title"]
 

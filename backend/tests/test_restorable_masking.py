@@ -16,6 +16,7 @@ from app.core import vault
 from app.core.config import get_settings
 from app.core.ownership import EVERYTHING
 from app.db.models import MaskingStatus, Message
+from app.private_mode import DraftProvider
 
 OWNER = UUID("aaaaaaaa-0000-4000-8000-000000000001")
 KEY = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
@@ -66,10 +67,17 @@ def mailbox(monkeypatch, test_settings):
     async def no_chunks(*_args, **_kwargs):
         return []
 
+    async def no_style(_user_id):
+        return {}
+
+    async def gemini(_user_id):
+        return DraftProvider.GEMINI
+
     for name, value in (("_load", load), ("_load_with_thread", load_with_thread), ("_owner_name", owner_name),
                         ("retrieve", no_chunks), ("_mark_read", nothing),
                         ("_call_agent", call_agent), ("_claim_send", claim), ("send_reply", send_reply),
-                        ("audit", nothing), ("_update_unsent", _true)):
+                        ("audit", nothing), ("_update_unsent", _true), ("_style_fields", no_style),
+                        ("is_learning", _false), ("provider_for", gemini)):
         monkeypatch.setattr(dashboard, name, value)
     monkeypatch.setattr(dashboard.connections, "can_send", can_send)
     return state
@@ -77,6 +85,10 @@ def mailbox(monkeypatch, test_settings):
 
 async def _true(*_args, **_kwargs):
     return True
+
+
+async def _false(*_args, **_kwargs):
+    return False
 
 
 class _Sent:

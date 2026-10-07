@@ -52,7 +52,8 @@ async function apiFetch(path: string, init: ApiInit = {}): Promise<Response> {
   throw new SignedOutError(`${init.method ?? "GET"} ${path} needs sign-in`);
 }
 
-export type SessionInfo = { email: string; hasMailbox: boolean };
+/** needsReconnect: Google refused the stored token (7-day Testing-mode expiry or a revocation). */
+export type SessionInfo = { email: string; hasMailbox: boolean; needsReconnect: boolean };
 
 /** Who is signed in, and whether a mailbox is connected to that account. */
 export async function fetchSession(): Promise<SessionInfo> {
@@ -113,10 +114,14 @@ export class UnresolvedPlaceholdersError extends Error {}
 /** The owner let AIMail read their Gmail but not send from it (403 send_not_granted). */
 export class SendNotGrantedError extends Error {}
 
+/** Google has ended AIMail's access to the owner's Gmail (409 google_access_expired); sign in again. */
+export class GoogleAccessExpiredError extends Error {}
+
 const ERROR_BY_DETAIL: Record<string, new (message: string) => Error> = {
   draft_refused: DraftRefusedError,
   send_outcome_unknown: SendOutcomeUnknownError,
   send_not_granted: SendNotGrantedError,
+  google_access_expired: GoogleAccessExpiredError,
   unresolved_placeholders: UnresolvedPlaceholdersError,
 };
 
@@ -180,6 +185,19 @@ export async function fetchDocuments(): Promise<PolicyDocument[]> {
   return res.json();
 }
 
+/** The owner checked a sender that failed SPF/DKIM/DMARC and says they are real; drafting resumes. */
+export async function confirmSender(id: string): Promise<Email> {
+  const res = await apiFetch(`/emails/${id}/confirm-sender`, { method: "POST" });
+  if (!res.ok) throw new Error(`POST /emails/${id}/confirm-sender failed (${res.status})`);
+  return res.json();
+}
+
+/** Remove a document and everything stored for it; drafts stop citing it at once. */
+export async function deleteDocument(documentId: string): Promise<void> {
+  const res = await apiFetch(`/documents/${documentId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`DELETE /documents/${documentId} failed (${res.status})`);
+}
+
 /** Ingest pasted text as a document; returns the number of chunks stored. */
 export async function addDocument(title: string, text: string): Promise<number> {
   const res = await apiFetch(`/documents`, {
@@ -230,5 +248,178 @@ function uploadError(res: Response): UploadError {
 export async function fetchSystemInfo(): Promise<SystemInfo> {
   const res = await apiFetch(`/system/info`);
   if (!res.ok) throw new Error(`GET /system/info failed (${res.status})`);
+  return res.json();
+}
+
+export type HoldingReplySettings = {
+  enabled: boolean;
+  activeWhen: "outside_hours" | "leave" | "always";
+  workDays: number[];
+  workStart: string;
+  workEnd: string;
+  timezone: string;
+  leaveFrom: string | null;
+  leaveUntil: string | null;
+  audience: "correspondents" | "domain" | "everyone";
+  scope: "needs_reply" | "all";
+  cooldownDays: number;
+  templates: Partial<Record<"en" | "ms" | "zh", string>>;
+  defaultLanguage: "en" | "ms" | "zh";
+};
+
+export type HoldingReplyRecord = {
+  id: string;
+  emailId: string;
+  recipient: string;
+  language: string;
+  scheduledFor: string;
+  sentAt: string | null;
+  cancelledReason: string | null;
+  subject: string;
+};
+
+/** The settings were refused; `code` names the problem (specs/context/api-contracts.md). */
+export class HoldingReplySettingsError extends Error {
+  constructor(readonly code: string) {
+    super(code);
+  }
+}
+
+/** The backend's `detail` code from an error response, or `fallback` when there is none. */
+async function errorCode(res: Response, fallback: string): Promise<string> {
+  const body: unknown = await res.json().catch(() => null);
+  const detail = typeof body === "object" && body !== null && "detail" in body ? body.detail : null;
+  return typeof detail === "string" ? detail : fallback;
+}
+
+export async function fetchHoldingReplySettings(): Promise<HoldingReplySettings> {
+  const res = await apiFetch("/settings/holding-reply");
+  if (!res.ok) throw new Error(`GET /settings/holding-reply failed (${res.status})`);
+  return res.json();
+}
+
+export async function saveHoldingReplySettings(
+  settings: HoldingReplySettings,
+): Promise<HoldingReplySettings> {
+  const res = await apiFetch("/settings/holding-reply", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settings),
+  });
+  if (res.status === 422) throw new HoldingReplySettingsError(await errorCode(res, "invalid"));
+  if (!res.ok) throw new Error(`PUT /settings/holding-reply failed (${res.status})`);
+  return res.json();
+}
+
+export async function fetchHoldingReplies(): Promise<HoldingReplyRecord[]> {
+  const res = await apiFetch("/holding-replies?limit=20");
+  if (!res.ok) throw new Error(`GET /holding-replies failed (${res.status})`);
+  return res.json();
+}
+
+export async function cancelHoldingReply(id: string): Promise<void> {
+  const res = await apiFetch(`/holding-replies/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`DELETE /holding-replies failed (${res.status})`);
+}
+
+/** Writing style (specs/features/writing-profile.md). Every text is the masked copy that was stored. */
+export type StyleHabitKind = "greeting" | "signoff" | "length" | "swap";
+
+export type WritingStyle = {
+  description: string;
+  learning: boolean;
+  examples: { id: string; text: string; source: "pasted" | "sent"; createdAt: string }[];
+  habits: { id: string; kind: StyleHabitKind; value: string; evidence: number; outOf: number }[];
+  maxExamples: number;
+};
+
+export class WritingStyleError extends Error {
+  constructor(public readonly code: string) {
+    super(code);
+  }
+}
+
+async function styleRequest(path: string, init?: ApiInit): Promise<Response> {
+  const res = await apiFetch(`/profile/writing${path}`, init);
+  if (!res.ok) throw new WritingStyleError(await errorCode(res, `failed_${res.status}`));
+  return res;
+}
+
+const jsonBody = (method: string, body: object): ApiInit => ({
+  method,
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(body),
+});
+
+export async function fetchWritingStyle(): Promise<WritingStyle> {
+  return (await styleRequest("")).json();
+}
+
+export async function saveStyleDescription(description: string): Promise<WritingStyle> {
+  return (await styleRequest("/description", jsonBody("PUT", { description }))).json();
+}
+
+export async function setStyleLearning(enabled: boolean): Promise<WritingStyle> {
+  return (await styleRequest("/learning", jsonBody("PUT", { enabled }))).json();
+}
+
+export async function addStyleExample(
+  source: { text: string } | { emailId: string },
+): Promise<WritingStyle> {
+  return (await styleRequest("/examples", jsonBody("POST", source))).json();
+}
+
+export async function deleteStyleExample(id: string): Promise<void> {
+  await styleRequest(`/examples/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export async function hideStyleHabit(id: string): Promise<void> {
+  await styleRequest(`/habits/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export async function deleteWritingStyle(): Promise<void> {
+  await styleRequest("", { method: "DELETE" });
+}
+
+/** Private mode (specs/features/local-model.md). Not offered when `available` is false. */
+export type PrivateMode = { available: boolean; enabled: boolean; model: string; search: boolean };
+
+export async function fetchPrivateMode(): Promise<PrivateMode> {
+  const res = await apiFetch("/settings/private-mode");
+  if (!res.ok) throw new Error(`GET /settings/private-mode failed (${res.status})`);
+  return res.json();
+}
+
+export async function savePrivateMode(enabled: boolean): Promise<PrivateMode> {
+  const res = await apiFetch("/settings/private-mode", jsonBody("PUT", { enabled }));
+  if (!res.ok) throw new Error(`PUT /settings/private-mode failed (${res.status})`);
+  return res.json();
+}
+
+export type AuditLogEvent = {
+  id: string;
+  created_at: string;
+  action: string;
+  detail: string;
+  success: boolean | null;
+  prev_hash: string | null;
+  current_hash: string | null;
+  user_id: string | null;
+  is_verified?: boolean | null;
+};
+
+export type AuditTrailResponse = {
+  is_chain_intact: boolean;
+  total_records: number;
+  verified_records: number;
+  /** The latest hash; recorded outside the database, it shows if the whole chain was rebuilt. */
+  head_hash: string | null;
+  events: AuditLogEvent[];
+};
+
+/** The signed-in user's audit rows, and whether the whole SHA-256 hash chain is intact (#148). */
+export async function fetchAuditTrail(): Promise<AuditTrailResponse> {
+  const res = await apiFetch("/audit");
+  if (!res.ok) throw new Error(`GET /audit failed (${res.status})`);
   return res.json();
 }

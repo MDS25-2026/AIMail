@@ -1,12 +1,12 @@
-"""Knowledge-base inventory: what documents are stored and how many chunks each has."""
+"""Knowledge-base inventory: what documents are stored and how many chunks each has, and removing one."""
 
 from typing import TypedDict
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 
 from app.core.ownership import Scope
-from app.db.models import Chunk, Document
+from app.db.models import Chunk, DocType, Document
 from app.db.session import get_sessionmaker
 
 
@@ -28,7 +28,8 @@ async def list_documents(scope: Scope) -> list[DocumentSummary]:
             func.count(Chunk.id),
         )
         .outerjoin(Chunk, Chunk.document_id == Document.id)
-        .where(scope.where(Document.user_id))
+        # Past replies are search items the user manages on the writing-style card, not documents.
+        .where(scope.where(Document.user_id), Document.doc_type.is_distinct_from(DocType.SENT_REPLY))
         .group_by(Document.id)
         .order_by(Document.title)
     )
@@ -44,3 +45,18 @@ async def list_documents(scope: Scope) -> list[DocumentSummary]:
         )
         for row in rows
     ]
+
+
+async def delete_document(document_id: UUID, scope: Scope) -> bool:
+    """False when it is not in this scope's library: someone else's file looks like a missing one.
+
+    Past replies are not in the library, so they cannot be removed here; the writing-style card does.
+    """
+    async with get_sessionmaker()() as session, session.begin():
+        deleted = await session.scalar(
+            delete(Document)
+            .where(Document.id == document_id, scope.where(Document.user_id),
+                   Document.doc_type.is_distinct_from(DocType.SENT_REPLY))
+            .returning(Document.id)
+        )
+    return deleted is not None

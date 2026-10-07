@@ -1,7 +1,7 @@
 """S0 primitive proof: embed -> store -> cosine-query it back.
 
 Requires a live Supabase/Postgres (DATABASE_URL) with 0001_rag_tables.sql applied
-and a real GEMINI_API_KEY. Run from the backend/ directory:
+and a real GOOGLE_API_KEY. Run from the backend/ directory:
 
     python scripts/smoke_primitive.py
 

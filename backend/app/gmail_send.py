@@ -11,13 +11,14 @@ import logging
 import re
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from email.message import EmailMessage
 from html import escape
 from pathlib import Path
 from uuid import UUID
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.core import token_crypt
 from app.core.config import get_settings
@@ -27,6 +28,7 @@ from app.db.session import get_sessionmaker
 logger = logging.getLogger(__name__)
 
 _TOKEN_URL = "https://oauth2.googleapis.com/token"
+INVALID_GRANT = "invalid_grant"
 _MESSAGES_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages"
 _PROFILE_URL = "https://gmail.googleapis.com/gmail/v1/users/me/profile"
 _SEND_URL = f"{_MESSAGES_URL}/send"
@@ -60,6 +62,14 @@ class SendError(RuntimeError):
 
 class GmailAccessError(RuntimeError):
     """No usable Google credentials for this mailbox. The reason never includes a token."""
+
+
+class GoogleAccessExpiredError(GmailAccessError):
+    """Google refused the user's refresh token (invalid_grant): only signing in again fixes it."""
+
+
+class AccessExpiredSendError(SendError):
+    """The send failed because the user's Google access has ended."""
 
 
 class SendOutcomeUnknownError(RuntimeError):
@@ -113,6 +123,24 @@ _cached_tokens: dict[UUID | None, tuple[str, float]] = {}
 _EXPIRY_MARGIN_SECONDS = 60
 
 
+async def _mark_needs_reconnect(owner_id: UUID) -> None:
+    """The dashboard then asks the user to sign in again (specs/features/per-user-mailboxes.md)."""
+    async with get_sessionmaker()() as session, session.begin():
+        await session.execute(update(MailboxConnection).where(MailboxConnection.user_id == owner_id)
+                              .values(needs_reconnect=True))
+    logger.warning("google refused the token of user %s; marked to reconnect", owner_id)
+
+
+def _is_refused_grant(response: httpx.Response) -> bool:
+    """Testing-mode tokens expire after 7 days, and revoked ones look the same."""
+    if response.status_code != httpx.codes.BAD_REQUEST:
+        return False
+    try:
+        return response.json().get("error") == INVALID_GRANT
+    except ValueError:
+        return False
+
+
 async def _access_token(client: httpx.AsyncClient, owner_id: UUID | None) -> str:
     now = time.monotonic()
     cached = _cached_tokens.get(owner_id)
@@ -121,6 +149,9 @@ async def _access_token(client: httpx.AsyncClient, owner_id: UUID | None) -> str
     resp = await client.post(
         _TOKEN_URL, data={**await _refresh_grant(owner_id), "grant_type": "refresh_token"}
     )
+    if owner_id is not None and _is_refused_grant(resp):
+        await _mark_needs_reconnect(owner_id)
+        raise GoogleAccessExpiredError(f"google refused the token of user {owner_id}")
     resp.raise_for_status()
     payload = resp.json()
     access_token = payload["access_token"]
@@ -166,9 +197,11 @@ def _reply_references(target: ReplyTarget) -> str:
     return " ".join(part for part in (target.references, target.in_reply_to) if part)
 
 
-def _build_raw(target: ReplyTarget, body: str) -> str:
+def _build_raw(target: ReplyTarget, body: str, extra_headers: dict[str, str] | None = None) -> str:
     text = _strip_subject_line(body)
     message = EmailMessage()
+    for name, value in (extra_headers or {}).items():
+        message[name] = value
     message["To"] = target.to_addr
     message["Subject"] = _reply_subject(target.subject)
     if target.in_reply_to:
@@ -259,6 +292,30 @@ async def _sent_message_id(
         return None
 
 
+_THREADS_URL = "https://gmail.googleapis.com/gmail/v1/users/me/threads"
+
+
+async def has_written_to(address: str, *, owner_id: UUID) -> bool:
+    """Whether the owner has ever sent mail to this address (holding reply "correspondents")."""
+    async with httpx.AsyncClient(timeout=30) as client:
+        response = await _gmail_request(client, "GET", _MESSAGES_URL, owner_id,
+                                        params={"q": f"in:sent to:{address}", "maxResults": 1})
+        response.raise_for_status()
+        return bool(response.json().get("messages"))
+
+
+async def replied_in_thread_since(thread_id: str, since: datetime, *, owner_id: UUID) -> bool:
+    """Whether the owner sent anything in this Gmail thread after `since`, from Gmail or anywhere."""
+    since_ms = int(since.timestamp() * 1000)
+    async with httpx.AsyncClient(timeout=30) as client:
+        response = await _gmail_request(client, "GET", f"{_THREADS_URL}/{thread_id}", owner_id,
+                                        params={"format": "minimal"})
+        response.raise_for_status()
+        messages = response.json().get("messages", [])
+    return any("SENT" in m.get("labelIds", []) and int(m.get("internalDate", 0)) > since_ms
+               for m in messages)
+
+
 async def profile_address() -> str:
     """The address of the original single mailbox (token.json), the owner of unowned rows."""
     async with httpx.AsyncClient(timeout=30) as client:
@@ -286,7 +343,7 @@ async def _post_send(
 
 async def send_reply(
     gmail_message_id: str | None, fallback_to: str, fallback_subject: str, body: str,
-    *, owner_id: UUID | None,
+    *, owner_id: UUID | None, extra_headers: dict[str, str] | None = None,
 ) -> SentReply:
     """Send `body` as a reply in the original's thread, from the owner's mailbox. The fallbacks
     serve only when the original is gone from Gmail or the row predates gmail_message_id."""
@@ -294,11 +351,13 @@ async def send_reply(
         async with httpx.AsyncClient(timeout=30) as client:
             target = await _reply_target(client, gmail_message_id, fallback_to, fallback_subject,
                                          owner_id)
-            payload: dict[str, str] = {"raw": _build_raw(target, body)}
+            payload: dict[str, str] = {"raw": _build_raw(target, body, extra_headers)}
             if target.thread_id:
                 payload["threadId"] = target.thread_id
             sent = await _post_send(client, payload, owner_id)
             message_id = await _sent_message_id(client, sent.get("id"), owner_id)
+    except GoogleAccessExpiredError as exc:
+        raise AccessExpiredSendError(str(exc)) from exc
     except (httpx.HTTPError, GmailAccessError, KeyError, OSError, ValueError) as exc:
         raise SendError(str(exc)) from exc
     return SentReply(gmail_id=sent.get("id"), thread_id=sent.get("threadId"), message_id=message_id)

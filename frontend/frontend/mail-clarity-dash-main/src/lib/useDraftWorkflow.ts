@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import {
   DraftRefusedError,
+  GoogleAccessExpiredError,
   SendNotGrantedError,
   SendOutcomeUnknownError,
   UnresolvedPlaceholdersError,
@@ -27,6 +28,7 @@ export enum DraftFailure {
   Refused = "refused",
   SendUnknown = "sendUnknown",
   SendNotGranted = "sendNotGranted",
+  AccessExpired = "accessExpired",
   Unresolved = "unresolved",
 }
 
@@ -40,6 +42,7 @@ function failureFor(error: unknown, action: DraftAction): DraftFailure {
   if (error instanceof DraftRefusedError) return DraftFailure.Refused;
   if (error instanceof SendOutcomeUnknownError) return DraftFailure.SendUnknown;
   if (error instanceof SendNotGrantedError) return DraftFailure.SendNotGranted;
+  if (error instanceof GoogleAccessExpiredError) return DraftFailure.AccessExpired;
   if (error instanceof UnresolvedPlaceholdersError) return DraftFailure.Unresolved;
   return FAILURE_BY_ACTION[action];
 }

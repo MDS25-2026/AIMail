@@ -19,6 +19,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import ec
 from fastapi.testclient import TestClient
 
+from app import sign_in
 from app.core import supabase_auth
 from app.core.auth import CLIENT_HEADER, SESSION_COOKIE
 from app.core.config import get_settings
@@ -50,6 +51,10 @@ def _token(email: str) -> str:
     return jwt.encode(claims, KEY, algorithm="ES256")
 
 
+async def _never(_user_id):
+    return False
+
+
 @pytest.fixture
 def client(monkeypatch, test_settings):
     for name, value in (("SUPABASE_URL", SUPABASE), ("SUPABASE_ANON_KEY", "anon"),
@@ -58,6 +63,7 @@ def client(monkeypatch, test_settings):
         monkeypatch.setenv(name, value)
     get_settings.cache_clear()
     monkeypatch.setattr(supabase_auth, "_jwks", lambda base: _FakeJwks())
+    monkeypatch.setattr(sign_in.connections, "needs_reconnect", _never)
 
     async def emails(scope, policy_email):
         return [EMAIL]
@@ -123,7 +129,8 @@ def test_the_owner_match_ignores_case(client):
 
 
 def test_the_session_endpoint_says_whether_a_mailbox_is_connected(client):
-    assert _signed_in(client, OWNER).get("/auth/session").json() == {"email": OWNER, "hasMailbox": True}
+    assert _signed_in(client, OWNER).get("/auth/session").json() == {
+        "email": OWNER, "hasMailbox": True, "needsReconnect": False}
     other = _signed_in(client, "x@gmail.com").get("/auth/session").json()
     assert other["hasMailbox"] is False
 
@@ -212,3 +219,22 @@ def test_every_failed_callback_logs_why(client, caplog):
     logged = " ".join(record.getMessage() for record in caplog.records)
     assert "no PKCE verifier cookie" in logged
     assert "Unable to exchange external code" in logged
+
+
+def test_a_token_issued_a_moment_ahead_of_our_clock_is_accepted(client):
+    # Supabase's clock can run slightly ahead of ours: a token signed "in the future" by a second
+    # or two is fresh, not forged, and refusing it bounced people to sign-in right after signing in.
+    claims = {"sub": "user-x", "email": OWNER, "aud": "authenticated", "iss": AUTH_BASE,
+              "iat": int(time.time()) + 5, "exp": int(time.time()) + 600}
+    client.cookies.set(SESSION_COOKIE, jwt.encode(claims, KEY, algorithm="ES256"))
+    assert client.get("/emails").status_code == 200
+
+
+def test_the_dashboard_may_save_settings_with_put(client):
+    # Holding reply settings are saved with PUT; a preflight that refused it broke the Save button
+    # in the browser while direct API calls (no CORS) still worked.
+    response = client.options("/settings/holding-reply", headers={
+        "Origin": "http://localhost:8090", "Access-Control-Request-Method": "PUT",
+        "Access-Control-Request-Headers": "content-type,x-aimail-client"})
+    assert response.status_code == 200
+    assert "PUT" in response.headers.get("access-control-allow-methods", "")

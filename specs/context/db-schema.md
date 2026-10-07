@@ -28,7 +28,7 @@ The canonical three-table split from [`../features/rag-retrieval.md`](../feature
 | `id` | `UUID PK` | `gen_random_uuid()` |
 | `source` | `TEXT NOT NULL` | filename or URL; **unique**, to support replace-on-reupload |
 | `title` | `TEXT` | display title (`source_title` in Seam 2) |
-| `doc_type` | `TEXT` | e.g. `policy`; reserved for a future past-sent-email type |
+| `doc_type` | `TEXT` | `policy`, or `sent_reply` for a past reply stored while writing-style learning is on (one chunk, `source = sent://<message id>`) |
 | `uploaded_at` | `TIMESTAMPTZ DEFAULT now()` | |
 | `created_at` / `updated_at` | `TIMESTAMPTZ DEFAULT now()` | |
 
@@ -95,6 +95,21 @@ row; opened only by the backend, per request. NULL for rows from before this, qu
 once the daily job (`app/vault_retention.py`) empties it: 30 days after arrival
 (`VAULT_RETENTION_DAYS`) or 7 days after the reply was sent. `draft_reply` always holds placeholders,
 never the details themselves.
+
+### Holding reply (migration 0019, `specs/features/holding-reply.md`)
+
+- `holding_reply_settings` (PK `user_id` FK `user_profile`, cascade): `enabled`, `enabled_at`,
+  `active_when` (`outside_hours|leave|always`), `work_days SMALLINT[]` (ISO 1 Monday to 7 Sunday),
+  `work_start`/`work_end TIME`, `timezone TEXT` (IANA), `leave_from`/`leave_until DATE`, `audience`
+  (`correspondents|domain|everyone`), `scope` (`needs_reply|all`), `cooldown_days SMALLINT`,
+  `templates JSONB` (`{"en": "...", "ms": "...", "zh": "..."}`), `default_language`, timestamps.
+  Enums by CHECK constraints.
+- `holding_reply` (one per scheduled reply): `id`, `user_id` FK (cascade), `message_id` FK
+  `messages` (cascade) UNIQUE, `recipient_addr`, `language`, `scheduled_for`, `sent_at`,
+  `cancelled_reason`, `sent_message_id`, `created_at`. Index `(user_id, recipient_addr, sent_at)`.
+- `messages.is_automated BOOLEAN NOT NULL DEFAULT false` (Lane A): mailing-list, bulk and
+  auto-submitted mail, and noreply senders (RFC 3834).
+- RLS on for both new tables, no policies.
 
 ### Row-level security (migration 0015)
 
@@ -211,7 +226,11 @@ lowercased.
 - [ ] `conversation` — one row per LLM generation event (subtable of `chat`). Stores: prompt sent, context window included, model used, raw AI response, rubric score, version label. Multiple rows per `chat` allow self-evaluation loop (2–3 revisions before user sees output) and multi-version offerings (showing the user 2–3 drafts to pick from). FK → `chat`.
 - [ ] `draft` — generated reply drafts surfaced to the user, status, audit trail. FK → `chat` and the chosen `conversation` row.
 - [ ] `draft_feedback` — user thumbs up/down + which version they picked + their final edited text. Drives model-selection learning. FK → `draft`.
-- [ ] `style_profile` — per-user writing-style entries; proposed as `style_entry` in [`../features/writing-profile.md`](../features/writing-profile.md).
+- [x] `mailbox_connection.needs_reconnect` — Google refused the stored token; signing in again clears it ([`../features/per-user-mailboxes.md`](../features/per-user-mailboxes.md), migration 0021).
+- [x] `user_preferences.draft_provider` — `gemini` or `local` (Private mode, [`../features/local-model.md`](../features/local-model.md), migration 0022).
+- [x] `messages.auth_status` (`pass` / `spoof_detected` / `sender_confirmed`), and on `audit_log`: `user_id` (FK, set null), `prev_hash`, `current_hash`, `chain_seq` (unique), filled by the `trg_compute_audit_hash` trigger with `audit_row_hash()` ([`../features/sender-verification-and-audit.md`](../features/sender-verification-and-audit.md), migration 0024, replacing PR #161's 0019/0020).
+- [x] `local_embedding` — Private mode's search vectors: `chunk_id` (FK, cascade), `embedding vector(768)`, `model_name`; unique on (`chunk_id`, `model_name`), own HNSW index. Never searched together with `embedding` ([`../features/local-model.md`](../features/local-model.md), migration 0023).
+- [x] `writing_style`, `style_example`, `style_habit`, `messages.draft_shown`, `messages.edit_ratio` — per-user writing style, masked before storage; see [`../features/writing-profile.md`](../features/writing-profile.md) (migration 0020).
 - [ ] `holding_reply_settings`, `holding_reply`, `messages.is_automated` — proposed in [`../features/holding-reply.md`](../features/holding-reply.md).
 - [ ] `email_embedding` — pgvector index over historical replies for retrieval.
 

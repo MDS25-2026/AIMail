@@ -396,6 +396,8 @@ type StoredMessage struct {
 	FromAddr       string    `json:"from_addr"`
 	ReplyTo        string    `json:"reply_to,omitempty"` // where an approved reply goes; shown to the approver
 	ReceivedAt     time.Time `json:"received_at"`
+	IsAutomated    bool      `json:"is_automated"` // never sent a holding reply (automated.go)
+	AuthStatus     string    `json:"auth_status"`
 	ThreadIdentity
 	MaskedContent
 }
@@ -572,6 +574,7 @@ func renewWatch(ctx context.Context, mb *mailbox) {
 		log.Printf("WATCH RENEWAL FAILED for user %q: %v — this mailbox stops receiving mail when the current watch expires",
 			mb.ownerID, err)
 		writeAuditLog(ctx, "renew_watch", fmt.Sprintf("user %q: renewal failed: %v", mb.ownerID, err), false)
+		noteRefusedGrant(ctx, mb.ownerID, err)
 		return
 	}
 	writeAuditLog(ctx, "renew_watch", fmt.Sprintf("user %q: renewed", mb.ownerID), true)
@@ -786,12 +789,16 @@ func ingestMessage(ctx context.Context, mb *mailbox, msgID string) error {
 		return quarantine(ctx, mb.ownerID, msgID, msg.Payload.Headers, identity)
 	}
 
+	authStatus := parseAuthStatus(msg.Payload.Headers)
+
 	stored := StoredMessage{
 		UserID:         mb.ownerID,
 		GmailMessageID: msgID,
 		FromAddr:       headerValue(msg.Payload.Headers, "From"), // kept unmasked on purpose: docs/decisions/shared.md, 2026-10-04
 		ReplyTo:        headerValue(msg.Payload.Headers, "Reply-To"),
 		ReceivedAt:     time.Now().UTC(),
+		IsAutomated:    isAutomated(msg.Payload.Headers),
+		AuthStatus:     authStatus,
 		ThreadIdentity: identity,
 		MaskedContent:  content,
 	}

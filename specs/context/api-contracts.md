@@ -22,6 +22,46 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
 - Mailbox scope: a signed-in user sees mail only for a mailbox they own (stage 1: the Gmail account
   the backend is connected to, read at startup; `MAILBOX_OWNER_EMAIL` is a fallback). Anyone else gets `[]` from `GET /emails` and `GET /documents`, and `404` from every
   route about one email, `/search`, `/ask` and document ingestion.
+- **Holding reply (2026-10-06, `specs/features/holding-reply.md`):** `GET /settings/holding-reply`
+  returns `{enabled, activeWhen, workDays, workStart, workEnd, timezone, leaveFrom, leaveUntil,
+  audience, scope, cooldownDays, templates: {en?, ms?, zh?}, defaultLanguage}` (defaults with
+  `enabled: false` when unset); `PUT` validates and saves it (`422` with a code for an unknown
+  placeholder, `{return_date}` without leave dates, an empty template, or an unknown timezone).
+  `GET /holding-replies?limit=` lists `{id, emailId, recipient, language, scheduledFor, sentAt,
+  cancelledReason}` newest first; `DELETE /holding-replies/{id}` cancels one still waiting (`409`
+  once sent). All per signed-in user; `403 account_only` for the script token.
+- **Sender verification and audit (2026-10-07, `specs/features/sender-verification-and-audit.md`):**
+  every email carries `authStatus`: `pass`, `spoof_detected` or `sender_confirmed`. For a
+  `spoof_detected` email, regenerate and refine answer `409 sender_unverified`, and so does send.
+  `POST /emails/{id}/confirm-sender` returns the email, now `sender_confirmed` (404 if not the
+  caller's). `GET /audit?limit=` (1-100, default 50) returns `{is_chain_intact, total_records,
+  verified_records, head_hash, events: [{id, created_at, action, detail, success, prev_hash,
+  current_hash, user_id, is_verified}]}`: the caller's own rows, or every row for the script token.
+- **Removing a document (2026-10-07, `specs/features/rag-retrieval.md`):** `DELETE /documents/{id}`
+  returns `204` and removes the document, its chunks and both kinds of vector; `404` when it is not
+  in the caller's library (someone else's, a past reply, or unknown); `422` for a malformed id.
+- <a id="writing-style"></a>**Writing style (2026-10-06, `specs/features/writing-profile.md`):**
+  `GET /profile/writing` returns `{description, learning, examples: [{id, text, source, createdAt}],
+  habits: [{id, kind, value, evidence, outOf}], maxExamples}`; every text is the masked copy that
+  was stored. `PUT /profile/writing/description` `{description}` and `POST /profile/writing/examples`
+  `{text}` or `{emailId}` mask before storing and return the stored copy (`503 masking_unavailable`,
+  nothing stored; `409 too_many_examples`; `404` for an email that is not the user's or not sent;
+  `422 empty`/`too_long`). `PUT /profile/writing/learning` `{enabled}`.
+  `DELETE /profile/writing/examples/{id}`, `DELETE /profile/writing/habits/{id}` (hidden for good)
+  and `DELETE /profile/writing` (everything, including stored past replies; learning off) return `204`.
+  While learning is on, a send also stores a past reply that drafts may cite as `rag_sources` with
+  `label: "Your earlier reply"`; `GET /documents` never lists them. Per signed-in user;
+  `403 account_only` for the script token. The agent's `/process-email` and `/refine` take
+  `style_hint: str = ""` and `style_examples: list[str] = []`, fenced as data.
+- **Expired Google access (2026-10-06, `specs/features/per-user-mailboxes.md`):** `GET /auth/session`
+  also returns `needsReconnect` (bool). A send whose Google token was refused returns
+  `409 google_access_expired`.
+- **Private mode (2026-10-06, `specs/features/local-model.md`):** `GET /settings/private-mode`
+  returns `{available, enabled, model, search}` (`search`: `LOCAL_EMBEDDING_MODEL` is set, so private
+  drafts search documents and past replies); `PUT` `{enabled}` saves it (`409 private_mode_unavailable`
+  when the company has not set `LOCAL_LLM_MODEL`). The agent's `/process-email`, `/refine` and
+  `/translate` take `provider: "gemini" | "local"` (default `gemini`); a local call that cannot
+  reach Ollama returns the same `503` as an unreachable Gemini.
 - **Account (2026-10-05, `specs/features/per-user-mailboxes.md` "Disconnect and delete account"):**
   `DELETE /account/gmail` revokes the Google token, deletes the user's stored emails and their
   connection (`204`; `404 not_connected`). `DELETE /account` also deletes their documents, profile

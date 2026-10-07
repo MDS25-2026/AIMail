@@ -1,6 +1,7 @@
+import { ShieldAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import type { Email } from "../types/email";
+import { AuthStatus, type Email } from "../types/email";
 import { detailValues } from "../lib/details";
 import { DetailsContext } from "../lib/detailsContext";
 import { useFormat } from "../lib/useFormat";
@@ -77,8 +78,14 @@ export default function EmailListItem({
               <WithDetails text={email.preview} />
             </p>
           )}
-          <div className="mt-2">
+          <div className="mt-2 flex items-center justify-between gap-2">
             <PriorityBadge priority={email.priority} />
+            {email.authStatus === AuthStatus.SpoofDetected ? (
+              <span className="flex items-center gap-1 rounded bg-danger-soft px-1.5 py-0.5 text-[11px] font-semibold text-danger">
+                <ShieldAlert aria-hidden className="size-3" />
+                {t("security.spoofBadge")}
+              </span>
+            ) : null}
           </div>
         </button>
       </li>

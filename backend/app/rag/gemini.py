@@ -18,6 +18,6 @@ _RETRY = types.HttpRetryOptions(
 
 def gemini_client() -> genai.Client:
     return genai.Client(
-        api_key=get_settings().gemini_api_key,
+        api_key=get_settings().google_api_key,
         http_options=types.HttpOptions(timeout=REQUEST_TIMEOUT_MS, retry_options=_RETRY),
     )

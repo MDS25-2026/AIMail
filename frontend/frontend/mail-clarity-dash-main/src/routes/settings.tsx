@@ -3,7 +3,11 @@ import type { ReactNode } from "react";
 import { Trans, useTranslation } from "react-i18next";
 
 import AccountCard from "../components/AccountCard";
+import HoldingReplyCard from "../components/HoldingReplyCard";
+import PrivateModeCard from "../components/PrivateModeCard";
+import WritingStyleCard from "../components/WritingStyleCard";
 import AppShell from "../components/AppShell";
+import Choice from "../components/Choice";
 import { PageError, PageLoading } from "../components/PageState";
 import { usePreferences } from "../lib/usePreferences";
 import { Language, StatusColours, Theme, UnitSystem } from "../lib/preferences";
@@ -45,6 +49,18 @@ function SettingsPage() {
         <div className="mb-4 grid gap-4 lg:grid-cols-2">
           <AppearanceCard />
           <AccountCard />
+        </div>
+
+        <div className="mb-4">
+          <HoldingReplyCard />
+        </div>
+
+        <div className="mb-4">
+          <WritingStyleCard />
+        </div>
+
+        <div className="mb-4">
+          <PrivateModeCard />
         </div>
 
         {info.isPending ? <PageLoading label={t("settings.label")} /> : null}
@@ -144,45 +160,6 @@ function AppearanceCard() {
       <p className="text-xs text-fg-muted">{t("settings.coloursHint")}</p>
       <p className="pt-1 text-xs text-fg-subtle">{t("settings.preferencesNote")}</p>
     </section>
-  );
-}
-
-type ChoiceProps<T extends string> = {
-  label: string;
-  value: T;
-  onChange: (value: T) => void;
-  options: { value: T; label: string; lang?: string }[];
-};
-
-/** A segmented radio group: every option visible at once, keyboard-operable as native radios. */
-function Choice<T extends string>({ label, value, onChange, options }: ChoiceProps<T>) {
-  return (
-    <fieldset className="flex flex-wrap items-center justify-between gap-2">
-      <legend className="float-left text-sm text-fg-muted">{label}</legend>
-      <div className="inline-flex flex-wrap rounded-md border border-line bg-surface-muted p-0.5">
-        {options.map((option) => (
-          <label
-            key={option.value}
-            lang={option.lang}
-            className={`cursor-pointer rounded px-2.5 py-1 text-xs font-medium focus-within:ring-2 focus-within:ring-brand ${
-              option.value === value
-                ? "bg-surface text-fg shadow-sm"
-                : "text-fg-muted hover:text-fg-body"
-            }`}
-          >
-            <input
-              type="radio"
-              className="sr-only"
-              name={label}
-              value={option.value}
-              checked={option.value === value}
-              onChange={() => onChange(option.value)}
-            />
-            {option.label}
-          </label>
-        ))}
-      </div>
-    </fieldset>
   );
 }
 

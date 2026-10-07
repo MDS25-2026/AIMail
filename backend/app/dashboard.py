@@ -15,6 +15,7 @@ from uuid import UUID
 
 import httpx
 from sqlalchemy import func, select, update
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import connections
@@ -34,15 +35,18 @@ from app.core.middleware import REQUEST_ID_HEADER
 from app.core.ownership import EVERYTHING, Scope
 from app.core.redaction import PLACEHOLDER, has_redaction_marker
 from app.core.vault import ThreadMap, build_thread_map
-from app.db.models import MaskingStatus, Message, UserProfile
+from app.db.models import AuthStatus, MaskingStatus, Message, UserProfile
 from app.db.session import get_sessionmaker
 from app.gmail_send import SendError, SendOutcomeUnknownError, send_reply
 from app.normalise.quantities import quantities_in
+from app.past_replies import remember_reply
 from app.personalisation import DEFAULT_POLICY, Policy, apply_policy, load_policy
 from app.plain_text import plain_text
+from app.private_mode import provider_for
 from app.rag.embed import EmbeddingError
 from app.rag.retrieve import retrieve
 from app.rag.utils import format_rag_context
+from app.writing_style import edit_ratio, is_learning, relearn, style_for
 
 logger = logging.getLogger(__name__)
 
@@ -147,6 +151,7 @@ def _to_email(
         preview=details.renumber(key, message.snippet_masked or ""),
         body=details.renumber(key, message.body_masked or ""),
         timestamp=(message.received_at or message.created_at).isoformat(),
+        authStatus=AuthStatus(message.auth_status or AuthStatus.PASS),
         # The classifier's prediction, then the user's policy on top of it.
         priority=apply_policy(message, policy),
         threadContext=_thread_view(thread or [], details),
@@ -222,6 +227,8 @@ class DraftErrorCode(StrEnum):
     AGENT_UNAVAILABLE = "agent_unavailable"  # the agent or retrieval failed; try again later
     DRAFT_REFUSED = "draft_refused"  # the model failed on this content; the old draft stays
     MASKING_PENDING = "masking_pending"  # quarantined: there is nothing masked to draft from
+    # The sender failed SPF, DKIM or DMARC and the owner has not confirmed them: no draft for a spoofer.
+    SENDER_UNVERIFIED = "sender_unverified"
 
 
 class DraftNotUpdatedError(RuntimeError):
@@ -239,6 +246,7 @@ class SendErrorCode(StrEnum):
     SEND_NOT_GRANTED = "send_not_granted"  # the owner allowed AIMail to read their Gmail, not send
     # A placeholder with no known value: invented by the model, or its vault expired or will not open.
     UNRESOLVED_PLACEHOLDERS = "unresolved_placeholders"
+    SENDER_UNVERIFIED = "sender_unverified"  # failed SPF, DKIM or DMARC, not confirmed by the owner
 
 
 @dataclass(frozen=True)
@@ -289,6 +297,7 @@ async def generate_pending(limit: int | None = None) -> int:
         .where(
             Message.generated_at.is_(None),
             Message.masking_status == MaskingStatus.COMPLETE,
+            Message.auth_status.is_distinct_from(AuthStatus.SPOOF_DETECTED),
             Message.generation_attempts < MAX_GENERATION_ATTEMPTS,
         )
         .order_by(Message.generation_attempts, Message.created_at.desc())
@@ -377,13 +386,17 @@ async def _generate(message: Message, tone: str, thread: list[Message], details:
     The chunks ride along under "rag_sources" so the caller stores what the draft was grounded on.
     """
     try:
-        chunks = await retrieve(message.body_masked or "", k=5, scope=Scope(owner_id=message.user_id))
+        provider = await provider_for(message.user_id)
+        chunks = await retrieve(message.body_masked or "", k=5, scope=Scope(owner_id=message.user_id),
+                                provider=provider)
         payload = {
             "thread_context": thread_context(message, thread, details),
             "email_body": details.renumber(str(message.id), message.body_masked or ""),
             "rag_context": format_rag_context(chunks),
             "tone": _TONE_PROMPTS.get(tone, _TONE_PROMPTS["professional"]),
             "sign_off": details.owner or "",
+            "provider": provider,
+            **await _style_fields(message.user_id),
         }
         try:
             generated = await _call_agent("/process-email", payload)
@@ -444,6 +457,8 @@ async def _generate_and_store(
     """
     if not message.is_masked:
         return GenerationOutcome.SKIPPED  # quarantined (#109): no masked content to draft from yet
+    if message.is_spoofed:
+        return GenerationOutcome.SKIPPED  # covers drafting on open and the poller alike
     details = details or await _details_for(message, thread or [])
     generated = await _generate(message, tone, thread or [], details)
     if generated.get(NOT_DRAFTED) and message.draft_reply:
@@ -458,7 +473,8 @@ async def _generate_and_store(
     if not is_usable:
         return GenerationOutcome.FAILED
     await audit("generate_draft", f"message={message.id} tone={tone} "
-                f"confidence={message.critic_confidence} review={message.needs_human_review}")
+                f"confidence={message.critic_confidence} review={message.needs_human_review}",
+                user_id=message.user_id)
     return GenerationOutcome.STORED if fields.get("draft_reply") else GenerationOutcome.NO_REPLY
 
 
@@ -506,6 +522,29 @@ async def email_for_thread(thread_id: str, *, scope: Scope) -> DashboardEmail | 
     return await email_detail(str(pk), scope=scope)
 
 
+async def confirm_sender(message_id: str, *, scope: Scope) -> DashboardEmail | None:
+    """The owner checked a flagged sender and says they are real; drafting resumes on the next open.
+
+    Only spoof_detected moves, so a passing email is never relabelled and a repeat is harmless.
+    """
+    try:
+        pk = UUID(message_id)
+    except ValueError:
+        return None
+    loaded = await _load_with_thread(pk, scope)
+    if loaded is None:
+        return None
+    message, thread = loaded
+    if message.is_spoofed:
+        async with get_sessionmaker()() as session, session.begin():
+            await session.execute(update(Message).where(
+                Message.id == pk, Message.auth_status == AuthStatus.SPOOF_DETECTED,
+            ).values(auth_status=AuthStatus.SENDER_CONFIRMED, generation_attempts=0))
+        message.auth_status = AuthStatus.SENDER_CONFIRMED
+        await audit("confirm_sender", f"message={message_id}", user_id=message.user_id)
+    return _to_email(message, thread=thread, details=await _details_for(message, thread))
+
+
 async def regenerate_email(
     message_id: str, *, scope: Scope, tone: str = "professional"
 ) -> DashboardEmail | None:
@@ -524,6 +563,8 @@ async def regenerate_email(
     message, thread = loaded
     if message.sent_at is not None:
         raise AlreadySentError(message_id)
+    if message.is_spoofed:
+        raise DraftNotUpdatedError(DraftErrorCode.SENDER_UNVERIFIED, 409)
     details = await _details_for(message, thread)
     outcome = await _generate_and_store(message, thread, tone, details)
     _raise_unless_updated(message, outcome)
@@ -591,6 +632,8 @@ async def approve_and_send(message_id: str, draft: str, *, scope: Scope) -> Dash
         return None
     if not message.is_masked:
         raise SendRejectedError(SendErrorCode.MASKING_PENDING, 409)
+    if message.is_spoofed:
+        raise SendRejectedError(SendErrorCode.SENDER_UNVERIFIED, 409)
     reply = _outgoing(draft, await _details_for(message, await _thread_for(message)))
     if message.user_id is not None and not await connections.can_send(message.user_id):
         raise SendRejectedError(SendErrorCode.SEND_NOT_GRANTED, 403)
@@ -603,15 +646,22 @@ async def approve_and_send(message_id: str, draft: str, *, scope: Scope) -> Dash
         )
     except SendOutcomeUnknownError:
         # The claim stays: Gmail may have sent, and releasing it would invite a second copy.
-        await audit("send_outcome_unknown", f"message={message_id}", success=False)
+        await audit("send_outcome_unknown", f"message={message_id}", success=False,
+                    user_id=message.user_id)
         raise
     except SendError:
         await _release_send_claim(pk)
         # The failed attempt is the row an auditor most wants; log before unwinding.
-        await audit("approve_and_send", f"message={message_id}", success=False)
+        await audit("approve_and_send", f"message={message_id}", success=False,
+                    user_id=message.user_id)
         raise
     async with get_sessionmaker()() as session:
         stored = await session.get(Message, pk)
+        is_learning_style = await is_learning(session, stored.user_id)
+        if is_learning_style:
+            # Both sides in placeholder form, so the learner never sees a real detail.
+            stored.draft_shown = stored.draft_reply or ""
+            stored.edit_ratio = edit_ratio(stored.draft_shown, reply.stored)
         # The record keeps placeholders, so no detail sits readable outside its vault.
         stored.draft_reply = reply.stored
         stored.sent_message_id = sent.message_id
@@ -619,8 +669,28 @@ async def approve_and_send(message_id: str, draft: str, *, scope: Scope) -> Dash
         stored.thread_id = stored.thread_id or sent.thread_id
         await session.commit()
         email = _to_email(stored)
-    await audit("approve_and_send", f"message={message_id} restored={reply.restored}")
+    await audit("approve_and_send", f"message={message_id} restored={reply.restored}",
+                user_id=message.user_id)
+    if is_learning_style:
+        await _relearn_after_send(stored.user_id)
+        await remember_reply(stored.user_id, pk, message.body_masked or "", reply.stored)
     return email
+
+
+async def _relearn_after_send(user_id: UUID) -> None:
+    """The reply is already sent, so a learning failure is logged and never reported as a send error."""
+    try:
+        async with get_sessionmaker()() as session, session.begin():
+            await relearn(session, user_id)
+    except SQLAlchemyError:
+        logger.exception("writing style: relearning failed for user %s", user_id)
+
+
+async def _style_fields(user_id: UUID | None) -> dict:
+    """The user's writing style for a draft request; masked when stored, so it can go as is."""
+    async with get_sessionmaker()() as session:
+        style = await style_for(session, user_id)
+    return {"style_hint": style.hint, "style_examples": style.examples}
 
 
 def _stored_rag_context(message: Message) -> str:
@@ -645,6 +715,8 @@ async def _refine(
         "rag_context": _stored_rag_context(message),
         "action_items": message.action_items or [],
         "sign_off": details.owner or "",
+        "provider": await provider_for(message.user_id),
+        **await _style_fields(message.user_id),
     }
     try:
         refined = await _call_agent("/refine", payload)
@@ -706,13 +778,16 @@ async def translate_email(message_id: str, language: str, *, scope: Scope) -> di
     if len(text) > MAX_TRANSLATE_CHARS:
         raise TranslationError("email_too_long_to_translate", 413)
     try:
-        translated = await _call_agent("/translate", {"text": text, "language": language})
+        translated = await _call_agent("/translate", {"text": text, "language": language,
+                                                      "provider": await provider_for(message.user_id)})
     except httpx.HTTPStatusError as exc:
-        await audit("translate_email", f"message={message_id} language={language}", success=False)
+        await audit("translate_email", f"message={message_id} language={language}", success=False,
+                    user_id=message.user_id)
         raise TranslationError(_agent_error_code(exc.response), exc.response.status_code) from exc
     except httpx.HTTPError as exc:
         raise TranslationError("agent_unreachable", 502) from exc
-    await audit("translate_email", f"message={message_id} language={language}")
+    await audit("translate_email", f"message={message_id} language={language}",
+                user_id=message.user_id)
     return translated
 
 
@@ -732,11 +807,14 @@ async def refine_email(
         raise AlreadySentError(message_id)
     if not message.is_masked:
         raise DraftNotUpdatedError(DraftErrorCode.MASKING_PENDING, 409)
+    if message.is_spoofed:
+        raise DraftNotUpdatedError(DraftErrorCode.SENDER_UNVERIFIED, 409)
     details = await _details_for(message, thread)
     try:
         refined = await _refine(message, thread, draft, instruction, details)
     except DraftNotUpdatedError:
-        await audit("refine_draft", f"message={message_id}", success=False)
+        await audit("refine_draft", f"message={message_id}", success=False,
+                    user_id=message.user_id)
         raise
     # The old verdict described the old draft; the refined one carries its own.
     fields = {"draft_reply": refined["draft"], **_review_fields(refined)}
@@ -744,5 +822,6 @@ async def refine_email(
         raise AlreadySentError(message_id)
     for column, value in fields.items():
         setattr(message, column, value)
-    await audit("refine_draft", f"message={message_id} review={message.needs_human_review}")
+    await audit("refine_draft", f"message={message_id} review={message.needs_human_review}",
+                user_id=message.user_id)
     return _to_email(message, thread=thread, details=details)

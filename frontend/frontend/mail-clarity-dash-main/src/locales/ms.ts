@@ -14,6 +14,7 @@ export const ms: Translations = {
     drafts: "Draf",
     sent: "Dihantar",
     knowledge: "Pengetahuan",
+    audit: "Jejak Audit",
     settings: "Tetapan",
     admin: "Pentadbir",
   },
@@ -148,6 +149,12 @@ export const ms: Translations = {
     stored_one: "{{count}} bahagian disimpan.",
     stored_other: "{{count}} bahagian disimpan.",
     failed: "Gagal",
+    remove: "Buang",
+    removeNamed: "Buang {{title}}",
+    removeYes: "Ya, buang",
+    removeNo: "Simpan",
+    removing: "Membuang…",
+    removeFailed: "Tidak dapat membuangnya. Cuba lagi.",
     errors: {
       too_large: "Fail itu melebihi had 10 MB.",
       rate_limited: "Terlalu banyak muat naik sekarang. Tunggu seminit dan cuba lagi.",
@@ -203,6 +210,219 @@ export const ms: Translations = {
     show: "Tunjuk butiran",
     unavailable:
       "Sesetengah butiran tidak lagi disimpan di sini. Buka e-mel dalam Gmail untuk melihatnya.",
+  },
+  hiddenDetails: {
+    intro_one:
+      "Draf ini ada {{count}} butiran yang tidak pernah dilihat AI. Ketik untuk menaip nilai sebenar.",
+    intro_other:
+      "Draf ini ada {{count}} butiran yang tidak pernah dilihat AI. Ketik satu untuk menaip nilai sebenar.",
+    explain:
+      "AI tidak pernah melihat butiran ini, dan AIMail tidak dapat mengisinya semula. Taip nilai sebenar di sini untuk menggantikan tempat ini dalam draf anda.",
+    typeHere: "Taip nilai sebenar",
+    fill: "Isi",
+    kind: {
+      name: "nama tersembunyi",
+      email: "e-mel tersembunyi",
+      phone: "telefon tersembunyi",
+      id: "nombor pengenalan tersembunyi",
+      account: "nombor akaun tersembunyi",
+      card: "nombor kad tersembunyi",
+      place: "tempat tersembunyi",
+      organisation: "organisasi tersembunyi",
+      other: "butiran tersembunyi",
+    },
+  },
+  receipt: {
+    open: "Resit privasi",
+    title: "Resit privasi",
+    description:
+      "Rupa sebenar e-mel ini semasa dihantar kepada AI, dan apa yang kekal dengan anda.",
+    hiddenTitle: "Disembunyikan sebelum AI melihatnya",
+    noneHidden: "Tiada apa-apa dalam e-mel ini yang perlu disembunyikan.",
+    count_one: "{{count}} {{kind}}",
+    count_other: "{{count}} × {{kind}}",
+    sentTitle: "Apa yang diberikan kepada AI",
+    sentHint: "Teks e-mel, dengan setiap butiran diganti dengan pemegang tempat.",
+    keptTitle: "Apa yang kekal dengan anda",
+    keptHint: "Nilai sebenar, disimpan dimeterai dalam AIMail dan hanya ditunjukkan kepada anda.",
+    noneKept: "Tiada butiran disimpan untuk e-mel ini.",
+    alsoSent:
+      "Mesej terdahulu dalam bebenang, petikan polisi yang sepadan dan gaya penulisan anda dihantar kepada AI dengan cara yang sama, dengan butiran disembunyikan.",
+  },
+  holdingReply: {
+    title: "Balasan sementara",
+    intro:
+      "Semasa anda tiada, orang yang menghantar e-mel menerima balasan ringkas dalam kata-kata anda sendiri, supaya mereka tahu bila akan dijawab. AI tidak pernah menulis atau mengubahnya.",
+    loadFailed: "Tidak dapat memuatkan tetapan balasan sementara anda.",
+    enabled: "Hantar balasan sementara semasa saya tiada",
+    when: "Bila",
+    outsideHours: "Di luar waktu kerja",
+    onLeave: "Bercuti",
+    always: "Sentiasa",
+    workingHours: "Waktu kerja",
+    workStart: "Mula",
+    workEnd: "Tamat",
+    to: "hingga",
+    timezone: "Zon waktu",
+    leave: "Cuti",
+    leaveFrom: "Cuti bermula",
+    leaveUntil: "Cuti tamat",
+    who: "Siapa menerimanya",
+    correspondents: "Orang yang pernah saya hubungi",
+    domain: "Syarikat saya",
+    everyone: "Semua orang",
+    which: "E-mel mana",
+    needsReply: "Yang perlu dibalas",
+    all: "Semua",
+    cooldown: "Hari sebelum orang yang sama menerima lagi",
+    template: "Mesej",
+    templatePlaceholder:
+      "Salam {name}, terima kasih atas e-mel anda. Saya tiada dan akan membalas apabila kembali.",
+    fields: "{name} menjadi nama pengirim; {return_date} menjadi tarikh cuti anda tamat.",
+    preview: "Apa yang mereka akan terima",
+    defaultLanguage: "Jika bahasa mereka tiada mesej, gunakan",
+    save: "Simpan",
+    saving: "Menyimpan…",
+    savedOn: "Disimpan. Balasan sementara anda dihidupkan.",
+    savedOff: "Disimpan. Balasan sementara anda dimatikan.",
+    saveFailed: "Tidak dapat menyimpan. Cuba lagi sebentar lagi.",
+    sentTitle: "Dihantar atas nama anda",
+    sentAt: "Dihantar {{when}}",
+    waitingUntil: "Menunggu hingga {{when}}, sekiranya anda membalas dahulu",
+    cancel: "Jangan hantar",
+    days: {
+      "1": "Isn",
+      "2": "Sel",
+      "3": "Rab",
+      "4": "Kha",
+      "5": "Jum",
+      "6": "Sab",
+      "7": "Ahd",
+    },
+    errors: {
+      unknown_placeholder:
+        "Hanya {name} dan {return_date} boleh digunakan dalam kurungan kerinting.",
+      return_date_needs_leave: "Tetapkan tarikh tamat cuti untuk menggunakan {return_date}.",
+      empty_template: "Mesej tidak boleh kosong.",
+      template_too_long: "Mesej itu terlalu panjang (paling banyak 2000 aksara).",
+      no_default_template: "Tulis mesej dalam bahasa sandaran anda dahulu.",
+      unknown_timezone: "Zon waktu itu tidak dikenali.",
+      leave_needs_dates: 'Tetapkan kedua-dua tarikh cuti untuk menggunakan "Bercuti".',
+      leave_ends_before_it_starts: "Cuti tidak boleh tamat sebelum bermula.",
+      workday_ends_before_it_starts: "Hari kerja anda tidak boleh tamat sebelum bermula.",
+      bad_work_days: "Pilih sekurang-kurangnya satu hari kerja.",
+      invalid: "Tetapan itu tidak dapat disimpan.",
+    },
+    reasons: {
+      disabled: "Tidak dihantar: balasan sementara dimatikan",
+      before_enabled: "Tidak dihantar: tiba sebelum dihidupkan",
+      masking_pending: "Tidak dihantar: e-mel masih disembunyikan",
+      automated: "Tidak dihantar: e-mel automatik",
+      phishing: "Tidak dihantar: kelihatan seperti pancingan data",
+      reply_to_differs: "Tidak dihantar: alamat balasan tidak sepadan dengan pengirim",
+      not_active: "Tidak dihantar: tiba dalam waktu kerja",
+      outside_domain: "Tidak dihantar: pengirim di luar syarikat anda",
+      no_sender: "Tidak dihantar: tiada pengirim untuk dibalas",
+      no_template: "Tidak dihantar: tiada mesej ditulis",
+      stale: "Tidak dihantar: tidak sempat dihantar",
+      user_replied: "Tidak dihantar: anda membalas dahulu",
+      cooldown: "Tidak dihantar: mereka baru menerimanya",
+      daily_cap: "Tidak dihantar: had harian dicapai",
+      no_reply_needed: "Tidak dihantar: e-mel tidak perlu dibalas",
+      not_correspondent: "Tidak dihantar: anda belum pernah menghubungi mereka",
+      no_thread: "Tidak dihantar: tidak dapat menyemak perbualan",
+      cancelled_by_user: "Tidak dihantar: anda membatalkannya",
+      other: "Tidak dihantar",
+    },
+  },
+  writingStyle: {
+    quickLabel: "Pilihan pantas",
+    quick: {
+      formal: { label: "Lebih formal", text: "Formal dan sopan." },
+      thanks: {
+        label: "Sentiasa ucap terima kasih",
+        text: "Sentiasa ucap terima kasih kepada pengirim dahulu.",
+      },
+      shorter: { label: "Lebih ringkas", text: "Balasan yang ringkas." },
+      warmer: { label: "Lebih mesra", text: "Mesra dan ramah." },
+    },
+    title: "Gaya penulisan anda",
+    intro:
+      "Beritahu AIMail cara anda menulis, atau tunjukkan. Draf mengikut gaya anda. Nama, nombor dan alamat disembunyikan sebelum apa-apa disimpan, dan tiada AI dilatih dengan e-mel anda.",
+    loadFailed: "Tidak dapat memuatkan gaya penulisan anda.",
+    describe: "Terangkan cara anda menulis",
+    describePlaceholder: 'Mesra tetapi ringkas, tiada jargon, tutup dengan "Terima kasih,"',
+    aiSees: "Apa yang dilihat oleh AI",
+    save: "Simpan",
+    saving: "Menyimpan…",
+    examples_one: "Contoh balasan ({{count}} daripada {{max}})",
+    examples_other: "Contoh balasan ({{count}} daripada {{max}})",
+    examplesHint:
+      'Tampal balasan yang berbunyi seperti anda, atau guna "Guna sebagai contoh" pada balasan yang anda hantar. AI meniru gayanya, bukan kandungannya.',
+    examplePlaceholder: "Tampal balasan yang anda tulis",
+    addExample: "Tambah contoh",
+    remove: "Buang",
+    source: {
+      pasted: "Ditampal",
+      sent: "Daripada balasan yang anda hantar",
+    },
+    learn: "Belajar daripada balasan yang saya hantar",
+    learnHint:
+      "Dimatikan melainkan anda menghidupkannya. AIMail mengesan tabiat yang anda ulang sekurang-kurangnya 3 kali, seperti salam anda atau perkataan yang selalu anda ubah, dan menyenaraikannya di sini. Ia juga menyimpan setiap balasan, dengan butiran peribadi disembunyikan, supaya draf kemudian untuk e-mel yang serupa boleh menggunakan semula cara anda menjawab.",
+    nothingYet:
+      "Belum ada yang dipelajari. Tabiat muncul selepas anda menggunakannya dalam 3 balasan.",
+    evidence_one: "Dalam {{count}} daripada {{outOf}} balasan terakhir anda",
+    evidence_other: "Dalam {{count}} daripada {{outOf}} balasan terakhir anda",
+    forget: "Lupakan",
+    habit: {
+      greeting: 'Bermula dengan "{{value}}"',
+      signoff: 'Ditutup dengan "{{value}}"',
+      swap: 'Menulis "{{after}}" dan bukan "{{before}}"',
+      length: {
+        short: "Balasan ringkas (bawah 60 perkataan)",
+        medium: "Balasan sederhana panjang",
+        long: "Balasan terperinci",
+      },
+    },
+    deleteEverything: "Padam gaya penulisan saya",
+    deleteConfirm:
+      "Padam penerangan, contoh, tabiat dan semua yang direkodkan daripada balasan anda?",
+    deleteYes: "Padam semua",
+    keep: "Simpan",
+    useAsExample: "Guna sebagai contoh",
+    addedAsExample: "Ditambah ke gaya penulisan anda.",
+    errors: {
+      masking_unavailable:
+        "Tidak dapat menyembunyikan butiran peribadi sekarang, jadi tiada apa yang disimpan. Cuba lagi sebentar lagi.",
+      too_many_examples: "Anda sudah ada 3 contoh. Buang satu dahulu.",
+      empty: "Tiada apa untuk disimpan.",
+      not_found: "Balasan itu tidak dijumpai.",
+      failed: "Ada masalah. Cuba lagi.",
+    },
+  },
+  reconnect: {
+    banner:
+      "Google telah menghentikan akses AIMail ke Gmail anda, jadi e-mel baharu tidak masuk dan balasan tidak boleh dihantar. Akses ujian bertahan 7 hari.",
+    signIn: "Log masuk semula",
+  },
+  privateMode: {
+    notSetUp:
+      "Mod peribadi dihidupkan, tetapi AIMail ini tiada model peribadi, jadi e-mel anda tidak boleh didraf di sini. Matikannya untuk mendraf dengan Gemini.",
+    title: "Mod peribadi",
+    switch: "Simpan e-mel saya dalam syarikat",
+    intro:
+      "E-mel anda didraf, disemak, diperhalusi dan diterjemah oleh {{model}} yang berjalan pada komputer syarikat anda sendiri. Tiada apa-apa daripada peti masuk anda dihantar kepada Google.",
+    on: "Mod peribadi dihidupkan. Draf baharu kekal dalam syarikat.",
+    off: "Mod peribadi dimatikan. Draf menggunakan Gemini Google.",
+    failed: "Tidak dapat menukar mod peribadi. Cuba lagi sebentar lagi.",
+    notes: {
+      search:
+        "Dokumen dan balasan terdahulu anda juga dicari pada komputer syarikat, jadi draf masih boleh memetiknya.",
+      noSearch:
+        "AIMail ini tiada carian peribadi, jadi draf dalam mod peribadi tidak akan memetik dokumen atau balasan terdahulu anda.",
+      n2: "Draf mengambil masa lebih sedikit, dan semakan AI sendiri kurang ketat, jadi baca setiap draf sebelum menghantar.",
+      n3: "Tanya AIMail masih menggunakan Google.",
+    },
   },
   account: {
     title: "Akaun",
@@ -264,6 +484,19 @@ export const ms: Translations = {
     abandonedTitle: "Tidak disimpan: tidak dapat disamarkan",
     abandonedBody:
       "Pendengar mencuba berulang kali tetapi tidak dapat membuang data peribadi daripada e-mel ini, atau ia telah dipadam daripada Gmail terlebih dahulu. Kandungannya tidak pernah disimpan, jadi tiada apa untuk dibaca atau didraf. Bukanya dalam Gmail jika anda memerlukannya.",
+  },
+  security: {
+    spoofBadge: "Penyamaran dikesan",
+    spoofTitle: "Pengesahan pengirim gagal — draf automatik dinyahdayakan",
+    spoofBody:
+      "E-mel ini gagal pengesahan domain (SPF, DKIM, atau DMARC gagal). Untuk melindungi domain korporat anda daripada pancingan data, AIMail telah menyahdayakan penjanaan draf automatik untuk mesej ini.",
+    viewInGmail:
+      "Buka dalam Gmail untuk memeriksa pengepala atau membalas secara manual jika pengirim ini sah.",
+    confirmSender: "Saya telah menyemak pengirim ini",
+    confirmQuestion: "Sahkan hanya jika anda tahu pengirim ini sah. Draf balasan?",
+    confirmYes: "Ya, pengirim ini sah",
+    confirmNo: "Batal",
+    confirmFailed: "Tidak dapat mengesahkan pengirim. Cuba lagi.",
   },
   admin: {
     title: "Pentadbir",
@@ -332,6 +565,53 @@ export const ms: Translations = {
     needsAttention: "perlu perhatian",
     loading: "data pentadbir",
   },
+  audit: {
+    title: "Jejak Audit",
+    subtitle:
+      "Peristiwa AI dan perlindungan data anda, setiap satu dipautkan dengan hash SHA-256 kepada yang sebelumnya, supaya rekod yang diubah atau dipadam dapat dikesan.",
+    chainIntact: "Lejar Sah: Rantaian Hash SHA-256 Disahkan",
+    chainBroken: "Lejar Terjejas: Percanggahan Rantaian Hash Dikesan",
+    verifiedCount: "{{verified}} daripada {{total}} rekod disahkan dalam rantaian hash",
+    empty: "Tiada rekod audit ditemui lagi.",
+    exportJson: "Eksport Resit Audit (JSON)",
+    headers: {
+      timestamp: "Cap Masa",
+      action: "Peristiwa / Tindakan",
+      status: "Status",
+      detail: "Ringkasan Peristiwa",
+      proof: "Bukti Kriptografi",
+    },
+    status: {
+      passed: "[LULUS]",
+      failed: "[GAGAL]",
+      protected: "[DILINDUNGI]",
+      quarantined: "[DIKUARANTIN]",
+      unknown: "[BELUM SELESAI]",
+    },
+    actions: {
+      generate_draft: "Draf Dijana",
+      store_message: "Mesej Diterima",
+      pii_mask: "PII Diredaksi",
+      approve_and_send: "Dilulus & Dihantar",
+      quarantine: "Penyamaran Dikuarantin",
+      system: "Peristiwa Sistem",
+    },
+    modal: {
+      title: "Bukti Pengesahan Kriptografi",
+      subtitle: "Cara rekod ini dipautkan kepada rekod sebelumnya.",
+      recordId: "ID Rekod",
+      timestamp: "Dicatat Pada",
+      action: "Jenis Tindakan",
+      prevHash: "Hash Blok Sebelumnya (Induk)",
+      currentHash: "Hash Blok Semasa (Sendiri)",
+      formula: "Formula Hash",
+      formulaDesc:
+        "SHA-256(prev_hash | sequence | action | detail | success | user_id | timestamp)",
+      intactMessage:
+        "Hash rekod ini merangkumi hash rekod sebelumnya, jadi mengubah atau memadam rekod lebih awal akan menggagalkan semakan. Seseorang yang mempunyai akses penuh pangkalan data boleh membina semula seluruh rantaian; hash terkini yang direkodkan di tempat lain dapat mengesannya.",
+      close: "Tutup",
+    },
+  },
   draftStatus: {
     generating: "Sedang menulis draf. Ini boleh mengambil masa sehingga 20 saat.",
     loadFailed:
@@ -347,6 +627,8 @@ export const ms: Translations = {
         "AI tidak dapat menulis draf untuk e-mel ini, dan mencuba lagi tidak akan mengubahnya. Teks anda tidak berubah: tulis balasan sendiri, atau cuba nada yang satu lagi.",
       sendUnknown:
         "Kami tidak dapat mengesahkan sama ada balasan telah dihantar. Semak folder Dihantar Gmail anda sebelum menghantar semula.",
+      accessExpired:
+        "Google telah menamatkan akses AIMail ke Gmail anda, jadi balasan tidak dihantar. Log masuk semula untuk menyambung semula; draf anda tidak berubah.",
       sendNotGranted:
         "AIMail tidak dibenarkan menghantar daripada Gmail anda. Log keluar, log masuk semula dan tandakan kotak yang membenarkan AIMail menghantar e-mel. Draf anda tidak berubah.",
       unresolved:
