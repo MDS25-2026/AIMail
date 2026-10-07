@@ -434,7 +434,7 @@ async def remove_document(document_id: UUID, http: Request) -> Response:
     """Chunks and both kinds of vector go with it (ON DELETE CASCADE)."""
     if not await delete_document(document_id, scope_of(http)):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "document not found")
-    await audit("document_deleted", f"document={document_id}")
+    await audit("document_deleted", f"document={document_id}", user_id=scope_of(http).owner_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

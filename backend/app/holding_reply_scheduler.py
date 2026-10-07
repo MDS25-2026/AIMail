@@ -143,12 +143,12 @@ async def verdict_when_due(due: Due, now: datetime) -> Refusal | Verdict:
         return Verdict.WAIT
 
 
-async def _cancel(reply_id: UUID, reason: Refusal) -> None:
+async def _cancel(reply_id: UUID, reason: Refusal, owner_id: UUID | None) -> None:
     async with get_sessionmaker()() as session, session.begin():
         await session.execute(update(HoldingReply).where(
             HoldingReply.id == reply_id, HoldingReply.sent_at.is_(None),
             HoldingReply.cancelled_reason.is_(None)).values(cancelled_reason=reason))
-    await audit("holding_reply_cancelled", f"reply={reply_id} reason={reason}")
+    await audit("holding_reply_cancelled", f"reply={reply_id} reason={reason}", user_id=owner_id)
 
 
 async def _claim(reply_id: UUID) -> bool:
@@ -175,7 +175,8 @@ async def _send(due: Due) -> None:
             due.message.gmail_message_id, due.message.from_addr or "", due.message.subject or "", text,
             owner_id=due.reply.user_id, extra_headers=AUTO_REPLY_HEADERS)
     except gmail_send.SendOutcomeUnknownError:
-        await audit("holding_reply_outcome_unknown", f"reply={due.reply.id}", success=False)
+        await audit("holding_reply_outcome_unknown", f"reply={due.reply.id}", success=False,
+                    user_id=due.reply.user_id)
         return  # the claim stays: Gmail may have sent it, and a second copy is worse than none
     except gmail_send.SendError as exc:
         await _release(due.reply.id)
@@ -184,7 +185,8 @@ async def _send(due: Due) -> None:
     async with get_sessionmaker()() as session, session.begin():
         await session.execute(update(HoldingReply).where(HoldingReply.id == due.reply.id)
                               .values(sent_message_id=sent.message_id))
-    await audit("holding_reply_sent", f"reply={due.reply.id} language={language}")
+    await audit("holding_reply_sent", f"reply={due.reply.id} language={language}",
+                user_id=due.reply.user_id)
 
 
 async def send_due() -> int:
@@ -205,7 +207,7 @@ async def send_due() -> int:
         if verdict == Verdict.WAIT:
             continue  # stale replies come back as Refusal.STALE, so waiting always ends
         if verdict != Verdict.SEND:
-            await _cancel(due.reply.id, verdict)
+            await _cancel(due.reply.id, verdict, due.reply.user_id)
             continue
         await _send(due)
         sent += 1

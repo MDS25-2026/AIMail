@@ -113,8 +113,19 @@ class AuditLog(Base):
     detail: Mapped[str | None] = mapped_column(Text)
     success: Mapped[bool | None]
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # Set by the database trigger (migration 0024), never by the app.
     prev_hash: Mapped[str | None] = mapped_column(Text)
     current_hash: Mapped[str | None] = mapped_column(Text)
+    chain_seq: Mapped[int | None] = mapped_column(BigInteger)
+
+
+class AuthStatus(StrEnum):
+    """The sender's domain check (SPF, DKIM, DMARC), read by the listener (migration 0024)."""
+
+    PASS = "pass"
+    SPOOF_DETECTED = "spoof_detected"
+    # The owner looked at a flagged email and said the sender is real; drafting is allowed again.
+    SENDER_CONFIRMED = "sender_confirmed"
 
 
 class MaskingStatus(StrEnum):
@@ -182,7 +193,12 @@ class Message(Base):
     def is_masked(self) -> bool:
         """Content exists and was masked with NER. Nothing reads or drafts from a row that is not."""
         return self.masking_status == MaskingStatus.COMPLETE
-    auth_status: Mapped[str | None] = mapped_column(Text)
+    auth_status: Mapped[str | None] = mapped_column(Text, default=AuthStatus.PASS)
+
+    @property
+    def is_spoofed(self) -> bool:
+        """Failed SPF, DKIM or DMARC and not confirmed by the owner: never drafted or answered."""
+        return self.auth_status == AuthStatus.SPOOF_DETECTED
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

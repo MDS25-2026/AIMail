@@ -148,7 +148,7 @@ def test_private_mode_can_always_be_switched_off_even_where_it_is_no_longer_set_
     async def still_local(_user_id):
         return DraftProvider.GEMINI if saved else DraftProvider.LOCAL
 
-    async def nothing(*_args):
+    async def nothing(*_args, **_kwargs):
         return None
 
     monkeypatch.setattr(private_mode_routes, "is_offered", lambda: False)

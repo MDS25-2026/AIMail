@@ -1,17 +1,51 @@
-"""Audit log routes: user-facing tamper-evident audit ledger (#148 / PDPA)."""
+"""The audit trail, as the signed-in user sees it (specs/features/sender-verification-and-audit.md).
+
+Each user sees only their own rows; a script holding the shared token sees every row. Whether the
+chain is intact is checked over the whole table first, because a gap or an edit anywhere breaks it.
+"""
 
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel
+from sqlalchemy import Row, text
 
 from app.core.auth import principal_of
 from app.db.session import get_sessionmaker
 
 router = APIRouter(prefix="/audit")
 
+MAX_EVENTS = 100
+DEFAULT_EVENTS = 50
+GENESIS_HASH = "0" * 64
 
-from sqlalchemy import text
+# A row is verified when its hash matches its own fields and it follows the row before it without a
+# gap. Rows written before migration 0024 have no chain_seq and are reported as unverified (NULL).
+_CHAIN = f"""
+WITH chain AS (
+    SELECT id,
+           current_hash = audit_row_hash(prev_hash, chain_seq, action, detail, success, user_id, created_at)
+           AND prev_hash = COALESCE(lag(current_hash) OVER w, '{GENESIS_HASH}')
+           AND chain_seq = COALESCE(lag(chain_seq) OVER w, 0) + 1 AS is_valid
+    FROM audit_log
+    WHERE chain_seq IS NOT NULL
+    WINDOW w AS (ORDER BY chain_seq)
+)
+"""
+
+_SUMMARY = text(_CHAIN + """
+SELECT COALESCE(bool_and(is_valid), true) AS is_intact, count(*) AS chained,
+       (SELECT current_hash FROM audit_log WHERE chain_seq IS NOT NULL ORDER BY chain_seq DESC LIMIT 1) AS head
+FROM chain
+""")
+
+_EVENTS = _CHAIN + """
+SELECT a.id, a.created_at, a.action, a.detail, a.success, a.prev_hash, a.current_hash, a.user_id,
+       c.is_valid
+FROM audit_log a LEFT JOIN chain c ON c.id = a.id
+"""
+_ORDER = " ORDER BY a.created_at DESC, a.id DESC LIMIT :limit"
 
 
 class AuditEventOut(BaseModel):
@@ -27,97 +61,55 @@ class AuditEventOut(BaseModel):
 
 
 class AuditTrailResponse(BaseModel):
+    # Whole table, not just the rows shown: an edit or a deletion anywhere breaks the chain.
     is_chain_intact: bool
     total_records: int
     verified_records: int
+    # The latest hash: record it somewhere outside the database to detect a rewrite of the whole chain.
+    head_hash: str | None
     events: list[AuditEventOut]
+
+
+def _event(row: Row) -> AuditEventOut:
+    return AuditEventOut(
+        id=str(row.id),
+        created_at=row.created_at.isoformat() if row.created_at else "",
+        action=row.action or "unspecified",
+        detail=row.detail or "",
+        success=row.success,
+        prev_hash=row.prev_hash,
+        current_hash=row.current_hash,
+        user_id=str(row.user_id) if row.user_id else None,
+        is_verified=row.is_valid,
+    )
+
+
+def _events_query(user_id: UUID | None) -> tuple[str, dict[str, object]]:
+    """A person sees their own rows only; rows with no owner are system events, not theirs."""
+    if user_id is None:
+        return _EVENTS + _ORDER, {}
+    return _EVENTS + " WHERE a.user_id = :uid" + _ORDER, {"uid": user_id}
 
 
 @router.get("", response_model=AuditTrailResponse)
 async def get_audit_trail(
     request: Request,
-    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    limit: Annotated[int, Query(ge=1, le=MAX_EVENTS)] = DEFAULT_EVENTS,
 ) -> AuditTrailResponse:
-    """Returns the tamper-evident audit ledger with cryptographic SHA-256 chain verification."""
     principal = principal_of(request)
-    uid = principal.user_id
-
-    # Compute row fields and verify SHA-256 digest mathematically in PostgreSQL
-    sql = """
-    SELECT 
-        id,
-        created_at,
-        action,
-        detail,
-        success,
-        prev_hash,
-        current_hash,
-        user_id,
-        CASE 
-            WHEN current_hash IS NULL THEN NULL
-            ELSE current_hash = encode(digest(
-                COALESCE(prev_hash, '0000000000000000000000000000000000000000000000000000000000000000') || 
-                COALESCE(action, '') || 
-                COALESCE(detail, '') || 
-                COALESCE(success::text, 'false') || 
-                COALESCE(user_id::text, '') || 
-                extract(epoch from created_at)::text,
-                'sha256'
-            ), 'hex')
-        END AS is_valid
-    FROM audit_log
-    """
-    params: dict = {"limit": limit}
-    if uid is not None and not principal.is_service:
-        sql += " WHERE user_id = :uid OR user_id IS NULL"
-        params["uid"] = uid
-
-    sql += " ORDER BY created_at DESC, id DESC LIMIT :limit"
-
+    # Never fall through to "every row": a person with no account yet owns nothing in the log.
+    if not principal.is_service and principal.user_id is None:
+        return AuditTrailResponse(is_chain_intact=True, total_records=0, verified_records=0,
+                                  head_hash=None, events=[])
+    sql, params = _events_query(None if principal.is_service else principal.user_id)
     async with get_sessionmaker()() as session:
-        result = await session.execute(text(sql), params)
-        rows = result.fetchall()
-
-    events_out: list[AuditEventOut] = []
-    verified_count = 0
-    all_intact = True
-
-    for row in rows:
-        (
-            id_,
-            created_at,
-            action,
-            detail,
-            success,
-            prev_hash,
-            current_hash,
-            row_user_id,
-            is_valid,
-        ) = row
-
-        is_verified = bool(is_valid) if is_valid is not None else None
-        if is_valid is False:
-            all_intact = False
-
-        events_out.append(
-            AuditEventOut(
-                id=str(id_),
-                created_at=created_at.isoformat() if created_at else "",
-                action=action or "unspecified",
-                detail=detail or "",
-                success=success,
-                prev_hash=prev_hash,
-                current_hash=current_hash,
-                user_id=str(row_user_id) if row_user_id else None,
-                is_verified=is_verified,
-            )
-        )
-        if current_hash is not None and is_valid is True:
-            verified_count += 1
-
+        summary = (await session.execute(_SUMMARY)).one()
+        rows = (await session.execute(text(sql), {**params, "limit": limit})).all()
+    events = [_event(row) for row in rows]
     return AuditTrailResponse(
-        is_chain_intact=all_intact and (verified_count > 0 or len(rows) == 0),
-        total_records=len(rows),
-        verified_records=verified_count,
-        events=events_out,
+        is_chain_intact=summary.is_intact,
+        total_records=len(events),
+        verified_records=sum(1 for event in events if event.is_verified),
+        head_hash=summary.head,
+        events=events,
     )

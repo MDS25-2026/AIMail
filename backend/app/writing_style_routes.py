@@ -110,7 +110,7 @@ async def put_description(body: DescriptionBody, request: Request) -> WritingSty
     user_id = account_user_id(request)
     description = await mask_for_style(body.description) if body.description.strip() else ""
     await _save_style(user_id, description=description)
-    await audit("writing_style_description", f"user={user_id} chars={len(description)}")
+    await audit("writing_style_description", f"user={user_id} chars={len(description)}", user_id=user_id)
     return await _view(user_id)
 
 
@@ -118,7 +118,7 @@ async def put_description(body: DescriptionBody, request: Request) -> WritingSty
 async def put_learning(body: LearningBody, request: Request) -> WritingStyleView:
     user_id = account_user_id(request)
     await _save_style(user_id, learning_enabled=body.enabled)
-    await audit("writing_style_learning", f"user={user_id} enabled={body.enabled}")
+    await audit("writing_style_learning", f"user={user_id} enabled={body.enabled}", user_id=user_id)
     return await _view(user_id)
 
 
@@ -144,7 +144,7 @@ async def add_example(body: ExampleBody, request: Request) -> WritingStyleView:
         if count >= MAX_EXAMPLES:
             raise HTTPException(status.HTTP_409_CONFLICT, StyleError.TOO_MANY_EXAMPLES)
         session.add(StyleExample(user_id=user_id, text=text, source=source))
-    await audit("writing_style_example_added", f"user={user_id} source={source}")
+    await audit("writing_style_example_added", f"user={user_id} source={source}", user_id=user_id)
     return await _view(user_id)
 
 
@@ -154,7 +154,7 @@ async def _delete_one(statement: ReturningDelete | ReturningUpdate, user_id: UUI
         removed = await session.scalar(statement)
     if removed is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, StyleError.NOT_FOUND)
-    await audit(action, f"user={user_id} id={item_id}")
+    await audit(action, f"user={user_id} id={item_id}", user_id=user_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -186,5 +186,5 @@ async def delete_everything(request: Request) -> Response:
         await session.execute(update(Message).where(Message.user_id == user_id, Message.edit_ratio.is_not(None))
                               .values(draft_shown=None, edit_ratio=None))
         await forget_replies(session, user_id)
-    await audit("writing_style_deleted", f"user={user_id}")
+    await audit("writing_style_deleted", f"user={user_id}", user_id=user_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

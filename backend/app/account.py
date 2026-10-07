@@ -68,7 +68,7 @@ async def disconnect_gmail(user_id: UUID) -> Erased:
     await _revoke_at_google(user_id, sealed)
     async with get_sessionmaker()() as session, session.begin():
         erased = Erased(messages=await _delete_mail(session, user_id))
-    await audit("disconnect_gmail", f"user={user_id} messages_deleted={erased.messages}")
+    await audit("disconnect_gmail", f"user={user_id} messages_deleted={erased.messages}", user_id=user_id)
     return erased
 
 
@@ -101,5 +101,5 @@ async def delete_account(user_id: UUID) -> Erased:
         await session.execute(delete(UserProfile).where(UserProfile.id == user_id))
     await _delete_sign_in(user_id)
     erased = Erased(messages=messages, documents=documents or 0)
-    await audit("delete_account", f"user={user_id} documents_deleted={erased.documents}")
+    await audit("delete_account", f"user={user_id} documents_deleted={erased.documents}", user_id=user_id)
     return erased

@@ -70,7 +70,7 @@ async def put_settings_route(body: SettingsBody, request: Request) -> SettingsBo
         statement = insert(HoldingReplySettings).values(user_id=user_id, enabled_at=enabled_at, **values)
         await session.execute(statement.on_conflict_do_update(
             index_elements=["user_id"], set_={**values, "enabled_at": enabled_at, "updated_at": datetime.now(timezone.utc)}))
-    await audit("holding_reply_settings", f"user={user_id} enabled={body.enabled}")
+    await audit("holding_reply_settings", f"user={user_id} enabled={body.enabled}", user_id=user_id)
     return body
 
 
@@ -103,5 +103,6 @@ async def cancel_route(reply_id: UUID, request: Request) -> Response:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "not found")
     if not cancelled:
         raise HTTPException(status.HTTP_409_CONFLICT, "already_sent_or_cancelled")
-    await audit("holding_reply_cancelled", f"reply={reply_id} reason={Refusal.CANCELLED_BY_USER}")
+    await audit("holding_reply_cancelled", f"reply={reply_id} reason={Refusal.CANCELLED_BY_USER}",
+                user_id=user_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

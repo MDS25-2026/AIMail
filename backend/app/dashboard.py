@@ -468,7 +468,8 @@ async def _generate_and_store(
     if not is_usable:
         return GenerationOutcome.FAILED
     await audit("generate_draft", f"message={message.id} tone={tone} "
-                f"confidence={message.critic_confidence} review={message.needs_human_review}")
+                f"confidence={message.critic_confidence} review={message.needs_human_review}",
+                user_id=message.user_id)
     return GenerationOutcome.STORED if fields.get("draft_reply") else GenerationOutcome.NO_REPLY
 
 
@@ -613,12 +614,14 @@ async def approve_and_send(message_id: str, draft: str, *, scope: Scope) -> Dash
         )
     except SendOutcomeUnknownError:
         # The claim stays: Gmail may have sent, and releasing it would invite a second copy.
-        await audit("send_outcome_unknown", f"message={message_id}", success=False)
+        await audit("send_outcome_unknown", f"message={message_id}", success=False,
+                    user_id=message.user_id)
         raise
     except SendError:
         await _release_send_claim(pk)
         # The failed attempt is the row an auditor most wants; log before unwinding.
-        await audit("approve_and_send", f"message={message_id}", success=False)
+        await audit("approve_and_send", f"message={message_id}", success=False,
+                    user_id=message.user_id)
         raise
     async with get_sessionmaker()() as session:
         stored = await session.get(Message, pk)
@@ -634,7 +637,8 @@ async def approve_and_send(message_id: str, draft: str, *, scope: Scope) -> Dash
         stored.thread_id = stored.thread_id or sent.thread_id
         await session.commit()
         email = _to_email(stored)
-    await audit("approve_and_send", f"message={message_id} restored={reply.restored}")
+    await audit("approve_and_send", f"message={message_id} restored={reply.restored}",
+                user_id=message.user_id)
     if is_learning_style:
         await _relearn_after_send(stored.user_id)
         await remember_reply(stored.user_id, pk, message.body_masked or "", reply.stored)
@@ -745,11 +749,13 @@ async def translate_email(message_id: str, language: str, *, scope: Scope) -> di
         translated = await _call_agent("/translate", {"text": text, "language": language,
                                                       "provider": await provider_for(message.user_id)})
     except httpx.HTTPStatusError as exc:
-        await audit("translate_email", f"message={message_id} language={language}", success=False)
+        await audit("translate_email", f"message={message_id} language={language}", success=False,
+                    user_id=message.user_id)
         raise TranslationError(_agent_error_code(exc.response), exc.response.status_code) from exc
     except httpx.HTTPError as exc:
         raise TranslationError("agent_unreachable", 502) from exc
-    await audit("translate_email", f"message={message_id} language={language}")
+    await audit("translate_email", f"message={message_id} language={language}",
+                user_id=message.user_id)
     return translated
 
 
@@ -773,7 +779,8 @@ async def refine_email(
     try:
         refined = await _refine(message, thread, draft, instruction, details)
     except DraftNotUpdatedError:
-        await audit("refine_draft", f"message={message_id}", success=False)
+        await audit("refine_draft", f"message={message_id}", success=False,
+                    user_id=message.user_id)
         raise
     # The old verdict described the old draft; the refined one carries its own.
     fields = {"draft_reply": refined["draft"], **_review_fields(refined)}
@@ -781,5 +788,6 @@ async def refine_email(
         raise AlreadySentError(message_id)
     for column, value in fields.items():
         setattr(message, column, value)
-    await audit("refine_draft", f"message={message_id} review={message.needs_human_review}")
+    await audit("refine_draft", f"message={message_id} review={message.needs_human_review}",
+                user_id=message.user_id)
     return _to_email(message, thread=thread, details=details)

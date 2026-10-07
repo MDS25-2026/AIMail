@@ -64,5 +64,5 @@ async def put_private_mode(body: PrivateModeBody, request: Request) -> PrivateMo
     if body.enabled and not is_offered():
         raise HTTPException(status.HTTP_409_CONFLICT, PrivateModeError.UNAVAILABLE)
     await _save_choice(user_id, DraftProvider.LOCAL if body.enabled else DraftProvider.GEMINI)
-    await audit("private_mode", f"user={user_id} enabled={body.enabled}")
+    await audit("private_mode", f"user={user_id} enabled={body.enabled}", user_id=user_id)
     return await _view(request)
