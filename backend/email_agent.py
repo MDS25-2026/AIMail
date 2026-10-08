@@ -9,9 +9,17 @@ from enum import StrEnum
 
 import httpx
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
 
 import model_gateway
+from app.agent_contract import (
+    DEFAULT_TONE_PROMPT,
+    ProcessEmailRequest,
+    ProcessEmailResponse,
+    RefineRequest,
+    RefineResponse,
+    TranslateRequest,
+    TranslationLanguage,
+)
 from app.core.agent_auth import require_agent_token
 from app.core.config import get_settings
 from app.core.logging_setup import configure_logging
@@ -48,7 +56,6 @@ _UNPROCESSABLE = 422
 ROUTER_CATEGORIES = ("STANDARD", "COMPLEX", "NA")
 # A translation is about as long as its source, and Chinese or Malay can run to one token per
 # character or more, so the input bound sits well inside TRANSLATION_MAX_OUTPUT_TOKENS.
-MAX_TRANSLATE_CHARS = 12_000
 # Caps are a runaway guard, not a length target: hitting one fails the stage (a cut-off reply must
 # never pass as whole), so they sit well above what a real summary or email reply needs.
 SUMMARY_MAX_TOKENS = 512
@@ -65,45 +72,6 @@ app.middleware("http")(require_agent_token)
 
 
 # ---------- Pydantic schemas: request/response contract ----------
-
-class ProcessEmailRequest(BaseModel):
-    thread_context: str
-    email_body: str
-    rag_context: str          # stub input standing in for Lane B's retrieval, for now
-    tone: str = "professional, concise, and collaborative"
-    # The owner's name as a placeholder ([PERSON_n]), never the name itself; "" for no sign-off.
-    sign_off: str = ""
-    # The user's writing style (specs/features/writing-profile.md), masked before it was stored.
-    style_hint: str = ""
-    style_examples: list[str] = Field(default_factory=list)
-    # Required: a caller that forgets it must fail, not silently send the email to the cloud.
-    provider: Provider
-
-
-class ProcessEmailResponse(BaseModel):
-    category: str
-    draft: str | None = None
-    confidence: float | None = None
-    issues: list[str] = Field(default_factory=list)
-    summary: str
-    action_items: list[str] = Field(default_factory=list)
-    attempts: int = 0
-    needs_human_review: bool = False
-    # The critic already computes these; returning them is what lets the gate read something
-    # concrete instead of a self-reported scalar with no definition.
-    grounding_ok: bool | None = None
-    pii_clean: bool | None = None
-    tone_match: bool | None = None
-    completeness: bool | None = None
-    pii_findings: list[str] = Field(default_factory=list)
-    unsupported_specifics: list[str] = Field(default_factory=list)
-    unaddressed_requests: list[str] = Field(default_factory=list)
-    review_reasons: list[str] = Field(default_factory=list)
-    # Every model attempt this draft made: model, outcome, milliseconds, provider.
-    model_calls: list[dict] = Field(default_factory=list)
-    # Every prompt that left for a model (model_gateway.Egress): no text, only what and how much.
-    egress: list[dict] = Field(default_factory=list)
-
 
 class Stage(StrEnum):
     """Why a model call was made; recorded with each prompt that leaves (model_gateway)."""
@@ -374,7 +342,7 @@ Respond only with the evaluation."""
 
 async def refine_reply(thread_context: str, rag_context: str, email_body: str,
                         generated_reply: str, evaluation_feedback: dict, sign_off: str = "",
-                        style: str = "") -> str:
+                        style: str = "", tone: str = DEFAULT_TONE_PROMPT) -> str:
     user_prompt = f"""
 {fence("evaluation_feedback", str(evaluation_feedback))}
 
@@ -390,7 +358,7 @@ async def refine_reply(thread_context: str, rag_context: str, email_body: str,
 """
     system_prompt = (
         "you are an email assistant that improves the draft email reply in accordance with the "
-        "evaluation feedback, ensuring it is professional, concise, and collaborative. "
+        f"evaluation feedback, keeping the tone {tone}. "
         f"{_ISOLATION_RULE} {_PLACEHOLDER_RULE} {_sign_off_rule(sign_off)} {_LANGUAGE_RULE}{_style_rule(style)}"
     )
 
@@ -558,11 +526,12 @@ def unsupported_specifics(draft: str, *sources: str) -> list[str]:
 
 # ---------- Input signals: reasons for review that come from the email, not the draft ----------
 
-def input_reasons(req: "ProcessEmailRequest", is_phishing: bool) -> list[str]:
+def input_reasons(email_body: str, rag_context: str) -> list[str]:
+    """The same for a generated draft and a refined one: the email did not change."""
     reasons = []
-    if is_phishing:
+    if phishing_signal(email_body):
         reasons.append("possible phishing: asks for credentials beside a link")
-    if not req.rag_context.strip():
+    if not rag_context.strip():
         reasons.append("no policy context retrieved: reply is not grounded")
     return reasons
 
@@ -660,8 +629,7 @@ async def process_email(req: ProcessEmailRequest) -> ProcessEmailResponse:
 
 async def _process_email(req: ProcessEmailRequest) -> ProcessEmailResponse:
     category = await route_email(req.thread_context, req.email_body)
-    is_phishing = phishing_signal(req.email_body)
-    signals = input_reasons(req, is_phishing)
+    signals = input_reasons(req.email_body, req.rag_context)
 
     summary = await extract_summary(req.email_body, req.thread_context, req.rag_context)
     action_items = await extract_actions(req.email_body)
@@ -688,7 +656,7 @@ async def _process_email(req: ProcessEmailRequest) -> ProcessEmailResponse:
     confidence = clamp_confidence(evaluation.get("confidence"))
     while (confidence or 0.0) < REFINE_THRESHOLD and attempts < MAX_REFINE_ATTEMPTS:
         draft = await refine_reply(req.thread_context, req.rag_context, req.email_body, draft, evaluation,
-                                   req.sign_off, style)
+                                   req.sign_off, style, req.tone)
         evaluation = await evaluate_reply(req.thread_context, req.rag_context, req.email_body, draft,
                                           req.tone, action_items, style)
         confidence = clamp_confidence(evaluation.get("confidence"))
@@ -722,12 +690,6 @@ async def _process_email(req: ProcessEmailRequest) -> ProcessEmailResponse:
 
 # ---------- Translation of the masked body ----------
 
-class TranslationLanguage(StrEnum):
-    ENGLISH = "en"
-    MALAY = "ms"
-    CHINESE = "zh"
-
-
 LANGUAGE_NAMES = {
     TranslationLanguage.ENGLISH: "English",
     TranslationLanguage.MALAY: "Bahasa Melayu (Malay)",
@@ -735,13 +697,6 @@ LANGUAGE_NAMES = {
 }
 TRANSLATION_MAX_OUTPUT_TOKENS = 16_384
 UNFAITHFUL_TRANSLATION = "translation_unfaithful"
-
-
-class TranslateRequest(BaseModel):
-    text: str = Field(max_length=MAX_TRANSLATE_CHARS)
-    language: TranslationLanguage
-    # Required: a caller that forgets it must fail, not silently send the email to the cloud.
-    provider: Provider
 
 
 def translation_problems(source: str, translation: str) -> list[str]:
@@ -812,39 +767,6 @@ async def translate(req: TranslateRequest) -> dict:
     return {"language": req.language, "text": translated, "egress": egress}
 
 
-class RefineRequest(BaseModel):
-    email_body: str
-    draft: str
-    instruction: str
-    tone: str = "professional, concise, and collaborative"
-    # What the critic needs to judge the revision the way it judged the original draft.
-    thread_context: str = ""
-    rag_context: str = ""
-    action_items: list[str] = Field(default_factory=list)
-    sign_off: str = ""
-    style_hint: str = ""
-    style_examples: list[str] = Field(default_factory=list)
-    # Required: a caller that forgets it must fail, not silently send the email to the cloud.
-    provider: Provider
-
-
-class RefineResponse(BaseModel):
-    draft: str
-    confidence: float | None = None
-    issues: list[str] = Field(default_factory=list)
-    needs_human_review: bool = False
-    grounding_ok: bool | None = None
-    pii_clean: bool | None = None
-    tone_match: bool | None = None
-    completeness: bool | None = None
-    pii_findings: list[str] = Field(default_factory=list)
-    unsupported_specifics: list[str] = Field(default_factory=list)
-    unaddressed_requests: list[str] = Field(default_factory=list)
-    review_reasons: list[str] = Field(default_factory=list)
-    model_calls: list[dict] = Field(default_factory=list)
-    egress: list[dict] = Field(default_factory=list)
-
-
 @app.post("/refine", response_model=RefineResponse)
 async def refine(req: RefineRequest) -> RefineResponse:
     """Revise a draft per a user instruction, then run the same gates a generated draft passes."""
@@ -877,7 +799,8 @@ async def refine(req: RefineRequest) -> RefineResponse:
     specifics = unsupported_specifics(revised, req.email_body, req.thread_context, req.rag_context,
                                       req.draft)
     unaddressed = unaddressed_requests(evaluation, req.action_items)
-    reasons = build_review_reasons(evaluation, confidence, 0, pii_findings, specifics, unaddressed)
+    reasons = [*input_reasons(req.email_body, req.rag_context),
+               *build_review_reasons(evaluation, confidence, 0, pii_findings, specifics, unaddressed)]
     return RefineResponse(
         draft=revised,
         confidence=confidence,

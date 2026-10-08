@@ -46,8 +46,8 @@ def mailbox(monkeypatch, test_settings):
     async def owner_name(_owner_id):
         return "Elyesa Tee"
 
-    async def call_agent(path, payload):
-        state["payloads"].append(json.dumps(payload))
+    async def call_agent(path, request, _answer=None):
+        state["payloads"].append(json.dumps(request.model_dump(mode="json")))
         return {"draft": "Dear [PERSON_1], we will call [PHONE_1]. Regards, [PERSON_2]", "confidence": 0.9}
 
     async def claim(pk):

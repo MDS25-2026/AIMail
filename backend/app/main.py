@@ -25,8 +25,10 @@ from fastapi import Path as PathParam
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
+from app import agent_client
 from app.account_routes import router as account_router
 from app.admin.app import admin_app
+from app.agent_contract import Tone
 from app.audit import AuditAction, audit
 from app.audit_routes import router as audit_router
 from app.contracts import DashboardEmail
@@ -96,6 +98,7 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """The API runs no background jobs: they live in the worker (app/worker.py)."""
     await mailbox.resolve_owner()
     yield
+    await agent_client.close()
 
 
 app = FastAPI(title="AImail backend", dependencies=[Depends(require_auth)], lifespan=_lifespan)
@@ -236,7 +239,7 @@ def _found[T](value: T | None) -> T:
 
 
 class RegenerateRequest(BaseModel):
-    tone: str = "professional"  # "professional" | "casual"
+    tone: Tone = Tone.PROFESSIONAL
 
 
 @app.post("/emails/{message_id}/confirm-sender", dependencies=[Depends(require_mailbox)])
@@ -252,18 +255,21 @@ async def regenerate_email_route(
 ) -> DashboardEmail:
     # Force a fresh draft in the requested tone (Regenerate button / tone toggle). Body optional.
     return _found(await regenerate_email(message_id, scope=scope_of(request),
-                                         tone=body.tone if body else "professional"))
+                                         tone=body.tone if body else Tone.PROFESSIONAL))
 
 
 class RefineRequest(BaseModel):
     instruction: str  # e.g. "make it shorter", "add a deadline"
     draft: str  # the current draft to revise
+    # The tone the reader has chosen, so the revision and its review keep it.
+    tone: Tone = Tone.PROFESSIONAL
 
 
 @app.post("/emails/{message_id}/refine", dependencies=[Depends(rate_limit_generation), Depends(require_mailbox)])
 async def refine_email_route(message_id: str, body: RefineRequest, request: Request) -> DashboardEmail:
     # Revise the current draft per the user's instruction (dashboard's Refine box).
-    return _found(await refine_email(message_id, body.instruction, body.draft, scope=scope_of(request)))
+    return _found(await refine_email(message_id, body.instruction, body.draft, scope=scope_of(request),
+                                     tone=body.tone))
 
 
 class TranslateRequest(BaseModel):

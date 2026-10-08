@@ -260,3 +260,9 @@ import (never hand-copy). Provisional; adding a field is safe, changing/removing
 - [ ] `POST /drafts/{id}/approve` — approve draft, trigger send.
 - [ ] `POST /drafts/{id}/edit` — user edits before approval.
 - [ ] `POST /drafts/{id}/reject` — discard draft.
+
+> **Backend to agent (2026-10-08):** the request and response models live in one module both sides import,
+> `backend/app/agent_contract.py`; the backend validates every agent answer against them. `provider` is required.
+> `POST /emails/{id}/refine` takes an optional `tone` (`professional` | `casual`, default professional), which the
+> agent now keeps through the revision and its review; refine also reports the email's own review reasons
+> (possible phishing, no policy context), as drafting does.

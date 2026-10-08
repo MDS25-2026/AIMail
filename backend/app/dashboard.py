@@ -14,11 +14,23 @@ from enum import Enum
 from uuid import UUID
 
 import httpx
+from pydantic import BaseModel
 from sqlalchemy import func, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import connections
+from app import agent_client, connections
+from app.agent_contract import (
+    MAX_TRANSLATE_CHARS,
+    TONE_PROMPTS,
+    ProcessEmailRequest,
+    ProcessEmailResponse,
+    RefineResponse,
+    Tone,
+    TranslateRequest,
+    TranslateResponse,
+)
+from app.agent_contract import RefineRequest as AgentRefineRequest
 from app.audit import AuditAction, audit, record
 from app.contracts import (
     ContextChunk,
@@ -30,11 +42,7 @@ from app.contracts import (
     Source,
     ThreadMessage,
 )
-from app.core.agent_auth import agent_headers
-from app.core.config import get_settings
 from app.core.errors import DomainError, ErrorCode
-from app.core.logging_setup import request_id
-from app.core.middleware import REQUEST_ID_HEADER
 from app.core.ownership import EVERYTHING, Scope
 from app.core.redaction import PLACEHOLDER, has_redaction_marker
 from app.core.vault import ThreadMap, build_thread_map
@@ -58,7 +66,6 @@ from model_gateway import track_egress
 
 logger = logging.getLogger(__name__)
 
-AGENT_TIMEOUT_SECONDS = 120
 
 
 def _quantity_views(text: str) -> list[QuantityView]:
@@ -327,22 +334,9 @@ async def _update_unsent(pk: UUID, fields: dict) -> bool:
     return updated is not None
 
 
-_TONE_PROMPTS = {
-    "professional": "professional, concise, and collaborative",
-    "casual": "casual, warm, and friendly",
-}
-
-
-async def _call_agent(path: str, payload: dict) -> dict:
-    """POST to Lane C, carrying this request's id so both services' logs line up."""
-    url = get_settings().email_agent_url.rstrip("/") + path
-    # Lane C runs a multi-step pipeline under its own 100 s deadline; this sits just above it.
-    async with httpx.AsyncClient(timeout=AGENT_TIMEOUT_SECONDS) as client:
-        response = await client.post(
-            url, json=payload, headers={REQUEST_ID_HEADER: request_id.get(), **agent_headers()}
-        )
-        response.raise_for_status()
-        return response.json()
+async def _call_agent(path: str, request: BaseModel, answer: type[BaseModel]) -> dict:
+    """The agent's validated answer (app/agent_client.py), as the dict the storing code reads."""
+    return (await agent_client.call(path, request, answer)).model_dump()
 
 
 # The agent's "this will fail the same way every time" status (cut off, blocked, rejected input).
@@ -367,7 +361,7 @@ def _source_records(chunks: list[ContextChunk]) -> list[dict]:
     ]
 
 
-async def _generate(message: Message, tone: str, thread: list[Message], details: ThreadMap) -> dict:
+async def _generate(message: Message, tone: Tone, thread: list[Message], details: ThreadMap) -> dict:
     """Retrieve policy context (Lane B) and call Lane C's /process-email. Returns {} on any failure.
 
     The chunks ride along under "rag_sources" so the caller stores what the draft was grounded on.
@@ -377,17 +371,17 @@ async def _generate(message: Message, tone: str, thread: list[Message], details:
         with track_egress() as searched:
             chunks = await retrieve(message.body_masked or "", k=5, scope=Scope(owner_id=message.user_id),
                                     provider=provider)
-        payload = {
-            "thread_context": thread_context(message, thread, details),
-            "email_body": details.renumber(str(message.id), message.body_masked or ""),
-            "rag_context": format_rag_context(chunks),
-            "tone": _TONE_PROMPTS.get(tone, _TONE_PROMPTS["professional"]),
-            "sign_off": details.owner or "",
-            "provider": provider,
+        request = ProcessEmailRequest(
+            thread_context=thread_context(message, thread, details),
+            email_body=details.renumber(str(message.id), message.body_masked or ""),
+            rag_context=format_rag_context(chunks),
+            tone=TONE_PROMPTS[tone],
+            sign_off=details.owner or "",
+            provider=provider,
             **await _style_fields(message.user_id),
-        }
+        )
         try:
-            generated = await _call_agent("/process-email", payload)
+            generated = await _call_agent("/process-email", request, ProcessEmailResponse)
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code != AGENT_CONTENT_FAILURE:
                 raise
@@ -436,7 +430,7 @@ def _review_fields(reviewed: dict) -> dict:
 async def _generate_and_store(
     message: Message,
     thread: list[Message] | None = None,
-    tone: str = "professional",
+    tone: Tone = Tone.PROFESSIONAL,
     details: ThreadMap | None = None,
 ) -> GenerationOutcome:
     """Generate the Lane C draft and store it.
@@ -537,7 +531,7 @@ async def confirm_sender(message_id: str, *, scope: Scope) -> DashboardEmail | N
 
 
 async def regenerate_email(
-    message_id: str, *, scope: Scope, tone: str = "professional"
+    message_id: str, *, scope: Scope, tone: Tone = Tone.PROFESSIONAL
 ) -> DashboardEmail | None:
     """A fresh draft in the given tone (Regenerate / tone change).
 
@@ -689,26 +683,27 @@ def _stored_rag_context(message: Message) -> str:
 
 
 async def _refine(
-    message: Message, thread: list[Message], draft: str, instruction: str, details: ThreadMap
+    message: Message, thread: list[Message], draft: str, instruction: str, details: ThreadMap, tone: Tone
 ) -> dict:
     """Lane C's revision plus its review. Raises DraftNotUpdatedError when nothing usable came back.
 
     The user typed the draft and the instruction, so fixed-format details are masked before they
     leave; names stay, since they were typed on purpose.
     """
-    payload = {
-        "email_body": details.renumber(str(message.id), message.body_masked or ""),
-        "draft": details.for_model(draft),
-        "instruction": details.for_model(instruction),
-        "thread_context": thread_context(message, thread, details),
-        "rag_context": _stored_rag_context(message),
-        "action_items": message.action_items or [],
-        "sign_off": details.owner or "",
-        "provider": await provider_for(message.user_id),
+    request = AgentRefineRequest(
+        email_body=details.renumber(str(message.id), message.body_masked or ""),
+        draft=details.for_model(draft),
+        instruction=details.for_model(instruction),
+        tone=TONE_PROMPTS[tone],
+        thread_context=thread_context(message, thread, details),
+        rag_context=_stored_rag_context(message),
+        action_items=message.action_items or [],
+        sign_off=details.owner or "",
+        provider=await provider_for(message.user_id),
         **await _style_fields(message.user_id),
-    }
+    )
     try:
-        refined = await _call_agent("/refine", payload)
+        refined = await _call_agent("/refine", request, RefineResponse)
     except httpx.HTTPStatusError as exc:
         logger.warning("refine failed for message %s: %s", message.id, exc)
         if exc.response.status_code == AGENT_CONTENT_FAILURE:
@@ -723,9 +718,6 @@ async def _refine(
     return refined
 
 
-# Mirrors the agent's own bound (email_agent.MAX_TRANSLATE_CHARS), checked here first so an
-# over-long body gets a clear answer instead of a validation error that echoes the body back.
-MAX_TRANSLATE_CHARS = 12_000
 
 
 AGENT_ERROR = "agent_error"
@@ -777,8 +769,8 @@ async def translate_email(message_id: str, language: str, *, scope: Scope) -> di
     if len(text) > MAX_TRANSLATE_CHARS:
         raise TranslationError(ErrorCode.TOO_LARGE, "email too long to translate")
     try:
-        translated = await _call_agent("/translate", {"text": text, "language": language,
-                                                      "provider": await provider_for(message.user_id)})
+        translated = await _call_agent("/translate", TranslateRequest(
+            text=text, language=language, provider=await provider_for(message.user_id)), TranslateResponse)
     except httpx.HTTPStatusError as exc:
         await audit(AuditAction.TRANSLATE_EMAIL, user_id=message.user_id, success=False,
                     message=message_id, language=language)
@@ -792,7 +784,7 @@ async def translate_email(message_id: str, language: str, *, scope: Scope) -> di
 
 
 async def refine_email(
-    message_id: str, instruction: str, draft: str, *, scope: Scope
+    message_id: str, instruction: str, draft: str, *, scope: Scope, tone: Tone = Tone.PROFESSIONAL
 ) -> DashboardEmail | None:
     """Revise the draft per a user instruction and store it (dashboard's Refine box)."""
     try:
@@ -806,7 +798,7 @@ async def refine_email(
     _require(message, Action.REFINE)
     details = await _details_for(message, thread)
     try:
-        refined = await _refine(message, thread, draft, instruction, details)
+        refined = await _refine(message, thread, draft, instruction, details, tone)
     except DraftNotUpdatedError:
         await audit(AuditAction.REFINE_DRAFT, user_id=message.user_id, success=False,
                     message=message_id)

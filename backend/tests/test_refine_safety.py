@@ -72,7 +72,7 @@ GOOD = {"confidence": 0.92, "grounding_ok": True, "pii_clean": True, "tone_match
 
 def _refine(body: dict):
     payload = {"email_body": "Can you confirm Friday?", "draft": "Friday works.",
-               "instruction": "shorter", "thread_context": "", "rag_context": "",
+               "instruction": "shorter", "thread_context": "", "rag_context": "Claims are paid within 30 days.",
                "action_items": ["Confirm Friday"], "provider": "gemini"} | body
     return agent_client().post("/refine", json=payload)
 
@@ -83,6 +83,13 @@ def test_a_clean_refined_draft_comes_back_with_its_checks(monkeypatch):
     assert body["draft"] == "Friday is fine."
     assert body["confidence"] == 0.92 and body["needs_human_review"] is False
     assert body["review_reasons"] == []
+
+
+def test_a_refined_draft_keeps_the_reasons_the_email_itself_gives(monkeypatch):
+    # Refine used to drop these: refining an ungrounded or phishing email cleared its warning.
+    _stub_agent(monkeypatch, "Friday is fine.", GOOD, [])
+    reasons = _refine({"rag_context": ""}).json()["review_reasons"]
+    assert any("not grounded" in reason for reason in reasons)
 
 
 def test_a_refined_draft_that_leaks_or_invents_is_flagged(monkeypatch):
@@ -117,8 +124,8 @@ def backend(monkeypatch):
     async def load_with_thread(pk, scope):
         return message, []
 
-    async def call_agent(path, payload):
-        state["payload"] = payload
+    async def call_agent(path, request, _answer=None):
+        state["payload"] = request.model_dump(mode="json")
         if isinstance(state["agent"], Exception):
             raise state["agent"]
         return state["agent"]

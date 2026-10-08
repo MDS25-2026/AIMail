@@ -126,7 +126,7 @@ def test_a_draft_that_fails_for_content_is_stored_as_not_drafted_so_it_is_not_re
     async def no_chunks(*_args, **_kwargs):
         return []
 
-    async def refuses(path, payload):
+    async def refuses(path, request, _answer=None):
         request = httpx.Request("POST", "http://agent/process-email")
         response = httpx.Response(422, json={"detail": "gemini_output_truncated"}, request=request)
         raise httpx.HTTPStatusError("422", request=request, response=response)

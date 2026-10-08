@@ -245,7 +245,7 @@ def _request(rag_context: str = "Refunds take 14 days.") -> email_agent.ProcessE
 
 
 def test_an_ungrounded_reply_is_a_review_reason():
-    reasons = email_agent.input_reasons(_request(rag_context="  "), False)
+    reasons = email_agent.input_reasons("Hi", "  ")
     assert any("not grounded" in reason for reason in reasons)
 
 

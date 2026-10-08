@@ -11,6 +11,7 @@ import signal
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
+from app import agent_client
 from app.core import mailbox
 from app.core.config import get_settings
 from app.core.constants import EMBED_POLL_SECONDS, HOLDING_REPLY_POLL_SECONDS
@@ -87,6 +88,7 @@ async def run() -> None:
         task.cancel()
     # Awaited, not just cancelled: a job mid-send records its outcome, or its lease and claim expire.
     await asyncio.wait(tasks, timeout=SHUTDOWN_GRACE_SECONDS)
+    await agent_client.close()
 
 
 if __name__ == "__main__":
