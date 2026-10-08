@@ -94,7 +94,6 @@ export const en = {
     loading: "Loading {{label}}…",
     errorTitle: "Could not load {{label}}",
     errorHint: "Check the backend is running on the configured URL and that the API token matches.",
-    unknownError: "Unknown error",
     retry: "Try again",
     notFoundTitle: "Page not found",
     notFoundBody: "The page you're looking for doesn't exist or has been moved.",
@@ -119,6 +118,7 @@ export const en = {
     open: "Open {{subject}} in the inbox",
   },
   knowledge: {
+    uploadFailed: "The upload failed.",
     heading: "Knowledge base",
     description:
       "Policy documents AImail retrieves from when grounding a reply. Every draft cites the chunks it used.",
@@ -148,12 +148,6 @@ export const en = {
     removeNo: "Keep",
     removing: "Removing…",
     removeFailed: "Couldn't remove it. Try again.",
-    errors: {
-      too_large: "That file is over the 10 MB limit.",
-      rate_limited: "Too many uploads just now. Wait a minute and retry.",
-      not_pdf: "That file was rejected: it must be a real PDF.",
-      failed: "The upload failed.",
-    },
   },
   settings: {
     title: "Settings",
@@ -289,19 +283,6 @@ export const en = {
       "6": "Sat",
       "7": "Sun",
     },
-    errors: {
-      unknown_placeholder: "Only {name} and {return_date} can be used in curly brackets.",
-      return_date_needs_leave: "Set your leave end date to use {return_date}.",
-      empty_template: "A message can't be empty.",
-      template_too_long: "That message is too long (2000 characters at most).",
-      no_default_template: "Write a message in your fallback language first.",
-      unknown_timezone: "That time zone isn't recognised.",
-      leave_needs_dates: 'Set both leave dates to use "On leave".',
-      leave_ends_before_it_starts: "Leave can't end before it starts.",
-      workday_ends_before_it_starts: "Your working day can't end before it starts.",
-      bad_work_days: "Pick at least one working day.",
-      invalid: "Those settings couldn't be saved.",
-    },
     reasons: {
       disabled: "Not sent: holding reply was switched off",
       before_enabled: "Not sent: arrived before it was switched on",
@@ -325,6 +306,7 @@ export const en = {
     },
   },
   writingStyle: {
+    failed: "Something went wrong. Try again.",
     quickLabel: "Quick picks",
     quick: {
       formal: { label: "More formal", text: "Formal and courteous." },
@@ -376,14 +358,6 @@ export const en = {
     keep: "Keep",
     useAsExample: "Use as an example",
     addedAsExample: "Added to your writing style.",
-    errors: {
-      masking_unavailable:
-        "Couldn't hide personal details right now, so nothing was saved. Try again in a moment.",
-      too_many_examples: "You already have 3 examples. Remove one first.",
-      empty: "There's nothing to save.",
-      not_found: "That reply couldn't be found.",
-      failed: "Something went wrong. Try again.",
-    },
   },
   reconnect: {
     banner:
@@ -482,6 +456,7 @@ export const en = {
     confirmFailed: "Couldn't confirm the sender. Try again.",
   },
   admin: {
+    signInFailed: "Sign-in failed.",
     title: "Admin",
     subtitle:
       "Pipeline health, privacy events and model reliability. Counts and ids only: no email content.",
@@ -494,15 +469,6 @@ export const en = {
     signingIn: "Signing in…",
     signOut: "Sign out",
     signedInAs: "Signed in as {{email}}",
-    errors: {
-      invalid_credentials: "That email and password do not match an account.",
-      not_an_admin: "This account does not have admin access.",
-      admin_auth_not_configured:
-        "Admin sign-in is not configured on the server (SUPABASE_ANON_KEY).",
-      supabase_unavailable: "The sign-in service is unreachable. Try again shortly.",
-      rate_limited: "Too many attempts. Wait a few minutes and try again.",
-      generic: "Sign-in failed.",
-    },
     window: "Window",
     days_one: "Last {{count}} day",
     days_other: "Last {{count}} days",
@@ -605,16 +571,6 @@ export const en = {
       refine:
         "Couldn't refine the draft. Your text and instruction are unchanged, so try again in a moment.",
       send: "The reply was not sent. Your draft is unchanged, so try again in a moment.",
-      refused:
-        "The AI couldn't write a draft for this email, and trying again won't change that. Your text is unchanged: write the reply yourself, or try the other tone.",
-      sendUnknown:
-        "We couldn't confirm whether the reply was sent. Check your Gmail Sent folder before sending again.",
-      accessExpired:
-        "Google has ended AIMail's access to your Gmail, so the reply was not sent. Sign in again to reconnect; your draft is unchanged.",
-      sendNotGranted:
-        "AIMail isn't allowed to send from your Gmail. Sign out, sign in again, and tick the box that lets AIMail send email. Your draft is unchanged.",
-      unresolved:
-        "This reply has a placeholder AIMail can't fill in, such as [PERSON_3]. Type the real detail in its place, then send.",
     },
     replaceEdits: "A new draft will replace the changes you typed.",
     replaceConfirm: "Replace my changes",
@@ -679,6 +635,58 @@ export const en = {
     },
     footer:
       "Signing in with Google lets AIMail read and send your Gmail. AIMail is a final-year project at Monash University Malaysia.",
+  },
+  errors: {
+    generic: "Something went wrong. Try again in a moment.",
+    network: "Couldn't reach AIMail. Check your connection and try again.",
+    signed_out: "Your session has ended. Sign in again to continue.",
+    sender_unverified:
+      "This sender failed authentication. Check the sender before drafting or sending.",
+    masking_pending:
+      "Personal details are still being hidden in this email, so it can't be used yet.",
+    already_sent: "This reply has already been sent.",
+    redaction_markers:
+      "This reply still has hidden details such as [Redacted]. Type the real details in before sending.",
+    unresolved_placeholders:
+      "This reply has a placeholder AIMail can't fill in, such as [PERSON_3]. Type the real detail in its place, then send.",
+    send_not_granted:
+      "AIMail isn't allowed to send from your Gmail. Sign out, sign in again, and tick the box that lets AIMail send email. Your draft is unchanged.",
+    google_access_expired:
+      "Google has ended AIMail's access to your Gmail, so the reply was not sent. Sign in again to reconnect; your draft is unchanged.",
+    send_failed:
+      "Gmail didn't accept the reply, so it was not sent. Your draft is unchanged; try again in a moment.",
+    send_outcome_unknown:
+      "We couldn't confirm whether the reply was sent. Check your Gmail Sent folder before sending again.",
+    draft_refused:
+      "The AI couldn't write a draft for this email, and trying again won't change that. Your text is unchanged: write the reply yourself, or try the other tone.",
+    agent_unavailable:
+      "The drafting service is unavailable right now. Your text is unchanged; try again in a moment.",
+    private_mode_unavailable:
+      "Private mode is on, but no private model is set up here, so nothing can be drafted. Switch Private mode off in Settings.",
+    masking_unavailable:
+      "Couldn't hide personal details right now, so nothing was saved. Try again in a moment.",
+    too_many_examples: "You already have 3 examples. Remove one first.",
+    empty: "There's nothing to save.",
+    too_long: "That text is too long.",
+    not_found: "That item couldn't be found. It may have been removed.",
+    rate_limited: "Too many requests just now. Wait a minute and try again.",
+    too_large: "That file is over the 10 MB limit.",
+    not_pdf: "That file was rejected: it must be a real PDF.",
+    unknown_placeholder: "Only {name} and {return_date} can be used in curly brackets.",
+    return_date_needs_leave: "Set your leave end date to use {return_date}.",
+    empty_template: "A message can't be empty.",
+    template_too_long: "That message is too long (2000 characters at most).",
+    no_default_template: "Write a message in your fallback language first.",
+    unknown_timezone: "That time zone isn't recognised.",
+    leave_needs_dates: 'Set both leave dates to use "On leave".',
+    leave_ends_before_it_starts: "Leave can't end before it starts.",
+    workday_ends_before_it_starts: "Your working day can't end before it starts.",
+    bad_work_days: "Pick at least one working day.",
+    invalid: "Those settings couldn't be saved.",
+    invalid_credentials: "That email and password do not match an account.",
+    not_an_admin: "This account does not have admin access.",
+    admin_auth_not_configured: "Admin sign-in is not configured on the server (SUPABASE_ANON_KEY).",
+    supabase_unavailable: "The sign-in service is unreachable. Try again shortly.",
   },
   announce: {
     regenerated: "Draft regenerated",

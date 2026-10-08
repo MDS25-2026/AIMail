@@ -2,31 +2,8 @@ import { ShieldCheck } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 
-import { AdminApiError } from "../../lib/adminApi";
+import { errorMessage } from "../../lib/api/errors";
 import { useAdminSignIn } from "../../lib/queries";
-
-const TOO_MANY_REQUESTS = 429;
-const MESSAGE_FOR_CODE = {
-  invalid_credentials: "admin.errors.invalid_credentials",
-  not_an_admin: "admin.errors.not_an_admin",
-  admin_auth_not_configured: "admin.errors.admin_auth_not_configured",
-  supabase_unavailable: "admin.errors.supabase_unavailable",
-} as const;
-type ErrorKey =
-  | (typeof MESSAGE_FOR_CODE)[keyof typeof MESSAGE_FOR_CODE]
-  | "admin.errors.rate_limited"
-  | "admin.errors.generic";
-
-function isKnownCode(code: string): code is keyof typeof MESSAGE_FOR_CODE {
-  return Object.hasOwn(MESSAGE_FOR_CODE, code);
-}
-
-/** The backend's error code, as a sentence the admin can act on. */
-function errorKey(error: unknown): ErrorKey {
-  if (!(error instanceof AdminApiError)) return "admin.errors.generic";
-  if (error.status === TOO_MANY_REQUESTS) return "admin.errors.rate_limited";
-  return isKnownCode(error.code) ? MESSAGE_FOR_CODE[error.code] : "admin.errors.generic";
-}
 
 export default function SignInForm() {
   const { t } = useTranslation();
@@ -74,7 +51,7 @@ export default function SignInForm() {
       </label>
       {signIn.isError ? (
         <p role="alert" className="text-sm text-danger">
-          {t(errorKey(signIn.error))}
+          {errorMessage(signIn.error, t, "admin.signInFailed")}
         </p>
       ) : null}
       <button

@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { I18nextProvider } from "react-i18next";
 
-import { SignedOutError } from "../lib/api";
+import { isSignedOut } from "../lib/api/errors";
 import { createI18n } from "../lib/i18n";
 import { Language, StatusColours, Theme, UnitSystem, type Preferences } from "../lib/preferences";
 import { useColoursAttribute } from "../lib/useColoursAttribute";
@@ -60,8 +60,7 @@ export default function ExtensionProviders({ children }: { children: ReactNode }
       new QueryClient({
         defaultOptions: {
           queries: {
-            retry: (failures, error) =>
-              !(error instanceof SignedOutError) && failures < MAX_RETRIES,
+            retry: (failures, error) => !isSignedOut(error) && failures < MAX_RETRIES,
           },
         },
       }),

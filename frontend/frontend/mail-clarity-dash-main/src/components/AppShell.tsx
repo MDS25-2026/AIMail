@@ -3,7 +3,8 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-import { SIGN_IN_URL, signOut } from "../lib/api";
+import { SIGN_IN_URL } from "../lib/api/config";
+import { signOut } from "../lib/api/session";
 import { useSession } from "../lib/queries";
 import SideNav from "./SideNav";
 

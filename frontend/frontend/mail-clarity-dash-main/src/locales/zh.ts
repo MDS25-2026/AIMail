@@ -92,7 +92,6 @@ export const zh: Translations = {
     loading: "正在加载{{label}}…",
     errorTitle: "无法加载{{label}}",
     errorHint: "请确认后端在配置的地址上运行，且 API 令牌匹配。",
-    unknownError: "未知错误",
     retry: "重试",
     notFoundTitle: "找不到页面",
     notFoundBody: "您要查找的页面不存在或已被移动。",
@@ -115,6 +114,7 @@ export const zh: Translations = {
     open: "在收件箱中打开 {{subject}}",
   },
   knowledge: {
+    uploadFailed: "上传失败。",
     heading: "知识库",
     description: "AImail 为回复提供依据时检索的政策文件。每份草稿都会引用它所用的片段。",
     label: "知识库",
@@ -142,12 +142,6 @@ export const zh: Translations = {
     removeNo: "保留",
     removing: "正在删除…",
     removeFailed: "无法删除，请重试。",
-    errors: {
-      too_large: "该文件超过 10 MB 限制。",
-      rate_limited: "上传次数过多。请稍等一分钟后重试。",
-      not_pdf: "该文件被拒绝：必须是真正的 PDF。",
-      failed: "上传失败。",
-    },
   },
   settings: {
     title: "设置",
@@ -280,19 +274,6 @@ export const zh: Translations = {
       "6": "周六",
       "7": "周日",
     },
-    errors: {
-      unknown_placeholder: "花括号中只能使用 {name} 和 {return_date}。",
-      return_date_needs_leave: "请设置休假结束日期才能使用 {return_date}。",
-      empty_template: "消息不能为空。",
-      template_too_long: "消息过长（最多 2000 个字符）。",
-      no_default_template: "请先用您的备用语言撰写消息。",
-      unknown_timezone: "无法识别该时区。",
-      leave_needs_dates: '请设置两个休假日期才能使用"休假期间"。',
-      leave_ends_before_it_starts: "休假结束不能早于开始。",
-      workday_ends_before_it_starts: "工作日结束不能早于开始。",
-      bad_work_days: "请至少选择一个工作日。",
-      invalid: "无法保存这些设置。",
-    },
     reasons: {
       disabled: "未发送：自动回复已关闭",
       before_enabled: "未发送：在开启前收到",
@@ -316,6 +297,7 @@ export const zh: Translations = {
     },
   },
   writingStyle: {
+    failed: "出了点问题，请重试。",
     quickLabel: "快速选择",
     quick: {
       formal: { label: "更正式", text: "正式且礼貌。" },
@@ -366,13 +348,6 @@ export const zh: Translations = {
     keep: "保留",
     useAsExample: "用作示例",
     addedAsExample: "已添加到您的写作风格。",
-    errors: {
-      masking_unavailable: "目前无法隐藏个人信息，因此未保存任何内容。请稍后重试。",
-      too_many_examples: "您已有 3 个示例，请先删除一个。",
-      empty: "没有可保存的内容。",
-      not_found: "找不到该回复。",
-      failed: "出了点问题，请重试。",
-    },
   },
   reconnect: {
     banner:
@@ -467,6 +442,7 @@ export const zh: Translations = {
     confirmFailed: "无法确认发件人，请重试。",
   },
   admin: {
+    signInFailed: "登录失败。",
     title: "管理",
     subtitle: "流水线健康状况、隐私事件和模型可靠性。仅显示计数和 ID，不含邮件内容。",
     signInTitle: "管理员登录",
@@ -477,14 +453,6 @@ export const zh: Translations = {
     signingIn: "正在登录…",
     signOut: "退出登录",
     signedInAs: "当前登录：{{email}}",
-    errors: {
-      invalid_credentials: "该邮箱和密码与任何账户都不匹配。",
-      not_an_admin: "此账户没有管理权限。",
-      admin_auth_not_configured: "服务器尚未配置管理员登录（SUPABASE_ANON_KEY）。",
-      supabase_unavailable: "无法连接登录服务。请稍后重试。",
-      rate_limited: "尝试次数过多。请等待几分钟后重试。",
-      generic: "登录失败。",
-    },
     window: "时间范围",
     days_one: "最近 {{count}} 天",
     days_other: "最近 {{count}} 天",
@@ -585,15 +553,6 @@ export const zh: Translations = {
       regenerate: "无法生成新草稿。您的文字没有改变，请稍后重试。",
       refine: "无法润色草稿。您的文字和指令都没有改变，请稍后重试。",
       send: "回复未发送。您的草稿没有改变，请稍后重试。",
-      refused:
-        "AI 无法为这封邮件撰写草稿，重试也不会改变结果。您的文字没有改变：请自行撰写回复，或尝试另一种语气。",
-      sendUnknown: "无法确认回复是否已发送。请先检查您的 Gmail 已发送邮件，再决定是否重新发送。",
-      accessExpired:
-        "Google 已终止 AIMail 对您 Gmail 的访问，因此回复未发送。请重新登录以重新连接；您的草稿未更改。",
-      sendNotGranted:
-        "AIMail 无权从您的 Gmail 发送邮件。请退出并重新登录，并勾选允许 AIMail 发送电子邮件的选项。您的草稿未更改。",
-      unresolved:
-        "这封回复中有 AIMail 无法填写的占位符，例如 [PERSON_3]。请在该处输入真实信息后再发送。",
     },
     replaceEdits: "新草稿将替换您输入的修改。",
     replaceConfirm: "替换我的修改",
@@ -656,6 +615,52 @@ export const zh: Translations = {
     },
     footer:
       "使用 Google 登录即允许 AIMail 读取和发送您的 Gmail。AIMail 是马来西亚莫纳什大学的毕业项目。",
+  },
+  errors: {
+    generic: "出了点问题，请稍后重试。",
+    network: "无法连接 AIMail。请检查网络连接后重试。",
+    signed_out: "您的会话已结束。请重新登录以继续。",
+    sender_unverified: "此发件人未通过身份验证。起草或发送前请先核实发件人。",
+    masking_pending: "这封邮件中的个人信息仍在隐藏中，暂时无法使用。",
+    already_sent: "这封回复已经发送。",
+    redaction_markers: "这封回复仍有隐藏信息，例如 [Redacted]。发送前请填入真实信息。",
+    unresolved_placeholders:
+      "这封回复中有 AIMail 无法填写的占位符，例如 [PERSON_3]。请在该处输入真实信息后再发送。",
+    send_not_granted:
+      "AIMail 无权从您的 Gmail 发送邮件。请退出并重新登录，并勾选允许 AIMail 发送电子邮件的选项。您的草稿未更改。",
+    google_access_expired:
+      "Google 已终止 AIMail 对您 Gmail 的访问，因此回复未发送。请重新登录以重新连接；您的草稿未更改。",
+    send_failed: "Gmail 未接受这封回复，因此未发送。您的草稿没有改变，请稍后重试。",
+    send_outcome_unknown:
+      "无法确认回复是否已发送。请先检查您的 Gmail 已发送邮件，再决定是否重新发送。",
+    draft_refused:
+      "AI 无法为这封邮件撰写草稿，重试也不会改变结果。您的文字没有改变：请自行撰写回复，或尝试另一种语气。",
+    agent_unavailable: "起草服务暂时不可用。您的文字没有改变，请稍后重试。",
+    private_mode_unavailable:
+      "私密模式已开启，但这里没有设置私有模型，因此无法起草。请在设置中关闭私密模式。",
+    masking_unavailable: "目前无法隐藏个人信息，因此未保存任何内容。请稍后重试。",
+    too_many_examples: "您已有 3 个示例，请先删除一个。",
+    empty: "没有可保存的内容。",
+    too_long: "文字过长。",
+    not_found: "找不到该项目，可能已被删除。",
+    rate_limited: "请求过于频繁。请稍等一分钟后重试。",
+    too_large: "该文件超过 10 MB 限制。",
+    not_pdf: "该文件被拒绝：必须是真正的 PDF。",
+    unknown_placeholder: "花括号中只能使用 {name} 和 {return_date}。",
+    return_date_needs_leave: "请设置休假结束日期才能使用 {return_date}。",
+    empty_template: "消息不能为空。",
+    template_too_long: "消息过长（最多 2000 个字符）。",
+    no_default_template: "请先用您的备用语言撰写消息。",
+    unknown_timezone: "无法识别该时区。",
+    leave_needs_dates: '请设置两个休假日期才能使用"休假期间"。',
+    leave_ends_before_it_starts: "休假结束不能早于开始。",
+    workday_ends_before_it_starts: "工作日结束不能早于开始。",
+    bad_work_days: "请至少选择一个工作日。",
+    invalid: "无法保存这些设置。",
+    invalid_credentials: "该邮箱和密码与任何账户都不匹配。",
+    not_an_admin: "此账户没有管理权限。",
+    admin_auth_not_configured: "服务器尚未配置管理员登录（SUPABASE_ANON_KEY）。",
+    supabase_unavailable: "无法连接登录服务。请稍后重试。",
   },
   announce: {
     regenerated: "草稿已重新生成",

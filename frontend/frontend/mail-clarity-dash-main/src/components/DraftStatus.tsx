@@ -2,7 +2,8 @@ import { CircleAlert, LoaderCircle, TriangleAlert } from "lucide-react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 
-import { ConfirmKind, type DraftWorkflowStatus } from "../lib/useDraftWorkflow";
+import { errorMessage } from "../lib/api/errors";
+import { ConfirmKind, DraftAction, type DraftWorkflowStatus } from "../lib/useDraftWorkflow";
 
 export type DraftStatusProps = DraftWorkflowStatus & {
   isGenerating: boolean;
@@ -15,6 +16,13 @@ function confirmMessage(kind: ConfirmKind, count: number, t: TFunction): string 
   if (kind === ConfirmKind.SendTemplates) return t("draftStatus.sendTemplates", { count });
   return t("draftStatus.sendMarkers", { count });
 }
+
+// What to say when the backend names no reason: each action leaves the draft as it was.
+const FALLBACK_BY_ACTION = {
+  [DraftAction.Regenerate]: "draftStatus.failed.regenerate",
+  [DraftAction.Refine]: "draftStatus.failed.refine",
+  [DraftAction.Send]: "draftStatus.failed.send",
+} as const;
 
 const BUTTON =
   "rounded-md border px-3 py-1.5 text-xs font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand";
@@ -71,7 +79,7 @@ export default function DraftStatus({
           className="flex gap-2 rounded-md border border-danger-line bg-danger-soft p-3 text-sm text-danger"
         >
           <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
-          {t(`draftStatus.failed.${failure}`)}
+          {errorMessage(failure.error, t, FALLBACK_BY_ACTION[failure.action])}
         </p>
       ) : null}
 

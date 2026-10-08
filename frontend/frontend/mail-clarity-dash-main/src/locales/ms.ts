@@ -102,7 +102,6 @@ export const ms: Translations = {
     errorTitle: "Tidak dapat memuatkan {{label}}",
     errorHint:
       "Pastikan pelayan belakang berjalan pada URL yang dikonfigurasi dan token API sepadan.",
-    unknownError: "Ralat tidak diketahui",
     retry: "Cuba lagi",
     notFoundTitle: "Halaman tidak ditemui",
     notFoundBody: "Halaman yang anda cari tidak wujud atau telah dipindahkan.",
@@ -127,6 +126,7 @@ export const ms: Translations = {
     open: "Buka {{subject}} dalam peti masuk",
   },
   knowledge: {
+    uploadFailed: "Muat naik gagal.",
     heading: "Pangkalan pengetahuan",
     description:
       "Dokumen polisi yang dirujuk AImail semasa menyokong balasan. Setiap draf memetik bahagian yang digunakannya.",
@@ -155,12 +155,6 @@ export const ms: Translations = {
     removeNo: "Simpan",
     removing: "Membuang…",
     removeFailed: "Tidak dapat membuangnya. Cuba lagi.",
-    errors: {
-      too_large: "Fail itu melebihi had 10 MB.",
-      rate_limited: "Terlalu banyak muat naik sekarang. Tunggu seminit dan cuba lagi.",
-      not_pdf: "Fail itu ditolak: ia mesti PDF sebenar.",
-      failed: "Muat naik gagal.",
-    },
   },
   settings: {
     title: "Tetapan",
@@ -299,20 +293,6 @@ export const ms: Translations = {
       "6": "Sab",
       "7": "Ahd",
     },
-    errors: {
-      unknown_placeholder:
-        "Hanya {name} dan {return_date} boleh digunakan dalam kurungan kerinting.",
-      return_date_needs_leave: "Tetapkan tarikh tamat cuti untuk menggunakan {return_date}.",
-      empty_template: "Mesej tidak boleh kosong.",
-      template_too_long: "Mesej itu terlalu panjang (paling banyak 2000 aksara).",
-      no_default_template: "Tulis mesej dalam bahasa sandaran anda dahulu.",
-      unknown_timezone: "Zon waktu itu tidak dikenali.",
-      leave_needs_dates: 'Tetapkan kedua-dua tarikh cuti untuk menggunakan "Bercuti".',
-      leave_ends_before_it_starts: "Cuti tidak boleh tamat sebelum bermula.",
-      workday_ends_before_it_starts: "Hari kerja anda tidak boleh tamat sebelum bermula.",
-      bad_work_days: "Pilih sekurang-kurangnya satu hari kerja.",
-      invalid: "Tetapan itu tidak dapat disimpan.",
-    },
     reasons: {
       disabled: "Tidak dihantar: balasan sementara dimatikan",
       before_enabled: "Tidak dihantar: tiba sebelum dihidupkan",
@@ -336,6 +316,7 @@ export const ms: Translations = {
     },
   },
   writingStyle: {
+    failed: "Ada masalah. Cuba lagi.",
     quickLabel: "Pilihan pantas",
     quick: {
       formal: { label: "Lebih formal", text: "Formal dan sopan." },
@@ -391,14 +372,6 @@ export const ms: Translations = {
     keep: "Simpan",
     useAsExample: "Guna sebagai contoh",
     addedAsExample: "Ditambah ke gaya penulisan anda.",
-    errors: {
-      masking_unavailable:
-        "Tidak dapat menyembunyikan butiran peribadi sekarang, jadi tiada apa yang disimpan. Cuba lagi sebentar lagi.",
-      too_many_examples: "Anda sudah ada 3 contoh. Buang satu dahulu.",
-      empty: "Tiada apa untuk disimpan.",
-      not_found: "Balasan itu tidak dijumpai.",
-      failed: "Ada masalah. Cuba lagi.",
-    },
   },
   reconnect: {
     banner:
@@ -499,6 +472,7 @@ export const ms: Translations = {
     confirmFailed: "Tidak dapat mengesahkan pengirim. Cuba lagi.",
   },
   admin: {
+    signInFailed: "Log masuk gagal.",
     title: "Pentadbir",
     subtitle:
       "Kesihatan saluran, peristiwa privasi dan kebolehpercayaan model. Kiraan dan ID sahaja: tiada kandungan e-mel.",
@@ -511,15 +485,6 @@ export const ms: Translations = {
     signingIn: "Sedang log masuk…",
     signOut: "Log keluar",
     signedInAs: "Log masuk sebagai {{email}}",
-    errors: {
-      invalid_credentials: "E-mel dan kata laluan itu tidak sepadan dengan mana-mana akaun.",
-      not_an_admin: "Akaun ini tiada akses pentadbir.",
-      admin_auth_not_configured:
-        "Log masuk pentadbir belum dikonfigurasi pada pelayan (SUPABASE_ANON_KEY).",
-      supabase_unavailable: "Perkhidmatan log masuk tidak dapat dicapai. Cuba sebentar lagi.",
-      rate_limited: "Terlalu banyak percubaan. Tunggu beberapa minit dan cuba lagi.",
-      generic: "Log masuk gagal.",
-    },
     window: "Tempoh",
     days_one: "{{count}} hari lepas",
     days_other: "{{count}} hari lepas",
@@ -623,16 +588,6 @@ export const ms: Translations = {
       refine:
         "Draf tidak dapat diperhalusi. Teks dan arahan anda tidak berubah, jadi cuba lagi sebentar lagi.",
       send: "Balasan tidak dihantar. Draf anda tidak berubah, jadi cuba lagi sebentar lagi.",
-      refused:
-        "AI tidak dapat menulis draf untuk e-mel ini, dan mencuba lagi tidak akan mengubahnya. Teks anda tidak berubah: tulis balasan sendiri, atau cuba nada yang satu lagi.",
-      sendUnknown:
-        "Kami tidak dapat mengesahkan sama ada balasan telah dihantar. Semak folder Dihantar Gmail anda sebelum menghantar semula.",
-      accessExpired:
-        "Google telah menamatkan akses AIMail ke Gmail anda, jadi balasan tidak dihantar. Log masuk semula untuk menyambung semula; draf anda tidak berubah.",
-      sendNotGranted:
-        "AIMail tidak dibenarkan menghantar daripada Gmail anda. Log keluar, log masuk semula dan tandakan kotak yang membenarkan AIMail menghantar e-mel. Draf anda tidak berubah.",
-      unresolved:
-        "Balasan ini mempunyai pemegang tempat yang tidak dapat diisi oleh AIMail, seperti [PERSON_3]. Taip butiran sebenar di tempatnya, kemudian hantar.",
     },
     replaceEdits: "Draf baharu akan menggantikan perubahan yang anda taip.",
     replaceConfirm: "Gantikan perubahan saya",
@@ -698,6 +653,59 @@ export const ms: Translations = {
     },
     footer:
       "Log masuk dengan Google membenarkan AIMail membaca dan menghantar Gmail anda. AIMail ialah projek tahun akhir di Monash University Malaysia.",
+  },
+  errors: {
+    generic: "Ada masalah. Cuba lagi sebentar lagi.",
+    network: "Tidak dapat menghubungi AIMail. Semak sambungan anda dan cuba lagi.",
+    signed_out: "Sesi anda telah tamat. Log masuk semula untuk meneruskan.",
+    sender_unverified:
+      "Pengirim ini gagal pengesahan. Semak pengirim sebelum mendraf atau menghantar.",
+    masking_pending:
+      "Butiran peribadi dalam e-mel ini masih sedang disembunyikan, jadi ia belum boleh digunakan.",
+    already_sent: "Balasan ini telah pun dihantar.",
+    redaction_markers:
+      "Balasan ini masih mengandungi butiran tersembunyi seperti [Redacted]. Taip butiran sebenar sebelum menghantar.",
+    unresolved_placeholders:
+      "Balasan ini mempunyai pemegang tempat yang tidak dapat diisi oleh AIMail, seperti [PERSON_3]. Taip butiran sebenar di tempatnya, kemudian hantar.",
+    send_not_granted:
+      "AIMail tidak dibenarkan menghantar daripada Gmail anda. Log keluar, log masuk semula dan tandakan kotak yang membenarkan AIMail menghantar e-mel. Draf anda tidak berubah.",
+    google_access_expired:
+      "Google telah menamatkan akses AIMail ke Gmail anda, jadi balasan tidak dihantar. Log masuk semula untuk menyambung semula; draf anda tidak berubah.",
+    send_failed:
+      "Gmail tidak menerima balasan itu, jadi ia tidak dihantar. Draf anda tidak berubah; cuba lagi sebentar lagi.",
+    send_outcome_unknown:
+      "Kami tidak dapat mengesahkan sama ada balasan telah dihantar. Semak folder Dihantar Gmail anda sebelum menghantar semula.",
+    draft_refused:
+      "AI tidak dapat menulis draf untuk e-mel ini, dan mencuba lagi tidak akan mengubahnya. Teks anda tidak berubah: tulis balasan sendiri, atau cuba nada yang satu lagi.",
+    agent_unavailable:
+      "Perkhidmatan mendraf tidak tersedia sekarang. Teks anda tidak berubah; cuba lagi sebentar lagi.",
+    private_mode_unavailable:
+      "Mod Peribadi dihidupkan, tetapi tiada model peribadi disediakan di sini, jadi tiada apa yang boleh didraf. Matikan Mod Peribadi dalam Tetapan.",
+    masking_unavailable:
+      "Tidak dapat menyembunyikan butiran peribadi sekarang, jadi tiada apa yang disimpan. Cuba lagi sebentar lagi.",
+    too_many_examples: "Anda sudah ada 3 contoh. Buang satu dahulu.",
+    empty: "Tiada apa untuk disimpan.",
+    too_long: "Teks itu terlalu panjang.",
+    not_found: "Item itu tidak dijumpai. Ia mungkin telah dibuang.",
+    rate_limited: "Terlalu banyak permintaan sekarang. Tunggu seminit dan cuba lagi.",
+    too_large: "Fail itu melebihi had 10 MB.",
+    not_pdf: "Fail itu ditolak: ia mesti PDF sebenar.",
+    unknown_placeholder: "Hanya {name} dan {return_date} boleh digunakan dalam kurungan kerinting.",
+    return_date_needs_leave: "Tetapkan tarikh tamat cuti untuk menggunakan {return_date}.",
+    empty_template: "Mesej tidak boleh kosong.",
+    template_too_long: "Mesej itu terlalu panjang (paling banyak 2000 aksara).",
+    no_default_template: "Tulis mesej dalam bahasa sandaran anda dahulu.",
+    unknown_timezone: "Zon waktu itu tidak dikenali.",
+    leave_needs_dates: 'Tetapkan kedua-dua tarikh cuti untuk menggunakan "Bercuti".',
+    leave_ends_before_it_starts: "Cuti tidak boleh tamat sebelum bermula.",
+    workday_ends_before_it_starts: "Hari kerja anda tidak boleh tamat sebelum bermula.",
+    bad_work_days: "Pilih sekurang-kurangnya satu hari kerja.",
+    invalid: "Tetapan itu tidak dapat disimpan.",
+    invalid_credentials: "E-mel dan kata laluan itu tidak sepadan dengan mana-mana akaun.",
+    not_an_admin: "Akaun ini tiada akses pentadbir.",
+    admin_auth_not_configured:
+      "Log masuk pentadbir belum dikonfigurasi pada pelayan (SUPABASE_ANON_KEY).",
+    supabase_unavailable: "Perkhidmatan log masuk tidak dapat dicapai. Cuba sebentar lagi.",
   },
   announce: {
     regenerated: "Draf dijana semula",

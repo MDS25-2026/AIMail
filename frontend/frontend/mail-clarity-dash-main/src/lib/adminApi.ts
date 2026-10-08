@@ -1,5 +1,6 @@
 import type { AdminIdentity, AuditEvent, FlaggedDraft, Overview } from "../types/admin";
-import { BASE } from "./api";
+import { BACKEND_URL } from "./api/config";
+import { ApiError, apiErrorFrom } from "./api/errors";
 
 /**
  * The admin console API (docs/adr/0004). The session is an HttpOnly cookie the backend sets, so
@@ -17,27 +18,8 @@ export function retryUnlessAuth(failureCount: number, error: unknown): boolean {
   return !isAuthError(error) && failureCount < MAX_RETRIES;
 }
 
-/** Carries the backend's error code ("invalid_credentials", "not_an_admin", ...) to the UI. */
-export class AdminApiError extends Error {
-  constructor(
-    readonly status: number,
-    readonly code: string,
-  ) {
-    super(code);
-  }
-}
-
-async function errorFrom(res: Response): Promise<AdminApiError> {
-  const body: unknown = await res.json().catch(() => null);
-  const detail =
-    body !== null && typeof body === "object" && "detail" in body && typeof body.detail === "string"
-      ? body.detail
-      : `http_${res.status}`;
-  return new AdminApiError(res.status, detail);
-}
-
 async function send(path: string, init: RequestInit = {}): Promise<Response> {
-  return fetch(`${BASE}/admin${path}`, { ...init, credentials: "include" });
+  return fetch(`${BACKEND_URL}/admin${path}`, { ...init, credentials: "include" });
 }
 
 // Refresh tokens are single-use at Supabase: three panels expiring together must share one
@@ -56,16 +38,14 @@ function refreshOnce(): Promise<boolean> {
 
 /** True for an error that means "not signed in as an admin": retrying cannot fix it. */
 export function isAuthError(error: unknown): boolean {
-  return (
-    error instanceof AdminApiError && (error.status === UNAUTHORIZED || error.status === FORBIDDEN)
-  );
+  return error instanceof ApiError && (error.status === UNAUTHORIZED || error.status === FORBIDDEN);
 }
 
 /** An expired access cookie is renewed once from the refresh cookie before giving up. */
 async function getJson<T>(path: string): Promise<T> {
   let res = await send(path);
   if (res.status === UNAUTHORIZED && (await refreshOnce())) res = await send(path);
-  if (!res.ok) throw await errorFrom(res);
+  if (!res.ok) throw await apiErrorFrom(res, `GET /admin${path.split("?")[0]}`);
   return res.json();
 }
 
@@ -81,11 +61,11 @@ export async function signIn(email: string, password: string): Promise<AdminIden
     headers: { "Content-Type": "application/json", ...ADMIN_HEADER },
     body: JSON.stringify({ email, password }),
   });
-  if (!res.ok) throw await errorFrom(res);
+  if (!res.ok) throw await apiErrorFrom(res, "POST /admin/session");
   return res.json();
 }
 
 export async function signOut(): Promise<void> {
   const res = await send("/session", { method: "DELETE", headers: ADMIN_HEADER });
-  if (!res.ok) throw await errorFrom(res);
+  if (!res.ok) throw await apiErrorFrom(res, "DELETE /admin/session");
 }

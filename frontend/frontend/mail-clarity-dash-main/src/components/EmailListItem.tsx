@@ -1,7 +1,7 @@
 import { ShieldAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { AuthStatus, type Email } from "../types/email";
+import { AuthStatus, MaskingStatus, type Email } from "../types/email";
 import { detailValues } from "../lib/details";
 import { DetailsContext } from "../lib/detailsContext";
 import { useFormat } from "../lib/useFormat";
@@ -69,9 +69,13 @@ export default function EmailListItem({
           >
             <WithDetails text={email.subject} />
           </div>
-          {email.masking === "pending" || email.masking === "abandoned" ? (
+          {email.masking === MaskingStatus.Pending || email.masking === MaskingStatus.Abandoned ? (
             <p className="mt-0.5 text-xs font-medium text-warning">
-              {t(email.masking === "abandoned" ? "quarantine.abandonedBadge" : "quarantine.badge")}
+              {t(
+                email.masking === MaskingStatus.Abandoned
+                  ? "quarantine.abandonedBadge"
+                  : "quarantine.badge",
+              )}
             </p>
           ) : (
             <p className="mt-0.5 line-clamp-2 text-xs text-fg-muted">

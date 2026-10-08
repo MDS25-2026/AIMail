@@ -3,16 +3,23 @@ import { useState } from "react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 
+import { errorMessage } from "../lib/api/errors";
 import {
   cancelHoldingReply,
   fetchHoldingReplies,
   fetchHoldingReplySettings,
-  HoldingReplySettingsError,
   saveHoldingReplySettings,
+} from "../lib/api/settings";
+import { Language } from "../lib/preferences";
+import { useFormat } from "../lib/useFormat";
+import {
+  ActiveWhen,
+  Audience,
+  CancelReason,
+  ReplyScope,
   type HoldingReplyRecord,
   type HoldingReplySettings,
-} from "../lib/api";
-import { useFormat } from "../lib/useFormat";
+} from "../types/settings";
 import Choice from "./Choice";
 
 /**
@@ -20,49 +27,10 @@ import Choice from "./Choice";
  * while they are away. Nothing here is written by AI; the preview is the exact text a sender gets.
  */
 
-type TemplateLanguage = "en" | "ms" | "zh";
-const LANGUAGES: TemplateLanguage[] = ["en", "ms", "zh"];
+const LANGUAGES = Object.values(Language);
 const WEEK = [1, 2, 3, 4, 5, 6, 7] as const;
-// The codes the backend can send (backend/app/holding_reply.py); anything else reads generically.
-const ERROR_CODES = [
-  "unknown_placeholder",
-  "return_date_needs_leave",
-  "empty_template",
-  "template_too_long",
-  "no_default_template",
-  "unknown_timezone",
-  "leave_needs_dates",
-  "leave_ends_before_it_starts",
-  "workday_ends_before_it_starts",
-  "bad_work_days",
-  "invalid",
-] as const;
-const REASONS = [
-  "disabled",
-  "before_enabled",
-  "masking_pending",
-  "automated",
-  "phishing",
-  "reply_to_differs",
-  "not_active",
-  "outside_domain",
-  "no_sender",
-  "no_template",
-  "stale",
-  "user_replied",
-  "cooldown",
-  "daily_cap",
-  "no_reply_needed",
-  "not_correspondent",
-  "no_thread",
-  "cancelled_by_user",
-  "other",
-] as const;
-type ErrorCode = (typeof ERROR_CODES)[number];
-type Reason = (typeof REASONS)[number];
-const isErrorCode = (code: string): code is ErrorCode =>
-  (ERROR_CODES as readonly string[]).includes(code);
-const isReason = (code: string): code is Reason => (REASONS as readonly string[]).includes(code);
+const CANCEL_REASONS: ReadonlySet<string> = new Set(Object.values(CancelReason));
+const isCancelReason = (code: string): code is CancelReason => CANCEL_REASONS.has(code);
 const TIMEZONES = [
   "Asia/Kuala_Lumpur",
   "Asia/Singapore",
@@ -76,24 +44,23 @@ const TIMEZONES = [
   "UTC",
 ];
 const SAMPLE_NAME = "Aisyah";
-const LOCALE: Record<TemplateLanguage, string> = { en: "en-GB", ms: "ms-MY", zh: "zh-CN" };
+const LOCALE: Record<Language, string> = {
+  [Language.English]: "en-GB",
+  [Language.Malay]: "ms-MY",
+  [Language.Chinese]: "zh-CN",
+};
+const REFRESH_MS = 60_000;
 const SETTINGS_KEY = ["holding-reply-settings"] as const;
 const REPLIES_KEY = ["holding-replies"] as const;
 
 const INPUT =
   "rounded-md border border-line-strong bg-surface px-2 py-1 text-sm text-fg focus-visible:outline-2 focus-visible:outline-brand";
 
-function preview(template: string, language: TemplateLanguage, leaveUntil: string | null): string {
+function preview(template: string, language: Language, leaveUntil: string | null): string {
   const returnDate = leaveUntil
     ? new Intl.DateTimeFormat(LOCALE[language], { dateStyle: "long" }).format(new Date(leaveUntil))
     : "{return_date}";
   return template.replaceAll("{name}", SAMPLE_NAME).replaceAll("{return_date}", returnDate);
-}
-
-function saveErrorText(error: Error | null, t: TFunction): string | null {
-  if (error === null) return null;
-  if (!(error instanceof HoldingReplySettingsError)) return t("holdingReply.saveFailed");
-  return t(`holdingReply.errors.${isErrorCode(error.code) ? error.code : "invalid"}`);
 }
 
 function statusText(
@@ -104,7 +71,7 @@ function statusText(
   if (reply.sentAt) return t("holdingReply.sentAt", { when: when(reply.sentAt) });
   if (reply.cancelledReason) {
     return t(
-      `holdingReply.reasons.${isReason(reply.cancelledReason) ? reply.cancelledReason : "other"}`,
+      `holdingReply.reasons.${isCancelReason(reply.cancelledReason) ? reply.cancelledReason : CancelReason.Other}`,
     );
   }
   return t("holdingReply.waitingUntil", { when: when(reply.scheduledFor) });
@@ -138,7 +105,7 @@ function SettingsForm({ saved }: { saved: HoldingReplySettings }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [form, setForm] = useState(saved);
-  const [language, setLanguage] = useState<TemplateLanguage>(saved.defaultLanguage);
+  const [language, setLanguage] = useState<Language>(saved.defaultLanguage);
   const save = useMutation({
     mutationFn: saveHoldingReplySettings,
     onSuccess: (accepted) => queryClient.setQueryData(SETTINGS_KEY, accepted),
@@ -151,7 +118,7 @@ function SettingsForm({ saved }: { saved: HoldingReplySettings }) {
     if (!text.trim()) delete templates[language];
     update({ templates });
   };
-  const error = saveErrorText(save.error, t);
+  const error = save.error && errorMessage(save.error, t, "holdingReply.saveFailed");
 
   return (
     <form
@@ -176,13 +143,15 @@ function SettingsForm({ saved }: { saved: HoldingReplySettings }) {
         value={form.activeWhen}
         onChange={(activeWhen) => update({ activeWhen })}
         options={[
-          { value: "outside_hours", label: t("holdingReply.outsideHours") },
-          { value: "leave", label: t("holdingReply.onLeave") },
-          { value: "always", label: t("holdingReply.always") },
+          { value: ActiveWhen.OutsideHours, label: t("holdingReply.outsideHours") },
+          { value: ActiveWhen.Leave, label: t("holdingReply.onLeave") },
+          { value: ActiveWhen.Always, label: t("holdingReply.always") },
         ]}
       />
 
-      {form.activeWhen === "outside_hours" ? <WorkingHours form={form} update={update} /> : null}
+      {form.activeWhen === ActiveWhen.OutsideHours ? (
+        <WorkingHours form={form} update={update} />
+      ) : null}
       <LeaveDates form={form} update={update} />
 
       <Choice
@@ -190,9 +159,9 @@ function SettingsForm({ saved }: { saved: HoldingReplySettings }) {
         value={form.audience}
         onChange={(audience) => update({ audience })}
         options={[
-          { value: "correspondents", label: t("holdingReply.correspondents") },
-          { value: "domain", label: t("holdingReply.domain") },
-          { value: "everyone", label: t("holdingReply.everyone") },
+          { value: Audience.Correspondents, label: t("holdingReply.correspondents") },
+          { value: Audience.Domain, label: t("holdingReply.domain") },
+          { value: Audience.Everyone, label: t("holdingReply.everyone") },
         ]}
       />
       <Choice
@@ -200,8 +169,8 @@ function SettingsForm({ saved }: { saved: HoldingReplySettings }) {
         value={form.scope}
         onChange={(scope) => update({ scope })}
         options={[
-          { value: "needs_reply", label: t("holdingReply.needsReply") },
-          { value: "all", label: t("holdingReply.all") },
+          { value: ReplyScope.NeedsReply, label: t("holdingReply.needsReply") },
+          { value: ReplyScope.All, label: t("holdingReply.all") },
         ]}
       />
       <label className="flex items-center justify-between gap-2 text-sm text-fg-muted">
@@ -379,7 +348,7 @@ function SentInYourName() {
   const replies = useQuery({
     queryKey: REPLIES_KEY,
     queryFn: fetchHoldingReplies,
-    refetchInterval: 60_000,
+    refetchInterval: REFRESH_MS,
   });
   if (!replies.data?.length) return null;
   return (

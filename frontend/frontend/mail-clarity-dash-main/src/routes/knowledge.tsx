@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import AppShell from "../components/AppShell";
 import { PageEmpty, PageError, PageLoading } from "../components/PageState";
-import { UploadError } from "../lib/api";
+import { errorMessage } from "../lib/api/errors";
 import { useAddDocument, useDeleteDocument, useDocuments, useUploadDocument } from "../lib/queries";
 
 export const Route = createFileRoute("/knowledge")({
@@ -227,11 +227,7 @@ function ResultLine({
   if (error)
     return (
       <p role="alert" className="mt-2 text-xs text-danger">
-        {t(
-          error instanceof UploadError
-            ? `knowledge.errors.${error.failure}`
-            : "knowledge.errors.failed",
-        )}
+        {errorMessage(error, t, "knowledge.uploadFailed")}
       </p>
     );
   if (chunks !== undefined)

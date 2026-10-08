@@ -25,7 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../components/ui/dialog";
-import type { AuditLogEvent } from "../lib/api";
+import { AuditVerification, type AuditTrailEvent } from "../types/audit";
 import { useAuditTrail } from "../lib/queries";
 import { useFormat } from "../lib/useFormat";
 
@@ -47,7 +47,7 @@ function AuditPage() {
   const format = useFormat();
   const { data, isPending, isError, error, refetch } = useAuditTrail();
 
-  const [selectedEvent, setSelectedEvent] = useState<AuditLogEvent | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<AuditTrailEvent | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [filterQuery, setFilterQuery] = useState("");
 
@@ -76,9 +76,9 @@ function AuditPage() {
     return rawEvents.filter(
       (ev) =>
         ev.action.toLowerCase().includes(q) ||
-        ev.detail.toLowerCase().includes(q) ||
+        JSON.stringify(ev.fields).toLowerCase().includes(q) ||
         ev.id.toLowerCase().includes(q) ||
-        (ev.current_hash && ev.current_hash.toLowerCase().includes(q)),
+        (ev.currentHash && ev.currentHash.toLowerCase().includes(q)),
     );
   }, [rawEvents, filterQuery]);
 
@@ -150,7 +150,7 @@ function AuditPage() {
               {/* Integrity Status Banner */}
               <div
                 className={`rounded-lg border p-4 shadow-sm transition-all ${
-                  data.is_chain_intact
+                  data.isChainIntact
                     ? "border-success/30 bg-success/10 text-fg-body"
                     : "border-danger/30 bg-danger/10 text-fg-body"
                 }`}
@@ -158,7 +158,7 @@ function AuditPage() {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-start gap-3">
                     <div className="mt-0.5 rounded-full p-1 bg-surface shadow-xs">
-                      {data.is_chain_intact ? (
+                      {data.isChainIntact ? (
                         <ShieldCheck className="size-5 text-success" />
                       ) : (
                         <ShieldAlert className="size-5 text-danger" />
@@ -168,19 +168,19 @@ function AuditPage() {
                       <div className="flex items-center gap-2">
                         <span
                           className={`inline-block rounded px-1.5 py-0.5 font-mono text-[11px] font-bold ${
-                            data.is_chain_intact ? "bg-success text-white" : "bg-danger text-white"
+                            data.isChainIntact ? "bg-success text-white" : "bg-danger text-white"
                           }`}
                         >
-                          {data.is_chain_intact ? "[VERIFIED]" : "[FAILED]"}
+                          {data.isChainIntact ? "[VERIFIED]" : "[FAILED]"}
                         </span>
                         <h2 className="text-sm font-semibold text-fg-header">
-                          {data.is_chain_intact ? t("audit.chainIntact") : t("audit.chainBroken")}
+                          {data.isChainIntact ? t("audit.chainIntact") : t("audit.chainBroken")}
                         </h2>
                       </div>
                       <p className="mt-0.5 text-xs text-fg-muted">
                         {t("audit.verifiedCount", {
-                          verified: data.verified_records,
-                          total: data.total_records,
+                          verified: data.verifiedRecords,
+                          total: data.totalRecords,
                         })}
                       </p>
                     </div>
@@ -242,7 +242,7 @@ function AuditPage() {
                           >
                             {/* Timestamp */}
                             <td className="whitespace-nowrap px-4 py-3 text-xs text-fg-muted">
-                              {event.created_at ? format.timestamp(event.created_at) : "N/A"}
+                              {event.createdAt ? format.timestamp(event.createdAt) : "N/A"}
                             </td>
 
                             {/* Action */}
@@ -279,12 +279,12 @@ function AuditPage() {
 
                             {/* Detail / Summary */}
                             <td className="max-w-md truncate px-4 py-3 text-xs text-fg-body">
-                              {formatSummary(event.detail, event.action)}
+                              {formatSummary(JSON.stringify(event.fields), event.action)}
                             </td>
 
                             {/* Cryptographic Proof */}
                             <td className="whitespace-nowrap px-4 py-3 text-right">
-                              {event.current_hash ? (
+                              {event.currentHash ? (
                                 <button
                                   type="button"
                                   onClick={() => setSelectedEvent(event)}
@@ -293,10 +293,10 @@ function AuditPage() {
                                 >
                                   <Hash className="size-3 text-fg-subtle" />
                                   <span>
-                                    {event.current_hash.slice(0, 6)}...
-                                    {event.current_hash.slice(-4)}
+                                    {event.currentHash.slice(0, 6)}...
+                                    {event.currentHash.slice(-4)}
                                   </span>
-                                  {event.is_verified === false ? (
+                                  {event.verification === AuditVerification.Tampered ? (
                                     <span className="ml-1 rounded bg-danger/15 px-1 py-0.5 text-[9px] font-bold text-danger">
                                       [TAMPERED]
                                     </span>
@@ -353,7 +353,7 @@ function AuditPage() {
                 <div>
                   <span className="font-medium text-fg-muted">{t("audit.modal.timestamp")}:</span>
                   <p className="mt-0.5 text-fg-body">
-                    {selectedEvent.created_at ? format.timestamp(selectedEvent.created_at) : "N/A"}
+                    {selectedEvent.createdAt ? format.timestamp(selectedEvent.createdAt) : "N/A"}
                   </p>
                 </div>
                 <div>
@@ -366,10 +366,12 @@ function AuditPage() {
                   <span className="font-medium text-fg-muted">Status:</span>
                   <p
                     className={`mt-0.5 font-mono font-medium ${
-                      selectedEvent.is_verified === false ? "text-danger" : "text-success"
+                      selectedEvent.verification === AuditVerification.Tampered
+                        ? "text-danger"
+                        : "text-success"
                     }`}
                   >
-                    {selectedEvent.is_verified === false
+                    {selectedEvent.verification === AuditVerification.Tampered
                       ? "[ALERT] Cryptographic Hash Mismatch: Unauthorized Modification Detected!"
                       : "[VERIFIED] Integrity Intact"}
                   </p>
@@ -385,10 +387,10 @@ function AuditPage() {
                       <LinkIcon className="size-3.5 text-fg-muted" />
                       {t("audit.modal.prevHash")}
                     </span>
-                    {selectedEvent.prev_hash ? (
+                    {selectedEvent.prevHash ? (
                       <button
                         type="button"
-                        onClick={() => copyToClipboard(selectedEvent.prev_hash || "", "prev")}
+                        onClick={() => copyToClipboard(selectedEvent.prevHash || "", "prev")}
                         className="inline-flex items-center gap-1 text-[11px] text-fg-muted hover:text-fg-header"
                       >
                         {copiedField === "prev" ? (
@@ -406,7 +408,7 @@ function AuditPage() {
                     ) : null}
                   </div>
                   <div className="mt-1 rounded border border-line bg-surface-muted p-2 font-mono text-[11px] text-fg-muted break-all select-all">
-                    {selectedEvent.prev_hash ||
+                    {selectedEvent.prevHash ||
                       "0000000000000000000000000000000000000000000000000000000000000000 (Genesis)"}
                   </div>
                 </div>
@@ -428,10 +430,10 @@ function AuditPage() {
                       <Hash className="size-3.5 text-accent" />
                       {t("audit.modal.currentHash")}
                     </span>
-                    {selectedEvent.current_hash ? (
+                    {selectedEvent.currentHash ? (
                       <button
                         type="button"
-                        onClick={() => copyToClipboard(selectedEvent.current_hash || "", "current")}
+                        onClick={() => copyToClipboard(selectedEvent.currentHash || "", "current")}
                         className="inline-flex items-center gap-1 text-[11px] text-fg-muted hover:text-fg-header"
                       >
                         {copiedField === "current" ? (
@@ -449,7 +451,7 @@ function AuditPage() {
                     ) : null}
                   </div>
                   <div className="mt-1 rounded border border-accent/40 bg-accent/5 p-2 font-mono text-[11px] font-medium text-accent break-all select-all">
-                    {selectedEvent.current_hash || "N/A"}
+                    {selectedEvent.currentHash || "N/A"}
                   </div>
                 </div>
               </div>

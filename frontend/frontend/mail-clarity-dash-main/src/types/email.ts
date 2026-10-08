@@ -72,8 +72,7 @@ export type Email = {
   /** Opened at least once. Anything new is unread. */
   isRead?: boolean;
   quantities?: Quantity[];
-  /** "pending": content withheld until it can be fully masked; "abandoned": it never will be (#109). */
-  masking?: "complete" | "pending" | "abandoned";
+  masking?: MaskingStatus;
   /** The Gmail thread, so the inbox can show one row per conversation. */
   threadId?: string | null;
   /** The real values behind this email's placeholders; detail responses only, owner only. */
@@ -82,10 +81,19 @@ export type Email = {
   authStatus?: AuthStatus;
 };
 
+/** messages.auth_status (specs/context/backbone-contracts.md). Anything else reads as unverified. */
 export enum AuthStatus {
   Pass = "pass",
   SpoofDetected = "spoof_detected",
+  Unverified = "unverified",
   SenderConfirmed = "sender_confirmed",
+}
+
+/** Pending: content withheld until it can be fully masked; abandoned: it never will be (#109). */
+export enum MaskingStatus {
+  Complete = "complete",
+  Pending = "pending",
+  Abandoned = "abandoned",
 }
 
 /** Below this the draft is flagged "review recommended". */

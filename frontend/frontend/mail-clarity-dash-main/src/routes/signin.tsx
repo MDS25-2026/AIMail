@@ -3,7 +3,7 @@ import type { LucideIcon } from "lucide-react";
 import { EyeOff, Inbox, Languages, PenLine, Send, ShieldCheck, UserCheck } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { SIGN_IN_URL } from "../lib/api";
+import { SIGN_IN_URL } from "../lib/api/config";
 
 // The only error codes the backend sends back here; anything else reads as a plain failure.
 const SIGN_IN_ERRORS = ["sign_in_failed", "sign_in_unavailable", "sign_in_not_allowed"] as const;

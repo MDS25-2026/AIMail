@@ -3,13 +3,10 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import SidePanel, { PanelHeader } from "../components/SidePanel";
-import {
-  fetchEmail,
-  fetchEmailByThread,
-  fetchSession,
-  SIGN_IN_URL,
-  SignedOutError,
-} from "../lib/api";
+import { SIGN_IN_URL } from "../lib/api/config";
+import { fetchEmail, fetchEmailByThread } from "../lib/api/emails";
+import { isSignedOut } from "../lib/api/errors";
+import { fetchSession } from "../lib/api/session";
 import { queryKeys } from "../lib/queries";
 import { useDraftWorkflow } from "../lib/useDraftWorkflow";
 import type { Email } from "../types/email";
@@ -41,12 +38,11 @@ export default function ExtensionApp() {
     queryKey: queryKeys.session,
     queryFn: fetchSession,
     retry: false,
-    refetchInterval: (query) =>
-      query.state.error instanceof SignedOutError ? SIGNED_OUT_POLL_MS : false,
+    refetchInterval: (query) => (isSignedOut(query.state.error) ? SIGNED_OUT_POLL_MS : false),
   });
   const openSignIn = useSignInTab(session.isSuccess);
 
-  if (session.error instanceof SignedOutError) return <SignedOut onSignIn={openSignIn} />;
+  if (isSignedOut(session.error)) return <SignedOut onSignIn={openSignIn} />;
   if (tab === TabState.Loading || session.isPending) return <PanelMessage titleKey="loading" />;
   if (tab === TabState.NotGmail)
     return <PanelMessage titleKey="notGmailTitle" hintKey="notGmailHint" />;
@@ -72,7 +68,7 @@ function ThreadPanel({ threadId, account, onSignIn }: ThreadPanelProps) {
     queryFn: () => fetchEmailByThread(threadId),
   });
 
-  if (found.error instanceof SignedOutError) return <SignedOut onSignIn={onSignIn} />;
+  if (isSignedOut(found.error)) return <SignedOut onSignIn={onSignIn} />;
   if (found.isPending) return <PanelMessage titleKey="preparing" account={account} />;
   if (found.isError) {
     return (

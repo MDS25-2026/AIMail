@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-import { deleteAccount, disconnectGmail } from "../lib/api";
+import { deleteAccount, disconnectGmail } from "../lib/api/session";
 import { queryKeys, useSession } from "../lib/queries";
 import {
   AlertDialog,

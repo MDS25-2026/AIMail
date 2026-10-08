@@ -1,8 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import { addStyleExample } from "../lib/api";
-import { styleErrorText, WRITING_STYLE_KEY } from "../lib/writingStyle";
+import { errorMessage } from "../lib/api/errors";
+import { addStyleExample } from "../lib/api/profile";
+import { WRITING_STYLE_KEY } from "../lib/writingStyle";
 
 /** Adds a sent reply to the reader's writing style; the server masks it before storing. */
 export default function UseAsExampleButton({ emailId }: { emailId: string }) {
@@ -12,7 +13,7 @@ export default function UseAsExampleButton({ emailId }: { emailId: string }) {
     mutationFn: () => addStyleExample({ emailId }),
     onSuccess: (style) => queryClient.setQueryData(WRITING_STYLE_KEY, style),
   });
-  const error = styleErrorText(add.error, t);
+  const error = add.error && errorMessage(add.error, t, "writingStyle.failed");
   if (add.isSuccess) {
     return (
       <p role="status" className="text-xs text-success">

@@ -23,22 +23,19 @@ import {
   signIn,
   signOut,
 } from "./adminApi";
+import { fetchAuditTrail } from "./api/audit";
+import { addDocument, deleteDocument, fetchDocuments, uploadDocument } from "./api/documents";
 import {
-  addDocument,
   confirmSender,
-  deleteDocument,
-  fetchAuditTrail,
-  fetchDocuments,
   fetchEmail,
   fetchEmails,
-  fetchSession,
-  fetchSystemInfo,
   refineEmail,
   regenerateEmail,
   sendEmail,
   translateEmail,
-  uploadDocument,
-} from "./api";
+} from "./api/emails";
+import { fetchSession } from "./api/session";
+import { fetchSystemInfo } from "./api/settings";
 import type { Email, Tone } from "../types/email";
 
 export const queryKeys = {

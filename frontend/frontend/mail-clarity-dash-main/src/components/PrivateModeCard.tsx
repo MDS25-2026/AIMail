@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import { fetchPrivateMode, savePrivateMode } from "../lib/api";
+import { fetchPrivateMode, savePrivateMode } from "../lib/api/settings";
 
 /** Private mode (specs/features/local-model.md). Hidden unless the company has set up a local model. */
 

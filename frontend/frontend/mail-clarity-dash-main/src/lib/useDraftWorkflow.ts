@@ -1,13 +1,6 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import {
-  DraftRefusedError,
-  GoogleAccessExpiredError,
-  SendNotGrantedError,
-  SendOutcomeUnknownError,
-  UnresolvedPlaceholdersError,
-} from "./api";
 import { detailValues, restoreDetails } from "./details";
 import { useDetailsHidden } from "./detailsVisibility";
 import { findRedactionMarkers, findTemplatePlaceholders, hasUnsavedEdits } from "./draftGuards";
@@ -20,32 +13,8 @@ export enum DraftAction {
   Send = "send",
 }
 
-/** Why the last action failed; each value is a `draftStatus.failed.*` message. */
-export enum DraftFailure {
-  Regenerate = "regenerate",
-  Refine = "refine",
-  Send = "send",
-  Refused = "refused",
-  SendUnknown = "sendUnknown",
-  SendNotGranted = "sendNotGranted",
-  AccessExpired = "accessExpired",
-  Unresolved = "unresolved",
-}
-
-const FAILURE_BY_ACTION: Record<DraftAction, DraftFailure> = {
-  [DraftAction.Regenerate]: DraftFailure.Regenerate,
-  [DraftAction.Refine]: DraftFailure.Refine,
-  [DraftAction.Send]: DraftFailure.Send,
-};
-
-function failureFor(error: unknown, action: DraftAction): DraftFailure {
-  if (error instanceof DraftRefusedError) return DraftFailure.Refused;
-  if (error instanceof SendOutcomeUnknownError) return DraftFailure.SendUnknown;
-  if (error instanceof SendNotGrantedError) return DraftFailure.SendNotGranted;
-  if (error instanceof GoogleAccessExpiredError) return DraftFailure.AccessExpired;
-  if (error instanceof UnresolvedPlaceholdersError) return DraftFailure.Unresolved;
-  return FAILURE_BY_ACTION[action];
-}
+/** The last action that failed, and why; DraftStatus turns it into words. */
+export type DraftFailure = { action: DraftAction; error: unknown };
 
 export enum ConfirmKind {
   ReplaceEdits = "replaceEdits",
@@ -130,8 +99,7 @@ export function useDraftWorkflow(email: Email | null) {
     try {
       await run();
     } catch (error) {
-      const failure = failureFor(error, action);
-      if (seq === requestSeqRef.current) setFailed({ emailId: id, value: failure });
+      if (seq === requestSeqRef.current) setFailed({ emailId: id, value: { action, error } });
       throw error;
     }
     if (seq !== requestSeqRef.current) return;
