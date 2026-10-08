@@ -41,3 +41,12 @@ old rows) and `verification` is `verified` | `tampered` | `unverifiable`.
 One policy decides it: backend `refusal_for(message, action)`, dashboard `draftAvailability(email)`. The email
 response carries `authStatus` and `masking`; the dashboard derives availability from them with the same rules:
 quarantined (`masking` pending or abandoned) shows no draft; `spoof_detected` shows the sender check; otherwise ready.
+
+## Dashboard
+
+- One client (`src/lib/api/client.ts`) reads `{"error": {"code"}}`, and `{"detail": "<code>"}` until every route has
+  moved; a body with no known code falls back by status (401 signed_out, 404 not_found, 413 too_large,
+  429 rate_limited), else `unknown`. Codes the dashboard maps live in `ApiErrorCode` (`src/lib/api/errors.ts`); a new
+  backend code needs an entry there and an `errors.<code>` string in en/ms/zh, or it reads as the caller's fallback.
+- `draftAvailability(email)` (`src/lib/draftAvailability.ts`) applies the rules above; a missing `authStatus` is unverified.
+- `GET /audit` is read in the camelCase shape above; `fields` are shown as stored, key by key.
