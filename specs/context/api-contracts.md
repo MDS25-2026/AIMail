@@ -218,8 +218,8 @@ See [`../features/rag-retrieval.md`](../features/rag-retrieval.md).
 **`POST /documents/upload`** — add a policy by uploading a PDF (multipart).
 - Request: `multipart/form-data` with `file` (PDF) · Response 200: `{ "chunks": int }` · 400 if not a readable PDF.
 
-> Drift note: these currently return FastAPI defaults (`{"detail": ...}` on error, bare JSON bodies),
-> not the `{ "error": {...} }` envelope above. Aligning them is a follow-up when the contract is finalised.
+> Errors from these use the `{ "error": {...} }` envelope like every other route (one registry,
+> `app/core/errors.py`, since 2026-10-08); success bodies are the bare JSON shown.
 
 ### Dashboard (email view)
 
