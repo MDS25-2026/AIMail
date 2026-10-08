@@ -126,6 +126,7 @@ export const ms: Translations = {
     open: "Buka {{subject}} dalam peti masuk",
   },
   knowledge: {
+    removeQuestion: "Buang {{title}}? Draf berhenti merujuknya serta-merta.",
     uploadFailed: "Muat naik gagal.",
     heading: "Pangkalan pengetahuan",
     description:
@@ -316,6 +317,7 @@ export const ms: Translations = {
     },
   },
   writingStyle: {
+    deleting: "Memadam…",
     failed: "Ada masalah. Cuba lagi.",
     quickLabel: "Pilihan pantas",
     quick: {
@@ -459,6 +461,7 @@ export const ms: Translations = {
       "Pendengar mencuba berulang kali tetapi tidak dapat membuang data peribadi daripada e-mel ini, atau ia telah dipadam daripada Gmail terlebih dahulu. Kandungannya tidak pernah disimpan, jadi tiada apa untuk dibaca atau didraf. Bukanya dalam Gmail jika anda memerlukannya.",
   },
   security: {
+    confirming: "Mengesahkan…",
     spoofBadge: "Penyamaran dikesan",
     spoofTitle: "Pengesahan pengirim gagal — draf automatik dinyahdayakan",
     spoofBody:
@@ -707,6 +710,7 @@ export const ms: Translations = {
       "Log masuk pentadbir belum dikonfigurasi pada pelayan (SUPABASE_ANON_KEY).",
     supabase_unavailable: "Perkhidmatan log masuk tidak dapat dicapai. Cuba sebentar lagi.",
   },
+  confirm: { retry: "Cuba lagi" },
   announce: {
     regenerated: "Draf dijana semula",
     refined: "Draf diperhalus",

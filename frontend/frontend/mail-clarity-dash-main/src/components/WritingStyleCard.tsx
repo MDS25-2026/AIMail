@@ -12,8 +12,12 @@ import {
   useSetStyleLearning,
   useWritingStyle,
 } from "../lib/queries";
+import { cn } from "../lib/utils";
 import { MAX_DESCRIPTION_CHARS, togglePhrase } from "../lib/writingStyle";
 import { ReplyLength, StyleHabitKind, type StyleHabit, type WritingStyle } from "../types/profile";
+import ConfirmAction from "./ConfirmAction";
+import { InlineAlert } from "./InlineMessages";
+import { button, field } from "./variants";
 
 /**
  * Writing style (specs/features/writing-profile.md): how the reader's drafts should sound, in their
@@ -26,12 +30,9 @@ const QUICK_PICKS = ["formal", "thanks", "shorter", "warmer"] as const;
 const REPLY_LENGTHS: ReadonlySet<string> = new Set(Object.values(ReplyLength));
 const isReplyLength = (value: string): value is ReplyLength => REPLY_LENGTHS.has(value);
 
-const INPUT =
-  "w-full rounded-md border border-line-strong bg-surface px-2 py-1 text-sm text-fg focus-visible:outline-2 focus-visible:outline-brand";
-const BUTTON =
-  "rounded-md bg-brand px-3 py-1.5 text-sm font-semibold text-on-brand hover:bg-brand-strong disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand";
-const QUIET_BUTTON =
-  "shrink-0 rounded-md border border-line px-2 py-1 text-xs font-medium text-fg-body hover:bg-surface-muted disabled:opacity-60";
+const INPUT = cn(field({ size: "sm" }), "w-full");
+const BUTTON = button({ intent: "primary" });
+const QUIET_BUTTON = cn(button({ intent: "quiet", size: "xs" }), "shrink-0");
 
 /** A failed change, in words; null while nothing has failed. */
 function failureText(error: Error | null, t: TFunction): string | null {
@@ -60,11 +61,7 @@ export default function WritingStyleCard() {
         </h2>
         <p className="mt-1 text-sm text-fg-muted">{t("writingStyle.intro")}</p>
       </div>
-      {style.isError ? (
-        <p role="alert" className="text-sm text-danger">
-          {t("writingStyle.loadFailed")}
-        </p>
-      ) : null}
+      {style.isError ? <InlineAlert>{t("writingStyle.loadFailed")}</InlineAlert> : null}
       {style.data ? (
         <>
           {/* Keyed by the stored text, so deleting everything empties the box too. */}
@@ -136,11 +133,7 @@ function Description({ saved }: { saved: string }) {
         })}
       </div>
       {saved ? <AiSees text={saved} /> : null}
-      {error ? (
-        <p role="alert" className="text-sm text-danger">
-          {error}
-        </p>
-      ) : null}
+      {error ? <InlineAlert>{error}</InlineAlert> : null}
       <button type="submit" disabled={save.isPending || text === saved} className={BUTTON}>
         {save.isPending ? t("writingStyle.saving") : t("writingStyle.save")}
       </button>
@@ -205,11 +198,7 @@ function Examples({ style }: { style: WritingStyle }) {
           </button>
         </form>
       )}
-      {error ? (
-        <p role="alert" className="text-sm text-danger">
-          {error}
-        </p>
-      ) : null}
+      {error ? <InlineAlert>{error}</InlineAlert> : null}
     </div>
   );
 }
@@ -255,47 +244,27 @@ function Learning({ style }: { style: WritingStyle }) {
           </li>
         ))}
       </ul>
-      {error ? (
-        <p role="alert" className="text-sm text-danger">
-          {error}
-        </p>
-      ) : null}
+      {error ? <InlineAlert>{error}</InlineAlert> : null}
     </div>
   );
 }
 
 function DeleteEverything() {
   const { t } = useTranslation();
-  const [isConfirming, setIsConfirming] = useState(false);
   const erase = useDeleteWritingStyle();
-  const error = failureText(erase.error, t);
   return (
-    <div className="flex flex-wrap items-center gap-2 border-t border-line-subtle pt-4 text-sm">
-      {isConfirming ? (
-        <>
-          <span className="text-fg-muted">{t("writingStyle.deleteConfirm")}</span>
-          <button
-            type="button"
-            className="rounded-md border border-danger px-2 py-1 text-xs font-semibold text-danger"
-            disabled={erase.isPending}
-            onClick={() => erase.mutate(undefined, { onSuccess: () => setIsConfirming(false) })}
-          >
-            {t("writingStyle.deleteYes")}
-          </button>
-          <button type="button" className={QUIET_BUTTON} onClick={() => setIsConfirming(false)}>
-            {t("writingStyle.keep")}
-          </button>
-        </>
-      ) : (
-        <button type="button" className={QUIET_BUTTON} onClick={() => setIsConfirming(true)}>
-          {t("writingStyle.deleteEverything")}
-        </button>
-      )}
-      {error ? (
-        <p role="alert" className="w-full text-sm text-danger">
-          {error}
-        </p>
-      ) : null}
+    <div className="border-t border-line-subtle pt-4">
+      <ConfirmAction
+        trigger={t("writingStyle.deleteEverything")}
+        question={t("writingStyle.deleteConfirm")}
+        confirm={t("writingStyle.deleteYes")}
+        pending={t("writingStyle.deleting")}
+        cancel={t("writingStyle.keep")}
+        onConfirm={() => erase.mutateAsync(undefined)}
+        onCancel={erase.reset}
+        isPending={erase.isPending}
+        error={failureText(erase.error, t)}
+      />
     </div>
   );
 }

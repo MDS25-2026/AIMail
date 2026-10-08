@@ -11,6 +11,7 @@ import {
   useSaveHoldingReplySettings,
 } from "../lib/queries";
 import { useFormat } from "../lib/useFormat";
+import { cn } from "../lib/utils";
 import {
   ActiveWhen,
   Audience,
@@ -20,6 +21,8 @@ import {
   type HoldingReplySettings,
 } from "../types/settings";
 import Choice from "./Choice";
+import { InlineAlert, InlineStatus } from "./InlineMessages";
+import { button, field } from "./variants";
 
 /**
  * Holding reply (specs/features/holding-reply.md): the reader's own words, sent automatically
@@ -49,8 +52,7 @@ const LOCALE: Record<Language, string> = {
   [Language.Chinese]: "zh-CN",
 };
 
-const INPUT =
-  "rounded-md border border-line-strong bg-surface px-2 py-1 text-sm text-fg focus-visible:outline-2 focus-visible:outline-brand";
+const INPUT = field({ size: "sm" });
 
 function preview(template: string, language: Language, leaveUntil: string | null): string {
   const returnDate = leaveUntil
@@ -84,11 +86,7 @@ export default function HoldingReplyCard() {
         </h2>
         <p className="mt-1 text-sm text-fg-muted">{t("holdingReply.intro")}</p>
       </div>
-      {settings.isError ? (
-        <p role="alert" className="text-sm text-danger">
-          {t("holdingReply.loadFailed")}
-        </p>
-      ) : null}
+      {settings.isError ? <InlineAlert>{t("holdingReply.loadFailed")}</InlineAlert> : null}
       {/* The form starts from what was saved and keeps the reader's edits from then on; a save
           writes back what the server accepted, which is what the form already shows. */}
       {settings.data ? <SettingsForm saved={settings.data} /> : null}
@@ -173,7 +171,7 @@ function SettingsForm({ saved }: { saved: HoldingReplySettings }) {
           max={30}
           value={form.cooldownDays}
           onChange={(event) => update({ cooldownDays: Number(event.target.value) })}
-          className={`${INPUT} w-20`}
+          className={cn(INPUT, "w-20")}
         />
       </label>
 
@@ -194,7 +192,7 @@ function SettingsForm({ saved }: { saved: HoldingReplySettings }) {
           value={template}
           onChange={(event) => setTemplate(event.target.value)}
           placeholder={t("holdingReply.templatePlaceholder")}
-          className={`${INPUT} w-full`}
+          className={cn(INPUT, "w-full")}
         />
         <p className="text-xs text-fg-subtle">{t("holdingReply.fields")}</p>
         {template ? (
@@ -217,20 +215,16 @@ function SettingsForm({ saved }: { saved: HoldingReplySettings }) {
         />
       </div>
 
-      {error ? (
-        <p role="alert" className="text-sm text-danger">
-          {error}
-        </p>
-      ) : null}
+      {error ? <InlineAlert>{error}</InlineAlert> : null}
       {save.isSuccess ? (
-        <p role="status" className="text-sm text-success">
+        <InlineStatus>
           {form.enabled ? t("holdingReply.savedOn") : t("holdingReply.savedOff")}
-        </p>
+        </InlineStatus>
       ) : null}
       <button
         type="submit"
         disabled={save.isPending}
-        className="rounded-md bg-brand px-4 py-2 text-sm font-semibold text-on-brand hover:bg-brand-strong disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+        className={button({ intent: "primary", size: "md" })}
       >
         {save.isPending ? t("holdingReply.saving") : t("holdingReply.save")}
       </button>
@@ -370,7 +364,7 @@ function ReplyRow({ reply }: { reply: HoldingReplyRecord }) {
           type="button"
           onClick={() => cancel.mutate(reply.id)}
           disabled={cancel.isPending}
-          className="shrink-0 rounded-md border border-line px-2 py-1 text-xs font-medium text-fg-body hover:bg-surface-muted"
+          className={cn(button({ intent: "quiet", size: "xs" }), "shrink-0")}
         >
           {t("holdingReply.cancel")}
         </button>

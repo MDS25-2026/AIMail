@@ -118,6 +118,7 @@ export const en = {
     open: "Open {{subject}} in the inbox",
   },
   knowledge: {
+    removeQuestion: "Remove {{title}}? Drafts stop citing it at once.",
     uploadFailed: "The upload failed.",
     heading: "Knowledge base",
     description:
@@ -306,6 +307,7 @@ export const en = {
     },
   },
   writingStyle: {
+    deleting: "Deleting…",
     failed: "Something went wrong. Try again.",
     quickLabel: "Quick picks",
     quick: {
@@ -444,6 +446,7 @@ export const en = {
       "The listener tried repeatedly and could not remove personal data from this email, or it was deleted from Gmail first. Its content was never stored, so there is nothing to read or draft. Open it in Gmail if you need it.",
   },
   security: {
+    confirming: "Confirming…",
     spoofBadge: "Spoof detected",
     spoofTitle: "Sender authentication failed — automated draft disabled",
     spoofBody:
@@ -688,6 +691,7 @@ export const en = {
     admin_auth_not_configured: "Admin sign-in is not configured on the server (SUPABASE_ANON_KEY).",
     supabase_unavailable: "The sign-in service is unreachable. Try again shortly.",
   },
+  confirm: { retry: "Try again" },
   announce: {
     regenerated: "Draft regenerated",
     refined: "Draft refined",

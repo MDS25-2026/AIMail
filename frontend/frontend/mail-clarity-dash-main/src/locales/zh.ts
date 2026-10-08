@@ -114,6 +114,7 @@ export const zh: Translations = {
     open: "在收件箱中打开 {{subject}}",
   },
   knowledge: {
+    removeQuestion: "删除 {{title}}？草稿将立即停止引用它。",
     uploadFailed: "上传失败。",
     heading: "知识库",
     description: "AImail 为回复提供依据时检索的政策文件。每份草稿都会引用它所用的片段。",
@@ -297,6 +298,7 @@ export const zh: Translations = {
     },
   },
   writingStyle: {
+    deleting: "正在删除…",
     failed: "出了点问题，请重试。",
     quickLabel: "快速选择",
     quick: {
@@ -430,6 +432,7 @@ export const zh: Translations = {
       "监听器多次尝试仍无法移除此邮件中的个人数据，或该邮件已先从 Gmail 中删除。其内容从未保存，因此没有可阅读或起草的内容。如需查看，请在 Gmail 中打开。",
   },
   security: {
+    confirming: "正在确认…",
     spoofBadge: "检测到伪造",
     spoofTitle: "发件人身份验证失败 — 已禁用自动起草",
     spoofBody:
@@ -662,6 +665,7 @@ export const zh: Translations = {
     admin_auth_not_configured: "服务器尚未配置管理员登录（SUPABASE_ANON_KEY）。",
     supabase_unavailable: "无法连接登录服务。请稍后重试。",
   },
+  confirm: { retry: "重试" },
   announce: {
     regenerated: "草稿已重新生成",
     refined: "草稿已优化",

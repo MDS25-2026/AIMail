@@ -1,6 +1,8 @@
 import { useTranslation } from "react-i18next";
 
+import { errorMessage } from "../lib/api/errors";
 import { usePrivateMode, useSavePrivateMode } from "../lib/queries";
+import { InlineAlert, InlineStatus } from "./InlineMessages";
 
 /** Private mode (specs/features/local-model.md). Hidden unless the company has set up a local model. */
 
@@ -28,9 +30,7 @@ export default function PrivateModeCard() {
         {t("privateMode.switch")}
       </label>
       {isStranded ? (
-        <p role="alert" className="text-sm text-danger">
-          {t("privateMode.notSetUp")}
-        </p>
+        <InlineAlert>{t("privateMode.notSetUp")}</InlineAlert>
       ) : (
         <p className="text-sm text-fg-muted">
           {t("privateMode.intro", { model: mode.data.model })}
@@ -42,14 +42,12 @@ export default function PrivateModeCard() {
         ))}
       </ul>
       {save.isError ? (
-        <p role="alert" className="text-sm text-danger">
-          {t("privateMode.failed")}
-        </p>
+        <InlineAlert>{errorMessage(save.error, t, "privateMode.failed")}</InlineAlert>
       ) : null}
       {save.isSuccess ? (
-        <p role="status" className="text-sm text-success">
+        <InlineStatus>
           {mode.data.enabled ? t("privateMode.on") : t("privateMode.off")}
-        </p>
+        </InlineStatus>
       ) : null}
     </section>
   );

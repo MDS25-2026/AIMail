@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { errorMessage } from "../../lib/api/errors";
 import { useAdminSignIn } from "../../lib/queries";
+import { InlineAlert } from "../InlineMessages";
 
 export default function SignInForm() {
   const { t } = useTranslation();
@@ -50,9 +51,7 @@ export default function SignInForm() {
         />
       </label>
       {signIn.isError ? (
-        <p role="alert" className="text-sm text-danger">
-          {errorMessage(signIn.error, t, "admin.signInFailed")}
-        </p>
+        <InlineAlert>{errorMessage(signIn.error, t, "admin.signInFailed")}</InlineAlert>
       ) : null}
       <button
         type="submit"
