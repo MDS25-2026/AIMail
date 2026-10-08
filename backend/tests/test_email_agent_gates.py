@@ -21,6 +21,7 @@ from email_agent import (
 )
 from gemini_client import ModelError, ModelErrorCode
 from tests.conftest import agent_client
+from tests.drafting import candidate, context
 
 
 @pytest.mark.parametrize("raw, expected", [
@@ -59,29 +60,28 @@ def test_unreachable_scanner_is_not_a_clean_bill(findings, expected):
 
 
 def test_clean_draft_needs_no_review():
-    assert build_review_reasons({"grounding_ok": True, "completeness": True}, 0.95, 0, []) == []
+    assert build_review_reasons(candidate(confidence=0.95), 0) == []
 
 
 def test_tone_alone_never_triggers_review():
     """Style is advisory: a correct, PII-clean, complete draft is not blocked on register."""
-    reasons = build_review_reasons(
-        {"grounding_ok": True, "completeness": True, "tone_match": False}, 1.0, 0, [])
+    reasons = build_review_reasons(candidate(confidence=1.0, tone_match=False), 0)
     assert reasons == []
 
 
 def test_a_refined_draft_always_reaches_a_human():
-    reasons = build_review_reasons({"grounding_ok": True, "completeness": True}, 1.0, 1, [])
+    reasons = build_review_reasons(candidate(confidence=1.0), 1)
     assert any("refine" in r for r in reasons)
 
 
 def test_pii_finding_triggers_review_even_at_full_confidence():
-    reasons = build_review_reasons({"grounding_ok": True, "completeness": True}, 1.0, 0, ["MY_NRIC"])
+    reasons = build_review_reasons(candidate(pii=["MY_NRIC"], confidence=1.0), 0)
     assert any("pii" in r for r in reasons)
 
 
 def test_failed_grounding_triggers_review_even_at_full_confidence():
     """The gate the old code could never reach: high self-reported score, failed real check."""
-    reasons = build_review_reasons({"grounding_ok": False, "completeness": True}, 1.0, 0, [])
+    reasons = build_review_reasons(candidate(grounding_ok=False, confidence=1.0), 0)
     assert any("grounding" in r for r in reasons)
 
 
@@ -124,7 +124,7 @@ def test_single_digits_are_prose_not_facts():
 
 
 def test_unsupported_figures_reach_the_reviewer():
-    reasons = build_review_reasons({"grounding_ok": True, "completeness": True}, 1.0, 0, [], ["60"])
+    reasons = build_review_reasons(candidate(specifics=["60"], confidence=1.0), 0)
     assert any("not in source" in r for r in reasons)
 
 
@@ -132,29 +132,27 @@ ITEMS = ["Confirm the licence count", "Refund the difference", "Send the correct
 
 
 def test_unaddressed_indices_map_back_to_request_text():
-    assert unaddressed_requests({"unaddressed_items": [2]}, ITEMS) == ["Refund the difference"]
+    assert unaddressed_requests([2], ITEMS) == ["Refund the difference"]
 
 
-@pytest.mark.parametrize("indices", [[0], [4], [-1], ["2"], [None]])
+@pytest.mark.parametrize("indices", [[0], [4], [-1]])
 def test_out_of_range_indices_are_dropped_not_trusted(indices):
     """A hostile email reaches the critic's prompt, so its indices are not trusted either."""
-    assert unaddressed_requests({"unaddressed_items": indices}, ITEMS) == []
+    assert unaddressed_requests(indices, ITEMS) == []
 
 
 def test_no_unaddressed_items_is_clean():
-    assert unaddressed_requests({"unaddressed_items": []}, ITEMS) == []
-    assert unaddressed_requests({}, ITEMS) == []
+    assert unaddressed_requests([], ITEMS) == []
 
 
 def test_unaddressed_requests_are_named_in_the_review_reason():
     """'Incomplete' is not actionable; 'did not address X' is."""
-    reasons = build_review_reasons({"grounding_ok": True}, 1.0, 0, [], [],
-                                   ["Refund the difference"])
+    reasons = build_review_reasons(candidate(unaddressed=["Refund the difference"], confidence=1.0), 0)
     assert any("Refund the difference" in r for r in reasons)
 
 
 def test_boolean_completeness_still_used_when_nothing_was_extracted():
-    reasons = build_review_reasons({"grounding_ok": True, "completeness": False}, 1.0, 0, [], [], [])
+    reasons = build_review_reasons(candidate(completeness=False, confidence=1.0), 0)
     assert any("everything asked" in r for r in reasons)
 
 
@@ -325,7 +323,7 @@ def test_a_critic_reply_that_is_not_an_object_is_a_typed_error(monkeypatch):
 
     monkeypatch.setattr(email_agent, "call_gemini", fake)
     with pytest.raises(ModelError) as caught:
-        asyncio.run(email_agent.evaluate_reply("", "", "Hi", "Draft", "professional"))
+        asyncio.run(email_agent.evaluate_reply(context(), "Draft"))
     assert caught.value.code == ModelErrorCode.MALFORMED_JSON
 
 

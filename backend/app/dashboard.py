@@ -422,6 +422,7 @@ def _review_fields(reviewed: dict) -> dict:
             "review_reasons": reviewed.get("review_reasons") or [],
             # Which models answered and how many retries it took; outcomes and ms, no content.
             "model_calls": reviewed.get("model_calls") or [],
+            "prompt_version": reviewed.get("prompt_version") or "",
         },
         "needs_human_review": bool(reviewed.get("needs_human_review")),
     }

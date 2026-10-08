@@ -22,6 +22,7 @@ from app.core.providers import Provider
 from app.core.typed_text import mask_typed_text
 from app.db.models import MaskingStatus, Message
 from tests.conftest import AUTH_HEADERS, agent_client
+from tests.drafting import GOOD_VERDICT as GOOD
 
 # ---------- Masking what the user typed ----------
 
@@ -56,7 +57,7 @@ def _stub_agent(monkeypatch, revised: str, evaluation: dict, pii: list[str]):
         return revised
 
     async def critic(*_args, **_kwargs):
-        return evaluation
+        return email_agent.CriticVerdict.model_validate(evaluation)
 
     async def scan(_draft):
         return pii
@@ -64,10 +65,6 @@ def _stub_agent(monkeypatch, revised: str, evaluation: dict, pii: list[str]):
     monkeypatch.setattr(email_agent, "call_llm", llm)
     monkeypatch.setattr(email_agent, "evaluate_reply", critic)
     monkeypatch.setattr(email_agent, "scan_draft_pii", scan)
-
-
-GOOD = {"confidence": 0.92, "grounding_ok": True, "pii_clean": True, "tone_match": True,
-        "completeness": True, "issues": [], "unaddressed_items": []}
 
 
 def _refine(body: dict):

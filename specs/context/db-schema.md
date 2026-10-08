@@ -152,7 +152,7 @@ listener — a migration must create `messages` + `audit_log` in Supabase before
 | `action_items` | `JSONB NULL` | Lane C | cached generation |
 | `critic_confidence` | `REAL NULL` | Lane C | cached generation |
 | `critic_attempts` | `SMALLINT NULL` | Lane C | how many refine rounds the critic forced before the draft passed. The only observable evidence the review gate ever engages — a draft rescued by refinement is indistinguishable from a first-pass success without it (migration 0008) |
-| `critic_checks` | `JSONB NULL` | Lane C | the review gate's result: `grounding_ok`, `pii_clean`, `tone_match`, `completeness`, `pii_findings`, `review_reasons`, and `model_calls` (one `{model, outcome, ms}` per Gemini attempt; outcomes and timings only, never content) (migration 0010) |
+| `critic_checks` | `JSONB NULL` | Lane C | the review gate's result: `grounding_ok`, `pii_clean`, `tone_match`, `completeness`, `pii_findings`, `review_reasons`, and `model_calls` (one `{model, outcome, ms}` per Gemini attempt; outcomes and timings only, never content), and `prompt_version` (`email_agent.PROMPT_VERSION`, the prompt wording that wrote the draft) (migration 0010) |
 | `needs_human_review` | `BOOLEAN NULL` | Lane C | true when `review_reasons` is non-empty; stored so the dashboard filters without unpacking JSON (migration 0010) |
 | `rag_sources` | `JSONB NULL` | backend | the policy chunks the cached draft was grounded on, `[{label, chunkId, excerpt, score}]`, captured at generation so the reviewer sees what the model saw (migration 0011) |
 | `generated_at` | `TIMESTAMPTZ NULL` | Lane C | when cached; NULL = not generated yet |

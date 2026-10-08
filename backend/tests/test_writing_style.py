@@ -31,6 +31,7 @@ from app.writing_style import (
     swaps_of,
 )
 from tests.conftest import AUTH_HEADERS
+from tests.drafting import context
 from tests.test_account import _signed_in, calls  # noqa: F401  (fixture)
 from tests.test_restorable_masking import _Session, mailbox  # noqa: F401  (fixture)
 
@@ -316,8 +317,8 @@ def test_every_drafting_prompt_asks_for_the_emails_own_language(monkeypatch):
         return "ok"
 
     monkeypatch.setattr(email_agent, "call_llm", capture)
-    asyncio.run(email_agent.generate_reply("STANDARD", "", "", "Salam", "warm"))
-    asyncio.run(email_agent.refine_reply("", "", "Salam", "draft", {}))
+    asyncio.run(email_agent.generate_reply(context(email_body="Salam", tone="warm")))
+    asyncio.run(email_agent.refine_reply(context(email_body="Salam", tone="warm"), "draft", []))
     assert all(email_agent._LANGUAGE_RULE in prompt for prompt in prompts) and len(prompts) == 2
 
 

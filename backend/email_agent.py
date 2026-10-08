@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import math
@@ -5,14 +6,23 @@ import re
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
+from dataclasses import dataclass
 from enum import StrEnum
+from typing import Annotated
 
 import httpx
 from fastapi import FastAPI, HTTPException
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    StrictBool,
+    StrictInt,
+    StrictStr,
+    ValidationError,
+)
 
 import model_gateway
 from app.agent_contract import (
-    DEFAULT_TONE_PROMPT,
     ProcessEmailRequest,
     ProcessEmailResponse,
     RefineRequest,
@@ -40,6 +50,7 @@ from model_runtime import (
     ModelError,
     ModelErrorCode,
     deadline,
+    remaining_seconds,
     track_calls,
 )
 
@@ -207,6 +218,29 @@ def fence(tag: str, text: str) -> str:
     return f"<{tag}>\n{neutralised}\n</{tag}>"
 
 
+# Bumped whenever a prompt's wording changes, and stored with every draft, so a change in drafting
+# quality can be traced to the prompts that produced it.
+PROMPT_VERSION = "2026-10-08.1"
+
+
+@dataclass(frozen=True)
+class DraftContext:
+    """Everything a draft is written from and judged against, the same for every stage."""
+
+    thread_context: str
+    rag_context: str
+    email_body: str
+    tone: str
+    action_items: list[str]
+    style: str = ""
+    sign_off: str = ""
+    # Text whose figures belong to the user, not the model: on refine, the draft they wrote.
+    own_text: str = ""
+
+    def sources(self) -> tuple[str, ...]:
+        return self.email_body, self.thread_context, self.rag_context, self.own_text
+
+
 # ---------- Stage 1: Router ----------
 
 async def route_email(thread_context: str, email_body: str) -> str:
@@ -243,40 +277,27 @@ Respond with the category."""
 
 # ---------- Stage 2: Reply generation ----------
 
-async def generate_reply(category: str, thread_context: str, rag_context: str,
-                          email_body: str, tone: str, sign_off: str = "", style: str = "") -> str:
+async def generate_reply(ctx: DraftContext) -> str:
     user_prompt = f"""
-{fence("email_thread", thread_context)}
+{fence("email_thread", ctx.thread_context)}
 
-{fence("retrieved_context", rag_context)}
+{fence("retrieved_context", ctx.rag_context)}
 
-{fence("email_body", email_body)}
+{fence("email_body", ctx.email_body)}
 
-{style}
+{ctx.style}
 """
     system_prompt = (
-        f"you are an email assistant that generates {tone} email replies. {_ISOLATION_RULE} "
-        f"{_PLACEHOLDER_RULE} {_sign_off_rule(sign_off)} {_LANGUAGE_RULE}{_style_rule(style)}"
+        f"you are an email assistant that generates {ctx.tone} email replies. {_ISOLATION_RULE} "
+        f"{_PLACEHOLDER_RULE} {_sign_off_rule(ctx.sign_off)} {_LANGUAGE_RULE}{_style_rule(ctx.style)}"
     )
-
-    if category == "STANDARD":
-        return await call_llm(system_prompt, user_prompt, max_tokens=DRAFT_MAX_TOKENS, purpose=Stage.DRAFT)
-
-    if category == "COMPLEX":
-        # NOTE: using Qwen for now to demonstrate multi-provider flexibility.
-        # Swap to Claude Sonnet here later — same function signature, just a different call.
-        return await call_llm(system_prompt, user_prompt, max_tokens=DRAFT_MAX_TOKENS, purpose=Stage.DRAFT)
-
-    raise ValueError(f"generate_reply() called with unsupported category: {category}")
+    return await call_llm(system_prompt, user_prompt, max_tokens=DRAFT_MAX_TOKENS, purpose=Stage.DRAFT)
 
 
 # ---------- Stage 3: Critic ----------
 
-async def evaluate_reply(thread_context: str, rag_context: str, email_body: str,
-                          generated_reply: str, tone: str,
-                          action_items: list[str] | None = None, style: str = "") -> dict:
-    items = action_items or []
-    numbered_items = "\n".join(f"{i}. {item}" for i, item in enumerate(items, 1)) or "(none extracted)"
+async def evaluate_reply(ctx: DraftContext, draft: str) -> "CriticVerdict":
+    numbered_items = "\n".join(f"{i}. {item}" for i, item in enumerate(ctx.action_items, 1)) or "(none extracted)"
     prompt = f"""You are a Critic Agent for an email assistant. Your job is to review a generated email reply BEFORE it is shown to the human user for approval.
 
 {_ISOLATION_RULE}
@@ -293,7 +314,7 @@ Evaluate the reply against these checks:
 
 1. grounding_ok: Does the reply ONLY use information present in the retrieved sources / thread context? Flag as false if it introduces facts, names, dates, or commitments not found in the context (hallucination).
 2. pii_clean: Does the reply avoid leaking any personally identifiable information (emails, phone numbers, addresses, full names of third parties) that should have been masked?
-3. tone_match: Does the reply match the requested tone ({tone}) and, where given, the user's writing style?
+3. tone_match: Does the reply match the requested tone ({ctx.tone}) and, where given, the user's writing style?
 4. completeness: Does the reply address all questions/action items raised in the latest email and thread?
    The requests already extracted from this email are numbered below. For each one, decide whether
    the reply addresses it, and return the numbers of any it does NOT address in unaddressed_items.
@@ -305,15 +326,15 @@ List any specific issues found, in plain language. If there are no issues, retur
 
 {fence("extracted_requests", numbered_items)}
 
-{fence("email_thread", thread_context)}
+{fence("email_thread", ctx.thread_context)}
 
-{fence("retrieved_context", rag_context)}
+{fence("retrieved_context", ctx.rag_context)}
 
-{fence("email_body", email_body)}
+{fence("email_body", ctx.email_body)}
 
-{fence("draft_reply", generated_reply)}
+{fence("draft_reply", draft)}
 
-{style}
+{ctx.style}
 
 Respond only with the evaluation."""
 
@@ -335,33 +356,36 @@ Respond only with the evaluation."""
     evaluation = await call_gemini(prompt, response_schema=schema, purpose=Stage.CRITIC)
     if not isinstance(evaluation, dict):
         raise ModelError(ModelErrorCode.MALFORMED_JSON, "critic reply is not an object")
-    return evaluation
+    try:
+        return CriticVerdict.model_validate(evaluation)
+    except ValidationError as error:
+        raise ModelError(ModelErrorCode.MALFORMED_JSON, "critic reply does not match its schema") from error
 
 
 # ---------- Stage 4: Refine ----------
 
-async def refine_reply(thread_context: str, rag_context: str, email_body: str,
-                        generated_reply: str, evaluation_feedback: dict, sign_off: str = "",
-                        style: str = "", tone: str = DEFAULT_TONE_PROMPT) -> str:
+async def refine_reply(ctx: DraftContext, draft: str, fixes: list[str]) -> str:
+    """One repair round: the concrete fixes the checks asked for, not the critic's raw verdict."""
+    feedback = "\n".join(f"- {fix}" for fix in fixes)
     user_prompt = f"""
-{fence("evaluation_feedback", str(evaluation_feedback))}
+{fence("evaluation_feedback", feedback)}
 
-{fence("email_thread", thread_context)}
+{fence("email_thread", ctx.thread_context)}
 
-{fence("retrieved_context", rag_context)}
+{fence("retrieved_context", ctx.rag_context)}
 
-{fence("email_body", email_body)}
+{fence("email_body", ctx.email_body)}
 
-{fence("draft_reply", generated_reply)}
+{fence("draft_reply", draft)}
 
-{style}
+{ctx.style}
 """
     system_prompt = (
-        "you are an email assistant that improves the draft email reply in accordance with the "
-        f"evaluation feedback, keeping the tone {tone}. "
-        f"{_ISOLATION_RULE} {_PLACEHOLDER_RULE} {_sign_off_rule(sign_off)} {_LANGUAGE_RULE}{_style_rule(style)}"
+        "you are an email assistant that rewrites the draft email reply to make every fix listed in "
+        f"the evaluation feedback, keeping the tone {ctx.tone}. "
+        f"{_ISOLATION_RULE} {_PLACEHOLDER_RULE} {_sign_off_rule(ctx.sign_off)} {_LANGUAGE_RULE}"
+        f"{_style_rule(ctx.style)}"
     )
-
     return await call_llm(system_prompt, user_prompt, max_tokens=DRAFT_MAX_TOKENS, purpose=Stage.REPAIR)
 
 
@@ -427,6 +451,8 @@ _AD_HOC_RECOGNIZERS = [
 # contains salutations and place names, so gating on them would block good replies.
 _PII_ENTITIES = ["EMAIL_ADDRESS", "CREDIT_CARD", "IBAN_CODE", "MY_NRIC", "MY_PHONE"]
 _PII_SCORE_THRESHOLD = 0.5
+PII_SCAN_TIMEOUT_SECONDS = 5.0
+MIN_PII_SCAN_SECONDS = 0.5
 
 
 
@@ -443,7 +469,9 @@ async def scan_draft_pii(draft: str) -> list[str]:
     # A redaction token reaching a sent reply is its own failure, and regex catches it for free.
     findings = ["REDACTION_PLACEHOLDER"] if has_redaction_marker(draft) else []
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
+        # Inside the draft's budget, so the dashboard never gives up first and drafts it again.
+        async with httpx.AsyncClient(timeout=max(min(PII_SCAN_TIMEOUT_SECONDS, remaining_seconds()),
+                                                 MIN_PII_SCAN_SECONDS)) as client:
             resp = await client.post(get_settings().presidio_analyzer_url, json={
                 "text": draft, "language": "en",
                 "score_threshold": _PII_SCORE_THRESHOLD,
@@ -559,50 +587,167 @@ def clamp_confidence(value: object) -> float | None:
     return min(max(number, 0.0), 1.0) if math.isfinite(number) else None
 
 
+class CriticVerdict(BaseModel):
+    """The critic's reply, validated: one wrong type makes the whole verdict unusable, not half-read."""
+
+    confidence: Annotated[float | None, BeforeValidator(clamp_confidence)]
+    grounding_ok: StrictBool
+    pii_clean: StrictBool
+    tone_match: StrictBool
+    completeness: StrictBool
+    issues: list[StrictStr]
+    unaddressed_items: list[StrictInt]
+
+
+PRESIDIO_UNAVAILABLE = "PRESIDIO_UNAVAILABLE"
+
+
 def pii_verdict(findings: list[str]) -> bool | None:
     """True clean, False leaking, None unknown — an unreachable scanner is not a clean bill."""
-    if [f for f in findings if f != "PRESIDIO_UNAVAILABLE"]:
+    if [f for f in findings if f != PRESIDIO_UNAVAILABLE]:
         return False
-    return None if "PRESIDIO_UNAVAILABLE" in findings else True
+    return None if PRESIDIO_UNAVAILABLE in findings else True
 
 
-def unaddressed_requests(evaluation: dict, action_items: list[str]) -> list[str]:
-    """The extracted requests the reply did not answer, as text rather than a bare boolean.
-
-    The critic returns 1-based indices and can return ones that do not exist, so anything out
-    of range is dropped rather than trusted — a hostile email reaches this prompt too.
-    """
-    indices = evaluation.get("unaddressed_items") or []
-    return [action_items[i - 1] for i in indices
-            if isinstance(i, int) and 1 <= i <= len(action_items)]
+def unaddressed_requests(indices: list[int], action_items: list[str]) -> list[str]:
+    """The extracted requests the reply did not answer. The critic's 1-based indices can point
+    past the list (a hostile email reaches its prompt too), so those are dropped."""
+    return [action_items[i - 1] for i in indices if 1 <= i <= len(action_items)]
 
 
-def build_review_reasons(evaluation: dict, confidence: float | None, attempts: int,
-                         pii_findings: list[str], specifics: list[str] | None = None,
-                         unaddressed: list[str] | None = None) -> list[str]:
-    """Why a human should look. Reads the checks the critic computes, not only its own score.
+@dataclass(frozen=True)
+class Candidate:
+    """One draft and the checks run on exactly its text, so a kept draft never carries another's verdict."""
+
+    draft: str
+    verdict: CriticVerdict | None  # None: the critic could not judge this draft
+    pii_findings: list[str]
+    specifics: list[str]
+    unaddressed: list[str]
+    critic_error: ModelErrorCode | None = None
+
+    @property
+    def confidence(self) -> float | None:
+        return self.verdict.confidence if self.verdict else None
+
+    def failures(self) -> list[str]:
+        """Failed checks, as fixes. An unreachable scanner is not one: no rewrite fixes that."""
+        leaks = [f for f in self.pii_findings if f != PRESIDIO_UNAVAILABLE]
+        fixes = [f"remove the {kind} from the reply" for kind in leaks]
+        fixes += [f"remove or correct the figure {figure}: it is in neither the email nor the sources"
+                  for figure in self.specifics]
+        fixes += [f"answer this request: {item}" for item in self.unaddressed]
+        if self.verdict and not self.verdict.grounding_ok:
+            fixes.append("remove anything the email and the retrieved sources do not support")
+        return fixes
+
+    def feedback(self) -> list[str]:
+        """The failed checks, then the critic's own notes, which guide a rewrite but never demand one."""
+        return self.failures() + (self.verdict.issues if self.verdict else [])
+
+    def needs_repair(self) -> bool:
+        return bool(self.failures()) or (self.confidence or 0.0) < REFINE_THRESHOLD
+
+    def rank(self) -> tuple[int, float]:
+        """Fewest failed checks first, then confidence: a confident draft that leaks never wins."""
+        return -len(self.failures()), -1.0 if self.confidence is None else self.confidence
+
+
+async def _judged(ctx: DraftContext, draft: str) -> CriticVerdict | ModelError:
+    try:
+        return await evaluate_reply(ctx, draft)
+    except ModelError as error:
+        return error
+
+
+async def assess(ctx: DraftContext, draft: str) -> Candidate:
+    """The critic and the deterministic checks, on one draft. A critic failure leaves it unjudged."""
+    judged, pii_findings = await asyncio.gather(_judged(ctx, draft), scan_draft_pii(draft))
+    verdict = judged if isinstance(judged, CriticVerdict) else None
+    return Candidate(
+        draft=draft,
+        verdict=verdict,
+        pii_findings=pii_findings,
+        specifics=unsupported_specifics(draft, *ctx.sources()),
+        unaddressed=unaddressed_requests(verdict.unaddressed_items, ctx.action_items) if verdict else [],
+        critic_error=judged.code if isinstance(judged, ModelError) else None,
+    )
+
+
+@dataclass(frozen=True)
+class Repaired:
+    best: Candidate
+    attempts: int  # repair rounds that returned a draft
+    stopped_by: ModelErrorCode | None = None
+
+
+async def repair(ctx: DraftContext, first: Candidate) -> Repaired:
+    """Rewrite until the checks pass or the rounds run out, keeping the best draft seen.
+
+    An unjudged draft is not rewritten: without a verdict there is nothing to fix toward."""
+    best = current = first
+    attempts = 0
+    while current.verdict and current.needs_repair() and attempts < MAX_REFINE_ATTEMPTS:
+        try:
+            draft = await refine_reply(ctx, current.draft, current.feedback())
+        except ModelError as error:
+            return Repaired(best, attempts, error.code)
+        attempts += 1
+        current = await assess(ctx, draft)
+        best = current if current.rank() >= best.rank() else best
+    return Repaired(best, attempts)
+
+
+def build_review_reasons(candidate: Candidate, attempts: int,
+                         stopped_by: ModelErrorCode | None = None) -> list[str]:
+    """Why a human should look. Reads the checks, not only the critic's own score.
 
     tone_match is excluded on purpose: style is advisory, and blocking a correct, PII-clean,
     complete draft because a model dislikes its register is the wrong trade when a human
     approves every send anyway.
     """
+    verdict = candidate.verdict
     reasons = []
-    if pii_findings:
-        reasons.append(f"pii: {', '.join(pii_findings)}")
-    if specifics:
-        reasons.append(f"figures not in source: {', '.join(specifics)}")
-    if evaluation.get("grounding_ok") is False:
+    if candidate.pii_findings:
+        reasons.append(f"pii: {', '.join(candidate.pii_findings)}")
+    if candidate.specifics:
+        reasons.append(f"figures not in source: {', '.join(candidate.specifics)}")
+    if candidate.critic_error:
+        reasons.append(f"critic unavailable: {candidate.critic_error}")
+    if verdict and not verdict.grounding_ok:
         reasons.append("grounding check failed")
-    if unaddressed:
-        reasons.append(f"does not address: {'; '.join(unaddressed)}")
-    elif evaluation.get("completeness") is False:
+    if candidate.unaddressed:
+        reasons.append(f"does not address: {'; '.join(candidate.unaddressed)}")
+    elif verdict and not verdict.completeness:
         # Fallback for emails where nothing was extracted to check per-item.
         reasons.append("does not address everything asked")
     if attempts:
         reasons.append(f"needed {attempts} refine round(s)")
-    if confidence is None or confidence < REVIEW_THRESHOLD:
-        reasons.append(f"confidence {confidence} below {REVIEW_THRESHOLD}")
+    if stopped_by:
+        reasons.append(f"repair stopped: {stopped_by}")
+    if candidate.confidence is None or candidate.confidence < REVIEW_THRESHOLD:
+        reasons.append(f"confidence {candidate.confidence} below {REVIEW_THRESHOLD}")
     return reasons
+
+
+def review_fields(candidate: Candidate, reasons: list[str]) -> dict:
+    """The response fields a generated and a refined draft share."""
+    verdict = candidate.verdict
+    return {
+        "draft": candidate.draft,
+        "confidence": candidate.confidence,
+        "issues": verdict.issues if verdict else [],
+        "needs_human_review": bool(reasons),
+        "grounding_ok": verdict.grounding_ok if verdict else None,
+        "pii_clean": pii_verdict(candidate.pii_findings),
+        "tone_match": verdict.tone_match if verdict else None,
+        "completeness": verdict.completeness if verdict else None,
+        "pii_findings": candidate.pii_findings,
+        "unsupported_specifics": candidate.specifics,
+        "unaddressed_requests": candidate.unaddressed,
+        "review_reasons": reasons,
+        "prompt_version": PROMPT_VERSION,
+    }
 
 
 def _unavailable(error: ModelError) -> HTTPException:
@@ -628,64 +773,26 @@ async def process_email(req: ProcessEmailRequest) -> ProcessEmailResponse:
 
 
 async def _process_email(req: ProcessEmailRequest) -> ProcessEmailResponse:
-    category = await route_email(req.thread_context, req.email_body)
-    signals = input_reasons(req.email_body, req.rag_context)
-
-    summary = await extract_summary(req.email_body, req.thread_context, req.rag_context)
-    action_items = await extract_actions(req.email_body)
-
-    if category == "NA":
-        return ProcessEmailResponse(
-            category=category,
-            draft=None,
-            confidence=None,
-            summary=summary,
-            action_items=action_items,
-            attempts=0,
-            needs_human_review=True,
-            review_reasons=["no reply drafted", *signals],
-        )
-
-    style = style_block(req.style_hint, req.style_examples)
-    draft = await generate_reply(category, req.thread_context, req.rag_context, req.email_body, req.tone,
-                                 req.sign_off, style)
-    evaluation = await evaluate_reply(req.thread_context, req.rag_context, req.email_body, draft,
-                                      req.tone, action_items, style)
-
-    attempts = 0
-    confidence = clamp_confidence(evaluation.get("confidence"))
-    while (confidence or 0.0) < REFINE_THRESHOLD and attempts < MAX_REFINE_ATTEMPTS:
-        draft = await refine_reply(req.thread_context, req.rag_context, req.email_body, draft, evaluation,
-                                   req.sign_off, style, req.tone)
-        evaluation = await evaluate_reply(req.thread_context, req.rag_context, req.email_body, draft,
-                                          req.tone, action_items, style)
-        confidence = clamp_confidence(evaluation.get("confidence"))
-        attempts += 1
-
-    pii_findings = await scan_draft_pii(draft)
-    specifics = unsupported_specifics(draft, req.email_body, req.thread_context, req.rag_context)
-    unaddressed = unaddressed_requests(evaluation, action_items)
-    reasons = [*signals, *build_review_reasons(evaluation, confidence, attempts, pii_findings,
-                                               specifics, unaddressed)]
-
-    return ProcessEmailResponse(
-        category=category,
-        draft=draft,
-        confidence=confidence,
-        issues=evaluation.get("issues", []),
-        summary=summary,
-        action_items=action_items,
-        attempts=attempts,
-        needs_human_review=bool(reasons),
-        grounding_ok=evaluation.get("grounding_ok"),
-        pii_clean=pii_verdict(pii_findings),
-        tone_match=evaluation.get("tone_match"),
-        completeness=evaluation.get("completeness"),
-        pii_findings=pii_findings,
-        unsupported_specifics=specifics,
-        unaddressed_requests=unaddressed,
-        review_reasons=reasons,
+    # gather, not a TaskGroup: its ExceptionGroup would slip past the ModelError handler above.
+    category, summary, action_items = await asyncio.gather(
+        route_email(req.thread_context, req.email_body),
+        extract_summary(req.email_body, req.thread_context, req.rag_context),
+        extract_actions(req.email_body),
     )
+    signals = input_reasons(req.email_body, req.rag_context)
+    if category == "NA":
+        return ProcessEmailResponse(category=category, summary=summary, action_items=action_items,
+                                    needs_human_review=True, review_reasons=["no reply drafted", *signals],
+                                    prompt_version=PROMPT_VERSION)
+
+    ctx = DraftContext(thread_context=req.thread_context, rag_context=req.rag_context,
+                       email_body=req.email_body, tone=req.tone, action_items=action_items,
+                       style=style_block(req.style_hint, req.style_examples), sign_off=req.sign_off)
+    # From here on a draft exists, so a later failure flags it for review instead of losing it.
+    repaired = await repair(ctx, await assess(ctx, await generate_reply(ctx)))
+    reasons = [*signals, *build_review_reasons(repaired.best, repaired.attempts, repaired.stopped_by)]
+    return ProcessEmailResponse(category=category, summary=summary, action_items=action_items,
+                                attempts=repaired.attempts, **review_fields(repaired.best, reasons))
 
 
 # ---------- Translation of the masked body ----------
@@ -785,35 +892,15 @@ async def refine(req: RefineRequest) -> RefineResponse:
         f"{style}\n\n"
         f"Keep the tone {req.tone}."
     )
-    calls: list[dict] = []
+    # The user's own draft is a source too: a figure they typed is theirs, not an invention.
+    ctx = DraftContext(thread_context=req.thread_context, rag_context=req.rag_context, email_body=req.email_body,
+                       tone=req.tone, action_items=req.action_items, style=style, own_text=req.draft)
     try:
         with deadline(), track_calls() as calls, track_egress() as egress, using(req.provider):
             revised = await call_llm(system_prompt, user_prompt, max_tokens=DRAFT_MAX_TOKENS, purpose=Stage.REFINE)
-            evaluation = await evaluate_reply(req.thread_context, req.rag_context, req.email_body,
-                                              revised, req.tone, req.action_items, style)
+            # A critic failure after this point flags the revision for review rather than discarding it.
+            candidate = await assess(ctx, revised)
     except ModelError as error:
         raise _unavailable(error) from error
-    confidence = clamp_confidence(evaluation.get("confidence"))
-    pii_findings = await scan_draft_pii(revised)
-    # The user's own draft is a source too: a figure they typed is theirs, not an invention.
-    specifics = unsupported_specifics(revised, req.email_body, req.thread_context, req.rag_context,
-                                      req.draft)
-    unaddressed = unaddressed_requests(evaluation, req.action_items)
-    reasons = [*input_reasons(req.email_body, req.rag_context),
-               *build_review_reasons(evaluation, confidence, 0, pii_findings, specifics, unaddressed)]
-    return RefineResponse(
-        draft=revised,
-        confidence=confidence,
-        issues=evaluation.get("issues", []),
-        needs_human_review=bool(reasons),
-        grounding_ok=evaluation.get("grounding_ok"),
-        pii_clean=pii_verdict(pii_findings),
-        tone_match=evaluation.get("tone_match"),
-        completeness=evaluation.get("completeness"),
-        pii_findings=pii_findings,
-        unsupported_specifics=specifics,
-        unaddressed_requests=unaddressed,
-        review_reasons=reasons,
-        model_calls=calls,
-        egress=egress,
-    )
+    reasons = [*input_reasons(req.email_body, req.rag_context), *build_review_reasons(candidate, 0)]
+    return RefineResponse(**review_fields(candidate, reasons), model_calls=calls, egress=egress)

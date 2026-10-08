@@ -64,6 +64,8 @@ class ProcessEmailResponse(BaseModel):
     model_calls: list[dict] = Field(default_factory=list)
     # Every prompt that left for a model (model_gateway.Egress): no text, only what and how much.
     egress: list[dict] = Field(default_factory=list)
+    # Which wording of the prompts wrote this draft (email_agent.PROMPT_VERSION).
+    prompt_version: str = ""
 
 
 class TranslationLanguage(StrEnum):
@@ -111,6 +113,7 @@ class RefineResponse(BaseModel):
     review_reasons: list[str] = Field(default_factory=list)
     model_calls: list[dict] = Field(default_factory=list)
     egress: list[dict] = Field(default_factory=list)
+    prompt_version: str = ""
 
 
 class TranslateResponse(BaseModel):
