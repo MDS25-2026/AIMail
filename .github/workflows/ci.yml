@@ -132,6 +132,8 @@ jobs:
       # with no retry and no logs (infra/start-presidio.sh).
       - name: start presidio
         run: ../infra/start-presidio.sh
+        # Two waits of two minutes plus a restart fit well inside; anything longer is a hang.
+        timeout-minutes: 10
       # Presidio's live tests must run (REQUIRE_PRESIDIO); the reader's and Gemini's skip themselves.
       - run: go test ./...
       - name: gofmt
