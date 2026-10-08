@@ -1,0 +1,3 @@
+# legacy/ is archived n8n-era and Next.js scaffold kept as evidence (CLAUDE.md); nothing builds or runs it.
+paths-ignore:
+  - legacy

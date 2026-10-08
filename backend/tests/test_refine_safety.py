@@ -6,6 +6,7 @@ the draft and instruction the user typed went to Gemini with any phone number or
 
 import asyncio
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
@@ -20,7 +21,7 @@ from app import dashboard
 from app.agent_contract import Tone
 from app.core.ownership import EVERYTHING
 from app.core.providers import Provider
-from app.core.typed_text import mask_typed_text
+from app.core.typed_text import mask_typed_text, strip_link_queries
 from app.db.models import MaskingStatus, Message
 from tests.conftest import AUTH_HEADERS, agent_client
 from tests.drafting import GOOD_VERDICT as GOOD
@@ -207,3 +208,19 @@ def test_a_refined_draft_is_stored_with_its_tone(backend):
     message, state = backend
     asyncio.run(dashboard.refine_email(str(message.id), "warmer", "Old draft", scope=EVERYTHING, tone=Tone.CASUAL))
     assert state["writes"]["draft_tone"] == Tone.CASUAL
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("see https://a.com/reset?token=abc&e=x for it", "see https://a.com/reset for it"),
+    ("(http://x.my/p#frag) ok", "(http://x.my/p) ok"),
+    ("http://?q stays: no host", "http://?q stays: no host"),
+    ("no links here?", "no links here?"),
+])
+def test_a_link_keeps_its_host_and_path_but_loses_its_query(text, expected):
+    assert strip_link_queries(text) == expected
+
+
+def test_a_hostile_run_of_schemes_is_read_in_linear_time():
+    started = time.perf_counter()
+    strip_link_queries("http://" * 50_000)
+    assert time.perf_counter() - started < 1.0  # the old pattern took minutes here

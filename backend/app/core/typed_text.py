@@ -6,10 +6,14 @@ listener/testdata/masking_vectors.json, so the two floors cannot drift apart unn
 """
 
 import re
+from enum import Enum, auto
 
 _EMAIL = re.compile(r"\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b")
-# A link keeps its scheme, host and path: query strings carry reset tokens and encoded addresses.
-_URL = re.compile(r"(https?://[^\s<>\"')\]?#]+)[?#][^\s<>\"')\]]*")
+# A link keeps its scheme, host and path: query strings carry reset tokens and encoded addresses. Cut in one
+# pass over the text, not with a regex, which rescanned from every "http://" (CodeQL py/polynomial-redos).
+_SCHEMES = ("https://", "http://")
+_LINK_END = frozenset("<>\"')]")
+_QUERY_START = frozenset("?#")
 # Malaysian IC: YYMMDD-PB-####, separated by dashes or spaces. Runs before phones, which would match its digits.
 _IC_SEPARATED = re.compile(r"\b\d{6}[-\s]\d{2}[-\s]\d{4}\b")
 # Twelve bare digits are an IC only when they start with a real date; otherwise an order or account number.
@@ -47,9 +51,49 @@ def _mask_bare_ic(match: re.Match[str]) -> str:
     return "[IC_REDACTED]" if 1 <= month <= 12 and 1 <= day <= 31 else match.group()
 
 
+class _Reading(Enum):
+    TEXT = auto()
+    LINK_START = auto()  # right after the scheme: a link needs one host character before any query
+    LINK = auto()
+    QUERY = auto()
+
+
+def _scheme_at(text: str, at: int) -> str:
+    return next((scheme for scheme in _SCHEMES if text.startswith(scheme, at)), "")
+
+
+def _next(state: _Reading, char: str) -> tuple[_Reading, bool]:
+    """The state after one character, and whether that character is kept."""
+    if char.isspace() or char in _LINK_END:
+        return _Reading.TEXT, True
+    if state is _Reading.QUERY:
+        return state, False
+    if char in _QUERY_START:
+        # "http://?x" is no link (the old pattern needed a host); a query after a host is cut.
+        return (_Reading.QUERY, False) if state is _Reading.LINK else (_Reading.TEXT, True)
+    return (_Reading.LINK if state is _Reading.LINK_START else state), True
+
+
+def strip_link_queries(text: str) -> str:
+    """Every link's query and fragment removed, in one pass: each character is read a fixed number of times."""
+    kept: list[str] = []
+    state, at = _Reading.TEXT, 0
+    while at < len(text):
+        scheme = _scheme_at(text, at) if state is _Reading.TEXT else ""
+        if scheme:
+            kept.append(scheme)
+            state, at = _Reading.LINK_START, at + len(scheme)
+            continue
+        state, is_kept = _next(state, text[at])
+        if is_kept:
+            kept.append(text[at])
+        at += 1
+    return "".join(kept)
+
+
 def mask_typed_text(text: str) -> str:
     """Strip link queries; replace emails, ICs, passports, card and phone numbers; leave everything else."""
-    text = _URL.sub(r"\1", text)
+    text = strip_link_queries(text)
     text = _EMAIL.sub("[EMAIL_REDACTED]", text)
     text = _IC_SEPARATED.sub("[IC_REDACTED]", text)
     text = _IC_BARE.sub(_mask_bare_ic, text)

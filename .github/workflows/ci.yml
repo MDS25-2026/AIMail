@@ -74,6 +74,9 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/frontend/mail-clarity-dash-main/package-lock.json
       - run: pip install -r backend/requirements.txt -c backend/constraints.txt
+      # The npm package.json pins (packageManager): the runner's npm reads the lockfile differently.
+      - run: npm install -g "$(node -p "require('./package.json').packageManager")"
+        working-directory: frontend/frontend/mail-clarity-dash-main
       - run: npm ci --no-audit --no-fund
         working-directory: frontend/frontend/mail-clarity-dash-main
       - run: python scripts/dump_openapi.py .openapi.json
@@ -96,6 +99,8 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: frontend/frontend/mail-clarity-dash-main/package-lock.json
+      # The npm package.json pins (packageManager): the runner's npm reads the lockfile differently.
+      - run: npm install -g "$(node -p "require('./package.json').packageManager")"
       # npm ci: exactly the lockfile, and a lock out of step with package.json fails instead of drifting.
       - run: npm ci --no-audit --no-fund
       - run: npx tsc --noEmit
