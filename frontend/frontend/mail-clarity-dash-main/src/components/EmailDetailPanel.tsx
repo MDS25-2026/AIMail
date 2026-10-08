@@ -113,10 +113,14 @@ function DraftSection({ email, workflow }: { email: Email; workflow: DraftWorkfl
         draft={workflow.draft}
         values={detailValues(email.details)}
         onDraftChange={workflow.setDraft}
-        disabled={workflow.isBusy}
+        disabled={workflow.isDraftLocked}
       />
       <SourcesChips key={email.id} sources={email.sources} draft={workflow.draft} />
-      <RefineInput onRefine={workflow.refine} disabled={workflow.isBusy} />
+      <RefineInput
+        onRefine={workflow.refine}
+        disabled={workflow.isDraftLocked}
+        isRefining={workflow.isRefining}
+      />
       <DraftStatus {...workflow.status} />
       <div className="flex items-center justify-between gap-3 border-t border-line-subtle pt-4">
         <div className="flex flex-wrap items-center gap-2">

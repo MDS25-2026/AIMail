@@ -60,6 +60,8 @@ export type DraftWorkflow = {
   isSending: boolean;
   /** Anything in flight; the draft must not change under a send, nor a send go out mid-change. */
   isBusy: boolean;
+  /** Busy, or already sent: every control that changes the draft is disabled (#172). */
+  isDraftLocked: boolean;
 };
 
 const NO_DETAIL: DetailLoad = { isLoading: false, isError: false, refetch: () => undefined };
@@ -153,8 +155,16 @@ export function useDraftWorkflow(
     runMutation(id, DraftAction.Send, request, t("announce.sent")).catch(shownOnScreen);
   };
 
+  const isRegenerating = regenerateMutation.isPending;
+  const isRefining = refineMutation.isPending;
+  const isSending = sendMutation.isPending;
+  const isBusy = isRegenerating || isRefining || isSending || isWaitingForDraft;
+  // The panels disable every control that changes the draft; this backs them up. A sent reply is
+  // final, and a change mid-send would leave the screen showing text other than what went out.
+  const isDraftLocked = isBusy || Boolean(email?.sentAt);
+
   const regenerate = (nextTone: Tone = tone) => {
-    if (emailId === null) return;
+    if (emailId === null || isDraftLocked) return;
     if (hasUnsavedEdits(typedDraft, serverDraft)) {
       setPending({ emailId, value: { kind: ConfirmKind.ReplaceEdits, tone: nextTone } });
       return;
@@ -163,7 +173,7 @@ export function useDraftWorkflow(
   };
 
   const refine = async (instruction: string) => {
-    if (emailId === null) return;
+    if (emailId === null || isDraftLocked) return;
     const id = emailId;
     // The chosen tone goes too, so the revision and its review keep it.
     const request = () => refineMutation.mutateAsync({ emailId: id, instruction, draft, tone });
@@ -217,9 +227,6 @@ export function useDraftWorkflow(
     if (isMarkerWarning && findRedactionMarkers(text).length === 0) setPending(null);
   };
 
-  const isRegenerating = regenerateMutation.isPending;
-  const isRefining = refineMutation.isPending;
-  const isSending = sendMutation.isPending;
   return {
     draft,
     tone,
@@ -233,6 +240,7 @@ export function useDraftWorkflow(
     isRegenerating,
     isRefining,
     isSending,
-    isBusy: isRegenerating || isRefining || isSending || isWaitingForDraft,
+    isBusy,
+    isDraftLocked,
   };
 }

@@ -35,7 +35,7 @@ export default function HiddenDetailChips({
   };
 
   const fill = () => {
-    if (!open) return;
+    if (!open || disabled) return;
     onDraftChange(fillFirst(draft, open, typed));
     setOpenIndex(null);
     setTyped("");
@@ -74,7 +74,8 @@ export default function HiddenDetailChips({
             />
             <button
               type="button"
-              disabled={!typed.trim()}
+              // The panel can be open when a send starts; filling then would change the draft.
+              disabled={disabled || !typed.trim()}
               onClick={fill}
               className={button({ intent: "primary", size: "xs" })}
             >

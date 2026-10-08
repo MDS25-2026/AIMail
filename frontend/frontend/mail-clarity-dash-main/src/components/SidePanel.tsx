@@ -92,9 +92,13 @@ function PanelDraft({ email, workflow }: { email: Email; workflow: DraftWorkflow
         draft={workflow.draft}
         values={detailValues(email.details)}
         onDraftChange={workflow.setDraft}
-        disabled={workflow.isBusy}
+        disabled={workflow.isDraftLocked}
       />
-      <RefineInput onRefine={workflow.refine} disabled={workflow.isBusy} />
+      <RefineInput
+        onRefine={workflow.refine}
+        disabled={workflow.isDraftLocked}
+        isRefining={workflow.isRefining}
+      />
       {email.sources.length > 0 ? (
         <details className="group text-xs">
           <summary className="cursor-pointer font-medium text-fg-muted hover:text-fg-body">

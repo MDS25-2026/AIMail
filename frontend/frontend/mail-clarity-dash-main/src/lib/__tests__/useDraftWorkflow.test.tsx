@@ -108,3 +108,21 @@ describe("waiting for the worker's first draft", () => {
     expect(result.current.isBusy).toBe(false);
   });
 });
+
+describe("a sent reply is final (#172)", () => {
+  test("the draft is locked once sent, and a regenerate asks nothing of the backend", () => {
+    const calls = stubFetch({});
+    const sent = emailFixture({ id: "s", sentAt: "2026-10-08T10:00:00Z" });
+    const { result } = renderWorkflow(sent);
+    expect(result.current.isDraftLocked).toBe(true);
+    expect(result.current.isBusy).toBe(false);
+    act(() => result.current.regenerate());
+    expect(calls).toEqual([]);
+  });
+
+  test("an unsent draft that nothing is changing stays editable", () => {
+    stubFetch({});
+    const { result } = renderWorkflow(emailFixture({ id: "u" }));
+    expect(result.current.isDraftLocked).toBe(false);
+  });
+});

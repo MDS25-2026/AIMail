@@ -18,7 +18,7 @@ export default function DraftReplyEditor({ email, workflow, rows = 10 }: DraftRe
         <ToneToggle
           tone={workflow.tone}
           onToneChange={workflow.setTone}
-          disabled={workflow.isBusy}
+          disabled={workflow.isDraftLocked}
         />
       </div>
 
@@ -30,7 +30,7 @@ export default function DraftReplyEditor({ email, workflow, rows = 10 }: DraftRe
       <textarea
         value={workflow.draft}
         rows={rows}
-        disabled={workflow.isBusy}
+        disabled={workflow.isDraftLocked}
         aria-label={t("draft.title")}
         onChange={(event) => workflow.setDraft(event.target.value)}
         className="mt-2 w-full resize-y rounded-md border border-line-strong p-3 text-sm leading-relaxed text-fg disabled:bg-surface-muted disabled:text-fg-subtle"

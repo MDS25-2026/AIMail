@@ -16,7 +16,7 @@ export default function DraftActionsBar({ workflow, isSent }: DraftActionsBarPro
     <div className="flex items-center justify-end gap-2">
       <button
         type="button"
-        disabled={workflow.isBusy}
+        disabled={workflow.isDraftLocked}
         onClick={workflow.regenerate}
         className={button({ size: "md" })}
       >
