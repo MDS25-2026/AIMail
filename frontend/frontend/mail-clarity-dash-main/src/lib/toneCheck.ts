@@ -2,9 +2,34 @@
 
 // Standard business & Malaysian enterprise acronyms that are capitalized but not shouting:
 const ALLOWED_CAPS = new Set([
-  "OK", "ASAP", "FYI", "FAQ", "ETA", "ID", "HR", "IT", "US", "UK", "API", "PR",
+  "OK",
+  "ASAP",
+  "FYI",
+  "FAQ",
+  "ETA",
+  "ID",
+  "HR",
+  "IT",
+  "US",
+  "UK",
+  "API",
+  "PR",
   // Malaysian corporate, statutory & tax acronyms:
-  "PDPA", "LHDN", "KWSP", "EPF", "SOCSO", "PERKESO", "SST", "KPI", "CEO", "CTO", "CFO", "COO", "MOU", "NDA", "SOW"
+  "PDPA",
+  "LHDN",
+  "KWSP",
+  "EPF",
+  "SOCSO",
+  "PERKESO",
+  "SST",
+  "KPI",
+  "CEO",
+  "CTO",
+  "CFO",
+  "COO",
+  "MOU",
+  "NDA",
+  "SOW",
 ]);
 
 // Hostile/abusive words (strictly uncivil language, excluding ordinary business words like "terrible" or "unacceptable"):
@@ -26,7 +51,7 @@ const RUDE_PHRASES = [
   "白痴",
   "笨蛋",
   "滚",
-  "混蛋"
+  "混蛋",
 ];
 
 // Matches Unicode emoji characters:
@@ -61,7 +86,10 @@ export function checkTone(draft: string): ToneCheckResult {
 
   // 3. Rude / abusive phrases
   const rudePattern = RUDE_PHRASES.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
-  const rudePhraseRe = new RegExp(`(?:\\b|(?<=[^a-zA-Z0-9]))(${rudePattern})(?:\\b|(?=[^a-zA-Z0-9]))`, "iu");
+  const rudePhraseRe = new RegExp(
+    `(?:\\b|(?<=[^a-zA-Z0-9]))(${rudePattern})(?:\\b|(?=[^a-zA-Z0-9]))`,
+    "iu",
+  );
   if (rudePhraseRe.test(draft)) {
     issueCodes.push("RUDE");
   }

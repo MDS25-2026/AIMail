@@ -64,6 +64,10 @@ export type DraftWorkflow = {
   isBusy: boolean;
   /** Busy, or already sent: every control that changes the draft is disabled (#172). */
   isDraftLocked: boolean;
+  /** Seconds left before an approved send goes out; null outside the undo window. */
+  undoCountdown: number | null;
+  /** Cancels the send during the undo window; nothing is sent. */
+  undoSend: () => void;
 };
 
 const NO_DETAIL: DetailLoad = { isLoading: false, isError: false, refetch: () => undefined };
@@ -147,14 +151,12 @@ export function useDraftWorkflow(
     return () => {
       clearCountdown();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (emailId !== undoEmailIdRef.current && undoEmailIdRef.current !== null) {
       clearCountdown();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emailId]);
 
   // Last issued wins: two regenerates for the same email share one cache entry, so a slow first
@@ -189,6 +191,9 @@ export function useDraftWorkflow(
 
   const startSend = (id: string) => {
     const request = () => sendMutation.mutateAsync({ emailId: id, draft });
+    runMutation(id, DraftAction.Send, request, t("announce.sent")).catch(shownOnScreen);
+  };
+
   const isRegenerating = regenerateMutation.isPending;
   const isRefining = refineMutation.isPending;
   const isSending = sendMutation.isPending;
