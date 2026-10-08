@@ -6,7 +6,7 @@ package main
 // (listener/attachment-reader) first. Documents with text come back as text and are masked below
 // like any body text, never touching a model. Images and scanned pages come back redacted, and
 // only if the reader's OCR could read them confidently and found no PII left after redacting.
-// Only those redacted images reach Gemini. That keeps mask-before-transit true for attachments,
+// Only those redacted images reach Gemini, and never for an owner in Private mode (privatemode.go). That keeps mask-before-transit true for attachments,
 // which no cloud-OCR-first design can: reading an image is what finds the PII in it.
 
 import (
@@ -51,14 +51,11 @@ var (
 // readerResult is the attachment reader's reply: local text, and redacted images that passed both
 // of its gates. SkippedPages were withheld on this machine and never read remotely.
 type readerResult struct {
-	Text   string `json:"text"`
-	Images []struct {
-		MimeType string `json:"mime_type"`
-		Data     string `json:"data"`
-	} `json:"images"`
-	SkippedPages int `json:"skipped_pages"`
-	Pages        int `json:"pages"`
-	UnreadPages  int `json:"unread_pages"` // past the page cap or the reader's time budget
+	Text         string          `json:"text"`
+	Images       []redactedImage `json:"images"`
+	SkippedPages int             `json:"skipped_pages"`
+	Pages        int             `json:"pages"`
+	UnreadPages  int             `json:"unread_pages"` // past the page cap or the reader's time budget
 }
 
 func ocrMaxBytes() int64 {
@@ -102,6 +99,11 @@ func readableAttachments(part *gmail.MessagePart, max int64) []*gmail.MessagePar
 		found = append(found, readableAttachments(sub, max)...)
 	}
 	return found
+}
+
+type redactedImage struct {
+	MimeType string `json:"mime_type"`
+	Data     string `json:"data"`
 }
 
 // readLocally sends an attachment to the local reader. An error here must fail the attachment
@@ -216,9 +218,14 @@ func ocrAttachments(ctx context.Context, srv *gmail.Service, ref messageRef, pay
 	if skipped := oversizeAttachments(payload, ocrMaxBytes()); skipped > 0 {
 		ref.audit(ctx, actionReadAttachment, auditFields{fieldReason: reasonOverSizeCap, fieldOversize: skipped}, false)
 	}
+	parts := readableAttachments(payload, ocrMaxBytes())
+	if len(parts) == 0 {
+		return ""
+	}
+	cloudRefusal := cloudOCRRefusal(ctx, ref.ownerID) // once per message, not per attachment
 	var texts []string
-	for _, part := range readableAttachments(payload, ocrMaxBytes()) {
-		if text := readAttachment(ctx, srv, ref, part); text != "" {
+	for _, part := range parts {
+		if text := readAttachment(ctx, srv, ref, part, cloudRefusal); text != "" {
 			texts = append(texts, text)
 		}
 	}
@@ -228,7 +235,8 @@ func ocrAttachments(ctx context.Context, srv *gmail.Service, ref messageRef, pay
 	return ocrMarker + strings.Join(texts, "\n\n")
 }
 
-func readAttachment(ctx context.Context, srv *gmail.Service, ref messageRef, part *gmail.MessagePart) string {
+// readAttachment reads one attachment; cloudRefusal, when set, keeps its redacted images from Gemini.
+func readAttachment(ctx context.Context, srv *gmail.Service, ref messageRef, part *gmail.MessagePart, cloudRefusal string) string {
 	attachment, err := srv.Users.Messages.Attachments.
 		Get("me", ref.msgID, part.Body.AttachmentId).Context(ctx).Do()
 	if err != nil {
@@ -247,16 +255,31 @@ func readAttachment(ctx context.Context, srv *gmail.Service, ref messageRef, par
 		return ""
 	}
 
-	texts := []string{result.Text}
-	for _, img := range result.Images {
-		texts = append(texts, transcribe(ctx, ref, img.Data, img.MimeType))
-	}
-	text := strings.TrimSpace(strings.Join(texts, "\n\n"))
+	imageTexts, sent := transcribeImages(ctx, ref, result.Images, cloudRefusal)
+	text := strings.TrimSpace(strings.Join(append([]string{result.Text}, imageTexts...), "\n\n"))
 	// The admin console counts withheld and unread pages from these keys.
 	ref.audit(ctx, actionReadAttachment, auditFields{fieldMimeType: part.MimeType, fieldPages: result.Pages,
-		fieldImagesSent: len(result.Images), fieldWithheld: result.SkippedPages, fieldUnread: result.UnreadPages,
+		fieldImagesSent: sent, fieldWithheld: result.SkippedPages, fieldUnread: result.UnreadPages,
 		fieldChars: len(text)}, true)
 	return text
+}
+
+// transcribeImages sends the redacted images to Gemini unless the owner's choice refuses it. A
+// refused image is not read at all, like attachment text without NER: its text is unavailable.
+func transcribeImages(ctx context.Context, ref messageRef, images []redactedImage, cloudRefusal string) ([]string, int) {
+	if len(images) == 0 {
+		return nil, 0
+	}
+	if cloudRefusal != "" {
+		ref.audit(ctx, actionSkipCloudOCR, auditFields{fieldReason: cloudRefusal, fieldImagesSkipped: len(images)},
+			cloudRefusal == reasonPrivateMode)
+		return nil, 0
+	}
+	texts := make([]string, 0, len(images))
+	for _, img := range images {
+		texts = append(texts, transcribe(ctx, ref, img.Data, img.MimeType))
+	}
+	return texts, len(images)
 }
 
 // transcribe OCRs one image the reader has already redacted and cleared.
