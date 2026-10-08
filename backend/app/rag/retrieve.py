@@ -1,5 +1,11 @@
 """Cosine top-k retrieval of policy chunks. This is Lane B's Seam 2 output to Lane C."""
 
+import json
+import logging
+from functools import cache
+from pathlib import Path
+
+from pydantic import BaseModel, Field
 from sqlalchemy import ColumnElement, Select, select
 
 import model_gateway
@@ -12,11 +18,36 @@ from app.db.session import get_sessionmaker
 from app.rag.chunk import SECTION_KEY
 from app.rag.local_embed import local_model, local_tag
 
+logger = logging.getLogger(__name__)
+
 SECTION_SEPARATOR = " · "
 SEARCH = "search"  # the egress purpose of embedding a query
-# A hit scoring below this share of the best one is dropped (specs/features/rag-retrieval.md).
-# Per model: Gemini's scores sit close together, the local model's spread wider.
-RELATIVE_CUTOFF = {Provider.GEMINI: 0.93, Provider.LOCAL: 0.85}
+# A hit scoring below this share of the best one is dropped (specs/features/rag-retrieval.md). Per model,
+# measured on eval/retrieval by scripts/eval_retrieval.py --calibrate, never set by hand.
+CUTOFFS_FILE = Path(__file__).with_name("cutoffs.json")
+
+
+class Calibration(BaseModel):
+    cutoff: float = Field(gt=0, le=1)
+    model: str  # the embedding tag it was measured on
+    eval_set: str
+    calibrated_on: str
+
+
+@cache
+def _calibrations() -> dict[Provider, Calibration]:
+    raw = CUTOFFS_FILE.read_text(encoding="utf-8")
+    return {Provider(name): Calibration.model_validate(entry)
+            for name, entry in json.loads(raw).items()}
+
+
+@cache
+def cutoff_for(provider: Provider, model: str) -> float:
+    calibration = _calibrations()[provider]
+    if calibration.model != model:
+        logger.warning("retrieval cutoff for %s was measured on %s, not %s: re-run the calibration",
+                       provider, calibration.model, model)
+    return calibration.cutoff
 
 
 async def _gemini_search(masked_email: str, k: int, scope: Scope) -> Select | None:
@@ -50,21 +81,19 @@ def _search(table: type[Embedding] | type[LocalEmbedding], tag: str, distance: C
     )
 
 
-async def retrieve(masked_email: str, k: int, *, scope: Scope, provider: Provider) -> list[ContextChunk]:
-    """Return the top-k most similar policy chunks for a masked email.
+def model_tag(provider: Provider) -> str:
+    return local_tag() if provider == Provider.LOCAL else EMBEDDING_TAG
 
-    The masked email is used directly as the query here (the S3 baseline). Query
-    reformulation (R03.1) is a later slice that must beat this number on the eval set. Only the
-    scope's own documents can ground a draft, so nothing cites another user's files. In Private
-    mode the email is embedded and searched locally only.
-    """
-    search = _local_search if provider == Provider.LOCAL else _gemini_search
-    stmt = await search(masked_email, k, scope)
-    if stmt is None:
+
+async def search(masked_email: str, k: int, *, scope: Scope, provider: Provider) -> list[ContextChunk]:
+    """The top-k most similar chunks, best first, before any cutoff. Only the scope's own documents
+    can ground a draft, so nothing cites another user's files; Private mode searches locally only."""
+    statement = await (_local_search if provider == Provider.LOCAL else _gemini_search)(masked_email, k, scope)
+    if statement is None:
         return []
     async with get_sessionmaker()() as session:
-        rows = (await session.execute(stmt)).all()
-    found = [
+        rows = (await session.execute(statement)).all()
+    return [
         ContextChunk(
             chunk_id=row.id,
             content=row.content,
@@ -73,7 +102,13 @@ async def retrieve(masked_email: str, k: int, *, scope: Scope, provider: Provide
         )
         for row in rows
     ]
-    return close_to_best(found, RELATIVE_CUTOFF[provider])
+
+
+async def retrieve(masked_email: str, k: int, *, scope: Scope, provider: Provider) -> list[ContextChunk]:
+    """The chunks that ground a draft: the masked email is the query (reformulation must beat it on
+    the eval set first), and only hits close to the best one are kept."""
+    found = await search(masked_email, k, scope=scope, provider=provider)
+    return close_to_best(found, cutoff_for(provider, model_tag(provider)))
 
 
 def _label(title: str | None, section: str | None) -> str:

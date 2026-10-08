@@ -75,11 +75,15 @@ seed:  ## load sample policy chunks
 ingest:  ## ingest a policy PDF: make ingest PDF=path.pdf TITLE="Name"
 	cd backend && ../$(VENV)/python scripts/ingest.py "$(PDF)" "$(TITLE)"
 
-eval:  ## retrieval eval, S3 baseline
-	cd backend && ../$(VENV)/python scripts/eval_retrieval.py scripts/eval_set.json
+SET ?= eval/retrieval/v0.json
+eval:  ## retrieval eval at today's cutoff: make eval [SET=eval/retrieval/v1.json OWNER=<uuid> PROVIDER=local]
+	cd backend && ../$(VENV)/python scripts/eval_retrieval.py --set $(SET) $(if $(OWNER),--owner $(OWNER)) $(if $(PROVIDER),--provider $(PROVIDER))
 
-eval-reform:  ## retrieval eval with query reformulation (S5)
-	cd backend && ../$(VENV)/python scripts/eval_retrieval.py scripts/eval_set.json --reformulate
+eval-reform:  ## retrieval eval with query reformulation (S5), same options as eval
+	cd backend && ../$(VENV)/python scripts/eval_retrieval.py --set $(SET) $(if $(OWNER),--owner $(OWNER)) $(if $(PROVIDER),--provider $(PROVIDER)) --reformulate
+
+calibrate:  ## re-measure the retrieval cutoff and record it, same options as eval
+	cd backend && ../$(VENV)/python scripts/eval_retrieval.py --set $(SET) $(if $(OWNER),--owner $(OWNER)) $(if $(PROVIDER),--provider $(PROVIDER)) --calibrate
 
 TEXT ?= text
 LABEL ?= label
