@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.1](https://github.com/MDS25-2026/AIMail/compare/v1.5.0...v1.5.1) (2026-10-08)
+
+
+### Bug Fixes
+
+* a strong backbone - one source for every contract, measured AI quality, real CI ([#168](https://github.com/MDS25-2026/AIMail/issues/168)) ([caf551a](https://github.com/MDS25-2026/AIMail/commit/caf551ae18b5d17db275912bfe49d93735eabfba))
+* **dashboard:** lock the draft while busy and once sent ([#176](https://github.com/MDS25-2026/AIMail/issues/176)) ([fbf768e](https://github.com/MDS25-2026/AIMail/commit/fbf768e365b848807a4f36caf358149152c80b71))
+
 ## [1.5.0](https://github.com/MDS25-2026/AIMail/compare/v1.4.0...v1.5.0) (2026-10-07)
 
 
