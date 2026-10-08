@@ -1,19 +1,13 @@
-import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import SidePanel, { PanelHeader } from "../components/SidePanel";
 import { SIGN_IN_URL } from "../lib/api/config";
-import { fetchEmail, fetchEmailByThread } from "../lib/api/emails";
 import { isSignedOut } from "../lib/api/errors";
-import { fetchSession } from "../lib/api/session";
-import { queryKeys } from "../lib/queries";
+import { useEmailByThread, usePolledSession, useSeededEmail } from "../lib/queries";
 import { useDraftWorkflow } from "../lib/useDraftWorkflow";
 import type { Email } from "../types/email";
 import { TabState, useOpenThread } from "./useOpenThread";
-
-// While signed out, check again every couple of seconds, so signing in from the tab takes effect alone.
-const SIGNED_OUT_POLL_MS = 2000;
 
 type OpenSignIn = () => void;
 
@@ -34,12 +28,7 @@ function useSignInTab(isSignedIn: boolean): OpenSignIn {
 
 export default function ExtensionApp() {
   const { tab, threadId } = useOpenThread();
-  const session = useQuery({
-    queryKey: queryKeys.session,
-    queryFn: fetchSession,
-    retry: false,
-    refetchInterval: (query) => (isSignedOut(query.state.error) ? SIGNED_OUT_POLL_MS : false),
-  });
+  const session = usePolledSession();
   const openSignIn = useSignInTab(session.isSuccess);
 
   if (isSignedOut(session.error)) return <SignedOut onSignIn={openSignIn} />;
@@ -63,10 +52,7 @@ type ThreadPanelProps = { threadId: string; account: string; onSignIn: OpenSignI
 
 function ThreadPanel({ threadId, account, onSignIn }: ThreadPanelProps) {
   const { t } = useTranslation();
-  const found = useQuery({
-    queryKey: ["email-by-thread", threadId],
-    queryFn: () => fetchEmailByThread(threadId),
-  });
+  const found = useEmailByThread(threadId);
 
   if (isSignedOut(found.error)) return <SignedOut onSignIn={onSignIn} />;
   if (found.isPending) return <PanelMessage titleKey="preparing" account={account} />;
@@ -83,14 +69,7 @@ function ThreadPanel({ threadId, account, onSignIn }: ThreadPanelProps) {
 }
 
 function OpenEmail({ initial, account }: { initial: Email; account: string }) {
-  // Seeded from the lookup and keyed like the dashboard's detail, so every draft action's
-  // response (written to this key) updates the panel without another round trip.
-  const { data: email } = useQuery({
-    queryKey: queryKeys.email(initial.id),
-    queryFn: () => fetchEmail(initial.id),
-    initialData: initial,
-    staleTime: Infinity,
-  });
+  const { data: email } = useSeededEmail(initial);
   const workflow = useDraftWorkflow(email);
   return (
     <SidePanel

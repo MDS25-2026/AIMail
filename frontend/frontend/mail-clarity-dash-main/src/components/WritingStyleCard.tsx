@@ -1,19 +1,18 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { errorMessage } from "../lib/api/errors";
 import {
-  addStyleExample,
-  deleteStyleExample,
-  deleteWritingStyle,
-  fetchWritingStyle,
-  hideStyleHabit,
-  saveStyleDescription,
-  setStyleLearning,
-} from "../lib/api/profile";
-import { MAX_DESCRIPTION_CHARS, togglePhrase, WRITING_STYLE_KEY } from "../lib/writingStyle";
+  useAddStyleExample,
+  useDeleteStyleExample,
+  useDeleteWritingStyle,
+  useHideStyleHabit,
+  useSaveStyleDescription,
+  useSetStyleLearning,
+  useWritingStyle,
+} from "../lib/queries";
+import { MAX_DESCRIPTION_CHARS, togglePhrase } from "../lib/writingStyle";
 import { ReplyLength, StyleHabitKind, type StyleHabit, type WritingStyle } from "../types/profile";
 
 /**
@@ -50,21 +49,9 @@ function habitText(habit: StyleHabit, t: TFunction): string {
   return t(`writingStyle.habit.${habit.kind}`, { value: habit.value });
 }
 
-/** Every change answers with the whole stored style, so the cache is replaced, never patched. */
-function useStyleChange<T>(change: (input: T) => Promise<WritingStyle | void>) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: change,
-    onSuccess: (style) =>
-      style
-        ? queryClient.setQueryData(WRITING_STYLE_KEY, style)
-        : void queryClient.invalidateQueries({ queryKey: WRITING_STYLE_KEY }),
-  });
-}
-
 export default function WritingStyleCard() {
   const { t } = useTranslation();
-  const style = useQuery({ queryKey: WRITING_STYLE_KEY, queryFn: fetchWritingStyle });
+  const style = useWritingStyle();
   return (
     <section className="space-y-5 rounded-lg border border-line bg-surface p-4">
       <div>
@@ -104,7 +91,7 @@ function AiSees({ text }: { text: string }) {
 function Description({ saved }: { saved: string }) {
   const { t } = useTranslation();
   const [text, setText] = useState(saved);
-  const save = useStyleChange(saveStyleDescription);
+  const save = useSaveStyleDescription();
   const error = failureText(save.error, t);
   return (
     <form
@@ -164,8 +151,8 @@ function Description({ saved }: { saved: string }) {
 function Examples({ style }: { style: WritingStyle }) {
   const { t } = useTranslation();
   const [text, setText] = useState("");
-  const add = useStyleChange((pasted: string) => addStyleExample({ text: pasted }));
-  const remove = useStyleChange(deleteStyleExample);
+  const add = useAddStyleExample();
+  const remove = useDeleteStyleExample();
   const isFull = style.examples.length >= style.maxExamples;
   const error = failureText(add.error ?? remove.error, t);
   return (
@@ -201,7 +188,7 @@ function Examples({ style }: { style: WritingStyle }) {
           className="space-y-2"
           onSubmit={(event) => {
             event.preventDefault();
-            add.mutate(text, { onSuccess: () => setText("") });
+            add.mutate({ text }, { onSuccess: () => setText("") });
           }}
         >
           <textarea
@@ -229,8 +216,8 @@ function Examples({ style }: { style: WritingStyle }) {
 
 function Learning({ style }: { style: WritingStyle }) {
   const { t } = useTranslation();
-  const toggle = useStyleChange(setStyleLearning);
-  const hide = useStyleChange(hideStyleHabit);
+  const toggle = useSetStyleLearning();
+  const hide = useHideStyleHabit();
   const error = failureText(toggle.error ?? hide.error, t);
   return (
     <div className="space-y-2 border-t border-line-subtle pt-4">
@@ -280,7 +267,7 @@ function Learning({ style }: { style: WritingStyle }) {
 function DeleteEverything() {
   const { t } = useTranslation();
   const [isConfirming, setIsConfirming] = useState(false);
-  const erase = useStyleChange(deleteWritingStyle);
+  const erase = useDeleteWritingStyle();
   const error = failureText(erase.error, t);
   return (
     <div className="flex flex-wrap items-center gap-2 border-t border-line-subtle pt-4 text-sm">

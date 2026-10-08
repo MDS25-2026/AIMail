@@ -1,10 +1,8 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-import { deleteAccount, disconnectGmail } from "../lib/api/session";
-import { queryKeys, useSession } from "../lib/queries";
+import { useDeleteAccount, useDisconnectGmail, useSession } from "../lib/queries";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -41,16 +39,8 @@ export default function AccountCard() {
 
 function DisconnectGmail() {
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
-  const disconnect = useMutation({
-    mutationFn: disconnectGmail,
-    onSuccess: () => {
-      setIsOpen(false);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.session });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.emails });
-    },
-  });
+  const disconnect = useDisconnectGmail();
   return (
     <AccountAction
       title={t("account.disconnectTitle")}
@@ -60,7 +50,7 @@ function DisconnectGmail() {
       onOpenChange={setIsOpen}
       isPending={disconnect.isPending}
       error={disconnect.isError ? t("account.disconnectFailed") : null}
-      onConfirm={() => disconnect.mutate()}
+      onConfirm={() => disconnect.mutate(undefined, { onSuccess: () => setIsOpen(false) })}
       done={disconnect.isSuccess ? t("account.disconnected") : null}
     />
   );
@@ -69,16 +59,9 @@ function DisconnectGmail() {
 function DeleteAccount({ email }: { email: string }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const [typed, setTyped] = useState("");
-  const remove = useMutation({
-    mutationFn: deleteAccount,
-    onSuccess: () => {
-      queryClient.clear();
-      void navigate({ to: "/signin" });
-    },
-  });
+  const remove = useDeleteAccount(() => void navigate({ to: "/signin" }));
   // Typing the address is the confirmation: nothing about it can be undone.
   const isConfirmed = typed.trim().toLowerCase() === email.toLowerCase();
   return (

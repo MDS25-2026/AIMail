@@ -1,15 +1,14 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { I18nextProvider } from "react-i18next";
 
-import { isSignedOut } from "../lib/api/errors";
 import { createI18n } from "../lib/i18n";
 import { Language, StatusColours, Theme, UnitSystem, type Preferences } from "../lib/preferences";
+import { createQueryClient } from "../lib/queries";
 import { useColoursAttribute } from "../lib/useColoursAttribute";
 import { PreferencesContext, type PreferencesContextValue } from "../lib/usePreferences";
 
 const DARK_QUERY = "(prefers-color-scheme: dark)";
-const MAX_RETRIES = 3;
 const LANGUAGE_BY_PREFIX: Record<string, Language> = { ms: Language.Malay, zh: Language.Chinese };
 // The panel cannot read the dashboard's cookies, so it keeps its own copy of this one choice.
 const COLOURS_KEY = "aimail-colours";
@@ -55,17 +54,8 @@ export default function ExtensionProviders({ children }: { children: ReactNode }
     colours: storedColours(),
   }));
   const i18n = useMemo(() => createI18n(preferences.language), []); // eslint-disable-line react-hooks/exhaustive-deps
-  const queryClient = useMemo(
-    () =>
-      new QueryClient({
-        defaultOptions: {
-          queries: {
-            retry: (failures, error) => !isSignedOut(error) && failures < MAX_RETRIES,
-          },
-        },
-      }),
-    [],
-  );
+  // No onSignedOut: each panel state already shows the sign-in button from its own error.
+  const queryClient = useMemo(() => createQueryClient(), []);
   useSystemTheme();
   useColoursAttribute(preferences.colours);
 

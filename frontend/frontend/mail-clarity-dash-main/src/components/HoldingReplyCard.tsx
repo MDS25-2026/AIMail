@@ -1,16 +1,15 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 
 import { errorMessage } from "../lib/api/errors";
-import {
-  cancelHoldingReply,
-  fetchHoldingReplies,
-  fetchHoldingReplySettings,
-  saveHoldingReplySettings,
-} from "../lib/api/settings";
 import { Language } from "../lib/preferences";
+import {
+  useCancelHoldingReply,
+  useHoldingReplies,
+  useHoldingReplySettings,
+  useSaveHoldingReplySettings,
+} from "../lib/queries";
 import { useFormat } from "../lib/useFormat";
 import {
   ActiveWhen,
@@ -49,9 +48,6 @@ const LOCALE: Record<Language, string> = {
   [Language.Malay]: "ms-MY",
   [Language.Chinese]: "zh-CN",
 };
-const REFRESH_MS = 60_000;
-const SETTINGS_KEY = ["holding-reply-settings"] as const;
-const REPLIES_KEY = ["holding-replies"] as const;
 
 const INPUT =
   "rounded-md border border-line-strong bg-surface px-2 py-1 text-sm text-fg focus-visible:outline-2 focus-visible:outline-brand";
@@ -79,7 +75,7 @@ function statusText(
 
 export default function HoldingReplyCard() {
   const { t } = useTranslation();
-  const settings = useQuery({ queryKey: SETTINGS_KEY, queryFn: fetchHoldingReplySettings });
+  const settings = useHoldingReplySettings();
   return (
     <section className="space-y-4 rounded-lg border border-line bg-surface p-4">
       <div>
@@ -103,13 +99,9 @@ export default function HoldingReplyCard() {
 
 function SettingsForm({ saved }: { saved: HoldingReplySettings }) {
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
   const [form, setForm] = useState(saved);
   const [language, setLanguage] = useState<Language>(saved.defaultLanguage);
-  const save = useMutation({
-    mutationFn: saveHoldingReplySettings,
-    onSuccess: (accepted) => queryClient.setQueryData(SETTINGS_KEY, accepted),
-  });
+  const save = useSaveHoldingReplySettings();
   const update = (change: Partial<HoldingReplySettings>) =>
     setForm((current) => ({ ...current, ...change }));
   const template = form.templates[language] ?? "";
@@ -345,11 +337,7 @@ function LeaveDates({ form, update }: SectionProps) {
 
 function SentInYourName() {
   const { t } = useTranslation();
-  const replies = useQuery({
-    queryKey: REPLIES_KEY,
-    queryFn: fetchHoldingReplies,
-    refetchInterval: REFRESH_MS,
-  });
+  const replies = useHoldingReplies();
   if (!replies.data?.length) return null;
   return (
     <div className="space-y-2 border-t border-line-subtle pt-4">
@@ -368,11 +356,7 @@ function SentInYourName() {
 function ReplyRow({ reply }: { reply: HoldingReplyRecord }) {
   const { t } = useTranslation();
   const format = useFormat();
-  const queryClient = useQueryClient();
-  const cancel = useMutation({
-    mutationFn: () => cancelHoldingReply(reply.id),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: REPLIES_KEY }),
-  });
+  const cancel = useCancelHoldingReply();
   const isWaiting = !reply.sentAt && !reply.cancelledReason;
   const status = statusText(reply, t, format.timestamp);
   return (
@@ -384,7 +368,7 @@ function ReplyRow({ reply }: { reply: HoldingReplyRecord }) {
       {isWaiting ? (
         <button
           type="button"
-          onClick={() => cancel.mutate()}
+          onClick={() => cancel.mutate(reply.id)}
           disabled={cancel.isPending}
           className="shrink-0 rounded-md border border-line px-2 py-1 text-xs font-medium text-fg-body hover:bg-surface-muted"
         >

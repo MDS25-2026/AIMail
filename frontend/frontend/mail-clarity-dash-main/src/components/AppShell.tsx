@@ -1,11 +1,9 @@
-import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { SIGN_IN_URL } from "../lib/api/config";
-import { signOut } from "../lib/api/session";
-import { useSession } from "../lib/queries";
+import { useSession, useSignOut } from "../lib/queries";
 import SideNav from "./SideNav";
 
 /** App chrome shared by every dashboard route: brand header plus the nav rail. */
@@ -62,21 +60,10 @@ function ReconnectBanner() {
 function AccountMenu() {
   const { t } = useTranslation();
   const session = useSession();
-  const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [isSigningOut, setIsSigningOut] = useState(false);
+  const signOut = useSignOut(() => void navigate({ to: "/signin" }));
 
   if (!session.data) return null;
-
-  const onSignOut = async () => {
-    setIsSigningOut(true);
-    try {
-      await signOut();
-    } finally {
-      queryClient.clear();
-      void navigate({ to: "/signin" });
-    }
-  };
 
   return (
     <div className="flex items-center gap-3 border-l border-line pl-4">
@@ -85,11 +72,11 @@ function AccountMenu() {
       </span>
       <button
         type="button"
-        onClick={() => void onSignOut()}
-        disabled={isSigningOut}
+        onClick={() => signOut.mutate()}
+        disabled={signOut.isPending}
         className="text-sm font-medium text-fg-body hover:text-fg disabled:text-fg-subtle"
       >
-        {isSigningOut ? t("account.signingOut") : t("account.signOut")}
+        {signOut.isPending ? t("account.signingOut") : t("account.signOut")}
       </button>
     </div>
   );
