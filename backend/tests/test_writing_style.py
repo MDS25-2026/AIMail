@@ -49,7 +49,7 @@ def test_every_placeholder_and_masking_mark_becomes_one_plain_word():
 
 
 def test_a_pasted_example_is_masked_then_neutralised(monkeypatch):
-    async def presidio(text):
+    async def presidio(text, **_kwargs):
         return text.replace("Aisyah", "[Redacted]")
 
     monkeypatch.setattr(writing_style, "mask_document", presidio)
@@ -213,7 +213,7 @@ def test_a_send_made_while_learning_is_on_is_kept_as_a_past_reply(mailbox, monke
 def stored_items(monkeypatch):
     stored = []
 
-    async def as_is(text):
+    async def as_is(text, **_kwargs):
         return text
 
     async def store(source, title, chunks, *, scope, doc_type):
@@ -284,7 +284,7 @@ def test_a_script_has_no_writing_style(calls):  # noqa: F811
 def test_nothing_is_stored_when_the_masker_is_down(calls, monkeypatch):  # noqa: F811
     stored = []
 
-    async def down(_text):
+    async def down(_text, **_kwargs):
         raise DocumentMaskingError("presidio unreachable")
 
     async def save(user_id, **values):

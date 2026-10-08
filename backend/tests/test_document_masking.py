@@ -38,7 +38,7 @@ def _down(request: httpx.Request) -> httpx.Response:
 
 def test_names_and_fixed_formats_are_masked(monkeypatch, test_settings):
     _presidio(monkeypatch, _finds_the_name)
-    masked = asyncio.run(mask.mask_document(POLICY))
+    masked = asyncio.run(mask.mask_document(POLICY, profile=mask.MaskProfile.POLICY))
     assert "Siti Aminah" not in masked and "012-345 6789" not in masked and "hr@corp" not in masked
     assert "Apply 3 days ahead." in masked
 
@@ -59,3 +59,11 @@ def test_the_paste_route_answers_503_when_masking_is_unavailable(api_client, mon
     response = api_client.post("/documents", json={"title": "Leave", "text": POLICY}, headers=AUTH)
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "masking_unavailable"
+
+
+def test_a_users_own_reply_is_masked_as_strictly_as_an_email():
+    personal = mask._request("Send it to my Maybank account 1234567890 in Petaling Jaya", mask.MaskProfile.PERSONAL)
+    policy = mask._request("Offices in Petaling Jaya", mask.MaskProfile.POLICY)
+    assert {"LOCATION", "ORGANIZATION", "ACCOUNT_NUMBER"} <= set(personal["entities"])
+    assert personal["ad_hoc_recognizers"][0]["supported_entity"] == "ACCOUNT_NUMBER"
+    assert "LOCATION" not in policy["entities"] and "ad_hoc_recognizers" not in policy

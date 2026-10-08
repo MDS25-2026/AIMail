@@ -28,7 +28,7 @@ from app.rag.chunk import (
 )
 from app.rag.embed import EmbeddingError
 from app.rag.local_embed import local_model, local_tag
-from app.rag.mask import mask_document
+from app.rag.mask import MaskProfile, mask_document
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ async def ingest_text(
     # Nothing to store: answered before masking, which needs Presidio and the settings.
     if not text.strip():
         return 0
-    pieces = chunk_sections(await mask_document(text))
+    pieces = chunk_sections(await mask_document(text, profile=MaskProfile.POLICY))
     if not pieces:
         return 0
     await store_chunks(source, title, pieces, scope=scope, doc_type=doc_type)

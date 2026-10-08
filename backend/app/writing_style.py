@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.redaction import ANY_MASK, PLACEHOLDER
 from app.db.models import Message, StyleExample, StyleHabit, WritingStyle
-from app.rag.mask import mask_document
+from app.rag.mask import MaskProfile, mask_document
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +114,7 @@ def hide_closing_name(text: str) -> str:
 
 async def mask_for_style(text: str) -> str:
     """Masked and neutralised. Raises DocumentMaskingError when the masker is unreachable."""
-    return hide_closing_name(neutralise(await mask_document(neutralise(text.strip()))))
+    return hide_closing_name(neutralise(await mask_document(neutralise(text.strip()), profile=MaskProfile.PERSONAL)))
 
 
 def edit_ratio(shown: str, sent: str) -> float:
