@@ -10,6 +10,7 @@ type DraftStatusProps = DraftWorkflowStatus;
 function confirmMessage(kind: ConfirmKind, count: number, t: TFunction): string {
   if (kind === ConfirmKind.ReplaceEdits) return t("draftStatus.replaceEdits");
   if (kind === ConfirmKind.SendTemplates) return t("draftStatus.sendTemplates", { count });
+  if (kind === ConfirmKind.ToneWarning) return t("draftStatus.toneWarning");
   return t("draftStatus.sendMarkers", { count });
 }
 
@@ -34,6 +35,11 @@ export default function DraftStatus({
   onRetryLoad,
 }: DraftStatusProps) {
   const { t } = useTranslation();
+
+  const confirmLabel =
+    pendingConfirm?.kind === ConfirmKind.ReplaceEdits
+      ? t("draftStatus.replaceConfirm")
+      : t("draftStatus.sendAnyway");
 
   return (
     <div className="space-y-2 empty:hidden">
@@ -61,9 +67,7 @@ export default function DraftStatus({
               onClick={onConfirm}
               className={`${BUTTON} border-warning bg-warning text-surface`}
             >
-              {pendingConfirm.kind === ConfirmKind.ReplaceEdits
-                ? t("draftStatus.replaceConfirm")
-                : t("draftStatus.sendAnyway")}
+              {confirmLabel}
             </button>
           </div>
         </div>
