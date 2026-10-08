@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import InboxList from "../components/InboxList";
+import LoadOlderEmails from "../components/LoadOlderEmails";
 import EmailDetailPanel from "../components/EmailDetailPanel";
 import AppShell from "../components/AppShell";
 import { PageEmpty, PageError, PageLoading } from "../components/PageState";
@@ -81,6 +82,11 @@ function DashboardPage() {
               onSelectEmail={setSelectedEmailId}
             />
           ) : null}
+          <LoadOlderEmails
+            hasNextPage={emails.hasNextPage}
+            isFetchingNextPage={emails.isFetchingNextPage}
+            fetchNextPage={emails.fetchNextPage}
+          />
         </aside>
 
         <section className="min-h-0 min-w-0 flex-1 bg-surface-muted">

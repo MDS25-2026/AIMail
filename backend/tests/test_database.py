@@ -6,6 +6,7 @@ Skipped unless TEST_DATABASE_URL names a throwaway database with every migration
 
 import asyncio
 import os
+from datetime import datetime, timezone
 from uuid import uuid4
 
 import pytest
@@ -14,9 +15,12 @@ from sqlalchemy.exc import DBAPIError
 
 from app import audit_routes
 from app.audit import AuditAction, audit_row
+from app.core.cursor import decode_cursor
+from app.core.ownership import Scope
 from app.core.ratelimit import PostgresCounters
+from app.dashboard import list_dashboard_emails
 from app.db.migrate import apply_pending, pending
-from app.db.models import AuthStatus, MaskingStatus, Message
+from app.db.models import AuthStatus, MaskingStatus, Message, UserProfile
 from app.db.session import get_engine, get_sessionmaker
 from app.jobs import claim_requested, request_draft
 from app.rag.embedding_models import check_columns
@@ -132,3 +136,26 @@ def test_an_opened_email_is_queued_once_and_claimed_by_one_worker():
 
     pk, claimed = _run(scenario())
     assert claimed.count(pk) == 1
+
+
+def test_paging_the_inbox_shows_every_email_once_even_with_equal_timestamps():
+    async def scenario():
+        owner = uuid4()
+        same_instant = datetime(2026, 10, 8, 9, 0, tzinfo=timezone.utc)
+        async with get_sessionmaker()() as session, session.begin():
+            session.add(UserProfile(id=owner, email=f"{owner}@example.com"))
+            await session.flush()
+            session.add_all(Message(id=uuid4(), user_id=owner, created_at=same_instant, subject="s",
+                                    gmail_message_id=f"page-{n}")
+                            for n in range(5))
+        seen, after = [], None
+        for _ in range(5):
+            page = await list_dashboard_emails(Scope(owner_id=owner), "", 2, after)
+            seen += [email.id for email in page.emails]
+            if page.nextCursor is None:
+                return seen
+            after = decode_cursor(page.nextCursor)
+        return seen
+
+    seen = _run(scenario())
+    assert len(seen) == 5 and len(set(seen)) == 5

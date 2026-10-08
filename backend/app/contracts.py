@@ -137,6 +137,18 @@ class DashboardEmail(BaseModel):
     egress: list[EgressRecord] = Field(default_factory=list)
 
 
+# Newest first, at most this many per page unless the caller asks for fewer.
+EMAILS_PER_PAGE = 50
+MAX_EMAILS_PER_PAGE = 100
+
+
+class EmailPage(BaseModel):
+    """One page of the inbox. nextCursor goes back as ?cursor= for the next page; null on the last."""
+
+    emails: list[DashboardEmail]
+    nextCursor: str | None = None
+
+
 _PRIORITY_LABELS: dict[int, Literal["low", "medium", "high"]] = {0: "low", 1: "medium", 2: "high"}
 
 

@@ -799,6 +799,16 @@ export interface components {
             purpose: string;
         };
         /**
+         * EmailPage
+         * @description One page of the inbox. nextCursor goes back as ?cursor= for the next page; null on the last.
+         */
+        EmailPage: {
+            /** Emails */
+            emails: components["schemas"]["DashboardEmail"][];
+            /** Nextcursor */
+            nextCursor?: string | null;
+        };
+        /**
          * ExampleBody
          * @description Pasted text, or the id of one of the user's sent replies; exactly one.
          */
@@ -1517,7 +1527,10 @@ export interface operations {
     };
     emails_emails_get: {
         parameters: {
-            query?: never;
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1530,7 +1543,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DashboardEmail"][];
+                    "application/json": components["schemas"]["EmailPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

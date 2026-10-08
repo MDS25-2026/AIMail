@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 
-import { fetchEmails, sendEmail } from "../api/emails";
+import { fetchEmailPage, sendEmail } from "../api/emails";
 import { ApiErrorCode } from "../api/errors";
 
 function recordFetch(status: number, body: unknown = []) {
@@ -20,7 +20,7 @@ afterEach(() => vi.unstubAllGlobals());
 describe("calls to the backend (ADR 0005)", () => {
   test("carry the session cookie and the client header, never a token", async () => {
     const calls = recordFetch(200);
-    await fetchEmails();
+    await fetchEmailPage();
     const { init } = calls[0];
     expect(init.credentials).toBe("include");
     expect(init.headers).toMatchObject({ "X-AIMail-Client": "1" });
@@ -36,9 +36,15 @@ describe("calls to the backend (ADR 0005)", () => {
     });
   });
 
+  test("the next inbox page is asked for with the cursor the last one returned", async () => {
+    const calls = recordFetch(200, { emails: [], nextCursor: null });
+    await fetchEmailPage("abc/+=");
+    expect(calls[0].url).toContain("/emails?cursor=abc%2F%2B%3D");
+  });
+
   test("a 401 means signed out, so the app can send the reader to sign in", async () => {
     recordFetch(401, { error: { code: "signed_out", message: "no session" } });
-    await expect(fetchEmails()).rejects.toMatchObject({ code: ApiErrorCode.SignedOut });
+    await expect(fetchEmailPage()).rejects.toMatchObject({ code: ApiErrorCode.SignedOut });
   });
 });
 
@@ -60,19 +66,19 @@ function answerInTurn(...statuses: number[]) {
 describe("staying signed in", () => {
   test("an expired session is renewed from the refresh cookie and the call retried", async () => {
     const paths = answerInTurn(401, 204, 200);
-    await expect(fetchEmails()).resolves.toEqual([]);
+    await expect(fetchEmailPage()).resolves.toEqual([]);
     expect(paths).toEqual(["/emails", "/auth/session/refresh", "/emails"]);
   });
 
   test("when the renewal is refused too, the reader is signed out, without looping", async () => {
     const paths = answerInTurn(401, 401);
-    await expect(fetchEmails()).rejects.toMatchObject({ code: ApiErrorCode.SignedOut });
+    await expect(fetchEmailPage()).rejects.toMatchObject({ code: ApiErrorCode.SignedOut });
     expect(paths).toEqual(["/emails", "/auth/session/refresh"]);
   });
 
   test("calls that expire together share one renewal, since a refresh token works only once", async () => {
     const paths = answerInTurn(401, 401, 204, 200, 200);
-    await Promise.all([fetchEmails(), fetchEmails()]);
+    await Promise.all([fetchEmailPage(), fetchEmailPage()]);
     expect(paths.filter((path) => path === "/auth/session/refresh")).toHaveLength(1);
   });
 });

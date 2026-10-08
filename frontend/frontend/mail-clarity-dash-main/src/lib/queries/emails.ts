@@ -1,11 +1,17 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  type InfiniteData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 
-import type { Email, Tone } from "../../types/email";
+import type { Email, EmailPage, Tone } from "../../types/email";
 import {
   confirmSender,
   fetchEmail,
   fetchEmailByThread,
-  fetchEmails,
+  fetchEmailPage,
   refineEmail,
   regenerateEmail,
   sendEmail,
@@ -18,8 +24,15 @@ import { queryKeys } from "./keys";
 export const DRAFT_POLL_MS = 3_000;
 export const DRAFT_POLL_LIMIT = 40;
 
+/** The inbox, page by page; `data` is every loaded email, newest first, and fetchNextPage loads older. */
 export function useEmails() {
-  return useQuery({ queryKey: queryKeys.emails, queryFn: fetchEmails });
+  return useInfiniteQuery({
+    queryKey: queryKeys.emails,
+    queryFn: ({ pageParam }) => fetchEmailPage(pageParam),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+    select: (data) => data.pages.flatMap((page) => page.emails),
+  });
 }
 
 /**
@@ -34,8 +47,18 @@ export function useEmail(emailId: string | null) {
     queryFn: async () => {
       const email = await fetchEmail(emailId ?? "");
       // Patch the cached list so the unread marker clears now, not at the next refetch.
-      queryClient.setQueryData<Email[]>(queryKeys.emails, (list) =>
-        list?.map((item) => (item.id === email.id ? { ...item, isRead: true } : item)),
+      queryClient.setQueryData<InfiniteData<EmailPage>>(
+        queryKeys.emails,
+        (inbox) =>
+          inbox && {
+            ...inbox,
+            pages: inbox.pages.map((page) => ({
+              ...page,
+              emails: page.emails.map((item) =>
+                item.id === email.id ? { ...item, isRead: true } : item,
+              ),
+            })),
+          },
       );
       return email;
     },

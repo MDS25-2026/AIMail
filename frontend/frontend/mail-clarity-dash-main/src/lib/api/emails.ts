@@ -1,11 +1,12 @@
-import type { Email, Tone, Translation } from "../../types/email";
+import type { Email, EmailPage, Tone, Translation } from "../../types/email";
 import { HttpMethod, request } from "./client";
 import { ApiError, ApiErrorCode } from "./errors";
 
 const emailPath = (id: string, action = "") => `/emails/${encodeURIComponent(id)}${action}`;
 
-/** Inbox list: Lane A fields and Lane B priority, no draft. */
-export const fetchEmails = () => request<Email[]>("/emails");
+/** One page of the inbox, newest first: Lane A fields and Lane B priority, no draft. */
+export const fetchEmailPage = (cursor?: string) =>
+  request<EmailPage>(cursor ? `/emails?cursor=${encodeURIComponent(cursor)}` : "/emails");
 
 /** One email with the Lane C draft, summary and critic filled in. Marks it read. */
 export const fetchEmail = (id: string) => request<Email>(emailPath(id));

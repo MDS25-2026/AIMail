@@ -18,6 +18,8 @@ export const en = {
   languages: { en: "English", ms: "Bahasa Melayu", zh: "中文" },
   inbox: {
     heading: "Inbox",
+    loadMore: "Show older emails",
+    loadingMore: "Loading older emails…",
     count_one: "{{count}} message",
     count_other: "{{count}} messages",
     unread: "(unread)",

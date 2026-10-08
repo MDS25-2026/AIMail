@@ -16,6 +16,7 @@ from uuid import UUID
 from fastapi import (
     Depends,
     FastAPI,
+    Query,
     Request,
     Response,
     UploadFile,
@@ -31,7 +32,12 @@ from app.admin.app import admin_app
 from app.agent_contract import Tone
 from app.audit import AuditAction, audit
 from app.audit_routes import router as audit_router
-from app.contracts import DashboardEmail
+from app.contracts import (
+    EMAILS_PER_PAGE,
+    MAX_EMAILS_PER_PAGE,
+    DashboardEmail,
+    EmailPage,
+)
 from app.core import mailbox
 from app.core.auth import (
     principal_of,
@@ -51,6 +57,7 @@ from app.core.constants import (
     UPLOAD_CHUNK_BYTES,
 )
 from app.core.cors import PathScopedCORS, origins_from
+from app.core.cursor import decode_cursor
 from app.core.errors import (
     DomainError,
     ErrorCode,
@@ -207,14 +214,16 @@ async def ask(request: AskRequest, http: Request) -> AskResponse:
 
 
 @app.get("/emails")
-async def emails(request: Request) -> list[DashboardEmail]:
+async def emails(request: Request, cursor: str | None = None,
+                 limit: int = Query(EMAILS_PER_PAGE, ge=1, le=MAX_EMAILS_PER_PAGE)) -> EmailPage:
     # Fast list: Han's Email shape from ingested messages + Lane B priority (no generation).
     # Someone with no connected mailbox sees an empty inbox, not an error.
     principal = principal_of(request)
     scope = await scope_of_principal(principal)
     if scope is None:
-        return []
-    return await list_dashboard_emails(scope, principal.email or mailbox.owner())
+        return EmailPage(emails=[])
+    after = decode_cursor(cursor) if cursor else None
+    return await list_dashboard_emails(scope, principal.email or mailbox.owner(), limit, after)
 
 
 @app.get("/emails/{message_id}", dependencies=[Depends(rate_limit_detail), Depends(require_mailbox)])

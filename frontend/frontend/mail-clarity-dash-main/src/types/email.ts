@@ -23,6 +23,9 @@ export type Email = WithEnums<
   { authStatus?: AuthStatus; masking?: MaskingStatus; priority: Priority; tone: Tone }
 >;
 
+/** One page of the inbox; nextCursor fetches the next, and is null on the last page. */
+export type EmailPage = WithEnums<Schemas["EmailPage"], { emails: Email[] }>;
+
 export enum AuthStatus {
   Pass = "pass",
   SpoofDetected = "spoof_detected",

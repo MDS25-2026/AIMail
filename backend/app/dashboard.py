@@ -15,7 +15,7 @@ from uuid import UUID
 
 import httpx
 from pydantic import BaseModel
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select, tuple_, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,11 +37,13 @@ from app.contracts import (
     DashboardEmail,
     Detail,
     EgressRecord,
+    EmailPage,
     MeasureView,
     QuantityView,
     Source,
     ThreadMessage,
 )
+from app.core.cursor import Cursor
 from app.core.errors import DomainError, ErrorCode
 from app.core.language import detect_language
 from app.core.ownership import EVERYTHING, Scope
@@ -232,13 +234,20 @@ async def _thread_for(message: Message) -> list[Message]:
         return await _thread_of(session, message)
 
 
-async def list_dashboard_emails(scope: Scope, policy_email: str, limit: int = 50) -> list[DashboardEmail]:
-    stmt = (select(Message).where(scope.where(Message.user_id))
-            .order_by(Message.created_at.desc()).limit(limit))
+async def list_dashboard_emails(scope: Scope, policy_email: str, limit: int, after: Cursor | None) -> EmailPage:
+    """Newest first, one page; id breaks ties, so two emails stored in the same instant both appear."""
+    statement = select(Message).where(scope.where(Message.user_id))
+    if after:
+        statement = statement.where(tuple_(Message.created_at, Message.id) < (after.created_at, after.row_id))
+    # One extra row says whether another page exists without a count query.
+    statement = statement.order_by(Message.created_at.desc(), Message.id.desc()).limit(limit + 1)
     async with get_sessionmaker()() as session:
-        rows = (await session.scalars(stmt)).all()
+        rows = (await session.scalars(statement)).all()
         policy = await load_policy(session, policy_email)
-    return [_to_email(message, policy, details=_own_details(message)) for message in rows]
+    page = rows[:limit]
+    is_more = len(rows) > limit
+    return EmailPage(emails=[_to_email(message, policy, details=_own_details(message)) for message in page],
+                     nextCursor=Cursor(page[-1].created_at, page[-1].id).encode() if is_more else None)
 
 
 def _own_details(message: Message) -> ThreadMap:

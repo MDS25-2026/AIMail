@@ -21,6 +21,8 @@ export const ms: Translations = {
   languages: { en: "English", ms: "Bahasa Melayu", zh: "中文" },
   inbox: {
     heading: "Peti masuk",
+    loadMore: "Tunjukkan e-mel lebih lama",
+    loadingMore: "Memuatkan e-mel lebih lama…",
     count_one: "{{count}} mesej",
     count_other: "{{count}} mesej",
     unread: "(belum dibaca)",

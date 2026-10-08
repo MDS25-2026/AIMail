@@ -17,6 +17,8 @@ export const zh: Translations = {
   languages: { en: "English", ms: "Bahasa Melayu", zh: "中文" },
   inbox: {
     heading: "收件箱",
+    loadMore: "显示更早的邮件",
+    loadingMore: "正在加载更早的邮件…",
     count_one: "{{count}} 封邮件",
     count_other: "{{count}} 封邮件",
     unread: "（未读）",
