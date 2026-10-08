@@ -2,7 +2,7 @@
 # Configuration comes from the environment (see .env.example); Pub/Sub uses the runtime's service
 # account through Application Default Credentials, so no credentials.json or token.json is baked in.
 
-FROM golang:1.26-alpine AS build
+FROM golang:1.26.5-alpine AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
