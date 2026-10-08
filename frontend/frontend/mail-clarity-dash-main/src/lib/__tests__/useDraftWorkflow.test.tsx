@@ -92,3 +92,19 @@ describe("sending a draft that still has redaction markers", () => {
     expect(result.current.status.pendingConfirm).toBeNull();
   });
 });
+
+describe("waiting for the worker's first draft", () => {
+  test("an email still being drafted shows as generating and cannot be sent", () => {
+    stubFetch({});
+    const { result } = renderWorkflow(emailFixture({ id: "c", draftReply: "", isDrafting: true }));
+    expect(result.current.status.isGenerating).toBe(true);
+    expect(result.current.isBusy).toBe(true);
+  });
+
+  test("once the draft arrives the panel is free again", () => {
+    stubFetch({});
+    const { result } = renderWorkflow(emailFixture({ id: "c", isDrafting: false }));
+    expect(result.current.status.isGenerating).toBe(false);
+    expect(result.current.isBusy).toBe(false);
+  });
+});

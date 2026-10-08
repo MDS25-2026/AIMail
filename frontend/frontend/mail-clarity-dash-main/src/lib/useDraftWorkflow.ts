@@ -90,6 +90,8 @@ export function useDraftWorkflow(
   // The stored draft holds placeholders; the reader edits it with the real details, and the
   // backend turns them back into placeholders before anything reaches the AI.
   const storedDraft = email?.draftReply ?? "";
+  // The detail call no longer drafts; the worker does, and the email says so until it is done.
+  const isWaitingForDraft = detail.isLoading || Boolean(email?.isDrafting);
   const serverDraft = isHidingDetails
     ? storedDraft
     : restoreDetails(storedDraft, detailValues(email?.details));
@@ -202,7 +204,7 @@ export function useDraftWorkflow(
     },
     onConfirm: confirm,
     onCancel: () => setPending(null),
-    isGenerating: detail.isLoading,
+    isGenerating: isWaitingForDraft,
     isLoadFailed: detail.isError,
     onRetryLoad: () => void detail.refetch(),
   };
@@ -231,6 +233,6 @@ export function useDraftWorkflow(
     isRegenerating,
     isRefining,
     isSending,
-    isBusy: isRegenerating || isRefining || isSending || detail.isLoading,
+    isBusy: isRegenerating || isRefining || isSending || isWaitingForDraft,
   };
 }

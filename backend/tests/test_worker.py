@@ -9,13 +9,15 @@ from app.main import _lifespan
 
 
 def test_the_worker_runs_every_job_and_drafting_only_when_switched_on(test_settings, monkeypatch):
-    assert {job.name for job in worker.jobs()} == {"embeddings", "holding replies", "send reconciliation",
-                                                   "retention", "drafting"}
+    assert {job.name for job in worker.jobs()} == {"requested drafts", "embeddings", "holding replies",
+                                                   "send reconciliation", "retention", "drafting"}
     monkeypatch.setenv("AUTO_GENERATE", "false")
     from app.core.config import get_settings
 
     get_settings.cache_clear()
-    assert "drafting" not in {job.name for job in worker.jobs()}
+    names = {job.name for job in worker.jobs()}
+    # Proactive drafting stops; the drafts people opened and are waiting on still come.
+    assert "drafting" not in names and "requested drafts" in names
 
 
 def test_a_failed_pass_is_logged_and_the_job_keeps_running(monkeypatch):

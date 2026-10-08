@@ -83,3 +83,33 @@ def test_confirming_a_sender_that_passed_changes_nothing(mailbox):  # noqa: F811
     mailbox["message"].auth_status = AuthStatus.PASS
     email = asyncio.run(dashboard.confirm_sender(str(mailbox["message"].id), scope=EVERYTHING))
     assert email.authStatus == AuthStatus.PASS
+
+
+def test_opening_an_undrafted_email_asks_the_worker_and_returns_at_once(spoofed, monkeypatch):
+    spoofed["message"].auth_status = AuthStatus.PASS
+    requested = []
+
+    async def request_draft(pk):
+        requested.append(pk)
+
+    monkeypatch.setattr(dashboard, "request_draft", request_draft)
+    email = asyncio.run(dashboard.email_detail(str(spoofed["message"].id), scope=EVERYTHING))
+    assert email.isDrafting is True and requested == [spoofed["message"].id]
+    assert spoofed["payloads"] == []  # the agent was not called inside the request
+
+
+def test_a_spoofed_email_is_never_shown_as_being_drafted(spoofed, monkeypatch):
+    requested = []
+
+    async def request_draft(pk):
+        requested.append(pk)
+
+    monkeypatch.setattr(dashboard, "request_draft", request_draft)
+    email = asyncio.run(dashboard.email_detail(str(spoofed["message"].id), scope=EVERYTHING))
+    assert email.isDrafting is False and requested == []
+
+
+def test_a_draft_that_failed_once_is_not_shown_as_coming(spoofed):
+    message = spoofed["message"]
+    message.auth_status, message.generation_attempts = AuthStatus.PASS, 1
+    assert dashboard.is_drafting(message) is False  # the fast queue only makes the first attempt

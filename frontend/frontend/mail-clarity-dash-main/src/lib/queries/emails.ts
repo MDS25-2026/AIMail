@@ -13,6 +13,11 @@ import {
 } from "../api/emails";
 import { queryKeys } from "./keys";
 
+// While the worker writes the first draft (email.isDrafting), the email is fetched again on this
+// beat; it gives up after DRAFT_POLL_LIMIT tries (two minutes), when Regenerate is the way on.
+export const DRAFT_POLL_MS = 3_000;
+export const DRAFT_POLL_LIMIT = 40;
+
 export function useEmails() {
   return useQuery({ queryKey: queryKeys.emails, queryFn: fetchEmails });
 }
@@ -36,6 +41,10 @@ export function useEmail(emailId: string | null) {
     },
     enabled: emailId !== null,
     refetchOnWindowFocus: false,
+    refetchInterval: (query) =>
+      query.state.data?.isDrafting && query.state.dataUpdateCount < DRAFT_POLL_LIMIT
+        ? DRAFT_POLL_MS
+        : false,
   });
 }
 

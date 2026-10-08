@@ -52,7 +52,12 @@ from app.db.session import get_sessionmaker
 from app.egress_log import egress_for, save_egress
 from app.email_policy import Action, refusal_for
 from app.gmail_send import SendError, SendOutcomeUnknownError, send_reply
-from app.jobs import claim_for_drafting, claim_one_for_drafting, release_drafting
+from app.jobs import (
+    claim_for_drafting,
+    claim_requested,
+    release_drafting,
+    request_draft,
+)
 from app.normalise.quantities import quantities_in
 from app.past_replies import remember_reply
 from app.personalisation import DEFAULT_POLICY, Policy, apply_policy, load_policy
@@ -152,6 +157,12 @@ def _thread_view(thread: list[Message], details: ThreadMap) -> list[ThreadMessag
     return view
 
 
+def is_drafting(message: Message) -> bool:
+    """A first draft is on its way: none yet, not sent, allowed, and not already tried and failed."""
+    return (message.generated_at is None and message.sent_at is None and not refusal_for(message, Action.DRAFT)
+            and not message.generation_attempts)
+
+
 def _to_email(
     message: Message,
     policy: Policy = DEFAULT_POLICY,
@@ -176,6 +187,7 @@ def _to_email(
         actionItems=message.action_items or [],
         draftReply=message.draft_reply or "",
         tone=Tone(message.draft_tone or Tone.PROFESSIONAL),
+        isDrafting=is_drafting(message),
         sources=[Source(**source) for source in message.rag_sources or []],
         piiMasked=bool((message.emails_masked or 0) + (message.phones_masked or 0)),
         criticConfidence=message.critic_confidence or 0.0,
@@ -298,8 +310,17 @@ async def generate_pending(limit: int | None = None) -> int:
     under Gemini's free-tier rate limit). Fewest attempts first, so a message that keeps failing
     sinks behind newer ones. No connection is held while the agent works.
     """
+    return await _draft_claimed(await claim_for_drafting(limit))
+
+
+async def generate_requested(limit: int) -> int:
+    """Draft the emails people opened and are waiting on (request_draft); the worker runs this often."""
+    return await _draft_claimed(await claim_requested(limit))
+
+
+async def _draft_claimed(claimed: list[UUID]) -> int:
     generated = 0
-    for pk in await claim_for_drafting(limit):
+    for pk in claimed:
         try:
             loaded = await _load_with_thread(pk, EVERYTHING)
             if loaded and await _generate_and_store(*loaded) is GenerationOutcome.STORED:
@@ -482,12 +503,9 @@ async def email_detail(message_id: str, *, scope: Scope) -> DashboardEmail | Non
         return None
     message, thread = loaded
     details = await _details_for(message, thread)
-    # Drafted here only if no worker is drafting it already; otherwise it shows as being drafted.
-    if message.generated_at is None and message.sent_at is None and await claim_one_for_drafting(pk):
-        try:
-            await _generate_and_store(message, thread, details=details)
-        finally:
-            await release_drafting(pk)
+    # Never drafted here: the request returns at once and the worker drafts it within seconds.
+    if is_drafting(message):
+        await request_draft(pk)
     # Opening the detail view is the moment a person actually reads it.
     await _mark_read(pk)
     message.read_at = message.read_at or datetime.now(timezone.utc)

@@ -16,7 +16,7 @@ from app.core import mailbox
 from app.core.config import get_settings
 from app.core.constants import EMBED_POLL_SECONDS, HOLDING_REPLY_POLL_SECONDS
 from app.core.logging_setup import configure_logging
-from app.dashboard import generate_pending
+from app.dashboard import generate_pending, generate_requested
 from app.holding_reply_scheduler import schedule_new, send_due
 from app.rag.embedding_models import check_columns
 from app.rag.ingest import embed_pending, embed_pending_locally
@@ -30,6 +30,10 @@ logger = logging.getLogger(__name__)
 SHUTDOWN_GRACE_SECONDS = 20
 # Small batches keep the ~6-calls-per-email pipeline under the model's rate limit.
 DRAFTS_PER_PASS = 2
+# Someone is looking at the screen: check often (an indexed query), a few at a time so one person
+# opening many emails cannot starve the rest.
+REQUESTED_DRAFT_POLL_SECONDS = 3
+REQUESTED_DRAFTS_PER_PASS = 3
 RECONCILE_EVERY_SECONDS = 300
 
 
@@ -53,6 +57,9 @@ async def _embeddings() -> None:
 def jobs() -> list[Job]:
     settings = get_settings()
     found = [
+        # Always on, whatever AUTO_GENERATE says: a person opened these and is waiting.
+        Job("requested drafts", lambda: REQUESTED_DRAFT_POLL_SECONDS,
+            lambda: generate_requested(limit=REQUESTED_DRAFTS_PER_PASS)),
         Job("embeddings", lambda: EMBED_POLL_SECONDS, _embeddings),
         Job("holding replies", lambda: HOLDING_REPLY_POLL_SECONDS, _holding_replies),
         Job("send reconciliation", lambda: RECONCILE_EVERY_SECONDS, reconcile_sends),

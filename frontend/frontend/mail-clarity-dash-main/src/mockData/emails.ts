@@ -55,6 +55,7 @@ export const mockEmails: Email[] = [
     piiMasked: true,
     criticConfidence: 0.92,
     isRead: false,
+    isDrafting: false,
     quantities: [],
   },
   {
@@ -98,6 +99,7 @@ export const mockEmails: Email[] = [
     piiMasked: false,
     criticConfidence: 0.83,
     isRead: false,
+    isDrafting: false,
     quantities: [],
   },
   {
@@ -123,6 +125,7 @@ export const mockEmails: Email[] = [
     piiMasked: true,
     criticConfidence: 0.71,
     isRead: false,
+    isDrafting: false,
     quantities: [],
   },
   {
@@ -153,6 +156,7 @@ export const mockEmails: Email[] = [
     piiMasked: true,
     criticConfidence: 0.64,
     isRead: false,
+    isDrafting: false,
     quantities: [],
   },
   {
@@ -192,6 +196,7 @@ export const mockEmails: Email[] = [
     piiMasked: false,
     criticConfidence: 0.88,
     isRead: false,
+    isDrafting: false,
     quantities: [],
   },
 ];

@@ -688,6 +688,11 @@ export interface components {
             /** Id */
             id: string;
             /**
+             * Isdrafting
+             * @default false
+             */
+            isDrafting: boolean;
+            /**
              * Isread
              * @default false
              */

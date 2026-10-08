@@ -22,6 +22,7 @@ export function emailFixture(overrides: Partial<Email> = {}): Email {
     authStatus: AuthStatus.Pass,
     quantities: [],
     isRead: true,
+    isDrafting: false,
     details: [],
     egress: [],
     ...overrides,

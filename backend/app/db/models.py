@@ -178,6 +178,8 @@ class Message(Base):
     generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # The tone the stored draft was written in (migration 0031); NULL before it, shown as professional.
     draft_tone: Mapped[str | None] = mapped_column(Text)
+    # When a person opened it with no draft yet (migration 0032); the worker drafts these first.
+    draft_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Thread identity (migration 0009): Lane A writes the first three at ingest, the backend

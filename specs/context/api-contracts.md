@@ -85,9 +85,15 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   `/refine` accept `sign_off` (the owner's name as a placeholder, never the name); payloads still
   never carry a real detail.
 - `GET /emails/by-thread/{thread_id}` (2026-10-05, the Chrome extension): the newest of the
-  signed-in user's messages in that Gmail thread, as `GET /emails/{id}` returns it (generating the
+  signed-in user's messages in that Gmail thread, as `GET /emails/{id}` returns it (asking for the
   draft if needed). `thread_id` must be 8 to 24 lowercase hex characters (`422` otherwise); `404`
   when the user has no message in that thread. Same scope rules as every email route.
+- `GET /emails/{id}` (2026-10-08) never writes the draft inside the request. An email with no draft
+  yet that may be drafted answers at once with `isDrafting: true` and is queued
+  (`messages.draft_requested_at`, migration 0032); the worker's "requested drafts" job, on every
+  3 s whatever `AUTO_GENERATE` says, writes it. The dashboard fetches the email again every 3 s while
+  `isDrafting` is true, for up to two minutes. Only the first attempt is queued this way; after a
+  failure `isDrafting` is false and Regenerate (or the regular pass) takes over.
 - **Per-user scope (per-user mailboxes, step 3):** every email and document route answers only for
   the signed-in user's own rows (`app/core/ownership.py`). Another user's email id answers `404`,
   exactly like an unknown id; `GET /emails` and `GET /documents` return `[]` for a user with no

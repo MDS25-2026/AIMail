@@ -115,6 +115,8 @@ class DashboardEmail(BaseModel):
     actionItems: list[str]
     draftReply: str
     tone: Tone
+    # The worker is writing the first draft (opening an email asks for it); poll until false.
+    isDrafting: bool = False
     sources: list[Source]
     piiMasked: bool
     criticConfidence: float
