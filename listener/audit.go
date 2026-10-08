@@ -59,29 +59,29 @@ const (
 	fieldMaskingStatus  = "masking_status"
 )
 
-// Reasons, in the wording the contract's example uses.
+// Reasons are snake_case codes from this fixed set, so the admin console can count them.
 const (
-	reasonNERUnavailable    = "NER masking unavailable"
-	reasonGoneFromGmail     = "no longer in Gmail"
-	reasonFetchFailed       = "fetch failed"
-	reasonMaskingIncomplete = "masking did not complete"
-	reasonStoreFailed       = "could not store the masked content"
-	reasonReleased          = "released from quarantine"
-	reasonNoPayload         = "no payload"
-	reasonOverSizeCap       = "over the size cap"
+	reasonNERUnavailable    = "ner_unavailable"
+	reasonGoneFromGmail     = "gone_from_gmail"
+	reasonFetchFailed       = "fetch_failed"
+	reasonMaskingIncomplete = "masking_incomplete"
+	reasonStoreFailed       = "store_failed"
+	reasonReleased          = "released"
+	reasonNoPayload         = "no_payload"
+	reasonOverSizeCap       = "over_size_cap"
 	reasonDisconnected      = "disconnected"
-	reasonHistoryUnusable   = "history unusable, fell back to the newest message"
-	reasonTooManyAttempts   = "too many delivery attempts"
-	reasonPermanentFailure  = "will fail on every retry"
+	reasonHistoryUnusable   = "history_unusable"
+	reasonTooManyAttempts   = "too_many_attempts"
+	reasonPermanentFailure  = "permanent_failure"
 )
 
 // Stages name the step that failed.
 const (
 	stageFetch          = "fetch"
 	stageDecode         = "decode"
-	stageReadLocally    = "read locally"
-	stageDecodeRedacted = "decode redacted image"
-	stageOCR            = "read"
+	stageReadLocally    = "read_locally"
+	stageDecodeRedacted = "decode_redacted_image"
+	stageOCR            = "ocr"
 	stageStore          = "store"
 	stageProfile        = "profile"
 	stageWatch          = "watch"

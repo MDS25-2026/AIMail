@@ -25,10 +25,10 @@ const providerCacheTTL = 30 * time.Second
 
 // Why the images of a message were not sent to Gemini.
 const (
-	reasonPrivateMode     = "Private mode"
-	reasonOwnerUnknown    = "owner unknown"
-	reasonLookupFailed    = "provider lookup failed"
-	reasonUnknownProvider = "unrecognised provider"
+	reasonPrivateMode     = "private_mode"
+	reasonOwnerUnknown    = "owner_unknown"
+	reasonLookupFailed    = "provider_lookup_failed"
+	reasonUnknownProvider = "unknown_provider"
 )
 
 type cachedProvider struct {
