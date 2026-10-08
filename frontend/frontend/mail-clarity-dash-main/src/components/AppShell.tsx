@@ -2,6 +2,8 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
+import logoForLight from "../assets/aimail-logo-dark.png";
+import logoForDark from "../assets/aimail-logo-light.png";
 import { SIGN_IN_URL } from "../lib/api/config";
 import { useSession, useSignOut } from "../lib/queries";
 import SideNav from "./SideNav";
@@ -15,8 +17,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
     // so none of it can position against the page and stretch it past the viewport (#96).
     <div className="relative flex h-dvh flex-col overflow-hidden bg-app">
       <header className="flex items-center justify-between border-b border-line bg-surface px-6 py-3">
-        <div className="flex items-baseline gap-2">
-          <span className="text-lg font-semibold tracking-tight text-fg">{t("app.name")}</span>
+        <div className="flex items-center gap-2">
+          {/* The wordmark's "mail" is dark on light surfaces and light on dark ones. */}
+          <img src={logoForLight} alt={t("app.name")} className="h-7 w-auto dark:hidden" />
+          <img src={logoForDark} alt={t("app.name")} className="hidden h-7 w-auto dark:block" />
           <span className="text-xs text-fg-subtle">{t("app.tagline")}</span>
         </div>
         <div className="flex items-center gap-4">
