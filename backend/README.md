@@ -19,6 +19,22 @@ make seed                             # load sample policy chunks
 uvicorn app.main:app --reload         # dashboard API + retrieval on http://localhost:8000
 ```
 
+## Run in a container
+
+One image serves both the API and the agent (`Dockerfile`); configuration comes only from the
+environment, and `.dockerignore` is an allowlist, so the study data and labelled email in this folder
+never enter it.
+
+```bash
+docker build -t aimail-backend backend/
+docker run --env-file .env -p 8000:8000 aimail-backend                                   # API
+docker run --env-file .env -e APP=email_agent:app -e PORT=8001 aimail-backend            # agent
+docker run --env-file .env aimail-backend python scripts/migrate.py                      # migrations
+```
+
+Probes: `GET /healthz` (process up) and `GET /readyz` (database reachable for the API, a model
+configured for the agent). Logs are JSON in the image (`LOG_FORMAT=json`).
+
 ## Key dependencies
 
 - Python 3.11+

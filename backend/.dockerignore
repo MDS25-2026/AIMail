@@ -1,0 +1,12 @@
+# Allowlist: the backend folder also holds study data and labelled email, which must never reach an image.
+*
+!requirements.txt
+!constraints.txt
+!app/
+!email_agent.py
+!gemini_client.py
+!local_client.py
+!model_gateway.py
+!model_runtime.py
+!scripts/migrate.py
+**/__pycache__
