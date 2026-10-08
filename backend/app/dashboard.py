@@ -38,6 +38,7 @@ from app.core.redaction import PLACEHOLDER, has_redaction_marker
 from app.core.vault import ThreadMap, build_thread_map
 from app.db.models import AuthStatus, MaskingStatus, Message, UserProfile
 from app.db.session import get_sessionmaker
+from app.email_policy import Action, drafting_filter, refusal_for
 from app.gmail_send import SendError, SendOutcomeUnknownError, send_reply
 from app.normalise.quantities import quantities_in
 from app.past_replies import remember_reply
@@ -254,6 +255,16 @@ class SendRejectedError(DomainError):
     """A draft refused before anything is claimed or sent; the dashboard's own check can be bypassed."""
 
 
+def _require(message: Message, action: Action) -> None:
+    """Raise the action's own error type for whatever the email policy refuses."""
+    code = refusal_for(message, action)
+    if code is None:
+        return
+    if code == ErrorCode.ALREADY_SENT:
+        raise AlreadySentError(str(message.id))
+    raise _REFUSAL_ERROR[action](code)
+
+
 class GenerationOutcome(Enum):
     STORED = "stored"  # a new draft is in place
     NO_REPLY = "no_reply"  # stored with no draft: routed NA, or refused with no draft to keep
@@ -273,8 +284,7 @@ async def generate_pending(limit: int | None = None) -> int:
         select(Message.id)
         .where(
             Message.generated_at.is_(None),
-            Message.masking_status == MaskingStatus.COMPLETE,
-            Message.auth_status.is_distinct_from(AuthStatus.SPOOF_DETECTED),
+            drafting_filter(),
             Message.generation_attempts < MAX_GENERATION_ATTEMPTS,
         )
         .order_by(Message.generation_attempts, Message.created_at.desc())
@@ -432,9 +442,7 @@ async def _generate_and_store(
     An "NA" result (no reply needed) is stored too, so the poller stops retrying it. A failure
     counts an attempt and leaves the message for a later try. Nothing is written to a sent message.
     """
-    if not message.is_masked:
-        return GenerationOutcome.SKIPPED  # quarantined (#109): no masked content to draft from yet
-    if message.is_spoofed:
+    if refusal_for(message, Action.DRAFT):
         return GenerationOutcome.SKIPPED  # covers drafting on open and the poller alike
     details = details or await _details_for(message, thread or [])
     generated = await _generate(message, tone, thread or [], details)
@@ -537,10 +545,7 @@ async def regenerate_email(
     if loaded is None:
         return None
     message, thread = loaded
-    if message.sent_at is not None:
-        raise AlreadySentError(message_id)
-    if message.is_spoofed:
-        raise DraftNotUpdatedError(ErrorCode.SENDER_UNVERIFIED)
+    _require(message, Action.REDRAFT)
     details = await _details_for(message, thread)
     outcome = await _generate_and_store(message, thread, tone, details)
     _raise_unless_updated(message, outcome)
@@ -554,9 +559,8 @@ def _raise_unless_updated(message: Message, outcome: GenerationOutcome) -> None:
         raise DraftNotUpdatedError(ErrorCode.DRAFT_REFUSED)
     if outcome is GenerationOutcome.FAILED:
         raise DraftNotUpdatedError(ErrorCode.AGENT_UNAVAILABLE)
-    if not message.is_masked:
-        raise DraftNotUpdatedError(ErrorCode.MASKING_PENDING)
-    raise AlreadySentError(str(message.id))  # SKIPPED on a masked row: sent while generating
+    _require(message, Action.REDRAFT)
+    raise AlreadySentError(str(message.id))  # SKIPPED with nothing refused: it was sent while generating
 
 
 async def _claim_send(pk: UUID) -> bool:
@@ -606,10 +610,7 @@ async def approve_and_send(message_id: str, draft: str, *, scope: Scope) -> Dash
     message = await _load(pk, scope)
     if message is None:
         return None
-    if not message.is_masked:
-        raise SendRejectedError(ErrorCode.MASKING_PENDING)
-    if message.is_spoofed:
-        raise SendRejectedError(ErrorCode.SENDER_UNVERIFIED)
+    _require(message, Action.SEND)
     reply = _outgoing(draft, await _details_for(message, await _thread_for(message)))
     if message.user_id is not None and not await connections.can_send(message.user_id):
         raise SendRejectedError(ErrorCode.SEND_NOT_GRANTED)
@@ -741,6 +742,13 @@ class TranslationError(DomainError):
     """Translation was refused (unfaithful) or the agent could not produce one."""
 
 
+# Which error a refused action raises, so each route answers with the type its callers expect.
+_REFUSAL_ERROR: dict[Action, type[DomainError]] = {
+    Action.REDRAFT: DraftNotUpdatedError, Action.REFINE: DraftNotUpdatedError,
+    Action.SEND: SendRejectedError, Action.TRANSLATE: TranslationError,
+}
+
+
 async def translate_email(message_id: str, language: str, *, scope: Scope) -> dict | None:
     """The masked body in another language. Not stored: it is a reading aid, regenerated on ask.
 
@@ -753,8 +761,7 @@ async def translate_email(message_id: str, language: str, *, scope: Scope) -> di
     message = await _load(pk, scope)
     if message is None:
         return None
-    if not message.is_masked:
-        raise TranslationError(ErrorCode.MASKING_PENDING)
+    _require(message, Action.TRANSLATE)
     details = await _details_for(message, await _thread_for(message))
     text = details.renumber(str(message.id), plain_text(message.body_masked or ""))
     if len(text) > MAX_TRANSLATE_CHARS:
@@ -785,12 +792,7 @@ async def refine_email(
     if loaded is None:
         return None
     message, thread = loaded
-    if message.sent_at is not None:
-        raise AlreadySentError(message_id)
-    if not message.is_masked:
-        raise DraftNotUpdatedError(ErrorCode.MASKING_PENDING)
-    if message.is_spoofed:
-        raise DraftNotUpdatedError(ErrorCode.SENDER_UNVERIFIED)
+    _require(message, Action.REFINE)
     details = await _details_for(message, thread)
     try:
         refined = await _refine(message, thread, draft, instruction, details)
