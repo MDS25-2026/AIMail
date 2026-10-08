@@ -3,7 +3,8 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { DetailValues } from "../lib/details";
-import { fillFirst, kindOf, unfilledMarkers } from "../lib/hiddenDetails";
+import { fillFirst, unfilledMarkers } from "../lib/hiddenDetails";
+import { kindOf } from "../lib/masking";
 
 type HiddenDetailChipsProps = {
   draft: string;
