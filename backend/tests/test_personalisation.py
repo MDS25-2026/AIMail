@@ -61,3 +61,22 @@ def test_a_sender_rule_wins_over_a_keyword_rule():
     # Most specific first: who sent it beats what it mentions.
     policy = Policy(sender_rules={"someone@corp.com": 0}, keyword_rules={"urgent": 2})
     assert apply_policy(_message(subject="urgent", importance=1), policy) == "low"
+
+
+def test_sla_critical_acts_as_absolute_priority_floor():
+    # SLA CRITICAL floor ensures urgent deadlines are never missed, even if model or rules demote.
+    policy = Policy(priority_bias=-1, sender_rules={"someone@corp.com": 0})
+    assert apply_policy(_message(sla_priority="CRITICAL", importance=0), policy) == "critical"
+    assert apply_policy(_message(sla_priority="critical", importance=0), DEFAULT_POLICY) == "critical"
+
+
+def test_sla_priority_applies_when_no_user_rules_match():
+    # SLA HIGH / LOW set by ingestion rules guide triage when user has no custom rules.
+    assert apply_policy(_message(sla_priority="HIGH", importance=1), DEFAULT_POLICY) == "high"
+    assert apply_policy(_message(sla_priority="LOW", importance=2), DEFAULT_POLICY) == "low"
+
+
+def test_sender_rule_overrides_non_critical_sla():
+    # Specific sender rule can promote a newsletter or demote non-critical SLA.
+    policy = Policy(sender_rules={"boss@corp.com": 2})
+    assert apply_policy(_message(from_addr="The Boss <boss@corp.com>", sla_priority="LOW", importance=0), policy) == "high"

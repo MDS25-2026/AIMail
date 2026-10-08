@@ -48,15 +48,20 @@ func isLow(subject, body string) bool {
 // Explicit actionable urgency. Avoid standalone casual "today" (e.g. "how are you today")
 // by requiring actionable contexts: "due today", "by today", "needed today", "finish today",
 // "sebelum hari ini", or explicit markers (ASAP, EOD, COB, 24h, segera, 紧急, 今日内).
+// English and Malay phrases use ASCII word boundaries (\b).
 var criticalPhraseRe = regexp.MustCompile(
 	`(?i)\b(` +
 		`by end of day|by eod|by cob|end of day|end of business|` +
 		`within 24 hours?|within the hour|` +
 		`asap|as soon as possible|action required immediately|urgent(?:ly)?|` +
 		`(?:due|by|needed|required|finish|submit|respond|reply|complete)\s+(?:by\s+)?today|` +
-		`segera|tindakan segera|dalam tempoh 24 jam|hari ini juga|` +
-		`紧急|加急|立即|今日内|24小时内` +
+		`segera|tindakan segera|dalam tempoh 24 jam|hari ini juga` +
 		`)\b`,
+)
+
+// Chinese / CJK urgency phrases without \b because Go RE2's \b treats non-ASCII as non-word chars.
+var criticalCjkRe = regexp.MustCompile(
+	`紧急|加急|立即|今日内|24小时内`,
 )
 
 // ---------------------------------------------------------------------------
@@ -66,9 +71,12 @@ var criticalPhraseRe = regexp.MustCompile(
 var highPhraseRe = regexp.MustCompile(
 	`(?i)\b(` +
 		`by tomorrow|next (?:business )?day|within [23] days?|in [23] days?|` +
-		`esok|dalam masa [23] hari|` +
-		`明天|明日|两三天内|3天内` +
+		`esok|dalam masa [23] hari` +
 		`)\b`,
+)
+
+var highCjkRe = regexp.MustCompile(
+	`明天|明日|两三天内|3天内`,
 )
 
 // ---------------------------------------------------------------------------
@@ -79,9 +87,12 @@ var mediumPhraseRe = regexp.MustCompile(
 	`(?i)\b(` +
 		`this week|end of (?:the )?week|by (?:end of )?friday|within (?:a|1|one|7) week|` +
 		`in (?:a|1|one|7) week|within [4-7] days?|in [4-7] days?|` +
-		`minggu ini|hujung minggu ini|dalam tempoh seminggu|` +
-		`本周|本周内|周末前|一周内` +
+		`minggu ini|hujung minggu ini|dalam tempoh seminggu` +
 		`)\b`,
+)
+
+var mediumCjkRe = regexp.MustCompile(
+	`本周|本周内|周末前|一周内`,
 )
 
 // ---------------------------------------------------------------------------
@@ -225,7 +236,7 @@ func ClassifySLA(subject, body string, receivedAt time.Time) SLAPriority {
 	dates := parsedDates(combined, receivedAt)
 
 	// Rule 2: CRITICAL — within 24 h or urgent keyword
-	if criticalPhraseRe.MatchString(combined) {
+	if criticalPhraseRe.MatchString(combined) || criticalCjkRe.MatchString(combined) {
 		return SLACritical
 	}
 	for _, d := range dates {
@@ -235,7 +246,7 @@ func ClassifySLA(subject, body string, receivedAt time.Time) SLAPriority {
 	}
 
 	// Rule 3: HIGH — within 3 days or tomorrow-class phrase
-	if highPhraseRe.MatchString(combined) {
+	if highPhraseRe.MatchString(combined) || highCjkRe.MatchString(combined) {
 		return SLAHigh
 	}
 	for _, d := range dates {
@@ -245,7 +256,7 @@ func ClassifySLA(subject, body string, receivedAt time.Time) SLAPriority {
 	}
 
 	// Rule 4: MEDIUM — within 7 days or "this week" phrase
-	if mediumPhraseRe.MatchString(combined) {
+	if mediumPhraseRe.MatchString(combined) || mediumCjkRe.MatchString(combined) {
 		return SLAMedium
 	}
 	for _, d := range dates {

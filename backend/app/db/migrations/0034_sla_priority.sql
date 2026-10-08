@@ -1,4 +1,4 @@
--- 0015_sla_priority.sql
+-- 0034_sla_priority.sql
 -- Lane A: Deterministic SLA priority classification floor.
 -- Stored at ingestion time by the Go listener (ClassifySLA).
 -- Values: CRITICAL, HIGH, MEDIUM, LOW, or NULL (unset, let AI decide).

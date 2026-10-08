@@ -214,15 +214,33 @@ func TestClassifySLA(t *testing.T) {
 			want:    SLACritical,
 		},
 		{
+			name:    "Chinese urgency keyword '紧急'",
+			subject: "紧急：生产环境问题",
+			body:    "请24小时内处理该工单。",
+			want:    SLACritical,
+		},
+		{
 			name:    "Malay deadline 'esok' -> HIGH",
 			subject: "Laporan jualan",
 			body:    "Sila hantar laporan ini selewat-lewatnya esok.",
 			want:    SLAHigh,
 		},
 		{
+			name:    "Chinese deadline '明天' -> HIGH",
+			subject: "会议准备",
+			body:    "请在明天上午提交最终报告。",
+			want:    SLAHigh,
+		},
+		{
 			name:    "Chinese deadline '周末前' -> MEDIUM",
 			subject: "项目周报",
 			body:    "请在周末前完成评审工作。",
+			want:    SLAMedium,
+		},
+		{
+			name:    "Chinese deadline '本周内' -> MEDIUM",
+			subject: "季度对账",
+			body:    "请在本周内确认所有发票清单。",
 			want:    SLAMedium,
 		},
 		// ---- Priority ordering: LOW beats urgent-looking subject ----
