@@ -17,8 +17,7 @@ export enum Page {
   SignIn = "signin",
 }
 
-// head() runs outside React, so it cannot use the page's i18n instance. One translator per
-// language is safe to share: it is only read, never switched.
+// head() runs outside React; a cached translator per language is only read, so sharing it is safe.
 const translators = new Map<Language, TFunction>();
 
 function translatorFor(language: Language): TFunction {

@@ -1,9 +1,6 @@
 import { AuthStatus, MaskingStatus, type Email } from "../types/email";
 
-/**
- * What an email may do, by the same rules as the backend's refusal_for(message, action)
- * (specs/context/backbone-contracts.md). Both the inbox panel and the extension ask this.
- */
+/** What an email may do, by the backend's refusal_for rules (specs/context/backbone-contracts.md). */
 export enum DraftAvailability {
   /** Masking is pending or abandoned: nothing to read or draft from. */
   Quarantined = "quarantined",

@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { SIGN_IN_URL } from "../lib/api/config";
 import { useSession, useSignOut } from "../lib/queries";
 import SideNav from "./SideNav";
+import { button } from "./variants";
 
 /** App chrome shared by every dashboard route: brand header plus the nav rail. */
 export default function AppShell({ children }: { children: ReactNode }) {
@@ -46,10 +47,7 @@ function ReconnectBanner() {
       className="flex flex-wrap items-center justify-between gap-3 border-b border-warning-line bg-warning-soft px-6 py-2 text-sm text-fg"
     >
       <span>{t("reconnect.banner")}</span>
-      <a
-        href={SIGN_IN_URL}
-        className="rounded-md bg-brand px-3 py-1 text-sm font-semibold text-on-brand hover:bg-brand-strong"
-      >
+      <a href={SIGN_IN_URL} className={button({ intent: "primary", size: "sm" })}>
         {t("reconnect.signIn")}
       </a>
     </div>

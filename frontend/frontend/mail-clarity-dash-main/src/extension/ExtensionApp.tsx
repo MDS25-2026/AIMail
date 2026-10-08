@@ -2,10 +2,12 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import SidePanel, { PanelHeader } from "../components/SidePanel";
+import { button } from "../components/variants";
 import { SIGN_IN_URL } from "../lib/api/config";
 import { isSignedOut } from "../lib/api/errors";
 import { useEmailByThread, usePolledSession, useSeededEmail } from "../lib/queries";
 import { useDraftWorkflow } from "../lib/useDraftWorkflow";
+import { cn } from "../lib/utils";
 import type { Email } from "../types/email";
 import { TabState, useOpenThread } from "./useOpenThread";
 
@@ -130,7 +132,7 @@ function PanelButton({ onClick, children }: { onClick: () => void; children: Rea
     <button
       type="button"
       onClick={onClick}
-      className="mt-2 rounded-md bg-brand px-4 py-2 text-sm font-semibold text-on-brand hover:bg-brand-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+      className={cn(button({ intent: "primary", size: "md" }), "mt-2")}
     >
       {children}
     </button>

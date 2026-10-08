@@ -47,10 +47,7 @@ export function useEmailByThread(threadId: string) {
   });
 }
 
-/**
- * An email already in hand, kept under the detail key so every draft action's response (written
- * there) updates it without another round trip. Never stale: refetching would regenerate.
- */
+/** Seeded under the detail key so draft actions update it; never stale, a refetch regenerates. */
 export function useSeededEmail(initial: Email) {
   return useQuery({
     queryKey: queryKeys.email(initial.id),

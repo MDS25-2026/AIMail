@@ -4,7 +4,9 @@ import { useTranslation } from "react-i18next";
 
 import { errorMessage } from "../../lib/api/errors";
 import { useAdminSignIn } from "../../lib/queries";
+import { cn } from "../../lib/utils";
 import { InlineAlert } from "../InlineMessages";
+import { button, field } from "../variants";
 
 export default function SignInForm() {
   const { t } = useTranslation();
@@ -36,7 +38,7 @@ export default function SignInForm() {
           required
           value={email}
           onChange={(event) => setEmail(event.target.value)}
-          className="mt-1 w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-fg"
+          className={cn(field(), "mt-1 w-full")}
         />
       </label>
       <label className="block text-sm text-fg-body">
@@ -47,7 +49,7 @@ export default function SignInForm() {
           required
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          className="mt-1 w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-fg"
+          className={cn(field(), "mt-1 w-full")}
         />
       </label>
       {signIn.isError ? (
@@ -56,7 +58,7 @@ export default function SignInForm() {
       <button
         type="submit"
         disabled={signIn.isPending}
-        className="w-full rounded-md bg-brand px-4 py-2 text-sm font-semibold text-on-brand hover:bg-brand-strong disabled:bg-surface-sunken disabled:text-fg-subtle"
+        className={cn(button({ intent: "primary", size: "md" }), "w-full")}
       >
         {signIn.isPending ? t("admin.signingIn") : t("admin.signIn")}
       </button>

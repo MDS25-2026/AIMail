@@ -76,10 +76,7 @@ async function readBody(res: Response) {
   return text ? JSON.parse(text) : undefined;
 }
 
-/**
- * Every dashboard call to the backend: the HttpOnly session cookie, never a token in the
- * browser. Any failure is thrown as one ApiError carrying the backend's code.
- */
+/** Every dashboard call: the HttpOnly session cookie, never a token, and one ApiError on failure. */
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const endpoint = `${options.method ?? HttpMethod.Get} ${path.split("?")[0]}`;
   const res = await sendSignedIn(path, options, endpoint);

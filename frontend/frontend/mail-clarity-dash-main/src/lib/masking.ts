@@ -1,8 +1,4 @@
-/**
- * The masking vocabulary shared with the backend (backend/app/core/redaction.py): restorable
- * placeholders such as [PERSON_1], redaction markers no vault can fill back in, and what kind of
- * detail each one stands for. Every pattern is a factory, since a shared /g regex keeps lastIndex.
- */
+/** Masking vocabulary shared with backend/app/core/redaction.py; factories, as /g regexes keep lastIndex. */
 
 // The same kinds as backend/app/core/redaction.py DETAIL_KINDS.
 const PLACEHOLDER_SOURCE = String.raw`\[(?:PERSON|EMAIL|PHONE|IC|PASSPORT|ACCOUNT|CARD|LOCATION|ORG)_\d+\]`;

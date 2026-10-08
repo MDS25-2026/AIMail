@@ -16,10 +16,7 @@ function toResponse({ status = OK, body }: StubReply): Response {
   return new Response(body === undefined ? null : JSON.stringify(body), { status });
 }
 
-/**
- * Stubs fetch with routes keyed "METHOD /path" (query string ignored) and records every call.
- * An unrouted call answers 404 not_found, so a missing route fails loudly in the test.
- */
+/** Stubs fetch by "METHOD /path"; an unrouted call answers 404, so a missing route fails loudly. */
 export function stubFetch(routes: Record<string, Handler>): StubCall[] {
   const calls: StubCall[] = [];
   vi.stubGlobal(

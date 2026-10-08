@@ -1,7 +1,4 @@
-/**
- * Every cache key, in one factory: an invalidation after a mutation can never miss an entry
- * because of a typo'd key. Only the hooks in this folder use it.
- */
+/** One key factory, so an invalidation can never miss an entry over a typo'd key. */
 export const queryKeys = {
   session: ["session"] as const,
   emails: ["emails"] as const,

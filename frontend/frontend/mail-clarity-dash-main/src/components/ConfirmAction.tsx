@@ -23,11 +23,7 @@ export type ConfirmActionProps = {
   triggerClassName?: string;
 };
 
-/**
- * A two-step action, inline: a stray click never removes or confirms anything. The safe choice
- * takes focus when the question opens, so Enter never confirms by accident, and cancelling hands
- * focus back to the trigger, so a keyboard reader does not lose their place.
- */
+/** Inline two-step action: focus starts on the safe choice, and cancelling returns it to the trigger. */
 export default function ConfirmAction(props: ConfirmActionProps) {
   const [isOpen, setIsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
