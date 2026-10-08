@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"regexp"
 	"slices"
 	"sort"
@@ -20,21 +21,13 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"cloud.google.com/go/pubsub"
 	"github.com/joho/godotenv"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/option"
-)
-
-// Configuration for GCP Pub/Sub
-const (
-	ProjectID      = "aimail-505405"
-	TopicName      = "projects/aimail-505405/topics/gmail-notifications"
-	SubscriptionID = "gmail-notifications-sub"
 )
 
 // Supabase config — read from env, never hardcode keys.
@@ -446,53 +439,6 @@ func supabaseInsert(ctx context.Context, table string, row interface{}, onConfli
 	return nil
 }
 
-func getClient(config *oauth2.Config) *http.Client {
-	tokFile := "token.json"
-	tok, err := tokenFromFile(tokFile)
-	if err != nil {
-		tok = getTokenFromWeb(config)
-		saveToken(tokFile, tok)
-	}
-	return config.Client(context.Background(), tok)
-}
-
-func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
-	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
-	fmt.Printf("Go to the following link in your browser then type the authorization code: \n%v\n\nCode: ", authURL)
-
-	var authCode string
-	if _, err := fmt.Scan(&authCode); err != nil {
-		log.Fatalf("Unable to read authorization code: %v", err)
-	}
-
-	tok, err := config.Exchange(context.Background(), authCode)
-	if err != nil {
-		log.Fatalf("Unable to retrieve token from web: %v", err)
-	}
-	return tok
-}
-
-func tokenFromFile(file string) (*oauth2.Token, error) {
-	f, err := os.Open(file)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	tok := &oauth2.Token{}
-	err = json.NewDecoder(f).Decode(tok)
-	return tok, err
-}
-
-func saveToken(path string, token *oauth2.Token) {
-	fmt.Printf("Saving credential file to: %s\n", path)
-	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
-	if err != nil {
-		log.Fatalf("Unable to cache oauth token: %v", err)
-	}
-	defer f.Close()
-	json.NewEncoder(f).Encode(token)
-}
-
 // startTokenFileMailbox watches the original token.json mailbox, unless its account has connected
 // with Google, in which case that connection already serves it. A failure is logged, not fatal:
 // every connected user's mailbox still works without it.
@@ -549,19 +495,20 @@ func renewWatch(ctx context.Context, mb *mailbox) {
 	writeAuditLog(ctx, mb.ownerID, actionRenewWatch, nil, true)
 }
 
-// Listens to the Pub/Sub subscription. Interim: it authenticates as the token.json account (pubsub
-// scope); a service account replaces that before token.json retires (audit finding 4).
-func listenToPubSub(ctx context.Context, ts oauth2.TokenSource) {
-	client, err := pubsub.NewClient(ctx, ProjectID, option.WithTokenSource(ts))
+// listenToPubSub receives until ctx is cancelled. It authenticates as the token.json account while
+// one exists, else with Application Default Credentials (pubsubOptions).
+func listenToPubSub(ctx context.Context, cfg pubsubConfig, opts []option.ClientOption) {
+	client, err := pubsub.NewClient(ctx, cfg.projectID, opts...)
 	if err != nil {
 		log.Fatalf("Failed to create Pub/Sub client: %v", err)
 	}
 	defer client.Close()
 
-	sub := client.Subscription(SubscriptionID)
+	sub := client.Subscription(cfg.subscriptionID)
 	fmt.Println("Listening for incoming emails on Pub/Sub...")
 
 	err = sub.Receive(ctx, func(ctx context.Context, msg *pubsub.Message) {
+		markReceived()
 		var payload struct {
 			EmailAddress string `json:"emailAddress"`
 			HistoryID    uint64 `json:"historyId"`
@@ -602,7 +549,7 @@ func listenToPubSub(ctx context.Context, ts oauth2.TokenSource) {
 			if msg.DeliveryAttempt == nil {
 				warnNoDeadLetter.Do(func() {
 					log.Printf("WARNING: subscription %s has no dead-letter policy, so failed notifications "+
-						"are retried forever; see infra/pubsub-dead-letter.md", SubscriptionID)
+						"are retried forever; see infra/pubsub-dead-letter.md", cfg.subscriptionID)
 				})
 			}
 			log.Printf("Ingest failed for history %d, will retry: %v", payload.HistoryID, err)
@@ -612,7 +559,8 @@ func listenToPubSub(ctx context.Context, ts oauth2.TokenSource) {
 		msg.Ack()
 	})
 
-	if err != nil {
+	// Receive returns nil on cancellation; an error after a shutdown signal is the shutdown itself.
+	if err != nil && ctx.Err() == nil {
 		log.Fatalf("Error receiving Pub/Sub messages: %v", err)
 	}
 }
@@ -890,59 +838,40 @@ func decodePart(part *gmail.MessagePart) string {
 }
 
 func main() {
-	ctx := context.Background()
-
-	// Load the shared root .env so SUPABASE_* are available without exporting them by hand.
-	// Load does not override vars already set in the environment.
-	if err := godotenv.Load("../.env"); err != nil {
-		log.Printf("no ../.env loaded (%v); relying on the process environment", err)
-	}
-	supabaseURL = os.Getenv("SUPABASE_URL")
-	supabaseKey = os.Getenv("SUPABASE_SERVICE_KEY")
-
-	b, err := os.ReadFile("credentials.json")
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	loadEnvironment()
+	cfg, err := loadPubSubConfig()
 	if err != nil {
-		log.Fatalf("Unable to read client secret file: %v", err)
+		log.Fatalf("listener not started: %v", err)
 	}
-
-	config, err := google.ConfigFromJSON(b,
-		gmail.GmailReadonlyScope,
-		gmail.GmailSendScope,
-		"https://www.googleapis.com/auth/pubsub",
-	)
-	if err != nil {
-		log.Fatalf("Unable to parse client secret file to config: %v", err)
-	}
-
-	tokFile := "token.json"
-	tok, err := tokenFromFile(tokFile)
-	if err != nil {
-		tok = getTokenFromWeb(config)
-		saveToken(tokFile, tok)
-	}
-
-	tokenSource := config.TokenSource(ctx, tok)
-	client := config.Client(ctx, tok)
-
-	srv, err := gmail.NewService(ctx, option.WithHTTPClient(client))
-	if err != nil {
-		log.Fatalf("Unable to retrieve Gmail client: %v", err)
-	}
-
-	if supabaseURL == "" || supabaseKey == "" {
-		log.Println("WARNING: SUPABASE_URL / SUPABASE_SERVICE_KEY not set — storage and audit log writes will fail. Set these env vars before running.")
-	}
+	pubsubTopic = cfg.topicPath()
+	health := startHealthServer(getEnvOrDefault(healthAddrEnv, defaultHealthAddr))
+	defer stopHealthServer(health)
 
 	// 1. Watch every connected user's mailbox, then the token.json one unless it is among them.
+	legacy := legacyTokenSource(ctx)
 	syncConnections(ctx)
-	startTokenFileMailbox(ctx, srv)
+	startLegacyMailbox(ctx, legacy)
 	go syncConnectionsPeriodically(ctx)
-
 	// #83: keep the watches alive. Gmail expires them after about a week.
 	go renewWatchPeriodically(ctx)
 	// #109: finish messages quarantined while Presidio was down.
 	go remaskQuarantinedPeriodically(ctx)
 
-	// 2. Start live Pub/Sub listener loop
-	listenToPubSub(ctx, tokenSource)
+	// 2. Receive until SIGINT or SIGTERM cancels ctx.
+	listenToPubSub(ctx, cfg, pubsubOptions(legacy))
+	log.Printf("listener stopped")
+}
+
+// loadEnvironment reads the shared root .env, which never overrides variables already set.
+func loadEnvironment() {
+	if err := godotenv.Load("../.env"); err != nil {
+		log.Printf("no ../.env loaded (%v); relying on the process environment", err)
+	}
+	supabaseURL = os.Getenv("SUPABASE_URL")
+	supabaseKey = os.Getenv("SUPABASE_SERVICE_KEY")
+	if supabaseURL == "" || supabaseKey == "" {
+		log.Println("WARNING: SUPABASE_URL / SUPABASE_SERVICE_KEY not set — storage and audit log writes will fail. Set these env vars before running.")
+	}
 }

@@ -271,7 +271,7 @@ func startConnection(ctx context.Context, row connectionRow) error {
 // watchMailbox asks Gmail to notify the shared topic about this inbox. Gmail drops a watch after
 // about seven days; renewWatchPeriodically calls this again daily.
 func watchMailbox(ctx context.Context, mb *mailbox) error {
-	res, err := mb.srv.Users.Watch("me", &gmail.WatchRequest{TopicName: TopicName, LabelIds: []string{"INBOX"}}).
+	res, err := mb.srv.Users.Watch("me", &gmail.WatchRequest{TopicName: pubsubTopic, LabelIds: []string{"INBOX"}}).
 		Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("watch: %w", err)
