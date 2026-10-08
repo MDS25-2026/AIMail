@@ -51,31 +51,8 @@ test-reader:  ## attachment reader tests, inside its image against the real OCR 
 	docker build -q -t aimail-attachment-reader:test listener/attachment-reader
 	docker run --rm --user root --entrypoint sh aimail-attachment-reader:test -c 'pip install -q pytest && python -m pytest -q -p no:warnings tests'
 
-migrate:  ## create all tables; run BEFORE starting a newer listener (it writes masking_status)
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0001_rag_tables.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0002_messages.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0003_messages_unique.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0004_message_generation.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0005_message_sent.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0006_message_read.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0007_personalisation.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0008_critic_attempts.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0009_thread_identity.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0010_critic_checks.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0011_rag_sources.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0012_masking_status.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0013_masking_attempts.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0014_generation_attempts_reply_to.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0015_enable_rls.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0016_mailbox_connection.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0017_owner_scoping.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0018_pii_vault.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0019_holding_reply.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0020_writing_style.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0021_needs_reconnect.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0022_private_mode.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0023_local_embedding.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0024_sender_auth_and_audit_chain.sql
+migrate:  ## apply every pending migration in order (schema_migrations records what ran)
+	cd backend && ../$(VENV)/python scripts/migrate.py
 
 seed:  ## load sample policy chunks
 	cd backend && ../$(VENV)/python scripts/seed_demo.py
