@@ -7,10 +7,10 @@ falls back to Gemini, which would override the user's choice to keep their email
 
 import json
 import math
-import os
 
 import httpx
 
+from app.core.config import get_settings
 from gemini_client import GeminiError, GeminiErrorCode, remaining_seconds
 
 DEFAULT_URL = "http://localhost:11434"
@@ -22,7 +22,7 @@ MAX_OUTPUT_TOKENS = 1024
 
 def configured_model() -> str:
     """The company's local model; "" means Private mode is not set up here."""
-    return os.getenv("LOCAL_LLM_MODEL", "").strip()
+    return get_settings().local_llm_model.strip()
 
 
 def _payload(model: str, prompt: str, response_schema: dict | None, max_output_tokens: int | None) -> dict:
@@ -43,7 +43,7 @@ async def generate_local(prompt: str, response_schema: dict | None = None,
     model = configured_model()
     if not model:
         raise GeminiError(GeminiErrorCode.UNAVAILABLE, "private mode is not configured (LOCAL_LLM_MODEL)")
-    url = os.getenv("LOCAL_LLM_URL", DEFAULT_URL).rstrip("/") + CHAT_PATH
+    url = (get_settings().local_llm_url or DEFAULT_URL).rstrip("/") + CHAT_PATH
     budget = remaining_seconds()
     if budget <= 0:
         raise GeminiError(GeminiErrorCode.DEADLINE_EXCEEDED, "draft deadline spent")

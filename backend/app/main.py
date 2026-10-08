@@ -8,7 +8,6 @@ that belongs in specs/context/api-contracts.md with Lane D.
 
 import asyncio
 import logging
-import os
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -44,7 +43,6 @@ from app.core.auth import (
 from app.core.config import get_settings
 from app.core.constants import (
     ADMIN_PREFIX,
-    DEFAULT_ADMIN_ORIGINS,
     EMBED_POLL_SECONDS,
     MAX_DRAFT_CHARS,
     MAX_PASTE_CHARS,
@@ -123,14 +121,14 @@ app.include_router(writing_style_router)
 app.include_router(audit_router)
 
 # Dev CORS so the dashboard can call this API cross-origin. The regex covers any
-# localhost/127.0.0.1 port (they are distinct origins to the browser); FRONTEND_ORIGIN adds
-# an explicit non-local origin for a real deployment. Admin paths get their own, credentialed
+# localhost/127.0.0.1 port (they are distinct origins to the browser); FRONTEND_ORIGINS lists
+# the deployed dashboard origins. Admin paths get their own, credentialed
 # policy for ADMIN_ORIGINS only (app/core/cors.py, ADR 0004).
 app.add_middleware(
     PathScopedCORS,
     admin_prefix=ADMIN_PREFIX,
-    admin_origins=origins_from(os.environ.get("ADMIN_ORIGINS", DEFAULT_ADMIN_ORIGINS)),
-    public_origins=[os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")],
+    admin_origins=origins_from(get_settings().admin_origins),
+    public_origins=origins_from(get_settings().frontend_origins),
     public_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
 )
 

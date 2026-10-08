@@ -38,7 +38,9 @@ Defined in the repo-root [`../.env.example`](../.env.example). Expected keys:
 - `LOCAL_EMBEDDING_MODEL` — Private mode's search model on the same Ollama (e.g. `embeddinggemma`); empty = Private mode drafts without search
 - `GEMINI_CHAT_MODEL` — optional, defaults to `gemini-2.5-flash`
 - `GOOGLE_API_KEY` — Gemini for the Lane C agent
-- `FRONTEND_ORIGIN` — dev CORS origin for the dashboard (default `http://localhost:3000`)
+- `FRONTEND_ORIGINS` — deployed dashboard origins for CORS, comma-separated (any localhost port is allowed in dev)
+- `ENVIRONMENT` — `dev`, `staging` or `prod`; outside dev, missing secrets or localhost public URLs stop startup
+- `AGENT_TOKEN` — shared secret between the backend and the agent
 - `BACKEND_API_TOKEN` — bearer token required on every route except `GET /`. Empty means the API
   refuses all requests rather than silently running unauthenticated
 - `EMAIL_AGENT_URL` — where the backend calls Lane C (default `http://localhost:8001`)

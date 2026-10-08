@@ -1,23 +1,63 @@
-"""Backend configuration, loaded from environment / repo-root .env."""
+"""Configuration for the backend and the agent: the only code that reads the environment.
 
+Values come from the process environment, then the repo-root .env. AIMAIL_ENV_FILE names another file, and
+an empty value reads none (tests do this, so a developer's .env never changes a test's outcome).
+"""
+
+import os
+from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import urlparse
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.core.constants import CHAT_MODEL, EMBEDDING_DIM, EMBEDDING_MODEL
+from app.core.constants import (
+    CHAT_MODEL,
+    DEFAULT_ADMIN_ORIGINS,
+    EMBEDDING_DIM,
+    EMBEDDING_MODEL,
+)
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
+ENV_FILE_VARIABLE = "AIMAIL_ENV_FILE"
+LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+
+
+class Environment(StrEnum):
+    DEV = "dev"
+    STAGING = "staging"
+    PROD = "prod"
+
+
+class MisconfiguredError(RuntimeError):
+    """Raised at startup when a deployed environment is missing a setting it cannot run safely without."""
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file=_REPO_ROOT / ".env", extra="ignore", case_sensitive=False
-    )
+    model_config = SettingsConfigDict(extra="ignore", case_sensitive=False)
 
-    database_url: str
+    environment: Environment = Environment.DEV
+    # Needed by the backend and scripts, not the agent; checked where the engine is created.
+    database_url: str = ""
     # One Google AI key for everything: the backend's embeddings and the agent's drafting.
-    google_api_key: str
+    google_api_key: str = ""
+    # The agent (:8001) accepts only requests carrying this; empty means loopback-only dev use.
+    agent_token: str = ""
+    # Dashboard origins allowed to call the API with the session cookie, comma-separated.
+    frontend_origins: str = ""
+    admin_origins: str = DEFAULT_ADMIN_ORIGINS
+    log_level: str = "INFO"
+    # "json" in a deployed environment so the host's log search can filter by field.
+    log_format: str = "text"
+    # How to read 03/04/2026 in an email: DMY (Malaysia), MDY or YMD.
+    date_order: str = ""
+    # The agent's whole-request budget and its Gemini models.
+    agent_deadline_seconds: float = 0.0
+    gemini_agent_model: str = ""
+    gemini_fallback_model: str = ""
+    gemini_base_url: str = ""
     # Shared bearer token every API caller must present (see app/core/auth.py). Empty means
     # the API refuses all requests rather than silently running unauthenticated.
     backend_api_token: str = ""
@@ -82,8 +122,32 @@ class Settings(BaseSettings):
         )
 
 
+    @model_validator(mode="after")
+    def _deployed_settings_are_safe(self) -> "Settings":
+        if self.environment == Environment.DEV:
+            return self
+        missing = [name for name in _REQUIRED_WHEN_DEPLOYED if not getattr(self, name)]
+        local = [name for name in _PUBLIC_URLS if urlparse(getattr(self, name)).hostname in LOCAL_HOSTS]
+        if missing or local:
+            raise MisconfiguredError(f"{self.environment} needs: {', '.join(missing)}; "
+                                     f"public URLs still on localhost: {', '.join(local)}")
+        return self
+
+
+# A deployed instance without these would run unauthenticated, unencrypted or unreachable.
+_REQUIRED_WHEN_DEPLOYED = ("google_api_key", "backend_api_token", "agent_token", "token_encryption_key",
+                           "pii_vault_key", "frontend_origins")
+_PUBLIC_URLS = ("backend_public_url", "dashboard_url")
+
+
+def _env_file() -> Path | None:
+    chosen = os.environ.get(ENV_FILE_VARIABLE)
+    if chosen is None:
+        return _REPO_ROOT / ".env"
+    return Path(chosen) if chosen else None
+
+
 @lru_cache
 def get_settings() -> Settings:
-    # Required fields are supplied by the environment / .env at runtime.
-    return Settings()  # type: ignore[call-arg]
+    return Settings(_env_file=_env_file())
 

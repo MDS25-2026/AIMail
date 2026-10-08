@@ -688,6 +688,8 @@ async def _relearn_after_send(user_id: UUID) -> None:
 
 async def _style_fields(user_id: UUID | None) -> dict:
     """The user's writing style for a draft request; masked when stored, so it can go as is."""
+    if user_id is None:
+        return {"style_hint": "", "style_examples": []}  # unowned rows have no style to look up
     async with get_sessionmaker()() as session:
         style = await style_for(session, user_id)
     return {"style_hint": style.hint, "style_examples": style.examples}

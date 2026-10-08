@@ -5,8 +5,9 @@ last-resort handler, which drops everything below WARNING.
 """
 
 import logging
-import os
 from contextvars import ContextVar
+
+from app.core.config import get_settings
 
 request_id: ContextVar[str] = ContextVar("request_id", default="-")
 
@@ -24,7 +25,7 @@ class RequestIdFilter(logging.Filter):
 
 def _level() -> int:
     """A mistyped LOG_LEVEL falls back to INFO rather than failing startup or going silent."""
-    named = logging.getLevelNamesMapping().get(os.getenv("LOG_LEVEL", DEFAULT_LEVEL).upper())
+    named = logging.getLevelNamesMapping().get((get_settings().log_level or DEFAULT_LEVEL).upper())
     return named if named is not None else logging.INFO
 
 

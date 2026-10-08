@@ -10,7 +10,6 @@ import asyncio
 import json
 import logging
 import math
-import os
 import random
 import time
 from collections.abc import Callable, Iterator
@@ -20,6 +19,8 @@ from dataclasses import asdict, dataclass, field
 from enum import StrEnum
 
 import httpx
+
+from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -166,11 +167,7 @@ def deadline(seconds: float | None = None) -> Iterator[None]:
 
 
 def _configured_deadline() -> float:
-    raw = os.getenv("AGENT_DEADLINE_SECONDS", "")
-    try:
-        value = float(raw)
-    except ValueError:
-        return DEFAULT_DEADLINE_SECONDS
+    value = get_settings().agent_deadline_seconds
     return value if value > 0 else DEFAULT_DEADLINE_SECONDS
 
 
@@ -181,8 +178,8 @@ def remaining_seconds() -> float:
 
 def models_in_order() -> list[str]:
     """Primary first, then the fallback when one is configured and differs."""
-    primary = os.getenv("GEMINI_AGENT_MODEL") or DEFAULT_MODEL
-    fallback = os.getenv("GEMINI_FALLBACK_MODEL") or ""
+    primary = get_settings().gemini_agent_model or DEFAULT_MODEL
+    fallback = get_settings().gemini_fallback_model
     return [primary, fallback] if fallback and fallback != primary else [primary]
 
 
@@ -240,9 +237,9 @@ class _GiveUpOnModel(Exception):
 
 
 async def _post(model: str, payload: dict, timeout: float) -> httpx.Response:
-    base_url = (os.getenv("GEMINI_BASE_URL") or DEFAULT_BASE_URL).rstrip("/")
+    base_url = (get_settings().gemini_base_url or DEFAULT_BASE_URL).rstrip("/")
     headers = {"Content-Type": "application/json",
-               "X-goog-api-key": os.getenv("GOOGLE_API_KEY", "")}
+               "X-goog-api-key": get_settings().google_api_key}
     # httpx's timeout bounds each phase (connect, write, read) separately; asyncio.timeout bounds
     # the whole attempt, so one slow call cannot run past the shared deadline.
     async with asyncio.timeout(timeout), httpx.AsyncClient(timeout=timeout, transport=transport) as client:

@@ -1,7 +1,6 @@
 import json
 import logging
 import math
-import os
 import re
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -9,10 +8,10 @@ from contextvars import ContextVar
 from enum import StrEnum
 
 import httpx
-from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
+from app.core.config import get_settings
 from app.core.logging_setup import configure_logging
 from app.core.middleware import request_context
 from app.core.phishing import phishing_signal
@@ -34,11 +33,7 @@ from gemini_client import (
 )
 from local_client import generate_local
 
-load_dotenv()
-
 logger = logging.getLogger(__name__)
-
-PRESIDIO_ANALYZER_URL = os.getenv("PRESIDIO_ANALYZER_URL", "http://localhost:5001/analyze")
 
 # 504 when the draft ran out of time, 503 for everything else Gemini-side: the dashboard retries
 # both later, and the code in the body says which.
@@ -453,7 +448,7 @@ async def scan_draft_pii(draft: str) -> list[str]:
     findings = ["REDACTION_PLACEHOLDER"] if has_redaction_marker(draft) else []
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.post(PRESIDIO_ANALYZER_URL, json={
+            resp = await client.post(get_settings().presidio_analyzer_url, json={
                 "text": draft, "language": "en",
                 "score_threshold": _PII_SCORE_THRESHOLD,
                 "entities": _PII_ENTITIES,
