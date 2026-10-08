@@ -81,6 +81,8 @@ class Settings(BaseSettings):
     pii_vault_keys: str = ""
     # A vault is emptied after this many days, or 7 days after its reply was sent.
     vault_retention_days: int = 30
+    # Readable message content (body, summary, draft) is cleared after this many days; 0 keeps it (app/retention.py).
+    message_content_retention_days: int = 0
     # The Google OAuth client in Supabase's Google provider; refreshes connected users' tokens.
     google_oauth_client_id: str = ""
     google_oauth_client_secret: str = ""

@@ -88,8 +88,8 @@ from app.rag.ingest import embed_pending, embed_pending_locally, ingest_text
 from app.rag.library import DocumentSummary, delete_document, list_documents
 from app.rag.mask import DocumentMaskingError
 from app.rag.retrieve import ContextChunk, retrieve
+from app.retention import retention_daily
 from app.sign_in import router as sign_in_router
-from app.vault_retention import expire_vaults_daily
 from app.writing_style_routes import router as writing_style_router
 from model_gateway import track_egress
 from model_runtime import ModelError
@@ -102,7 +102,7 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     pre-generate. Both are held (asyncio keeps only weak references to tasks) and both
     are cancelled on shutdown."""
     await mailbox.resolve_owner()
-    tasks = [asyncio.create_task(_embed_missing_loop()), asyncio.create_task(expire_vaults_daily()),
+    tasks = [asyncio.create_task(_embed_missing_loop()), asyncio.create_task(retention_daily()),
              asyncio.create_task(holding_replies_loop())]
     if get_settings().auto_generate:
         tasks.append(asyncio.create_task(_pregen_loop()))
