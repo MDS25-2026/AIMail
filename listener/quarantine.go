@@ -34,6 +34,13 @@ const (
 	maxRemaskAttempts = 12
 )
 
+// releasePatch completes a quarantined row. The verdict is written again because rows quarantined
+// before it was stored hold the column defaults; from_addr and received_at stay as first written.
+type releasePatch struct {
+	SenderVerdict
+	MaskedContent
+}
+
 type quarantinedRow struct {
 	UserID          string `json:"user_id"` // null (token.json mailbox) decodes as ""
 	GmailMessageID  string `json:"gmail_message_id"`
@@ -48,16 +55,8 @@ func remaskInterval() time.Duration {
 	return minutes
 }
 
-func quarantine(ctx context.Context, ownerID, msgID string, headers []*gmail.MessagePartHeader, identity ThreadIdentity) error {
-	row := QuarantinedMessage{
-		UserID:         ownerID,
-		GmailMessageID: msgID,
-		FromAddr:       headerValue(headers, "From"),
-		ReplyTo:        headerValue(headers, "Reply-To"),
-		ReceivedAt:     time.Now().UTC(),
-		MaskingStatus:  maskingPending,
-		ThreadIdentity: identity,
-	}
+func quarantine(ctx context.Context, ownerID, msgID string, facts SenderFacts) error {
+	row := QuarantinedMessage{UserID: ownerID, GmailMessageID: msgID, MaskingStatus: maskingPending, SenderFacts: facts}
 	isInserted, err := insertMessage(ctx, row)
 	if err != nil {
 		writeAuditLog(ctx, "quarantine_message", fmt.Sprintf("msg %s: %v", msgID, err), false)
@@ -200,7 +199,8 @@ func remaskOne(ctx context.Context, srv *gmail.Service, row quarantinedRow) bool
 		recordFailure(ctx, row, "masking did not complete")
 		return true
 	}
-	if err := supabasePatch(ctx, "messages", messageFilter(row.UserID, row.GmailMessageID), content); err != nil {
+	release := releasePatch{SenderVerdict: senderVerdict(msg.Payload.Headers), MaskedContent: content}
+	if err := supabasePatch(ctx, "messages", messageFilter(row.UserID, row.GmailMessageID), release); err != nil {
 		// Counted like any failure: a PATCH that always fails would otherwise re-read and re-OCR
 		// the attachments every pass, forever.
 		writeAuditLog(ctx, "remask_message", fmt.Sprintf("msg %s: %v", row.GmailMessageID, err), false)

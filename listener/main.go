@@ -391,27 +391,19 @@ type MaskedContent struct {
 
 // StoredMessage is what we persist for each processed email, post-masking.
 type StoredMessage struct {
-	UserID         string    `json:"user_id,omitempty"` // the mailbox owner; omitted (NULL) for token.json
-	GmailMessageID string    `json:"gmail_message_id"`
-	FromAddr       string    `json:"from_addr"`
-	ReplyTo        string    `json:"reply_to,omitempty"` // where an approved reply goes; shown to the approver
-	ReceivedAt     time.Time `json:"received_at"`
-	IsAutomated    bool      `json:"is_automated"` // never sent a holding reply (automated.go)
-	AuthStatus     string    `json:"auth_status"`
-	ThreadIdentity
+	UserID         string `json:"user_id,omitempty"` // the mailbox owner; omitted (NULL) for token.json
+	GmailMessageID string `json:"gmail_message_id"`
+	SenderFacts
 	MaskedContent
 }
 
 // QuarantinedMessage is the row for a message whose masking could not complete (#109): enough to
 // show it exists and to finish it later, and no content at all.
 type QuarantinedMessage struct {
-	UserID         string    `json:"user_id,omitempty"`
-	GmailMessageID string    `json:"gmail_message_id"`
-	FromAddr       string    `json:"from_addr"`
-	ReplyTo        string    `json:"reply_to,omitempty"`
-	ReceivedAt     time.Time `json:"received_at"`
-	MaskingStatus  string    `json:"masking_status"`
-	ThreadIdentity
+	UserID         string `json:"user_id,omitempty"`
+	GmailMessageID string `json:"gmail_message_id"`
+	MaskingStatus  string `json:"masking_status"`
+	SenderFacts
 }
 
 // AuditLogEntry records every pipeline action for traceability — required
@@ -783,25 +775,12 @@ func ingestMessage(ctx context.Context, mb *mailbox, msgID string) error {
 		// already shown under the email it answers, so storing it would add a fake new email.
 		return nil
 	}
-	identity := threadIdentity(msg)
+	facts := senderFacts(msg)
 	content, isComplete := maskMessage(ctx, mb.srv, msg, mb.ownerID)
 	if !isComplete {
-		return quarantine(ctx, mb.ownerID, msgID, msg.Payload.Headers, identity)
+		return quarantine(ctx, mb.ownerID, msgID, facts)
 	}
-
-	authStatus := parseAuthStatus(msg.Payload.Headers)
-
-	stored := StoredMessage{
-		UserID:         mb.ownerID,
-		GmailMessageID: msgID,
-		FromAddr:       headerValue(msg.Payload.Headers, "From"), // kept unmasked on purpose: docs/decisions/shared.md, 2026-10-04
-		ReplyTo:        headerValue(msg.Payload.Headers, "Reply-To"),
-		ReceivedAt:     time.Now().UTC(),
-		IsAutomated:    isAutomated(msg.Payload.Headers),
-		AuthStatus:     authStatus,
-		ThreadIdentity: identity,
-		MaskedContent:  content,
-	}
+	stored := StoredMessage{UserID: mb.ownerID, GmailMessageID: msgID, SenderFacts: facts, MaskedContent: content}
 	isInserted, err := insertMessage(ctx, stored)
 	if err != nil {
 		log.Printf("could not store message %s: %v", msgID, err)
