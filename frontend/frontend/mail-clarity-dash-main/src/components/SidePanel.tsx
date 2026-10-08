@@ -57,6 +57,8 @@ export default function SidePanel({
   const { t } = useTranslation();
   const format = useFormat();
   const isDraftBusy = isRegenerating || isRefining || isSending || status.isGenerating;
+  // A sent reply is final; nothing may change the draft shown beside "Sent".
+  const isDraftLocked = isDraftBusy || Boolean(email.sentAt);
   const isMasked = email.masking === "complete";
   return (
     <DetailsContext.Provider value={detailValues(email.details)}>
@@ -88,9 +90,14 @@ export default function SidePanel({
               rows={9}
               onDraftChange={onDraftChange}
               onToneChange={onToneChange}
-              disabled={isDraftBusy}
+              disabled={isDraftLocked}
             />
-            <RefineInput emailId={email.id} onRefine={onRefine} disabled={isDraftBusy} />
+            <RefineInput
+              emailId={email.id}
+              onRefine={onRefine}
+              disabled={isDraftLocked}
+              isRefining={isRefining}
+            />
             {email.sources.length > 0 ? (
               <details className="group text-xs">
                 <summary className="cursor-pointer font-medium text-fg-muted hover:text-fg-body">

@@ -29,7 +29,12 @@ export default function DraftReplyEditor({
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-fg">{t("draft.title")}</h3>
-        <ToneToggle emailId={email.id} tone={tone} onToneChange={onToneChange} />
+        <ToneToggle
+          emailId={email.id}
+          tone={tone}
+          onToneChange={onToneChange}
+          disabled={disabled}
+        />
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">

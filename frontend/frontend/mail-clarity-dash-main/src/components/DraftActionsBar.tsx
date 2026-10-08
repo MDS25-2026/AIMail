@@ -32,7 +32,8 @@ export default function DraftActionsBar({
     <div className="flex items-center justify-end gap-2">
       <button
         type="button"
-        disabled={emailId === null || isDraftChanging || isSending}
+        // A sent reply is final: regenerating would show a draft that differs from what went out.
+        disabled={emailId === null || isDraftChanging || isSending || isSent}
         onClick={() => emailId && onRegenerate(emailId)}
         className="rounded-md border border-line-strong bg-surface px-4 py-2 text-sm font-medium text-fg-body hover:bg-surface-muted disabled:cursor-not-allowed disabled:text-fg-subtle"
       >

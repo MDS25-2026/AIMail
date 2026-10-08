@@ -66,6 +66,8 @@ export default function EmailDetailPanel({
   }
 
   const conversation = splitAround(email.threadContext, email.timestamp);
+  // A sent reply is final; nothing may change the draft shown beside "Sent".
+  const isDraftLocked = isDraftBusy || Boolean(email.sentAt);
 
   const header = (
     <header className="border-b border-line bg-surface px-6 py-4">
@@ -128,7 +130,7 @@ export default function EmailDetailPanel({
                 onDraftChange={onDraftChange}
                 onToneChange={onToneChange}
                 // A tone change regenerates the draft, so it is blocked mid-send like the rest.
-                disabled={isDraftBusy}
+                disabled={isDraftLocked}
               />
 
               <HiddenDetailChips
@@ -136,12 +138,17 @@ export default function EmailDetailPanel({
                 draft={draft}
                 values={detailValues(email.details)}
                 onDraftChange={onDraftChange}
-                disabled={isDraftBusy}
+                disabled={isDraftLocked}
               />
 
               <SourcesChips key={email.id} sources={email.sources} draft={draft} />
 
-              <RefineInput emailId={email.id} onRefine={onRefine} disabled={isDraftBusy} />
+              <RefineInput
+                emailId={email.id}
+                onRefine={onRefine}
+                disabled={isDraftLocked}
+                isRefining={isRefining}
+              />
 
               <DraftStatus {...status} />
 
