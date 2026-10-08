@@ -1,51 +1,51 @@
 {
-  "evaluation_timestamp": "2026-10-08T14:55:24.275562+00:00",
-  "holdout_samples": 120,
-  "macro_f1": 0.9917,
-  "average_cpu_latency_ms": 0.55,
+  "evaluation_timestamp": "2026-10-08T14:55:12.151487+00:00",
+  "holdout_samples": 30,
+  "macro_f1": 0.9306,
+  "average_cpu_latency_ms": 1.17,
   "latency_gate_passed": true,
   "f1_gate_passed": true,
   "per_class_report": {
     "client": {
-      "precision": 0.9523809523809523,
+      "precision": 1.0,
       "recall": 1.0,
-      "f1-score": 0.975609756097561,
-      "support": 20.0
+      "f1-score": 1.0,
+      "support": 5.0
     },
     "vendor": {
       "precision": 1.0,
-      "recall": 0.95,
-      "f1-score": 0.9743589743589743,
-      "support": 20.0
+      "recall": 0.6,
+      "f1-score": 0.75,
+      "support": 5.0
     },
     "internal": {
       "precision": 1.0,
       "recall": 1.0,
       "f1-score": 1.0,
-      "support": 20.0
+      "support": 5.0
     },
     "security": {
       "precision": 1.0,
       "recall": 1.0,
       "f1-score": 1.0,
-      "support": 20.0
+      "support": 5.0
     },
     "admin": {
-      "precision": 1.0,
+      "precision": 0.7142857142857143,
       "recall": 1.0,
-      "f1-score": 1.0,
-      "support": 20.0
+      "f1-score": 0.8333333333333334,
+      "support": 5.0
     },
     "personal": {
       "precision": 1.0,
       "recall": 1.0,
       "f1-score": 1.0,
-      "support": 20.0
+      "support": 5.0
     }
   },
   "confusion_matrix": [
     [
-      20,
+      5,
       0,
       0,
       0,
@@ -53,9 +53,17 @@
       0
     ],
     [
-      1,
-      19,
       0,
+      3,
+      0,
+      0,
+      2,
+      0
+    ],
+    [
+      0,
+      0,
+      5,
       0,
       0,
       0
@@ -63,16 +71,8 @@
     [
       0,
       0,
-      20,
       0,
-      0,
-      0
-    ],
-    [
-      0,
-      0,
-      0,
-      20,
+      5,
       0,
       0
     ],
@@ -81,7 +81,7 @@
       0,
       0,
       0,
-      20,
+      5,
       0
     ],
     [
@@ -90,7 +90,7 @@
       0,
       0,
       0,
-      20
+      5
     ]
   ],
   "categories": [

@@ -10,7 +10,7 @@ from pathlib import Path
 from app.core.language import Language
 from email_agent import unsupported_specifics
 
-SPEC = json.loads((Path(__file__).resolve().parent.parent / "eval" / "critic" / "v1.json").read_text())
+SPEC = json.loads((Path(__file__).resolve().parent.parent / "eval" / "critic" / "v1.json").read_text(encoding="utf-8"))
 
 
 def _sources(case: dict) -> tuple[str, str]:

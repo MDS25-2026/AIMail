@@ -138,12 +138,13 @@ def main() -> None:
         "categories": CATEGORY_ORDER,
         "display_categories": display_labels,
     }
-    metrics_file = results_dir / "category_metrics.json"
+    suffix = f"_{gold_path.stem}" if gold_path.stem != "holdout_gold" else ""
+    metrics_file = results_dir / f"category_metrics{suffix}.json"
     metrics_file.write_text(json.dumps(metrics_payload, indent=2))
     logger.info("Saved evaluation metrics JSON to %s", metrics_file)
 
-    # Export 300 DPI Confusion Matrix plot
-    cm_plot_path = results_dir / "category_confusion_matrix.png"
+    # Export Confusion Matrix plot
+    cm_plot_path = results_dir / f"category_confusion_matrix{suffix}.png"
     plot_confusion_matrix(cm, CATEGORY_ORDER, display_labels, cm_plot_path)
 
 
