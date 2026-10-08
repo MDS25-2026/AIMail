@@ -9,7 +9,10 @@ cd "$(dirname "$0")/.."  # docker-compose.yml is at the repo root, whatever dire
 WAIT_SECONDS=120
 POLL_SECONDS=2
 
-healthy() { curl -fs "http://127.0.0.1:$1/health" >/dev/null; }
+# A worker that accepts the connection but never answers (seen on GitHub runners) must count as a
+# failed check, not hang the job: every probe has a time limit.
+PROBE_SECONDS=5
+healthy() { curl -fs --max-time "$PROBE_SECONDS" "http://127.0.0.1:$1/health" >/dev/null; }
 
 # Waits for one service; restarts it once if it does not answer in time, then gives up with its logs.
 start() {
