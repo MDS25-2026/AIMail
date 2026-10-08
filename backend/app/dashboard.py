@@ -175,7 +175,7 @@ def _to_email(
         aiSummary=message.ai_summary or "",
         actionItems=message.action_items or [],
         draftReply=message.draft_reply or "",
-        tone="professional",
+        tone=Tone(message.draft_tone or Tone.PROFESSIONAL),
         sources=[Source(**source) for source in message.rag_sources or []],
         piiMasked=bool((message.emails_masked or 0) + (message.phones_masked or 0)),
         criticConfidence=message.critic_confidence or 0.0,
@@ -448,7 +448,8 @@ async def _generate_and_store(
         return GenerationOutcome.KEPT  # a regenerate failed for content keeps the reviewed draft
     is_usable = bool(generated) and (bool(generated.get("draft")) or generated.get("category") == "NA")
     # Counted in SQL: two failures at once both count, where a value read before the call would lose one.
-    fields = _generation_fields(generated) if is_usable else {"generation_attempts": Message.generation_attempts + 1}
+    fields = ({**_generation_fields(generated), "draft_tone": tone} if is_usable
+              else {"generation_attempts": Message.generation_attempts + 1})
     if not await _update_unsent(message.id, fields):
         return GenerationOutcome.SKIPPED
     if not is_usable:
@@ -806,7 +807,7 @@ async def refine_email(
                     message=message_id)
         raise
     # The old verdict described the old draft; the refined one carries its own.
-    fields = {"draft_reply": refined["draft"], **_review_fields(refined)}
+    fields = {"draft_reply": refined["draft"], "draft_tone": tone, **_review_fields(refined)}
     if not await _update_unsent(pk, fields):
         raise AlreadySentError(message_id)
     for column, value in fields.items():

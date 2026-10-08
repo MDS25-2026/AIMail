@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import email_agent
 from app import dashboard
+from app.agent_contract import Tone
 from app.core.ownership import EVERYTHING
 from app.core.providers import Provider
 from app.core.typed_text import mask_typed_text
@@ -200,3 +201,9 @@ def test_a_search_query_is_masked_before_it_is_embedded(api_client, captured_que
 def test_an_ask_question_is_masked_before_it_reaches_the_model(api_client, captured_query):
     api_client.post("/ask", json={"question": "call 012-345 6789 about leave?"}, headers=AUTH_HEADERS)
     assert "012-345 6789" not in captured_query["question"]
+
+
+def test_a_refined_draft_is_stored_with_its_tone(backend):
+    message, state = backend
+    asyncio.run(dashboard.refine_email(str(message.id), "warmer", "Old draft", scope=EVERYTHING, tone=Tone.CASUAL))
+    assert state["writes"]["draft_tone"] == Tone.CASUAL

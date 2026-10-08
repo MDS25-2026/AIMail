@@ -728,11 +728,7 @@ export interface components {
             threadId?: string | null;
             /** Timestamp */
             timestamp: string;
-            /**
-             * Tone
-             * @enum {string}
-             */
-            tone: "professional" | "casual";
+            tone: components["schemas"]["Tone"];
         };
         /** DescriptionBody */
         DescriptionBody: {

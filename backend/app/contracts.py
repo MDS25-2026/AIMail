@@ -11,6 +11,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.agent_contract import Tone
 from app.db.models import AuthStatus
 
 
@@ -113,7 +114,7 @@ class DashboardEmail(BaseModel):
     aiSummary: str
     actionItems: list[str]
     draftReply: str
-    tone: Literal["professional", "casual"]
+    tone: Tone
     sources: list[Source]
     piiMasked: bool
     criticConfidence: float

@@ -176,6 +176,8 @@ class Message(Base):
     critic_checks: Mapped[dict | None] = mapped_column(JSONB)
     needs_human_review: Mapped[bool | None]
     generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The tone the stored draft was written in (migration 0031); NULL before it, shown as professional.
+    draft_tone: Mapped[str | None] = mapped_column(Text)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Thread identity (migration 0009): Lane A writes the first three at ingest, the backend
