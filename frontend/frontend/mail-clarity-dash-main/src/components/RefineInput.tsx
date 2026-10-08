@@ -6,12 +6,19 @@ type RefineInputProps = {
   /** Rejects when the refine fails. */
   onRefine: (emailId: string, instruction: string) => Promise<void>;
   disabled?: boolean;
+  /** Shows "Refining…"; distinct from disabled, which also covers a sent reply. */
+  isRefining?: boolean;
 };
 
 // Keys, not text: the suggestion is sent to the model in the reader's language.
 const SUGGESTIONS = ["refine.suggestionDirect", "refine.suggestionDeadline"] as const;
 
-export default function RefineInput({ emailId, onRefine, disabled = false }: RefineInputProps) {
+export default function RefineInput({
+  emailId,
+  onRefine,
+  disabled = false,
+  isRefining = false,
+}: RefineInputProps) {
   const { t } = useTranslation();
   const [instruction, setInstruction] = useState("");
 
@@ -43,7 +50,7 @@ export default function RefineInput({ emailId, onRefine, disabled = false }: Ref
           disabled={disabled}
           className="rounded-md border border-line-strong bg-surface px-3 py-2 text-sm font-medium text-fg-body hover:bg-surface-muted disabled:cursor-not-allowed disabled:text-fg-subtle"
         >
-          {disabled ? t("refine.pending") : t("refine.submit")}
+          {isRefining ? t("refine.pending") : t("refine.submit")}
         </button>
       </form>
 

@@ -152,8 +152,16 @@ export function useDraftWorkflow(email: Email | null) {
     runMutation(id, DraftAction.Send, request, t("announce.sent")).catch(shownOnScreen);
   };
 
+  // The panels disable every control that changes the draft; this backs them up. A sent reply is
+  // final, and a change mid-send would leave the screen showing text other than what went out.
+  const isDraftLocked =
+    Boolean(email?.sentAt) ||
+    regenerateMutation.isPending ||
+    refineMutation.isPending ||
+    sendMutation.isPending;
+
   const regenerate = (nextTone: Tone = tone) => {
-    if (emailId === null) return;
+    if (emailId === null || isDraftLocked) return;
     if (hasUnsavedEdits(typedDraft, serverDraft)) {
       setPending({ emailId, value: { kind: ConfirmKind.ReplaceEdits, tone: nextTone } });
       return;
@@ -163,7 +171,7 @@ export function useDraftWorkflow(email: Email | null) {
 
   /** Rejects on failure, so the caller can keep the instruction the reader typed. */
   const refine = async (instruction: string) => {
-    if (emailId === null) return;
+    if (emailId === null || isDraftLocked) return;
     const id = emailId;
     const request = () => refineMutation.mutateAsync({ emailId: id, instruction, draft });
     await runMutation(id, DraftAction.Refine, request, t("announce.refined"));
