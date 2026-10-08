@@ -628,6 +628,7 @@ export const zh: Translations = {
     sendTemplates_one: "这封回复仍有 {{count}} 处方括号空位，例如 [Your Name]。收件人会原样看到。",
     sendTemplates_other:
       "这封回复仍有 {{count}} 处方括号空位，例如 [Your Name]。收件人会原样看到。",
+    toneWarning: "您的草稿可能含有不够专业的语气。仍然发送？",
   },
   signIn: {
     google: "使用 Google 登录",

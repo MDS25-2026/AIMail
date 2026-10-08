@@ -650,6 +650,8 @@ export const en = {
       "This reply still has {{count}} bracketed gap, such as [Your Name]. The recipient will see it exactly like that.",
     sendTemplates_other:
       "This reply still has {{count}} bracketed gaps, such as [Your Name]. The recipient will see them exactly like that.",
+    toneWarning:
+      "Your draft may have an unprofessional tone. Send anyway?",
   },
   signIn: {
     google: "Sign in with Google",

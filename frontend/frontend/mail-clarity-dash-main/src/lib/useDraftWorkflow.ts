@@ -1,10 +1,11 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { detailValues, restoreDetails } from "./details";
 import { useDetailsHidden } from "./detailsVisibility";
 import { findRedactionMarkers, findTemplatePlaceholders, hasUnsavedEdits } from "./draftGuards";
 import { useRefineEmail, useRegenerateEmail, useSendEmail } from "./queries";
+import { checkTone } from "./toneCheck";
 import type { Email, Tone } from "../types/email";
 
 export enum DraftAction {
@@ -20,6 +21,7 @@ export enum ConfirmKind {
   ReplaceEdits = "replaceEdits",
   SendMarkers = "sendMarkers",
   SendTemplates = "sendTemplates",
+  ToneWarning = "toneWarning",
 }
 
 export type PendingConfirm = { kind: ConfirmKind; markerCount: number };
@@ -77,6 +79,9 @@ function forEmail<T>(scoped: Scoped<T> | null, emailId: string | null): T | null
 // The failure is already on screen through `failure`; nothing is left to handle.
 const shownOnScreen = () => undefined;
 
+/** Duration of the undo window in seconds. */
+const UNDO_COUNTDOWN_SECONDS = 5;
+
 /**
  * Regenerate, refine and send for one email, shared by the inbox and the extension panel.
  * Guards the two ways a reader lost work: a regenerate silently replacing their edits, and a
@@ -104,6 +109,13 @@ export function useDraftWorkflow(
   const [pending, setPending] = useState<Scoped<PendingAction> | null>(null);
   const [announcement, setAnnouncement] = useState("");
 
+  // --- Undo countdown state ---
+  // null = not in the undo window; 1–5 = counting down; 0 = expired (send fired)
+  const [undoCountdown, setUndoCountdown] = useState<number | null>(null);
+  // The email this countdown belongs to, so we clean up on email change.
+  const undoEmailIdRef = useRef<string | null>(null);
+  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const regenerateMutation = useRegenerateEmail();
   const refineMutation = useRefineEmail();
   const sendMutation = useSendEmail();
@@ -119,6 +131,31 @@ export function useDraftWorkflow(
     setAnnouncement("");
     requestAnimationFrame(() => setAnnouncement(text));
   };
+
+  // Clear the countdown interval and reset state.
+  const clearCountdown = () => {
+    if (countdownIntervalRef.current !== null) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+    setUndoCountdown(null);
+    undoEmailIdRef.current = null;
+  };
+
+  // Cancel any active countdown when the email changes or on unmount.
+  useEffect(() => {
+    return () => {
+      clearCountdown();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (emailId !== undoEmailIdRef.current && undoEmailIdRef.current !== null) {
+      clearCountdown();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emailId]);
 
   // Last issued wins: two regenerates for the same email share one cache entry, so a slow first
   // response could otherwise overwrite a newer one.
@@ -152,16 +189,44 @@ export function useDraftWorkflow(
 
   const startSend = (id: string) => {
     const request = () => sendMutation.mutateAsync({ emailId: id, draft });
-    runMutation(id, DraftAction.Send, request, t("announce.sent")).catch(shownOnScreen);
-  };
-
   const isRegenerating = regenerateMutation.isPending;
   const isRefining = refineMutation.isPending;
   const isSending = sendMutation.isPending;
-  const isBusy = isRegenerating || isRefining || isSending || isWaitingForDraft;
+  const isCountingDown = undoCountdown !== null && undoCountdown > 0;
+  // Locking: during mutations, pregen, or active undo countdown, prevent editing/sending race conditions:
+  const isBusy = isRegenerating || isRefining || isSending || isWaitingForDraft || isCountingDown;
   // The panels disable every control that changes the draft; this backs them up. A sent reply is
   // final, and a change mid-send would leave the screen showing text other than what went out.
   const isDraftLocked = isBusy || Boolean(email?.sentAt);
+
+  /**
+   * Begins the 5-second undo countdown for the given email. When it expires the actual
+   * send mutation fires. Call `undoSend()` to cancel during the window.
+   */
+  const beginUndoCountdown = (id: string) => {
+    clearCountdown();
+    undoEmailIdRef.current = id;
+    setUndoCountdown(UNDO_COUNTDOWN_SECONDS);
+
+    let remaining = UNDO_COUNTDOWN_SECONDS;
+    countdownIntervalRef.current = setInterval(() => {
+      remaining -= 1;
+      if (remaining <= 0) {
+        clearInterval(countdownIntervalRef.current!);
+        countdownIntervalRef.current = null;
+        setUndoCountdown(0);
+        // Fire the actual send — use id captured in closure so we send the right email.
+        startSend(id);
+      } else {
+        setUndoCountdown(remaining);
+      }
+    }, 1000);
+  };
+
+  /** Cancels the undo countdown. No email is sent. */
+  const undoSend = () => {
+    clearCountdown();
+  };
 
   const regenerate = (nextTone: Tone = tone) => {
     if (emailId === null || isDraftLocked) return;
@@ -181,16 +246,29 @@ export function useDraftWorkflow(
   };
 
   const send = () => {
-    if (emailId === null) return;
+    if (emailId === null || isDraftLocked) return;
+
+    // Guard 1: redaction markers still in the draft.
     if (findRedactionMarkers(draft).length > 0) {
       setPending({ emailId, value: { kind: ConfirmKind.SendMarkers, tone } });
       return;
     }
+
+    // Guard 2: template placeholders still in the draft.
     if (findTemplatePlaceholders(draft).length > 0) {
       setPending({ emailId, value: { kind: ConfirmKind.SendTemplates, tone } });
       return;
     }
-    startSend(emailId);
+
+    // Guard 3: tone check — warn if the draft reads as aggressive/unprofessional.
+    const { hasIssues } = checkTone(draft);
+    if (hasIssues) {
+      setPending({ emailId, value: { kind: ConfirmKind.ToneWarning, tone } });
+      return;
+    }
+
+    // All guards passed — start the undo countdown.
+    beginUndoCountdown(emailId);
   };
 
   const confirm = () => {
@@ -200,6 +278,12 @@ export function useDraftWorkflow(
       startRegenerate(emailId, pendingAction.tone);
       return;
     }
+    if (pendingAction.kind === ConfirmKind.ToneWarning) {
+      // User chose to send anyway despite tone issues — proceed to undo countdown.
+      beginUndoCountdown(emailId);
+      return;
+    }
+    // SendMarkers confirmed: send immediately (user knowingly kept the markers).
     startSend(emailId);
   };
 
@@ -235,6 +319,8 @@ export function useDraftWorkflow(
     regenerate: () => regenerate(),
     refine,
     send,
+    undoSend,
+    undoCountdown,
     status,
     announcement,
     isRegenerating,

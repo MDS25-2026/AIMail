@@ -668,6 +668,7 @@ export const ms: Translations = {
       "Balasan ini masih mempunyai {{count}} ruang dalam kurungan, seperti [Your Name]. Penerima akan melihatnya begitu sahaja.",
     sendTemplates_other:
       "Balasan ini masih mempunyai {{count}} ruang dalam kurungan, seperti [Your Name]. Penerima akan melihatnya begitu sahaja.",
+    toneWarning: "Draf anda mungkin mempunyai nada yang tidak profesional. Hantar juga?",
   },
   signIn: {
     google: "Log masuk dengan Google",
