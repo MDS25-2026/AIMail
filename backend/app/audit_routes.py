@@ -4,6 +4,8 @@ Each user sees only their own rows; a script holding the shared token sees every
 chain is intact is checked over the whole table first, because a gap or an edit anywhere breaks it.
 """
 
+import json
+from enum import StrEnum
 from typing import Annotated
 from uuid import UUID
 
@@ -48,39 +50,63 @@ FROM audit_log a LEFT JOIN chain c ON c.id = a.id
 _ORDER = " ORDER BY a.created_at DESC, a.id DESC LIMIT :limit"
 
 
+class Verification(StrEnum):
+    VERIFIED = "verified"
+    TAMPERED = "tampered"
+    # Written before the chain existed (no chain_seq): nothing to check it against. Never shown as verified.
+    UNVERIFIABLE = "unverifiable"
+
+
+AuditField = str | int | float | bool | None
+# Rows written before 2026-10-08 hold prose; it is shown as text, never parsed.
+PROSE_FIELD = "text"
+
+
 class AuditEventOut(BaseModel):
     id: str
-    created_at: str
+    createdAt: str
     action: str
-    detail: str
+    fields: dict[str, AuditField]
     success: bool | None
-    prev_hash: str | None
-    current_hash: str | None
-    user_id: str | None
-    is_verified: bool | None = None
+    prevHash: str | None
+    currentHash: str | None
+    verification: Verification
 
 
 class AuditTrailResponse(BaseModel):
     # Whole table, not just the rows shown: an edit or a deletion anywhere breaks the chain.
-    is_chain_intact: bool
-    total_records: int
-    verified_records: int
+    isChainIntact: bool
+    totalRecords: int
+    verifiedRecords: int
     # The latest hash: record it somewhere outside the database to detect a rewrite of the whole chain.
-    head_hash: str | None
+    headHash: str | None
     events: list[AuditEventOut]
+
+
+def _verification(is_valid: bool | None) -> Verification:
+    if is_valid is None:
+        return Verification.UNVERIFIABLE
+    return Verification.VERIFIED if is_valid else Verification.TAMPERED
+
+
+def _fields(detail: str | None) -> dict[str, AuditField]:
+    try:
+        parsed = json.loads(detail or "")
+    except ValueError:
+        return {PROSE_FIELD: detail or ""}
+    return parsed if isinstance(parsed, dict) else {PROSE_FIELD: detail or ""}
 
 
 def _event(row: Row) -> AuditEventOut:
     return AuditEventOut(
         id=str(row.id),
-        created_at=row.created_at.isoformat() if row.created_at else "",
+        createdAt=row.created_at.isoformat() if row.created_at else "",
         action=row.action or "unspecified",
-        detail=row.detail or "",
+        fields=_fields(row.detail),
         success=row.success,
-        prev_hash=row.prev_hash,
-        current_hash=row.current_hash,
-        user_id=str(row.user_id) if row.user_id else None,
-        is_verified=row.is_valid,
+        prevHash=row.prev_hash,
+        currentHash=row.current_hash,
+        verification=_verification(row.is_valid),
     )
 
 
@@ -99,17 +125,17 @@ async def get_audit_trail(
     principal = principal_of(request)
     # Never fall through to "every row": a person with no account yet owns nothing in the log.
     if not principal.is_service and principal.user_id is None:
-        return AuditTrailResponse(is_chain_intact=True, total_records=0, verified_records=0,
-                                  head_hash=None, events=[])
+        return AuditTrailResponse(isChainIntact=True, totalRecords=0, verifiedRecords=0,
+                                  headHash=None, events=[])
     sql, params = _events_query(None if principal.is_service else principal.user_id)
     async with get_sessionmaker()() as session:
         summary = (await session.execute(_SUMMARY)).one()
         rows = (await session.execute(text(sql), {**params, "limit": limit})).all()
     events = [_event(row) for row in rows]
     return AuditTrailResponse(
-        is_chain_intact=summary.is_intact,
-        total_records=len(events),
-        verified_records=sum(1 for event in events if event.is_verified),
-        head_hash=summary.head,
+        isChainIntact=summary.is_intact,
+        totalRecords=len(events),
+        verifiedRecords=sum(1 for event in events if event.verification == Verification.VERIFIED),
+        headHash=summary.head,
         events=events,
     )

@@ -39,7 +39,7 @@ from app.admin.schemas import (
     Overview,
     SignInRequest,
 )
-from app.audit import audit
+from app.audit import AuditAction, audit
 from app.core.constants import ADMIN_SIGN_IN_LIMIT, ADMIN_SIGN_IN_WINDOW_SECONDS
 from app.core.errors import DomainError, ErrorCode, register_error_handlers
 from app.core.ratelimit import RateLimiter
@@ -64,10 +64,10 @@ async def create_session(body: SignInRequest, response: Response) -> AdminIdenti
         session = await sign_in(body.email, body.password)
         admin = await _admin_or_revoke(session)
     except HTTPException:
-        await audit("admin_sign_in", "refused", success=False)
+        await audit(AuditAction.ADMIN_SIGN_IN, success=False, reason="refused")
         raise
     set_session_cookies(response, session)
-    await audit("admin_sign_in", f"admin={admin.user_id}")
+    await audit(AuditAction.ADMIN_SIGN_IN, admin=admin.user_id)
     return AdminIdentity(email=admin.email)
 
 

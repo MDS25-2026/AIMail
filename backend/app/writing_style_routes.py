@@ -10,7 +10,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.sql.dml import ReturningDelete, ReturningUpdate
 
 from app.account_routes import account_user_id
-from app.audit import audit
+from app.audit import AuditAction, audit
 from app.core.errors import DomainError, ErrorCode
 from app.db.models import Message, StyleExample, StyleHabit, WritingStyle
 from app.db.session import get_sessionmaker
@@ -105,7 +105,7 @@ async def put_description(body: DescriptionBody, request: Request) -> WritingSty
     user_id = account_user_id(request)
     description = await mask_for_style(body.description) if body.description.strip() else ""
     await _save_style(user_id, description=description)
-    await audit("writing_style_description", f"user={user_id} chars={len(description)}", user_id=user_id)
+    await audit(AuditAction.WRITING_STYLE_DESCRIPTION, user_id=user_id, chars=len(description))
     return await _view(user_id)
 
 
@@ -113,7 +113,7 @@ async def put_description(body: DescriptionBody, request: Request) -> WritingSty
 async def put_learning(body: LearningBody, request: Request) -> WritingStyleView:
     user_id = account_user_id(request)
     await _save_style(user_id, learning_enabled=body.enabled)
-    await audit("writing_style_learning", f"user={user_id} enabled={body.enabled}", user_id=user_id)
+    await audit(AuditAction.WRITING_STYLE_LEARNING, user_id=user_id, enabled=body.enabled)
     return await _view(user_id)
 
 
@@ -139,17 +139,17 @@ async def add_example(body: ExampleBody, request: Request) -> WritingStyleView:
         if count >= MAX_EXAMPLES:
             raise DomainError(ErrorCode.TOO_MANY_EXAMPLES)
         session.add(StyleExample(user_id=user_id, text=text, source=source))
-    await audit("writing_style_example_added", f"user={user_id} source={source}", user_id=user_id)
+    await audit(AuditAction.WRITING_STYLE_EXAMPLE_ADDED, user_id=user_id, source=source)
     return await _view(user_id)
 
 
-async def _delete_one(statement: ReturningDelete | ReturningUpdate, user_id: UUID, action: str,
+async def _delete_one(statement: ReturningDelete | ReturningUpdate, user_id: UUID, action: AuditAction,
                       item_id: UUID) -> Response:
     async with get_sessionmaker()() as session, session.begin():
         removed = await session.scalar(statement)
     if removed is None:
         raise DomainError(ErrorCode.NOT_FOUND)
-    await audit(action, f"user={user_id} id={item_id}", user_id=user_id)
+    await audit(action, user_id=user_id, item=item_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -158,7 +158,7 @@ async def delete_example(example_id: UUID, request: Request) -> Response:
     user_id = account_user_id(request)
     statement = (delete(StyleExample).where(StyleExample.id == example_id, StyleExample.user_id == user_id)
                  .returning(StyleExample.id))
-    return await _delete_one(statement, user_id, "writing_style_deleted_example", example_id)
+    return await _delete_one(statement, user_id, AuditAction.WRITING_STYLE_EXAMPLE_DELETED, example_id)
 
 
 @router.delete("/habits/{habit_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -167,7 +167,7 @@ async def delete_habit(habit_id: UUID, request: Request) -> Response:
     user_id = account_user_id(request)
     statement = (update(StyleHabit).where(StyleHabit.id == habit_id, StyleHabit.user_id == user_id)
                  .values(suppressed=True).returning(StyleHabit.id))
-    return await _delete_one(statement, user_id, "writing_style_hid_habit", habit_id)
+    return await _delete_one(statement, user_id, AuditAction.WRITING_STYLE_HABIT_HIDDEN, habit_id)
 
 
 @router.delete("", status_code=status.HTTP_204_NO_CONTENT)
@@ -181,5 +181,5 @@ async def delete_everything(request: Request) -> Response:
         await session.execute(update(Message).where(Message.user_id == user_id, Message.edit_ratio.is_not(None))
                               .values(draft_shown=None, edit_ratio=None))
         await forget_replies(session, user_id)
-    await audit("writing_style_deleted", f"user={user_id}", user_id=user_id)
+    await audit(AuditAction.WRITING_STYLE_DELETED, user_id=user_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

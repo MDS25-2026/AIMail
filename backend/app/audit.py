@@ -1,36 +1,79 @@
-"""Audit trail for Lane B/C actions (audit finding 2.4: backend logging gap).
+"""The audit trail: what AIMail did, for whom (specs/context/backbone-contracts.md).
 
-The Go listener already records ingestion; without this, everything after it — draft
-generation, refinement, and the human approval that actually sends mail — left no trace, so
-"a human approved this send" was a claim with no evidence behind it.
+Every row names an action from one list and carries structured fields, stored as compact JSON in
+`detail`, so the trail is queried and shown without parsing prose. Fields hold ids, codes and counts,
+never email content or addresses. The database chains and seals each row (migrations 0024, 0025).
 
-Two deliberate choices:
-
-- Writes go through their own session, not the caller's. A send that fails must still leave a
-  row, and a failed audit write must never poison the transaction doing the real work.
-- A failed write is logged and swallowed rather than raised. Losing an audit row is bad;
-  failing a user's send because the trail could not be written is worse. This mirrors the
-  listener's never-block philosophy.
-
-`detail` must stay free of email content: rows are queried and shown during demos, and the
-whole point of the pipeline is that unmasked content does not spread. Message IDs only.
+Two ways to write:
+- record(session, ...) adds the row to the caller's transaction: the change and its audit row commit or
+  roll back together, so the trail can't claim something that did not happen, or miss something that did.
+- audit(...) writes in its own session, for failures and for work that has no transaction of its own. A
+  failed write there is logged, never raised: losing a row is bad, failing the user's action for it is worse.
 """
 
+import json
 import logging
+from enum import StrEnum
 from uuid import UUID
 
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import AuditLog
 from app.db.session import get_sessionmaker
 
 logger = logging.getLogger(__name__)
 
+AuditValue = str | int | float | bool | None
 
-async def audit(action: str, detail: str, *, success: bool = True, user_id: UUID | None = None) -> None:
+
+class AuditAction(StrEnum):
+    GENERATE_DRAFT = "generate_draft"
+    REFINE_DRAFT = "refine_draft"
+    TRANSLATE_EMAIL = "translate_email"
+    APPROVE_AND_SEND = "approve_and_send"
+    SEND_OUTCOME_UNKNOWN = "send_outcome_unknown"
+    CONFIRM_SENDER = "confirm_sender"
+    DOCUMENT_DELETED = "document_deleted"
+    DISCONNECT_GMAIL = "disconnect_gmail"
+    DELETE_ACCOUNT = "delete_account"
+    PRIVATE_MODE = "private_mode"
+    HOLDING_REPLY_SETTINGS = "holding_reply_settings"
+    HOLDING_REPLY_SCHEDULED = "holding_reply_scheduled"
+    HOLDING_REPLY_CANCELLED = "holding_reply_cancelled"
+    HOLDING_REPLY_SENT = "holding_reply_sent"
+    HOLDING_REPLY_OUTCOME_UNKNOWN = "holding_reply_outcome_unknown"
+    WRITING_STYLE_DESCRIPTION = "writing_style_description"
+    WRITING_STYLE_LEARNING = "writing_style_learning"
+    WRITING_STYLE_EXAMPLE_ADDED = "writing_style_example_added"
+    WRITING_STYLE_EXAMPLE_DELETED = "writing_style_deleted_example"
+    WRITING_STYLE_HABIT_HIDDEN = "writing_style_hid_habit"
+    WRITING_STYLE_DELETED = "writing_style_deleted"
+    ADMIN_SIGN_IN = "admin_sign_in"
+
+
+def audit_detail(fields: dict[str, AuditValue | UUID]) -> str:
+    """Compact JSON with sorted keys: one canonical text, which the row's hash covers."""
+    return json.dumps({key: str(value) if isinstance(value, UUID) else value for key, value in fields.items()},
+                      sort_keys=True, separators=(",", ":"))
+
+
+def audit_row(action: AuditAction, *, user_id: UUID | None, success: bool = True,
+              **fields: AuditValue | UUID) -> AuditLog:
+    return AuditLog(action=action.value, detail=audit_detail(fields), success=success, user_id=user_id)
+
+
+def record(session: AsyncSession, action: AuditAction, *, user_id: UUID | None, success: bool = True,
+           **fields: AuditValue | UUID) -> None:
+    """The row joins the caller's transaction."""
+    session.add(audit_row(action, user_id=user_id, success=success, **fields))
+
+
+async def audit(action: AuditAction, *, user_id: UUID | None = None, success: bool = True,
+                **fields: AuditValue | UUID) -> None:
     try:
         async with get_sessionmaker()() as session:
-            session.add(AuditLog(action=action, detail=detail, success=success, user_id=user_id))
+            record(session, action, user_id=user_id, success=success, **fields)
             await session.commit()
     except SQLAlchemyError:
-        logger.exception("audit write failed: action=%s detail=%s user_id=%s", action, detail, user_id)
+        logger.exception("audit write failed: action=%s user_id=%s", action, user_id)

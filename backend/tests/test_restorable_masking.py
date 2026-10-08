@@ -109,6 +109,9 @@ class _Session:
     async def get(self, _model, _pk):
         return self.message
 
+    def add(self, row):
+        self.added = [*getattr(self, "added", []), row]
+
     async def commit(self):
         return None
 

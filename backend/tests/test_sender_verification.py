@@ -48,7 +48,7 @@ def test_a_spoofed_email_gets_no_holding_reply():
 
 
 def test_a_confirmed_sender_is_drafted_again(spoofed, monkeypatch):
-    updates = []
+    updates, audited = [], []
 
     class _Session:
         async def __aenter__(self):
@@ -59,6 +59,9 @@ def test_a_confirmed_sender_is_drafted_again(spoofed, monkeypatch):
 
         def begin(self):
             return self
+
+        def add(self, row):
+            audited.append(row)
 
         async def execute(self, statement):
             updates.append(str(statement.compile(compile_kwargs={"literal_binds": True})))
@@ -72,6 +75,8 @@ def test_a_confirmed_sender_is_drafted_again(spoofed, monkeypatch):
     assert email.authStatus == AuthStatus.SENDER_CONFIRMED
     # Only a flagged email moves, so a passing one is never relabelled.
     assert "messages.auth_status = 'spoof_detected'" in updates[0]
+    # The audit row joins the same transaction as the change it records.
+    assert [row.action for row in audited] == ["confirm_sender"]
 
 
 def test_confirming_a_sender_that_passed_changes_nothing(mailbox):  # noqa: F811

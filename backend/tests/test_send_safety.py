@@ -99,7 +99,7 @@ def harness(monkeypatch):
             raise state["send_error"]
         return gmail_send.SentReply(gmail_id="g", thread_id="t", message_id="<m>")
 
-    async def audit(action, detail, success=True, user_id=None):
+    async def audit(action, *, success=True, user_id=None, **fields):
         state["audits"].append((action, success))
 
     for name, value in (("_load", load), ("_claim_send", claim), ("_release_send_claim", release),

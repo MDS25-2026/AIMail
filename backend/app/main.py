@@ -28,7 +28,7 @@ from pydantic import BaseModel, Field
 
 from app.account_routes import router as account_router
 from app.admin.app import admin_app
-from app.audit import audit
+from app.audit import AuditAction, audit
 from app.audit_routes import router as audit_router
 from app.contracts import DashboardEmail
 from app.core import mailbox
@@ -404,7 +404,7 @@ async def remove_document(document_id: UUID, http: Request) -> Response:
     """Chunks and both kinds of vector go with it (ON DELETE CASCADE)."""
     if not await delete_document(document_id, scope_of(http)):
         raise DomainError(ErrorCode.NOT_FOUND)
-    await audit("document_deleted", f"document={document_id}", user_id=scope_of(http).owner_id)
+    await audit(AuditAction.DOCUMENT_DELETED, user_id=scope_of(http).owner_id, document=document_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

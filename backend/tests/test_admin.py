@@ -297,3 +297,13 @@ def test_thread_context_is_prose_not_markup():
     earlier = Message(id=uuid4(), received_at=datetime(2026, 9, 1, 9, tzinfo=timezone.utc), body_masked=html)
     current = Message(id=uuid4(), received_at=datetime(2026, 9, 1, 12, tzinfo=timezone.utc))
     assert thread_context(current, [earlier]) == "Earlier message 1:\nPlease send the Q3 figures."
+
+
+def test_privacy_counts_read_structured_audit_fields():
+    rows = [
+        AuditLog(action="read_attachment", success=True, detail='{"gmail_message_id":"b","withheld":2}'),
+        AuditLog(action="store_message", success=True, detail='{"reason":"presidio_degraded"}'),
+        AuditLog(action="read_attachment", success=True, detail='{"gmail_message_id":"c"}'),
+    ]
+    counts = stats.privacy_counts(rows)
+    assert (counts.pages_withheld, counts.degraded_before_fix) == (2, 1)

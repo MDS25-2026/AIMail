@@ -10,7 +10,7 @@ from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
 
 from app.account_routes import account_user_id
-from app.audit import audit
+from app.audit import AuditAction, audit
 from app.core.errors import DomainError, ErrorCode
 from app.db.models import HoldingReply, HoldingReplySettings, Message
 from app.db.session import get_sessionmaker
@@ -71,7 +71,7 @@ async def put_settings_route(body: SettingsBody, request: Request) -> SettingsBo
         statement = insert(HoldingReplySettings).values(user_id=user_id, enabled_at=enabled_at, **values)
         await session.execute(statement.on_conflict_do_update(
             index_elements=["user_id"], set_={**values, "enabled_at": enabled_at, "updated_at": datetime.now(timezone.utc)}))
-    await audit("holding_reply_settings", f"user={user_id} enabled={body.enabled}", user_id=user_id)
+    await audit(AuditAction.HOLDING_REPLY_SETTINGS, user_id=user_id, enabled=body.enabled)
     return body
 
 
@@ -104,6 +104,6 @@ async def cancel_route(reply_id: UUID, request: Request) -> Response:
         raise DomainError(ErrorCode.NOT_FOUND)
     if not cancelled:
         raise DomainError(ErrorCode.ALREADY_SENT_OR_CANCELLED)
-    await audit("holding_reply_cancelled", f"reply={reply_id} reason={Refusal.CANCELLED_BY_USER}",
-                user_id=user_id)
+    await audit(AuditAction.HOLDING_REPLY_CANCELLED, user_id=user_id, reply=reply_id,
+                reason=Refusal.CANCELLED_BY_USER)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

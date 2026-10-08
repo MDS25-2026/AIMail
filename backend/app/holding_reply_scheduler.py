@@ -18,7 +18,7 @@ from sqlalchemy import exists, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 
 from app import gmail_send
-from app.audit import audit
+from app.audit import AuditAction, audit
 from app.core.constants import (
     HOLD_WINDOW_MINUTES,
     HOLDING_REPLY_DAILY_CAP,
@@ -88,7 +88,7 @@ async def schedule_new() -> int:
             ).on_conflict_do_nothing(index_elements=["message_id"]))
             scheduled += 1
     if scheduled:
-        await audit("holding_reply_scheduled", f"count={scheduled}")
+        await audit(AuditAction.HOLDING_REPLY_SCHEDULED, count=scheduled)
     return scheduled
 
 
@@ -148,7 +148,7 @@ async def _cancel(reply_id: UUID, reason: Refusal, owner_id: UUID | None) -> Non
         await session.execute(update(HoldingReply).where(
             HoldingReply.id == reply_id, HoldingReply.sent_at.is_(None),
             HoldingReply.cancelled_reason.is_(None)).values(cancelled_reason=reason))
-    await audit("holding_reply_cancelled", f"reply={reply_id} reason={reason}", user_id=owner_id)
+    await audit(AuditAction.HOLDING_REPLY_CANCELLED, user_id=owner_id, reply=reply_id, reason=reason)
 
 
 async def _claim(reply_id: UUID) -> bool:
@@ -175,8 +175,8 @@ async def _send(due: Due) -> None:
             due.message.gmail_message_id, due.message.from_addr or "", due.message.subject or "", text,
             owner_id=due.reply.user_id, extra_headers=AUTO_REPLY_HEADERS)
     except gmail_send.SendOutcomeUnknownError:
-        await audit("holding_reply_outcome_unknown", f"reply={due.reply.id}", success=False,
-                    user_id=due.reply.user_id)
+        await audit(AuditAction.HOLDING_REPLY_OUTCOME_UNKNOWN, user_id=due.reply.user_id, success=False,
+                    reply=due.reply.id)
         return  # the claim stays: Gmail may have sent it, and a second copy is worse than none
     except gmail_send.SendError as exc:
         await _release(due.reply.id)
@@ -185,8 +185,8 @@ async def _send(due: Due) -> None:
     async with get_sessionmaker()() as session, session.begin():
         await session.execute(update(HoldingReply).where(HoldingReply.id == due.reply.id)
                               .values(sent_message_id=sent.message_id))
-    await audit("holding_reply_sent", f"reply={due.reply.id} language={language}",
-                user_id=due.reply.user_id)
+    await audit(AuditAction.HOLDING_REPLY_SENT, user_id=due.reply.user_id, reply=due.reply.id,
+                language=language)
 
 
 async def send_due() -> int:

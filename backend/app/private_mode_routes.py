@@ -8,7 +8,7 @@ from sqlalchemy import func, update
 from sqlalchemy.dialects.postgresql import insert
 
 from app.account_routes import account_user_id
-from app.audit import audit
+from app.audit import AuditAction, audit
 from app.core.config import get_settings
 from app.core.errors import DomainError, ErrorCode
 from app.db.models import Message, UserPreferences
@@ -61,5 +61,5 @@ async def put_private_mode(body: PrivateModeBody, request: Request) -> PrivateMo
     if body.enabled and not is_offered():
         raise DomainError(ErrorCode.PRIVATE_MODE_UNAVAILABLE)
     await _save_choice(user_id, DraftProvider.LOCAL if body.enabled else DraftProvider.GEMINI)
-    await audit("private_mode", f"user={user_id} enabled={body.enabled}", user_id=user_id)
+    await audit(AuditAction.PRIVATE_MODE, user_id=user_id, enabled=body.enabled)
     return await _view(request)
