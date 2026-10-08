@@ -701,6 +701,34 @@ export const zh: Translations = {
     supabase_unavailable: "无法连接登录服务。请稍后重试。",
   },
   confirm: { retry: "重试" },
+  meta: {
+    app: {
+      title: "AIMail",
+      description: "AI 收件箱助手：邮件先脱敏，草稿有依据，回复经人工批准。",
+    },
+    inbox: {
+      title: "AIMail：AI 收件箱面板",
+      description: "按优先级排列的收件箱，附 AI 摘要、待办事项，草稿回复须经您批准才会发送。",
+    },
+    drafts: { title: "AIMail 草稿", description: "等待您审阅的草稿回复。" },
+    sent: { title: "AIMail 已发送", description: "经人工批准并由 AIMail 发送的回复。" },
+    knowledge: { title: "AIMail 知识库", description: "AIMail 起草回复所依据的政策文档。" },
+    audit: {
+      title: "AIMail 审计追踪",
+      description: "您的审计追踪，每条记录都通过 SHA-256 哈希与上一条相连。",
+    },
+    settings: { title: "AIMail 设置", description: "此 AIMail 实例正在运行的配置。" },
+    admin: { title: "AIMail 管理", description: "处理流程健康状况与隐私事件。" },
+    extension: {
+      title: "AIMail Chrome 扩展面板",
+      description: "精简的 AIMail 侧边栏，含 AI 摘要、待办事项和草稿回复。",
+    },
+    signin: {
+      title: "AIMail：私密邮件助手",
+      description:
+        "AIMail 为您的工作邮件起草回复，在任何 AI 看到之前隐藏个人信息，未经您批准不会发送任何内容。",
+    },
+  },
   announce: {
     regenerated: "草稿已重新生成",
     refined: "草稿已优化",

@@ -4,6 +4,7 @@ import { EyeOff, Inbox, Languages, PenLine, Send, ShieldCheck, UserCheck } from 
 import { useTranslation } from "react-i18next";
 
 import { SIGN_IN_URL } from "../lib/api/config";
+import { Page, pageMeta } from "../lib/pageMeta";
 
 // The only error codes the backend sends back here; anything else reads as a plain failure.
 const SIGN_IN_ERRORS = ["sign_in_failed", "sign_in_unavailable", "sign_in_not_allowed"] as const;
@@ -32,16 +33,7 @@ export const Route = createFileRoute("/signin")({
   validateSearch: (search: Record<string, unknown>): SignInSearch => ({
     error: typeof search.error === "string" ? search.error : undefined,
   }),
-  head: () => ({
-    meta: [
-      { title: "AIMail · Private email assistant" },
-      {
-        name: "description",
-        content:
-          "AIMail drafts replies to your work email, hides personal details before any AI sees them, and sends nothing without your approval.",
-      },
-    ],
-  }),
+  head: ({ match }) => ({ meta: pageMeta(match.context.preferences.language, Page.SignIn) }),
   component: LandingPage,
 });
 

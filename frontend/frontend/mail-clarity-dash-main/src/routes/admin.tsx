@@ -6,11 +6,15 @@ import SignInForm from "../components/admin/SignInForm";
 import AppShell from "../components/AppShell";
 import { PageError, PageLoading } from "../components/PageState";
 import { isAuthError } from "../lib/adminApi";
+import { Page, pageMeta } from "../lib/pageMeta";
 import { useAdminSession } from "../lib/queries";
 
 export const Route = createFileRoute("/admin")({
-  head: () => ({
-    meta: [{ title: "AIMail admin" }, { name: "robots", content: "noindex, nofollow" }],
+  head: ({ match }) => ({
+    meta: [
+      ...pageMeta(match.context.preferences.language, Page.Admin),
+      { name: "robots", content: "noindex, nofollow" },
+    ],
   }),
   component: AdminPage,
 });

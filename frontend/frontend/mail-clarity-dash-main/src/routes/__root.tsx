@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next";
 import appCss from "../styles.css?url";
 import PreferencesProvider from "../components/PreferencesProvider";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { Page, pageMeta } from "../lib/pageMeta";
 import { coloursAttribute, SYSTEM_THEME_SCRIPT, Theme } from "../lib/preferences";
 import { readPreferences } from "../lib/readPreferences";
 
@@ -78,15 +79,11 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   // Cookie-backed, so the server renders the reader's theme and language on the first paint.
   beforeLoad: () => ({ preferences: readPreferences() }),
-  head: () => ({
+  head: ({ match }) => ({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "AIMail" },
-      {
-        name: "description",
-        content: "AI inbox assistant: masked mail, grounded drafts, human-approved replies.",
-      },
+      ...pageMeta(match.context.preferences.language, Page.App),
     ],
     links: [
       {

@@ -8,18 +8,13 @@ import { InlineAlert, InlineStatus } from "../components/InlineMessages";
 import { PageEmpty, PageError, PageLoading } from "../components/PageState";
 import { button, field } from "../components/variants";
 import { errorMessage } from "../lib/api/errors";
+import { Page, pageMeta } from "../lib/pageMeta";
 import { useAddDocument, useDeleteDocument, useDocuments, useUploadDocument } from "../lib/queries";
 import { cn } from "../lib/utils";
 
 export const Route = createFileRoute("/knowledge")({
-  head: () => ({
-    meta: [
-      { title: "AIMail knowledge base" },
-      {
-        name: "description",
-        content: "Policy documents AImail grounds its reply drafts in.",
-      },
-    ],
+  head: ({ match }) => ({
+    meta: [...pageMeta(match.context.preferences.language, Page.Knowledge)],
   }),
   component: KnowledgePage,
 });

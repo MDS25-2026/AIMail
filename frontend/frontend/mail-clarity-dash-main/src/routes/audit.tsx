@@ -10,20 +10,13 @@ import ProofDialog from "../components/audit/ProofDialog";
 import { PageError, PageLoading } from "../components/PageState";
 import { button, field } from "../components/variants";
 import { matchesQuery } from "../lib/auditTrail";
+import { Page, pageMeta } from "../lib/pageMeta";
 import { useAuditTrail } from "../lib/queries";
 import { cn } from "../lib/utils";
 import type { AuditTrail, AuditTrailEvent } from "../types/audit";
 
 export const Route = createFileRoute("/audit")({
-  head: () => ({
-    meta: [
-      { title: "AIMail Audit Trail" },
-      {
-        name: "description",
-        content: "Your audit trail, linked record to record by SHA-256 hashes.",
-      },
-    ],
-  }),
+  head: ({ match }) => ({ meta: pageMeta(match.context.preferences.language, Page.Audit) }),
   component: AuditPage,
 });
 

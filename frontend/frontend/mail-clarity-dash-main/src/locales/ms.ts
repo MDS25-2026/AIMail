@@ -748,6 +748,47 @@ export const ms: Translations = {
     supabase_unavailable: "Perkhidmatan log masuk tidak dapat dicapai. Cuba sebentar lagi.",
   },
   confirm: { retry: "Cuba lagi" },
+  meta: {
+    app: {
+      title: "AIMail",
+      description:
+        "Pembantu peti masuk AI: mel bertopeng, draf berasas sumber, balasan yang diluluskan manusia.",
+    },
+    inbox: {
+      title: "AIMail: papan pemuka peti masuk AI",
+      description:
+        "Peti masuk mengikut keutamaan dengan ringkasan AI, item tindakan dan draf balasan yang dihantar hanya selepas anda meluluskannya.",
+    },
+    drafts: { title: "Draf AIMail", description: "Draf balasan yang menunggu semakan anda." },
+    sent: {
+      title: "AIMail dihantar",
+      description: "Balasan yang diluluskan manusia dan dihantar oleh AIMail.",
+    },
+    knowledge: {
+      title: "Pangkalan pengetahuan AIMail",
+      description: "Dokumen dasar yang menjadi asas draf balasan AIMail.",
+    },
+    audit: {
+      title: "Jejak audit AIMail",
+      description:
+        "Jejak audit anda, setiap rekod dipautkan kepada yang sebelumnya dengan hash SHA-256.",
+    },
+    settings: {
+      title: "Tetapan AIMail",
+      description: "Apa yang dijalankan oleh instans AIMail ini.",
+    },
+    admin: { title: "Pentadbir AIMail", description: "Kesihatan saluran dan peristiwa privasi." },
+    extension: {
+      title: "Panel sambungan Chrome AIMail",
+      description:
+        "Panel sisi AIMail yang ringkas dengan ringkasan AI, item tindakan dan draf balasan.",
+    },
+    signin: {
+      title: "AIMail: pembantu e-mel peribadi",
+      description:
+        "AIMail mendraf balasan untuk e-mel kerja anda, menyembunyikan butiran peribadi sebelum AI melihatnya, dan tidak menghantar apa-apa tanpa kelulusan anda.",
+    },
+  },
   announce: {
     regenerated: "Draf dijana semula",
     refined: "Draf diperhalus",

@@ -729,6 +729,38 @@ export const en = {
     supabase_unavailable: "The sign-in service is unreachable. Try again shortly.",
   },
   confirm: { retry: "Try again" },
+  meta: {
+    app: {
+      title: "AIMail",
+      description: "AI inbox assistant: masked mail, grounded drafts, human-approved replies.",
+    },
+    inbox: {
+      title: "AIMail: AI inbox dashboard",
+      description:
+        "Prioritised inbox with AI summaries, action items and draft replies sent only once you approve them.",
+    },
+    drafts: { title: "AIMail drafts", description: "Draft replies waiting for your review." },
+    sent: { title: "AIMail sent", description: "Replies a human approved and AIMail sent." },
+    knowledge: {
+      title: "AIMail knowledge base",
+      description: "Policy documents AIMail grounds its reply drafts in.",
+    },
+    audit: {
+      title: "AIMail audit trail",
+      description: "Your audit trail, linked record to record by SHA-256 hashes.",
+    },
+    settings: { title: "AIMail settings", description: "What this AIMail instance is running." },
+    admin: { title: "AIMail admin", description: "Pipeline health and privacy events." },
+    extension: {
+      title: "AIMail Chrome extension panel",
+      description: "Condensed AIMail side panel with AI summary, action items and draft reply.",
+    },
+    signin: {
+      title: "AIMail: private email assistant",
+      description:
+        "AIMail drafts replies to your work email, hides personal details before any AI sees them, and sends nothing without your approval.",
+    },
+  },
   announce: {
     regenerated: "Draft regenerated",
     refined: "Draft refined",

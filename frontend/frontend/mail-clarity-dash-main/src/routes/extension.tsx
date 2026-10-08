@@ -3,23 +3,14 @@ import { useTranslation } from "react-i18next";
 
 import SidePanel from "../components/SidePanel";
 import { PageEmpty, PageError, PageLoading } from "../components/PageState";
+import { Page, pageMeta } from "../lib/pageMeta";
 import { useEmail, useEmails } from "../lib/queries";
 import { useDraftWorkflow } from "../lib/useDraftWorkflow";
 
 export const Route = createFileRoute("/extension")({
-  head: () => ({
+  head: ({ match }) => ({
     meta: [
-      { title: "AIMail Chrome extension panel" },
-      {
-        name: "description",
-        content:
-          "Condensed AIMail side panel: AI summary, action items, and an approve-to-send draft reply.",
-      },
-      { property: "og:title", content: "AIMail Chrome extension panel" },
-      {
-        property: "og:description",
-        content: "Condensed AIMail side panel with AI summary, action items, and draft reply.",
-      },
+      ...pageMeta(match.context.preferences.language, Page.Extension),
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],

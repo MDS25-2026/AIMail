@@ -1,4 +1,5 @@
 import js from "@eslint/js";
+import i18next from "eslint-plugin-i18next";
 import eslintPluginPrettier from "eslint-plugin-prettier/recommended";
 import globals from "globals";
 import reactHooks from "eslint-plugin-react-hooks";
@@ -68,6 +69,13 @@ export default tseslint.config(
       "src/test/**/*.{ts,tsx}",
     ],
     rules: restrictImports({ paths: [SERVER_ONLY] }),
+  },
+  {
+    // Every word a reader sees goes through i18n (en, ms, zh); vendored shadcn/ui is exempt.
+    files: ["src/components/**/*.tsx", "src/routes/**/*.tsx", "src/extension/**/*.tsx"],
+    ignores: ["src/components/ui/**", "**/__tests__/**"],
+    plugins: { i18next },
+    rules: { "i18next/no-literal-string": ["error", { mode: "jsx-text-only" }] },
   },
   {
     // TanStack file routes export `Route` beside their components by design, and the router

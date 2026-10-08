@@ -6,6 +6,7 @@ import InboxList from "../components/InboxList";
 import EmailDetailPanel from "../components/EmailDetailPanel";
 import AppShell from "../components/AppShell";
 import { PageEmpty, PageError, PageLoading } from "../components/PageState";
+import { Page, pageMeta } from "../lib/pageMeta";
 import { useEmail, useEmails, useSession } from "../lib/queries";
 import { useDraftWorkflow } from "../lib/useDraftWorkflow";
 
@@ -16,20 +17,9 @@ export const Route = createFileRoute("/")({
   validateSearch: (search: Record<string, unknown>): InboxSearch => ({
     email: typeof search.email === "string" ? search.email : undefined,
   }),
-  head: () => ({
+  head: ({ match }) => ({
     meta: [
-      { title: "AIMail — AI inbox dashboard" },
-      {
-        name: "description",
-        content:
-          "AIMail dashboard: prioritized inbox, AI summaries, action items, and approved-only draft replies.",
-      },
-      { property: "og:title", content: "AIMail — AI inbox dashboard" },
-      {
-        property: "og:description",
-        content:
-          "Prioritized inbox with AI summaries, action items, and human-approved draft replies.",
-      },
+      ...pageMeta(match.context.preferences.language, Page.Inbox),
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
