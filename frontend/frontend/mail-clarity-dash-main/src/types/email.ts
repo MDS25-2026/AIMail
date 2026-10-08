@@ -6,6 +6,7 @@
 
 export type Priority = "high" | "medium" | "low";
 export type Tone = "professional" | "casual";
+export type EmailCategory = "client" | "vendor" | "internal" | "security" | "admin" | "personal";
 
 export type ThreadMessage = {
   sender: string;
@@ -58,6 +59,8 @@ export type Email = {
   /** ISO 8601 */
   timestamp: string;
   priority: Priority;
+  category?: EmailCategory;
+  categoryConfidence?: number;
   threadContext: ThreadMessage[];
   aiSummary: string;
   actionItems: string[];

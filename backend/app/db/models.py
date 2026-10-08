@@ -161,6 +161,8 @@ class Message(Base):
     importance_confidence: Mapped[float | None]
     deadline_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     importance_model_version: Mapped[str | None] = mapped_column(Text)
+    category: Mapped[str | None] = mapped_column(Text)
+    category_confidence: Mapped[float | None]
     # Lane C generation, cached so opening an email doesn't regenerate every time.
     ai_summary: Mapped[str | None] = mapped_column(Text)
     draft_reply: Mapped[str | None] = mapped_column(Text)
