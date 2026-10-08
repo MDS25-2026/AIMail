@@ -21,9 +21,7 @@ export default function DraftActionsBar({ workflow, isSent }: DraftActionsBarPro
           role="status"
           className="flex items-center justify-between rounded-md border border-warning-line bg-warning-soft px-3 py-2 text-sm text-warning"
         >
-          <span>
-            {t("draft.undoSendingIn", { count: workflow.undoCountdown })}
-          </span>
+          <span>{t("draft.undoSendingIn", { count: workflow.undoCountdown })}</span>
           <button
             type="button"
             onClick={workflow.undoSend}

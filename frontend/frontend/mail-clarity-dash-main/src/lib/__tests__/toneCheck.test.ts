@@ -4,21 +4,24 @@ import { checkTone } from "../toneCheck";
 
 describe("checkTone", () => {
   test("returns no issues for professional, clean drafts", () => {
-    const draft = "Dear Alice,\n\nThank you for the update. We will review the documents and follow up by Friday.\n\nBest regards,\nJiaJun";
+    const draft =
+      "Dear Alice,\n\nThank you for the update. We will review the documents and follow up by Friday.\n\nBest regards,\nJiaJun";
     const result = checkTone(draft);
     expect(result.hasIssues).toBe(false);
     expect(result.issueCodes).toEqual([]);
   });
 
   test("allows legitimate international and Malaysian enterprise acronyms", () => {
-    const draft = "Please submit the LHDN tax form, KWSP contribution and SOCSO report before the KPI review. PDPA compliance is OK. FYI, the CEO approved the SOW.";
+    const draft =
+      "Please submit the LHDN tax form, KWSP contribution and SOCSO report before the KPI review. PDPA compliance is OK. FYI, the CEO approved the SOW.";
     const result = checkTone(draft);
     expect(result.hasIssues).toBe(false);
     expect(result.issueCodes).toEqual([]);
   });
 
   test("allows legitimate business dispute words like unacceptable or terrible in context", () => {
-    const draft = "The delay on this delivery is unacceptable and the service level has been terrible. Please provide an explanation.";
+    const draft =
+      "The delay on this delivery is unacceptable and the service level has been terrible. Please provide an explanation.";
     const result = checkTone(draft);
     expect(result.issueCodes).not.toContain("RUDE");
   });
