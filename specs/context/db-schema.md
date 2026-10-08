@@ -145,8 +145,8 @@ listener — a migration must create `messages` + `audit_log` in Supabase before
 | `received_at` | `TIMESTAMPTZ` | Lane A | |
 | `importance` | `SMALLINT NULL` | Lane B | 0/1/2 = LOW/MEDIUM/HIGH |
 | `importance_confidence` | `REAL NULL` | Lane B | 0..1 |
-| `category` | `TEXT NULL` | Lane B | 6-category B2B taxonomy: client, vendor, internal, security, admin, personal (migration 0025) |
-| `category_confidence` | `REAL NULL` | Lane B | 0..1 calibrated confidence (migration 0025) |
+| `category` | `TEXT NULL` | Lane B | 6-category B2B taxonomy: client, vendor, internal, security, admin, personal (migration 0033) |
+| `category_confidence` | `REAL NULL` | Lane B | 0..1 calibrated confidence (migration 0033) |
 | `deadline_at` | `TIMESTAMPTZ NULL` | Lane B | extracted deadline |
 | `importance_model_version` | `TEXT NULL` | Lane B | clean re-score on retrain |
 | `ai_summary` | `TEXT NULL` | Lane C | cached generation (migration 0004) |
@@ -154,7 +154,7 @@ listener — a migration must create `messages` + `audit_log` in Supabase before
 | `action_items` | `JSONB NULL` | Lane C | cached generation |
 | `critic_confidence` | `REAL NULL` | Lane C | cached generation |
 | `critic_attempts` | `SMALLINT NULL` | Lane C | how many refine rounds the critic forced before the draft passed. The only observable evidence the review gate ever engages — a draft rescued by refinement is indistinguishable from a first-pass success without it (migration 0008) |
-| `critic_checks` | `JSONB NULL` | Lane C | the review gate's result: `grounding_ok`, `pii_clean`, `tone_match`, `completeness`, `pii_findings`, `review_reasons`, and `model_calls` (one `{model, outcome, ms}` per Gemini attempt; outcomes and timings only, never content) (migration 0010) |
+| `critic_checks` | `JSONB NULL` | Lane C | the review gate's result: `grounding_ok`, `pii_clean`, `tone_match`, `completeness`, `pii_findings`, `review_reasons`, and `model_calls` (one `{model, outcome, ms}` per Gemini attempt; outcomes and timings only, never content), and `prompt_version` (`email_agent.PROMPT_VERSION`, the prompt wording that wrote the draft) (migration 0010) |
 | `needs_human_review` | `BOOLEAN NULL` | Lane C | true when `review_reasons` is non-empty; stored so the dashboard filters without unpacking JSON (migration 0010) |
 | `rag_sources` | `JSONB NULL` | backend | the policy chunks the cached draft was grounded on, `[{label, chunkId, excerpt, score}]`, captured at generation so the reviewer sees what the model saw (migration 0011) |
 | `generated_at` | `TIMESTAMPTZ NULL` | Lane C | when cached; NULL = not generated yet |
@@ -232,8 +232,10 @@ lowercased.
 - [x] `user_preferences.draft_provider` — `gemini` or `local` (Private mode, [`../features/local-model.md`](../features/local-model.md), migration 0022).
 - [x] `messages.auth_status` (`pass` / `spoof_detected` / `sender_confirmed`), and on `audit_log`: `user_id` (FK, set null), `prev_hash`, `current_hash`, `chain_seq` (unique), filled by the `trg_compute_audit_hash` trigger with `audit_row_hash()` ([`../features/sender-verification-and-audit.md`](../features/sender-verification-and-audit.md), migration 0024, replacing PR #161's 0019/0020).
 - [x] `local_embedding` — Private mode's search vectors: `chunk_id` (FK, cascade), `embedding vector(768)`, `model_name`; unique on (`chunk_id`, `model_name`), own HNSW index. Never searched together with `embedding` ([`../features/local-model.md`](../features/local-model.md), migration 0023).
-- [x] `writing_style`, `style_example`, `style_habit`, `messages.draft_shown`, `messages.edit_ratio` — per-user writing style, masked before storage; see [`../features/writing-profile.md`](../features/writing-profile.md) (migration 0020).
-- [ ] `holding_reply_settings`, `holding_reply`, `messages.is_automated` — proposed in [`../features/holding-reply.md`](../features/holding-reply.md).
+- [x] `writing_style`, `style_example`, `style_habit`, `messages.draft_shown`, `messages.edit_ratio` — per-user writing style, masked before storage; see [`../features/writing-profile.md`](../features/writing-profile.md) (migration 0020); `style_habit.language` (en/ms/zh, NULL for habits learned before 0030) keeps habits per language (migration 0030).
+- [x] `holding_reply_settings`, `holding_reply`, `messages.is_automated` — see [`../features/holding-reply.md`](../features/holding-reply.md) (migration 0019); `messages.draft_tone` (professional/casual, NULL before 0031) is the tone the stored draft was written in (migration 0031). `messages.draft_requested_at` is when a person opened it undrafted; the worker drafts those first (migration 0032).
 - [ ] `email_embedding` — pgvector index over historical replies for retrieval.
 
 > The `chat` → `conversation` parent/child shape is the memory backbone: each new email in a thread reuses the prior `conversation` rows as context, which is what gives the agent its "attention span" across replies. See [`../agent-pipeline.md`](../agent-pipeline.md) for how these tables are read and written during a generation.
+- [x] `schema_migrations` (version, checksum, applied_at): the migration ledger (app/db/migrate.py), RLS on.
+- [x] `model_egress`: one row per prompt that left for a model (purpose, provider, chars, sha256, hidden by kind, caught), FK to user and message, RLS on (migration 0026).

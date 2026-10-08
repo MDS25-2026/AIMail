@@ -3,23 +3,14 @@ import { useTranslation } from "react-i18next";
 
 import SidePanel from "../components/SidePanel";
 import { PageEmpty, PageError, PageLoading } from "../components/PageState";
+import { Page, pageMeta } from "../lib/pageMeta";
 import { useEmail, useEmails } from "../lib/queries";
 import { useDraftWorkflow } from "../lib/useDraftWorkflow";
 
 export const Route = createFileRoute("/extension")({
-  head: () => ({
+  head: ({ match }) => ({
     meta: [
-      { title: "AIMail Chrome extension panel" },
-      {
-        name: "description",
-        content:
-          "Condensed AIMail side panel: AI summary, action items, and an approve-to-send draft reply.",
-      },
-      { property: "og:title", content: "AIMail Chrome extension panel" },
-      {
-        property: "og:description",
-        content: "Condensed AIMail side panel with AI summary, action items, and draft reply.",
-      },
+      ...pageMeta(match.context.preferences.language, Page.Extension),
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -43,7 +34,7 @@ function ExtensionPage() {
   const selected = useEmail(candidate?.id ?? null);
   const email = selected.data ?? candidate;
 
-  const workflow = useDraftWorkflow(email);
+  const workflow = useDraftWorkflow(email, selected);
 
   return (
     <div className="min-h-screen bg-app p-8">
@@ -59,27 +50,7 @@ function ExtensionPage() {
         {emails.data && !email ? (
           <PageEmpty title={t("extension.emptyTitle")} hint={t("extension.emptyHint")} />
         ) : null}
-        {email ? (
-          <SidePanel
-            email={email}
-            draft={workflow.draft}
-            tone={workflow.tone}
-            onDraftChange={workflow.setDraft}
-            onToneChange={(_emailId, tone) => workflow.regenerate(tone)}
-            onRegenerate={() => workflow.regenerate()}
-            onRefine={(_emailId, instruction) => workflow.refine(instruction)}
-            onApproveSend={workflow.send}
-            isRegenerating={workflow.isRegenerating}
-            isRefining={workflow.isRefining}
-            isSending={workflow.isSending}
-            status={{
-              ...workflow.status,
-              isGenerating: selected.isLoading,
-              isLoadFailed: selected.isError,
-              onRetryLoad: () => void selected.refetch(),
-            }}
-          />
-        ) : null}
+        {email ? <SidePanel email={email} workflow={workflow} /> : null}
       </div>
     </div>
   );

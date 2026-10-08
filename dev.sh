@@ -28,9 +28,10 @@ done
 
 # --no-access-log: app.request logs each request without its query (see Makefile `backend`).
 ( cd backend && ../.venv/bin/uvicorn app.main:app --reload --no-access-log 2>&1 | sed 's/^/[backend]  /' ) &
-# Agent is bound to 127.0.0.1 explicitly: it has no auth of its own, so reachability off-host
-# would be an unauthenticated LLM endpoint. Do not change to 0.0.0.0 without adding a token.
+# The agent checks AGENT_TOKEN; without one (dev) it answers loopback callers only, so it stays on 127.0.0.1.
 ( cd backend && ../.venv/bin/uvicorn email_agent:app --reload --port 8001 --host 127.0.0.1 2>&1 | sed 's/^/[agent]    /' ) &
+# Every background job (drafting, embedding, holding replies, retention, send reconciliation).
+( cd backend && ../.venv/bin/python -m app.worker 2>&1 | sed 's/^/[worker]   /' ) &
 ( cd frontend/frontend/mail-clarity-dash-main && npm run dev -- --port 8090 --strictPort 2>&1 | sed 's/^/[web]      /' ) &
 # The listener holds long-lived Google connections, and a transient TLS or token-refresh failure
 # exits it outright. Unsupervised that is the worst failure shape: every other service keeps

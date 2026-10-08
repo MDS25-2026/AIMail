@@ -20,6 +20,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from fastapi.testclient import TestClient
 
 from app import sign_in
+from app.contracts import EmailPage
 from app.core import supabase_auth
 from app.core.auth import CLIENT_HEADER, SESSION_COOKIE
 from app.core.config import get_settings
@@ -65,8 +66,8 @@ def client(monkeypatch, test_settings):
     monkeypatch.setattr(supabase_auth, "_jwks", lambda base: _FakeJwks())
     monkeypatch.setattr(sign_in.connections, "needs_reconnect", _never)
 
-    async def emails(scope, policy_email):
-        return [EMAIL]
+    async def emails(scope, policy_email, limit, after):
+        return EmailPage(emails=[EMAIL])
 
     async def detail(message_id, *, scope):
         return EMAIL
@@ -89,16 +90,16 @@ def test_no_cookie_and_no_bearer_is_401(client):
 
 def test_the_shared_token_still_works_for_scripts(client):
     response = client.get("/emails", headers={"Authorization": f"Bearer {API_TOKEN}"})
-    assert response.status_code == 200 and response.json() == [EMAIL.model_dump(mode="json")]
+    assert response.status_code == 200 and response.json()["emails"] == [EMAIL.model_dump(mode="json")]
 
 
 def test_a_session_cookie_works_for_reads(client):
-    assert _signed_in(client, OWNER).get("/emails").json() == [EMAIL.model_dump(mode="json")]
+    assert _signed_in(client, OWNER).get("/emails").json()["emails"] == [EMAIL.model_dump(mode="json")]
 
 
 def test_a_cookie_request_that_changes_state_needs_the_client_header(client):
     response = _signed_in(client, OWNER).post("/emails/e1/send", json={"draft": "Thanks."})
-    assert response.status_code == 403 and response.json()["detail"] == "client_header_missing"
+    assert response.status_code == 403 and response.json()["error"]["code"] == "client_header_missing"
 
 
 def test_a_supabase_bearer_works_without_the_header(client):
@@ -117,7 +118,7 @@ def test_a_forged_session_is_401(client):
 # ---------- Whose mail ----------
 
 def test_another_user_sees_an_empty_inbox(client):
-    assert _signed_in(client, "someone.else@gmail.com").get("/emails").json() == []
+    assert _signed_in(client, "someone.else@gmail.com").get("/emails").json()["emails"] == []
 
 
 def test_another_user_gets_404_for_an_email_id(client):
@@ -125,7 +126,7 @@ def test_another_user_gets_404_for_an_email_id(client):
 
 
 def test_the_owner_match_ignores_case(client):
-    assert _signed_in(client, "Owner@Gmail.com").get("/emails").json() == [EMAIL.model_dump(mode="json")]
+    assert _signed_in(client, "Owner@Gmail.com").get("/emails").json()["emails"] == [EMAIL.model_dump(mode="json")]
 
 
 def test_the_session_endpoint_says_whether_a_mailbox_is_connected(client):

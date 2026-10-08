@@ -4,59 +4,32 @@ import { useTranslation } from "react-i18next";
 import { splitAround } from "../lib/conversations";
 import { detailValues } from "../lib/details";
 import { DetailsContext } from "../lib/detailsContext";
+import { DraftAvailability, draftAvailability } from "../lib/draftAvailability";
+import type { DraftWorkflow } from "../lib/useDraftWorkflow";
 import { useFormat } from "../lib/useFormat";
-import { AuthStatus, type Email, type Tone } from "../types/email";
-import AISummaryCard from "./AISummaryCard";
-import EmailBody from "./EmailBody";
-import QuarantineNotice from "./QuarantineNotice";
-import HiddenDetailChips from "./HiddenDetailChips";
-import PrivacyReceipt from "./PrivacyReceipt";
-import SecurityNotice from "./SecurityNotice";
+import { AuthStatus, type Email } from "../types/email";
 import ActionItemsList from "./ActionItemsList";
+import AISummaryCard from "./AISummaryCard";
 import ConversationMessages from "./ConversationMessages";
-import DraftReplyEditor from "./DraftReplyEditor";
-import SourcesChips from "./SourcesChips";
-import RefineInput from "./RefineInput";
-import DraftActionsBar from "./DraftActionsBar";
-import DraftStatus, { type DraftStatusProps } from "./DraftStatus";
-import PriorityBadge from "./PriorityBadge";
 import DetailsToggle from "./DetailsToggle";
+import DraftActionsBar from "./DraftActionsBar";
+import DraftGate from "./DraftGate";
+import DraftReplyEditor from "./DraftReplyEditor";
+import DraftStatus from "./DraftStatus";
+import EmailBody from "./EmailBody";
+import HiddenDetailChips from "./HiddenDetailChips";
 import MissingDetailsNotice from "./MissingDetailsNotice";
-import WithDetails from "./WithDetails";
+import PriorityBadge from "./PriorityBadge";
+import PrivacyReceipt from "./PrivacyReceipt";
+import RefineInput from "./RefineInput";
+import SourcesChips from "./SourcesChips";
 import UseAsExampleButton from "./UseAsExampleButton";
+import WithDetails from "./WithDetails";
 
-type EmailDetailPanelProps = {
-  email: Email | null;
-  draft: string;
-  tone: Tone;
-  onDraftChange: (draft: string) => void;
-  onToneChange: (emailId: string, tone: Tone) => void;
-  onRegenerate: (emailId: string) => void;
-  onRefine: (emailId: string, instruction: string) => Promise<void>;
-  onApproveSend: (emailId: string) => void;
-  isRegenerating?: boolean;
-  isRefining?: boolean;
-  isSending?: boolean;
-  status: DraftStatusProps;
-};
+type EmailDetailPanelProps = { email: Email | null; workflow: DraftWorkflow };
 
-export default function EmailDetailPanel({
-  email,
-  draft,
-  tone,
-  onDraftChange,
-  onToneChange,
-  onRegenerate,
-  onRefine,
-  onApproveSend,
-  isRegenerating = false,
-  isRefining = false,
-  isSending = false,
-  status,
-}: EmailDetailPanelProps) {
+export default function EmailDetailPanel({ email, workflow }: EmailDetailPanelProps) {
   const { t } = useTranslation();
-  const format = useFormat();
-  const isDraftBusy = isRegenerating || isRefining || isSending || status.isGenerating;
   if (!email) {
     return (
       <div className="flex h-full items-center justify-center p-8 text-sm text-fg-subtle">
@@ -65,9 +38,46 @@ export default function EmailDetailPanel({
     );
   }
 
-  const conversation = splitAround(email.threadContext, email.timestamp);
+  const availability = draftAvailability(email);
+  // Quarantined (#109): nothing to read or draft from until the listener can mask the content.
+  if (availability === DraftAvailability.Quarantined) {
+    return (
+      <div className="relative h-full overflow-y-auto">
+        <DetailHeader email={email} />
+        <div className="p-6">
+          <DraftGate email={email} availability={availability}>
+            {null}
+          </DraftGate>
+        </div>
+      </div>
+    );
+  }
 
-  const header = (
+  const conversation = splitAround(email.threadContext, email.timestamp);
+  return (
+    <DetailsContext.Provider value={detailValues(email.details)}>
+      <div className="relative h-full overflow-y-auto">
+        <DetailHeader email={email} />
+        <div className="space-y-4 p-6">
+          <MissingDetailsNotice email={email} draft={workflow.draft} />
+          <ConversationMessages messages={conversation.earlier} />
+          <EmailBody key={email.id} email={email} />
+          <ConversationMessages messages={conversation.later} />
+          <AISummaryCard summary={email.aiSummary} />
+          <ActionItemsList items={email.actionItems} />
+          <DraftGate email={email} availability={availability}>
+            <DraftSection email={email} workflow={workflow} />
+          </DraftGate>
+        </div>
+      </div>
+    </DetailsContext.Provider>
+  );
+}
+
+function DetailHeader({ email }: { email: Email }) {
+  const { t } = useTranslation();
+  const format = useFormat();
+  return (
     <header className="border-b border-line bg-surface px-6 py-4">
       <div className="flex items-start justify-between gap-3">
         <h1 className="text-base font-semibold text-fg">
@@ -86,89 +96,43 @@ export default function EmailDetailPanel({
         </div>
       </div>
       <p className="mt-0.5 text-sm text-fg-muted">
-        {email.sender} &middot; {format.timestamp(email.timestamp)}
+        {t("detail.fromAt", { sender: email.sender, when: format.timestamp(email.timestamp) })}
       </p>
     </header>
   );
+}
 
-  // Quarantined (#109): nothing to read or draft from until the listener can mask the content.
-  if (email.masking === "pending" || email.masking === "abandoned") {
-    return (
-      <div className="relative h-full overflow-y-auto">
-        {header}
-        <div className="p-6">
-          <QuarantineNotice isAbandoned={email.masking === "abandoned"} />
-        </div>
-      </div>
-    );
-  }
-
+function DraftSection({ email, workflow }: { email: Email; workflow: DraftWorkflow }) {
+  const { t } = useTranslation();
+  const format = useFormat();
   return (
-    <DetailsContext.Provider value={detailValues(email.details)}>
-      <div className="relative h-full overflow-y-auto">
-        {header}
-
-        <div className="space-y-4 p-6">
-          <MissingDetailsNotice email={email} draft={draft} />
-          <ConversationMessages messages={conversation.earlier} />
-          <EmailBody key={email.id} email={email} />
-          <ConversationMessages messages={conversation.later} />
-
-          <AISummaryCard summary={email.aiSummary} />
-          <ActionItemsList items={email.actionItems} />
-
-          {email.authStatus === AuthStatus.SpoofDetected ? (
-            <SecurityNotice emailId={email.id} />
-          ) : (
-            <section className="space-y-4 rounded-lg border border-line bg-surface p-4">
-              <DraftReplyEditor
-                email={email}
-                draft={draft}
-                tone={tone}
-                onDraftChange={onDraftChange}
-                onToneChange={onToneChange}
-                // A tone change regenerates the draft, so it is blocked mid-send like the rest.
-                disabled={isDraftBusy}
-              />
-
-              <HiddenDetailChips
-                key={`hidden-${email.id}`}
-                draft={draft}
-                values={detailValues(email.details)}
-                onDraftChange={onDraftChange}
-                disabled={isDraftBusy}
-              />
-
-              <SourcesChips key={email.id} sources={email.sources} draft={draft} />
-
-              <RefineInput emailId={email.id} onRefine={onRefine} disabled={isDraftBusy} />
-
-              <DraftStatus {...status} />
-
-              <div className="flex items-center justify-between gap-3 border-t border-line-subtle pt-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-xs text-fg-subtle">
-                    {email.sentAt
-                      ? t("detail.sentAt", { when: format.timestamp(email.sentAt) })
-                      : t("detail.notSentYet")}
-                  </p>
-                  {email.sentAt ? <UseAsExampleButton key={email.id} emailId={email.id} /> : null}
-                </div>
-                <DraftActionsBar
-                  emailId={email.id}
-                  onRegenerate={onRegenerate}
-                  onApproveSend={onApproveSend}
-                  isRegenerating={isRegenerating}
-                  isRefining={isRefining}
-                  isSending={isSending}
-                  isSent={Boolean(email.sentAt)}
-                  isGenerating={status.isGenerating}
-                />
-              </div>
-            </section>
-          )}
+    <section className="space-y-4 rounded-lg border border-line bg-surface p-4">
+      <DraftReplyEditor email={email} workflow={workflow} />
+      <HiddenDetailChips
+        key={`hidden-${email.id}`}
+        draft={workflow.draft}
+        values={detailValues(email.details)}
+        onDraftChange={workflow.setDraft}
+        disabled={workflow.isDraftLocked}
+      />
+      <SourcesChips key={email.id} sources={email.sources} draft={workflow.draft} />
+      <RefineInput
+        onRefine={workflow.refine}
+        disabled={workflow.isDraftLocked}
+        isRefining={workflow.isRefining}
+      />
+      <DraftStatus {...workflow.status} />
+      <div className="flex items-center justify-between gap-3 border-t border-line-subtle pt-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-xs text-fg-subtle">
+            {email.sentAt
+              ? t("detail.sentAt", { when: format.timestamp(email.sentAt) })
+              : t("detail.notSentYet")}
+          </p>
+          {email.sentAt ? <UseAsExampleButton key={email.id} emailId={email.id} /> : null}
         </div>
+        <DraftActionsBar workflow={workflow} isSent={Boolean(email.sentAt)} />
       </div>
-    </DetailsContext.Provider>
+    </section>
   );
 }

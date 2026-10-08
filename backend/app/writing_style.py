@@ -7,7 +7,7 @@ trained: the style reaches the agent as a short fenced hint plus the examples.
 
 import logging
 import re
-from collections import Counter
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from enum import StrEnum
@@ -16,9 +16,10 @@ from uuid import UUID
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.language import Language, detect_language, word_count
 from app.core.redaction import ANY_MASK, PLACEHOLDER
 from app.db.models import Message, StyleExample, StyleHabit, WritingStyle
-from app.rag.mask import mask_document
+from app.rag.mask import MaskProfile, mask_document
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +81,8 @@ class Habit:
     value: str
     evidence: int
     out_of: int
+    # Learned from replies in this language only: "Salam" opens Malay replies, not English ones.
+    language: Language = Language.EN
 
 
 @dataclass(frozen=True)
@@ -114,7 +117,7 @@ def hide_closing_name(text: str) -> str:
 
 async def mask_for_style(text: str) -> str:
     """Masked and neutralised. Raises DocumentMaskingError when the masker is unreachable."""
-    return hide_closing_name(neutralise(await mask_document(neutralise(text.strip()))))
+    return hide_closing_name(neutralise(await mask_document(neutralise(text.strip()), profile=MaskProfile.PERSONAL)))
 
 
 def edit_ratio(shown: str, sent: str) -> float:
@@ -165,7 +168,7 @@ def signoff_of(text: str) -> str | None:
 
 
 def length_of(text: str) -> ReplyLength:
-    words = len(text.split())
+    words = word_count(text)
     if words < SHORT_REPLY_WORDS:
         return ReplyLength.SHORT
     return ReplyLength.LONG if words > LONG_REPLY_WORDS else ReplyLength.MEDIUM
@@ -208,8 +211,10 @@ def _top(values: list[str], kind: HabitKind, out_of: int) -> list[Habit]:
     return [Habit(kind, value, evidence, out_of)] if evidence >= MIN_EVIDENCE else []
 
 
-def learn(pairs: list[tuple[str, str, float]]) -> list[Habit]:
-    """Habits from (shown, sent, ratio) pairs, newest first. Pure: the caller stores them."""
+Pair = tuple[str, str, float]
+
+
+def _learn_one(pairs: list[Pair]) -> list[Habit]:
     sents = [sent for _, sent, _ in pairs]
     edited = [(shown, sent) for shown, sent, ratio in pairs if ratio <= REWRITE_RATIO and shown]
     lengths = Counter(length_of(sent) for sent in sents).most_common(1)
@@ -221,6 +226,15 @@ def learn(pairs: list[tuple[str, str, float]]) -> list[Habit]:
     swaps = Counter(swap for shown, sent in edited for swap in swaps_of(shown, sent))
     habits += [Habit(HabitKind.SWAP, swap, n, len(edited)) for swap, n in swaps.items() if n >= MIN_EVIDENCE]
     return habits
+
+
+def learn(pairs: list[Pair]) -> list[Habit]:
+    """Habits from (shown, sent, ratio) pairs, newest first, per language. Pure: the caller stores them."""
+    by_language: dict[Language, list[Pair]] = defaultdict(list)
+    for pair in pairs:
+        by_language[detect_language(pair[1])].append(pair)
+    return [Habit(h.kind, h.value, h.evidence, h.out_of, language)
+            for language, group in by_language.items() for h in _learn_one(group)]
 
 
 async def is_learning(session: AsyncSession, user_id: UUID | None) -> bool:
@@ -243,7 +257,8 @@ async def relearn(session: AsyncSession, user_id: UUID) -> None:
     )).all())
     await session.execute(delete(StyleHabit).where(StyleHabit.user_id == user_id, ~StyleHabit.suppressed))
     session.add_all(
-        StyleHabit(user_id=user_id, kind=h.kind, value=h.value, evidence=h.evidence, out_of=h.out_of)
+        StyleHabit(user_id=user_id, kind=h.kind, value=h.value, evidence=h.evidence, out_of=h.out_of,
+                   language=h.language)
         for h in learn(pairs) if (h.kind, h.value) not in hidden
     )
 
@@ -264,13 +279,34 @@ def _habit_line(habit: StyleHabit) -> str:
             return f'Writes "{new}" rather than "{old}".'
 
 
-async def style_for(session: AsyncSession, user_id: UUID | None) -> Style:
-    """The hint and examples a draft for this user carries. Legacy rows with no owner get none."""
+def clip(text: str, limit: int) -> str:
+    """At most `limit` characters, ending on a whole word: a cut word reads as a typo to copy."""
+    if len(text) <= limit:
+        return text
+    cut = text[:limit]
+    space = max(cut.rfind(" "), cut.rfind("\n"))
+    return cut[:space].rstrip() if space > 0 else cut
+
+
+def _whole_lines(lines: list[str], limit: int) -> str:
+    """As many whole lines as fit: a hint cut mid-line can turn an instruction into its opposite."""
+    kept: list[str] = []
+    for line in lines:
+        if len("\n".join([*kept, line])) > limit:
+            break
+        kept.append(line)
+    return "\n".join(kept)
+
+
+async def style_for(session: AsyncSession, user_id: UUID | None, language: Language) -> Style:
+    """The hint and examples a draft in `language` carries. Legacy rows with no owner get none."""
     if user_id is None:
         return Style()
     style = await session.get(WritingStyle, user_id)
+    # A habit learned before languages were recorded (no language) applies until the next relearn.
     habits = (await session.scalars(
-        select(StyleHabit).where(StyleHabit.user_id == user_id, ~StyleHabit.suppressed)
+        select(StyleHabit).where(StyleHabit.user_id == user_id, ~StyleHabit.suppressed,
+                                 StyleHabit.language.is_(None) | (StyleHabit.language == language))
         .order_by(StyleHabit.kind, StyleHabit.evidence.desc())
     )).all()
     examples = (await session.scalars(
@@ -278,5 +314,5 @@ async def style_for(session: AsyncSession, user_id: UUID | None) -> Style:
         .order_by(StyleExample.created_at).limit(MAX_EXAMPLES)
     )).all()
     lines = [style.description] if style and style.description else []
-    hint = "\n".join([*lines, *map(_habit_line, habits)])[:STYLE_HINT_CHARS]
-    return Style(hint=hint, examples=[text[:MAX_EXAMPLE_CHARS] for text in examples])
+    hint = _whole_lines([*lines, *map(_habit_line, habits)], STYLE_HINT_CHARS)
+    return Style(hint=hint, examples=[clip(text, MAX_EXAMPLE_CHARS) for text in examples])

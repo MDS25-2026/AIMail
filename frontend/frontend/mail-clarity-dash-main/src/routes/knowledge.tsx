@@ -3,19 +3,18 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import AppShell from "../components/AppShell";
+import ConfirmAction from "../components/ConfirmAction";
+import { InlineAlert, InlineStatus } from "../components/InlineMessages";
 import { PageEmpty, PageError, PageLoading } from "../components/PageState";
-import { UploadError } from "../lib/api";
+import { button, field } from "../components/variants";
+import { errorMessage } from "../lib/api/errors";
+import { Page, pageMeta } from "../lib/pageMeta";
 import { useAddDocument, useDeleteDocument, useDocuments, useUploadDocument } from "../lib/queries";
+import { cn } from "../lib/utils";
 
 export const Route = createFileRoute("/knowledge")({
-  head: () => ({
-    meta: [
-      { title: "AIMail knowledge base" },
-      {
-        name: "description",
-        content: "Policy documents AImail grounds its reply drafts in.",
-      },
-    ],
+  head: ({ match }) => ({
+    meta: [...pageMeta(match.context.preferences.language, Page.Knowledge)],
   }),
   component: KnowledgePage,
 });
@@ -183,7 +182,7 @@ function PasteCard({
         onChange={(e) => onTitle(e.target.value)}
         placeholder={t("knowledge.titlePlaceholder")}
         aria-label={t("knowledge.titlePlaceholder")}
-        className="mt-3 w-full rounded-md border border-line-strong px-3 py-2 text-sm"
+        className={cn(field(), "mt-3 w-full")}
       />
       <textarea
         value={text}
@@ -191,13 +190,13 @@ function PasteCard({
         placeholder={t("knowledge.textPlaceholder")}
         aria-label={t("knowledge.textPlaceholder")}
         rows={3}
-        className="mt-2 w-full rounded-md border border-line-strong px-3 py-2 text-sm"
+        className={cn(field(), "mt-2 w-full")}
       />
       <button
         type="button"
         disabled={!canSubmit}
         onClick={onSubmit}
-        className="mt-2 rounded-md bg-brand px-4 py-2 text-sm font-semibold text-on-brand hover:bg-brand-strong disabled:cursor-not-allowed disabled:bg-surface-sunken disabled:text-fg-subtle"
+        className={cn(button({ intent: "primary", size: "md" }), "mt-2")}
       >
         {t("knowledge.add")}
       </button>
@@ -224,66 +223,37 @@ function ResultLine({
 }) {
   const { t } = useTranslation();
   if (isPending) return <p className="mt-2 text-xs text-fg-muted">{pending}</p>;
-  if (error)
+  if (error) {
     return (
-      <p role="alert" className="mt-2 text-xs text-danger">
-        {t(
-          error instanceof UploadError
-            ? `knowledge.errors.${error.failure}`
-            : "knowledge.errors.failed",
-        )}
-      </p>
+      <InlineAlert size="xs" className="mt-2">
+        {errorMessage(error, t, "knowledge.uploadFailed")}
+      </InlineAlert>
     );
-  if (chunks !== undefined)
-    return (
-      <p role="status" className="mt-2 text-xs text-success">
-        {t("knowledge.stored", { count: chunks })}
-      </p>
-    );
-  return null;
+  }
+  if (chunks === undefined) return null;
+  return (
+    <InlineStatus size="xs" className="mt-2">
+      {t("knowledge.stored", { count: chunks })}
+    </InlineStatus>
+  );
 }
 
 /** Two steps, so a stray click never removes a policy that drafts rely on. */
 function RemoveDocument({ documentId, title }: { documentId: string; title: string }) {
   const { t } = useTranslation();
-  const [isConfirming, setIsConfirming] = useState(false);
   const remove = useDeleteDocument();
-  if (remove.isError) {
-    return (
-      <span role="alert" className="text-xs text-danger">
-        {t("knowledge.removeFailed")}
-      </span>
-    );
-  }
-  if (!isConfirming) {
-    return (
-      <button
-        type="button"
-        className="text-xs text-fg-muted underline hover:text-danger"
-        aria-label={t("knowledge.removeNamed", { title })}
-        onClick={() => setIsConfirming(true)}
-      >
-        {t("knowledge.remove")}
-      </button>
-    );
-  }
   return (
-    <span className="inline-flex items-center gap-2 whitespace-nowrap text-xs">
-      <button
-        type="button"
-        className="rounded-md border border-danger px-2 py-0.5 font-semibold text-danger"
-        disabled={remove.isPending}
-        onClick={() => remove.mutate(documentId)}
-      >
-        {remove.isPending ? t("knowledge.removing") : t("knowledge.removeYes")}
-      </button>
-      <button
-        type="button"
-        className="text-fg-muted underline"
-        onClick={() => setIsConfirming(false)}
-      >
-        {t("knowledge.removeNo")}
-      </button>
-    </span>
+    <ConfirmAction
+      trigger={t("knowledge.remove")}
+      triggerName={t("knowledge.removeNamed", { title })}
+      question={t("knowledge.removeQuestion", { title })}
+      confirm={t("knowledge.removeYes")}
+      pending={t("knowledge.removing")}
+      cancel={t("knowledge.removeNo")}
+      onConfirm={() => remove.mutateAsync(documentId)}
+      onCancel={remove.reset}
+      isPending={remove.isPending}
+      error={remove.isError ? errorMessage(remove.error, t, "knowledge.removeFailed") : null}
+    />
   );
 }

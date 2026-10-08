@@ -7,7 +7,7 @@ Check lane boundaries against AImail's ownership rules (CLAUDE.md).
 
 1. List the changed/added files (`git status --short` and the diff).
 2. Map each to its lane by folder:
-   - `n8n/` = n8n · `listener/` = Lane A · `frontend/` = Lane D · `infra/` = infra
+   - `legacy/` = archived, not owned · `listener/` = Lane A · `frontend/` = Lane D · `infra/` = infra
    - `backend/` = shared by Lane B and Lane C - `app/rag/`, `app/ml/`, `app/db/` are Lane B; `app/agents/` and generation are Lane C
    - `specs/`, `docs/` = shared
 3. Report:

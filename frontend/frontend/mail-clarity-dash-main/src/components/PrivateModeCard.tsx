@@ -1,20 +1,15 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import { fetchPrivateMode, savePrivateMode } from "../lib/api";
+import { errorMessage } from "../lib/api/errors";
+import { usePrivateMode, useSavePrivateMode } from "../lib/queries";
+import { InlineAlert, InlineStatus } from "./InlineMessages";
 
 /** Private mode (specs/features/local-model.md). Hidden unless the company has set up a local model. */
 
-const PRIVATE_MODE_KEY = ["private-mode"] as const;
-
 export default function PrivateModeCard() {
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
-  const mode = useQuery({ queryKey: PRIVATE_MODE_KEY, queryFn: fetchPrivateMode });
-  const save = useMutation({
-    mutationFn: savePrivateMode,
-    onSuccess: (saved) => queryClient.setQueryData(PRIVATE_MODE_KEY, saved),
-  });
+  const mode = usePrivateMode();
+  const save = useSavePrivateMode();
   // Still shown when it is on but no longer offered, so the user can always switch it off.
   if (!mode.data || !(mode.data.available || mode.data.enabled)) return null;
   const isStranded = mode.data.enabled && !mode.data.available;
@@ -35,9 +30,7 @@ export default function PrivateModeCard() {
         {t("privateMode.switch")}
       </label>
       {isStranded ? (
-        <p role="alert" className="text-sm text-danger">
-          {t("privateMode.notSetUp")}
-        </p>
+        <InlineAlert>{t("privateMode.notSetUp")}</InlineAlert>
       ) : (
         <p className="text-sm text-fg-muted">
           {t("privateMode.intro", { model: mode.data.model })}
@@ -49,14 +42,12 @@ export default function PrivateModeCard() {
         ))}
       </ul>
       {save.isError ? (
-        <p role="alert" className="text-sm text-danger">
-          {t("privateMode.failed")}
-        </p>
+        <InlineAlert>{errorMessage(save.error, t, "privateMode.failed")}</InlineAlert>
       ) : null}
       {save.isSuccess ? (
-        <p role="status" className="text-sm text-success">
+        <InlineStatus>
           {mode.data.enabled ? t("privateMode.on") : t("privateMode.off")}
-        </p>
+        </InlineStatus>
       ) : null}
     </section>
   );

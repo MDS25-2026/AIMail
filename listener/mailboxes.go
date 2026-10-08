@@ -151,7 +151,11 @@ func connectionService(ctx context.Context, row connectionRow) (*gmail.Service, 
 	if err != nil {
 		return nil, err
 	}
-	refreshToken, err := unsealToken(os.Getenv("TOKEN_ENCRYPTION_KEY"), sealed, row.UserID)
+	keys, err := tokenKeys.load()
+	if err != nil {
+		return nil, err
+	}
+	refreshToken, err := unsealToken(keys, sealed, row.UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +186,8 @@ func syncConnections(ctx context.Context) {
 		}
 		if isNewFailure(row.UserID, err) {
 			log.Printf("mailbox for user %s not started, retrying every sync: %v", row.UserID, err)
-			writeAuditLog(ctx, "start_mailbox", fmt.Sprintf("user %s: %v", row.UserID, err), false)
+			writeAuditLog(ctx, row.UserID, actionStartMailbox,
+				auditFields{fieldStage: stageStart, fieldErrorKind: errorKind(err)}, false)
 			noteRefusedGrant(ctx, row.UserID, err)
 		}
 	}
@@ -213,7 +218,7 @@ func noteRefusedGrant(ctx context.Context, userID string, err error) {
 func dropDisconnected(ctx context.Context, rows []connectionRow) {
 	for _, ownerID := range unregisterMissing(rows) {
 		log.Printf("stopped ingesting the mailbox of user %s: disconnected", ownerID)
-		writeAuditLog(ctx, "stop_mailbox", fmt.Sprintf("user %s disconnected", ownerID), true)
+		writeAuditLog(ctx, ownerID, actionStopMailbox, auditFields{fieldReason: reasonDisconnected}, true)
 	}
 }
 
@@ -260,7 +265,7 @@ func startConnection(ctx context.Context, row connectionRow) error {
 	}
 	registerMailbox(mb)
 	log.Printf("ingesting the mailbox of user %s", row.UserID)
-	writeAuditLog(ctx, "start_mailbox", fmt.Sprintf("user %s connected", row.UserID), true)
+	writeAuditLog(ctx, row.UserID, actionStartMailbox, nil, true)
 	if isFirstStart {
 		go seedInbox(ctx, mb)
 	}
@@ -270,7 +275,7 @@ func startConnection(ctx context.Context, row connectionRow) error {
 // watchMailbox asks Gmail to notify the shared topic about this inbox. Gmail drops a watch after
 // about seven days; renewWatchPeriodically calls this again daily.
 func watchMailbox(ctx context.Context, mb *mailbox) error {
-	res, err := mb.srv.Users.Watch("me", &gmail.WatchRequest{TopicName: TopicName, LabelIds: []string{"INBOX"}}).
+	res, err := mb.srv.Users.Watch("me", &gmail.WatchRequest{TopicName: pubsubTopic, LabelIds: []string{"INBOX"}}).
 		Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("watch: %w", err)

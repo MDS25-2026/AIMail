@@ -1,0 +1,25 @@
+{
+  "about": "Fixed-format details every masker's regex floor must remove (listener maskPII, backend mask_typed_text). Both suites read this file; a new format is added here once and both must pass.",
+  "must_mask": [
+    {"kind": "email", "text": "Mail me at aisyah.rahman@example.com today", "secret": "aisyah.rahman@example.com"},
+    {"kind": "email", "text": "cc: Ops-Team+billing@corp.co.uk", "secret": "Ops-Team+billing@corp.co.uk"},
+    {"kind": "phone_my", "text": "Call 012-345 6789 after lunch", "secret": "012-345 6789"},
+    {"kind": "phone_my", "text": "Office line 03-7890 1234", "secret": "7890 1234"},
+    {"kind": "phone_my_compact", "text": "WhatsApp 0123456789 please", "secret": "0123456789"},
+    {"kind": "phone_intl", "text": "From abroad dial +60 12-345 6789", "secret": "345 6789"},
+    {"kind": "phone_intl", "text": "Singapore desk +65 6123 4567", "secret": "6123 4567"},
+    {"kind": "phone_us", "text": "Houston office (713) 853-6161", "secret": "853-6161"},
+    {"kind": "phone_us", "text": "Direct 713-853-6161 or ext", "secret": "713-853-6161"},
+    {"kind": "phone_us_short", "text": "Reception 555-0142", "secret": "555-0142"},
+    {"kind": "ic", "text": "My IC is 880101-14-5523", "secret": "880101-14-5523"},
+    {"kind": "ic_spaced", "text": "IC 880101 14 5523 attached", "secret": "880101 14 5523"},
+    {"kind": "ic_bare", "text": "IC number 880101145523", "secret": "880101145523"},
+    {"kind": "passport", "text": "Passport A12345678 expires", "secret": "A12345678"},
+    {"kind": "url_token", "text": "Reset here https://corp.example/reset?token=abc123secret&user=aisyah", "secret": "abc123secret"}
+  ],
+  "must_keep": [
+    {"kind": "order_number", "text": "order 990099123456 shipped", "keep": "990099123456"},
+    {"kind": "money", "text": "The claim is RM0.60 per km", "keep": "RM0.60"},
+    {"kind": "date", "text": "Due Friday, 9 October 2026", "keep": "9 October 2026"}
+  ]
+}

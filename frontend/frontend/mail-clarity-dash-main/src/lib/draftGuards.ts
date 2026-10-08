@@ -1,13 +1,11 @@
-import { placeholderPattern } from "./details";
+import { isPlaceholder, redactionMarkerPattern } from "./masking";
 
-// Mirrors backend/app/core/redaction.py REDACTION_MARKER: markers no vault can fill back in.
-const REDACTION_MARKER = /\[(?:[A-Z_]+_REDACTED|Redacted|REDACTED)\]|\((?:hidden|name)\)/g;
 // Any short bracketed text; the model sometimes writes "[Your Name]" or "[Company]" itself.
 const BRACKETED = /\[[^[\]\n]{1,40}\]/g;
 
 /** Markers still in a draft. Sent as-is, the recipient would read "[Redacted]" instead of a name. */
 export function findRedactionMarkers(draft: string): string[] {
-  return draft.match(REDACTION_MARKER) ?? [];
+  return draft.match(redactionMarkerPattern()) ?? [];
 }
 
 /**
@@ -17,8 +15,7 @@ export function findRedactionMarkers(draft: string): string[] {
  */
 export function findTemplatePlaceholders(draft: string): string[] {
   return (draft.match(BRACKETED) ?? []).filter(
-    (text) =>
-      !new RegExp(`^${placeholderPattern().source}$`).test(text) && !text.match(REDACTION_MARKER),
+    (text) => !isPlaceholder(text) && !redactionMarkerPattern().test(text),
   );
 }
 

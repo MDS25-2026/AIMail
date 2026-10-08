@@ -1,22 +1,15 @@
-import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import SidePanel, { PanelHeader } from "../components/SidePanel";
-import {
-  fetchEmail,
-  fetchEmailByThread,
-  fetchSession,
-  SIGN_IN_URL,
-  SignedOutError,
-} from "../lib/api";
-import { queryKeys } from "../lib/queries";
+import { button } from "../components/variants";
+import { SIGN_IN_URL } from "../lib/api/config";
+import { isSignedOut } from "../lib/api/errors";
+import { useEmailByThread, usePolledSession, useSeededEmail } from "../lib/queries";
 import { useDraftWorkflow } from "../lib/useDraftWorkflow";
+import { cn } from "../lib/utils";
 import type { Email } from "../types/email";
 import { TabState, useOpenThread } from "./useOpenThread";
-
-// While signed out, check again every couple of seconds, so signing in from the tab takes effect alone.
-const SIGNED_OUT_POLL_MS = 2000;
 
 type OpenSignIn = () => void;
 
@@ -37,16 +30,10 @@ function useSignInTab(isSignedIn: boolean): OpenSignIn {
 
 export default function ExtensionApp() {
   const { tab, threadId } = useOpenThread();
-  const session = useQuery({
-    queryKey: queryKeys.session,
-    queryFn: fetchSession,
-    retry: false,
-    refetchInterval: (query) =>
-      query.state.error instanceof SignedOutError ? SIGNED_OUT_POLL_MS : false,
-  });
+  const session = usePolledSession();
   const openSignIn = useSignInTab(session.isSuccess);
 
-  if (session.error instanceof SignedOutError) return <SignedOut onSignIn={openSignIn} />;
+  if (isSignedOut(session.error)) return <SignedOut onSignIn={openSignIn} />;
   if (tab === TabState.Loading || session.isPending) return <PanelMessage titleKey="loading" />;
   if (tab === TabState.NotGmail)
     return <PanelMessage titleKey="notGmailTitle" hintKey="notGmailHint" />;
@@ -67,12 +54,9 @@ type ThreadPanelProps = { threadId: string; account: string; onSignIn: OpenSignI
 
 function ThreadPanel({ threadId, account, onSignIn }: ThreadPanelProps) {
   const { t } = useTranslation();
-  const found = useQuery({
-    queryKey: ["email-by-thread", threadId],
-    queryFn: () => fetchEmailByThread(threadId),
-  });
+  const found = useEmailByThread(threadId);
 
-  if (found.error instanceof SignedOutError) return <SignedOut onSignIn={onSignIn} />;
+  if (isSignedOut(found.error)) return <SignedOut onSignIn={onSignIn} />;
   if (found.isPending) return <PanelMessage titleKey="preparing" account={account} />;
   if (found.isError) {
     return (
@@ -87,37 +71,9 @@ function ThreadPanel({ threadId, account, onSignIn }: ThreadPanelProps) {
 }
 
 function OpenEmail({ initial, account }: { initial: Email; account: string }) {
-  // Seeded from the lookup and keyed like the dashboard's detail, so every draft action's
-  // response (written to this key) updates the panel without another round trip.
-  const { data: email } = useQuery({
-    queryKey: queryKeys.email(initial.id),
-    queryFn: () => fetchEmail(initial.id),
-    initialData: initial,
-    staleTime: Infinity,
-  });
+  const { data: email } = useSeededEmail(initial);
   const workflow = useDraftWorkflow(email);
-  return (
-    <SidePanel
-      email={email}
-      account={account}
-      draft={workflow.draft}
-      tone={workflow.tone}
-      onDraftChange={workflow.setDraft}
-      onToneChange={(_emailId, tone) => workflow.regenerate(tone)}
-      onRegenerate={() => workflow.regenerate()}
-      onRefine={(_emailId, instruction) => workflow.refine(instruction)}
-      onApproveSend={workflow.send}
-      isRegenerating={workflow.isRegenerating}
-      isRefining={workflow.isRefining}
-      isSending={workflow.isSending}
-      status={{
-        ...workflow.status,
-        isGenerating: false,
-        isLoadFailed: false,
-        onRetryLoad: () => undefined,
-      }}
-    />
-  );
+  return <SidePanel email={email} workflow={workflow} account={account} />;
 }
 
 function SignedOut({ onSignIn }: { onSignIn: OpenSignIn }) {
@@ -176,7 +132,7 @@ function PanelButton({ onClick, children }: { onClick: () => void; children: Rea
     <button
       type="button"
       onClick={onClick}
-      className="mt-2 rounded-md bg-brand px-4 py-2 text-sm font-semibold text-on-brand hover:bg-brand-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+      className={cn(button({ intent: "primary", size: "md" }), "mt-2")}
     >
       {children}
     </button>

@@ -5,7 +5,6 @@ went out, whichever comes first. After that the email shows its placeholders and
 read in Gmail.
 """
 
-import asyncio
 import logging
 from datetime import timedelta
 
@@ -36,17 +35,3 @@ async def expire_vaults() -> int:
         )
         await session.commit()
     return result.rowcount
-
-
-async def expire_vaults_daily() -> None:
-    """Runs for the life of the process; a failed pass is logged and tried again the next day."""
-    while True:
-        try:
-            count = await expire_vaults()
-            if count:
-                logger.info("emptied %d expired detail vault(s)", count)
-        except asyncio.CancelledError:
-            break
-        except Exception:
-            logger.exception("vault retention pass failed")
-        await asyncio.sleep(RUN_EVERY.total_seconds())

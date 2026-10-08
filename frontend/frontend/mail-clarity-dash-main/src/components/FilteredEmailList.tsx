@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useFormat } from "../lib/useFormat";
 import { useEmails } from "../lib/queries";
 import type { Email } from "../types/email";
+import LoadOlderEmails from "./LoadOlderEmails";
 import PriorityBadge from "./PriorityBadge";
 import { PageEmpty, PageError, PageLoading } from "./PageState";
 
@@ -77,6 +78,11 @@ export default function FilteredEmailList({
           ))}
         </ul>
       ) : null}
+      <LoadOlderEmails
+        hasNextPage={emails.hasNextPage}
+        isFetchingNextPage={emails.isFetchingNextPage}
+        fetchNextPage={emails.fetchNextPage}
+      />
     </section>
   );
 }

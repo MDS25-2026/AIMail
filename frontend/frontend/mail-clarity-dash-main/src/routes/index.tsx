@@ -3,9 +3,11 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import InboxList from "../components/InboxList";
+import LoadOlderEmails from "../components/LoadOlderEmails";
 import EmailDetailPanel from "../components/EmailDetailPanel";
 import AppShell from "../components/AppShell";
 import { PageEmpty, PageError, PageLoading } from "../components/PageState";
+import { Page, pageMeta } from "../lib/pageMeta";
 import { useEmail, useEmails, useSession } from "../lib/queries";
 import { useDraftWorkflow } from "../lib/useDraftWorkflow";
 
@@ -16,20 +18,9 @@ export const Route = createFileRoute("/")({
   validateSearch: (search: Record<string, unknown>): InboxSearch => ({
     email: typeof search.email === "string" ? search.email : undefined,
   }),
-  head: () => ({
+  head: ({ match }) => ({
     meta: [
-      { title: "AIMail — AI inbox dashboard" },
-      {
-        name: "description",
-        content:
-          "AIMail dashboard: prioritized inbox, AI summaries, action items, and approved-only draft replies.",
-      },
-      { property: "og:title", content: "AIMail — AI inbox dashboard" },
-      {
-        property: "og:description",
-        content:
-          "Prioritized inbox with AI summaries, action items, and human-approved draft replies.",
-      },
+      ...pageMeta(match.context.preferences.language, Page.Inbox),
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -48,7 +39,7 @@ function DashboardPage() {
   // The detail call re-runs generation (~15s), so show the list row's copy until it lands.
   const listEmail = (emails.data ?? []).find((item) => item.id === selectedEmailId) ?? null;
   const email = selected.data ?? listEmail;
-  const workflow = useDraftWorkflow(email);
+  const workflow = useDraftWorkflow(email, selected);
 
   const didAutoSelectRef = useRef(false);
   useEffect(() => {
@@ -91,28 +82,15 @@ function DashboardPage() {
               onSelectEmail={setSelectedEmailId}
             />
           ) : null}
+          <LoadOlderEmails
+            hasNextPage={emails.hasNextPage}
+            isFetchingNextPage={emails.isFetchingNextPage}
+            fetchNextPage={emails.fetchNextPage}
+          />
         </aside>
 
         <section className="min-h-0 min-w-0 flex-1 bg-surface-muted">
-          <EmailDetailPanel
-            email={email}
-            draft={workflow.draft}
-            tone={workflow.tone}
-            onDraftChange={workflow.setDraft}
-            onToneChange={(_emailId, tone) => workflow.regenerate(tone)}
-            onRegenerate={() => workflow.regenerate()}
-            onRefine={(_emailId, instruction) => workflow.refine(instruction)}
-            onApproveSend={workflow.send}
-            isRegenerating={workflow.isRegenerating}
-            isRefining={workflow.isRefining}
-            isSending={workflow.isSending}
-            status={{
-              ...workflow.status,
-              isGenerating: selected.isLoading,
-              isLoadFailed: selected.isError,
-              onRetryLoad: () => void selected.refetch(),
-            }}
-          />
+          <EmailDetailPanel email={email} workflow={workflow} />
         </section>
       </>
     </AppShell>

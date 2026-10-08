@@ -58,6 +58,9 @@ func presidioIsLive() bool {
 func TestMaskingRecallMeetsTarget(t *testing.T) {
 	fixtures := loadFixtures(t)
 	live := presidioIsLive()
+	if !live {
+		failIfPresidioRequired(t)
+	}
 
 	var total, masked int
 	var misses []string

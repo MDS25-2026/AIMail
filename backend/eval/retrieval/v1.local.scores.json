@@ -1,0 +1,546 @@
+{
+  "eval_set": "retrieval/v1",
+  "model": "embeddinggemma/search-prompts",
+  "results": [
+    {
+      "id": "annual-leave-en",
+      "language": "en",
+      "scores": [
+        0.593722308056218,
+        0.47125840187073087,
+        0.3799143803170699,
+        0.37538389114237547,
+        0.37064021158691496
+      ],
+      "relevant": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "id": "annual-leave-ms",
+      "language": "ms",
+      "scores": [
+        0.5654370784759521,
+        0.49523976416824933,
+        0.4655320387444484,
+        0.45411238074302673,
+        0.39879244565963745
+      ],
+      "relevant": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "id": "annual-leave-zh",
+      "language": "zh",
+      "scores": [
+        0.5074775966250182,
+        0.42201072770453063,
+        0.3880744229488633,
+        0.34396384191405316,
+        0.33859849985237434
+      ],
+      "relevant": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "id": "hospital-leave-en",
+      "language": "en",
+      "scores": [
+        0.549636873581224,
+        0.3797928988933563,
+        0.3512221574783325,
+        0.32177313306652144,
+        0.27175086736679077
+      ],
+      "relevant": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "id": "hospital-leave-ms",
+      "language": "ms",
+      "scores": [
+        0.5505449503985027,
+        0.3688426613807678,
+        0.3673694133758545,
+        0.36374515295028687,
+        0.34506281077113266
+      ],
+      "relevant": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "id": "hospital-leave-zh",
+      "language": "zh",
+      "scores": [
+        0.5035536739427158,
+        0.35024366826545217,
+        0.3139736745945716,
+        0.30568052249194766,
+        0.29791632611307894
+      ],
+      "relevant": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "id": "paternity-leave-en",
+      "language": "en",
+      "scores": [
+        0.5489500761032104,
+        0.3389979600906372,
+        0.3308472234515687,
+        0.2756540775299072,
+        0.2625855285699824
+      ],
+      "relevant": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "id": "paternity-leave-ms",
+      "language": "ms",
+      "scores": [
+        0.4219274865432099,
+        0.20240482687950279,
+        0.15594014060675743,
+        0.14949921372537556,
+        0.1342594543540805
+      ],
+      "relevant": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "id": "paternity-leave-zh",
+      "language": "zh",
+      "scores": [
+        0.45149046182632446,
+        0.27519937009807693,
+        0.2432200312614441,
+        0.21802918612957,
+        0.2123909339438771
+      ],
+      "relevant": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "id": "remote-monday-en",
+      "language": "en",
+      "scores": [
+        0.5237466096878052,
+        0.3096434998937272,
+        0.29871124029159546,
+        0.2943184971809387,
+        0.2774844169616699
+      ],
+      "relevant": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "id": "remote-monday-ms",
+      "language": "ms",
+      "scores": [
+        0.40127891302108765,
+        0.30431475587907575,
+        0.25973530171724013,
+        0.21700432896614075,
+        0.20672326406011776
+      ],
+      "relevant": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "id": "remote-monday-zh",
+      "language": "zh",
+      "scores": [
+        0.4519940643314093,
+        0.30277777264515704,
+        0.28379986978770133,
+        0.27051401138305864,
+        0.24188913453286132
+      ],
+      "relevant": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "id": "expense-deadline-en",
+      "language": "en",
+      "scores": [
+        0.5844041283251088,
+        0.2665980537711995,
+        0.25117786984245816,
+        0.24619809526795444,
+        0.24104816439891363
+      ],
+      "relevant": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "id": "expense-deadline-ms",
+      "language": "ms",
+      "scores": [
+        0.423037588596344,
+        0.24201515316963196,
+        0.22213879227638245,
+        0.22158358991146088,
+        0.22058838605880737
+      ],
+      "relevant": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "id": "expense-deadline-zh",
+      "language": "zh",
+      "scores": [
+        0.5028878450393677,
+        0.26380963705835603,
+        0.25677022337913513,
+        0.2502022981643677,
+        0.24532993137836456
+      ],
+      "relevant": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "id": "reschedule-meeting-en",
+      "language": "en",
+      "scores": [
+        0.5799662220457935,
+        0.3559450229357205,
+        0.3401210808826143,
+        0.31702991229474076,
+        0.25294442492392255
+      ],
+      "relevant": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "id": "reschedule-meeting-ms",
+      "language": "ms",
+      "scores": [
+        0.27496445178985596,
+        0.21689892209781303,
+        0.18862279883759048,
+        0.18632084131240845,
+        0.18401481211185455
+      ],
+      "relevant": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "id": "reschedule-meeting-zh",
+      "language": "zh",
+      "scores": [
+        0.5691748431079046,
+        0.36080496673613593,
+        0.34172243898279797,
+        0.2987380116801863,
+        0.2189285820403274
+      ],
+      "relevant": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "id": "customer-reply-time-en",
+      "language": "en",
+      "scores": [
+        0.604063093662262,
+        0.2792418897151947,
+        0.2686678171157837,
+        0.26534483627512573,
+        0.22929507493972778
+      ],
+      "relevant": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "id": "customer-reply-time-ms",
+      "language": "ms",
+      "scores": [
+        0.42393846583183026,
+        0.293230125106279,
+        0.259682424655033,
+        0.2102117067701642,
+        0.20268336542497178
+      ],
+      "relevant": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "id": "customer-reply-time-zh",
+      "language": "zh",
+      "scores": [
+        0.5463231205940247,
+        0.2697511315345764,
+        0.24230509996414185,
+        0.23420999152094113,
+        0.21427765488624573
+      ],
+      "relevant": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "id": "send-ic-number-en",
+      "language": "en",
+      "scores": [
+        0.34975358843803406,
+        0.3236136532906788,
+        0.2472129762172699,
+        0.20960849523544312,
+        0.20744332671165466
+      ],
+      "relevant": [
+        false,
+        true,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "id": "send-ic-number-ms",
+      "language": "ms",
+      "scores": [
+        0.34449834658200595,
+        0.2910151779651642,
+        0.23296502232551575,
+        0.22063079476356506,
+        0.20033833981568638
+      ],
+      "relevant": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "id": "send-ic-number-zh",
+      "language": "zh",
+      "scores": [
+        0.36052679184238867,
+        0.3067458959444136,
+        0.2285360762040639,
+        0.1681510310263057,
+        0.1662557025628002
+      ],
+      "relevant": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "id": "training-budget-en",
+      "language": "en",
+      "scores": [
+        0.5404491698474196,
+        0.24843268105788985,
+        0.2282426221226087,
+        0.2256734750964211,
+        0.22190852630683666
+      ],
+      "relevant": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "id": "training-budget-ms",
+      "language": "ms",
+      "scores": [
+        0.34832291891115474,
+        0.2134484541519095,
+        0.19531644554832295,
+        0.18855863443366527,
+        0.18230117453939798
+      ],
+      "relevant": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "id": "training-budget-zh",
+      "language": "zh",
+      "scores": [
+        0.4810520433125478,
+        0.19472887280835383,
+        0.1929419108698488,
+        0.16514568044433053,
+        0.16237176509240203
+      ],
+      "relevant": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "id": "q3-report-due-en",
+      "language": "en",
+      "scores": [
+        0.5930215716362,
+        0.5522155330245359,
+        0.18809483015819883,
+        0.18787336349487305,
+        0.18739105761051178
+      ],
+      "relevant": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "id": "q3-report-due-ms",
+      "language": "ms",
+      "scores": [
+        0.34889591779994733,
+        0.33524090051651,
+        0.14862160827581916,
+        0.1252841055393219,
+        0.108451247215271
+      ],
+      "relevant": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "id": "q3-report-due-zh",
+      "language": "zh",
+      "scores": [
+        0.5272887945175171,
+        0.4816136801723745,
+        0.17695794036859103,
+        0.15500327944755554,
+        0.1500101536512375
+      ],
+      "relevant": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ]
+    }
+  ]
+}

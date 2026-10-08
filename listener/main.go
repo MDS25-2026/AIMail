@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"regexp"
 	"slices"
 	"sort"
@@ -20,21 +21,13 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"cloud.google.com/go/pubsub"
 	"github.com/joho/godotenv"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/option"
-)
-
-// Configuration for GCP Pub/Sub
-const (
-	ProjectID      = "aimail-505405"
-	TopicName      = "projects/aimail-505405/topics/gmail-notifications"
-	SubscriptionID = "gmail-notifications-sub"
 )
 
 // Supabase config — read from env, never hardcode keys.
@@ -391,36 +384,19 @@ type MaskedContent struct {
 
 // StoredMessage is what we persist for each processed email, post-masking.
 type StoredMessage struct {
-	UserID         string    `json:"user_id,omitempty"` // the mailbox owner; omitted (NULL) for token.json
-	GmailMessageID string    `json:"gmail_message_id"`
-	FromAddr       string    `json:"from_addr"`
-	ReplyTo        string    `json:"reply_to,omitempty"` // where an approved reply goes; shown to the approver
-	ReceivedAt     time.Time `json:"received_at"`
-	IsAutomated    bool      `json:"is_automated"` // never sent a holding reply (automated.go)
-	AuthStatus     string    `json:"auth_status"`
-	ThreadIdentity
+	UserID         string `json:"user_id,omitempty"` // the mailbox owner; omitted (NULL) for token.json
+	GmailMessageID string `json:"gmail_message_id"`
+	SenderFacts
 	MaskedContent
 }
 
 // QuarantinedMessage is the row for a message whose masking could not complete (#109): enough to
 // show it exists and to finish it later, and no content at all.
 type QuarantinedMessage struct {
-	UserID         string    `json:"user_id,omitempty"`
-	GmailMessageID string    `json:"gmail_message_id"`
-	FromAddr       string    `json:"from_addr"`
-	ReplyTo        string    `json:"reply_to,omitempty"`
-	ReceivedAt     time.Time `json:"received_at"`
-	MaskingStatus  string    `json:"masking_status"`
-	ThreadIdentity
-}
-
-// AuditLogEntry records every pipeline action for traceability — required
-// for Lane A's "storage + audit log" scope.
-type AuditLogEntry struct {
-	Action    string    `json:"action"`
-	Detail    string    `json:"detail"`
-	Success   bool      `json:"success"`
-	CreatedAt time.Time `json:"created_at"`
+	UserID         string `json:"user_id,omitempty"`
+	GmailMessageID string `json:"gmail_message_id"`
+	MaskingStatus  string `json:"masking_status"`
+	SenderFacts
 }
 
 // supabaseInsert POSTs a row to a Supabase table via the PostgREST API. When onConflict names a
@@ -463,67 +439,6 @@ func supabaseInsert(ctx context.Context, table string, row interface{}, onConfli
 	return nil
 }
 
-// writeAuditLog is a best-effort log write — failures here are logged
-// locally but never block the main pipeline.
-func writeAuditLog(ctx context.Context, action, detail string, success bool) {
-	entry := AuditLogEntry{
-		Action:    action,
-		Detail:    detail,
-		Success:   success,
-		CreatedAt: time.Now().UTC(),
-	}
-	if err := supabaseInsert(ctx, "audit_log", entry, ""); err != nil {
-		log.Printf("audit log write failed: %v", err)
-	}
-}
-
-func getClient(config *oauth2.Config) *http.Client {
-	tokFile := "token.json"
-	tok, err := tokenFromFile(tokFile)
-	if err != nil {
-		tok = getTokenFromWeb(config)
-		saveToken(tokFile, tok)
-	}
-	return config.Client(context.Background(), tok)
-}
-
-func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
-	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
-	fmt.Printf("Go to the following link in your browser then type the authorization code: \n%v\n\nCode: ", authURL)
-
-	var authCode string
-	if _, err := fmt.Scan(&authCode); err != nil {
-		log.Fatalf("Unable to read authorization code: %v", err)
-	}
-
-	tok, err := config.Exchange(context.Background(), authCode)
-	if err != nil {
-		log.Fatalf("Unable to retrieve token from web: %v", err)
-	}
-	return tok
-}
-
-func tokenFromFile(file string) (*oauth2.Token, error) {
-	f, err := os.Open(file)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	tok := &oauth2.Token{}
-	err = json.NewDecoder(f).Decode(tok)
-	return tok, err
-}
-
-func saveToken(path string, token *oauth2.Token) {
-	fmt.Printf("Saving credential file to: %s\n", path)
-	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
-	if err != nil {
-		log.Fatalf("Unable to cache oauth token: %v", err)
-	}
-	defer f.Close()
-	json.NewEncoder(f).Encode(token)
-}
-
 // startTokenFileMailbox watches the original token.json mailbox, unless its account has connected
 // with Google, in which case that connection already serves it. A failure is logged, not fatal:
 // every connected user's mailbox still works without it.
@@ -531,7 +446,7 @@ func startTokenFileMailbox(ctx context.Context, srv *gmail.Service) {
 	profile, err := srv.Users.GetProfile("me").Context(ctx).Do()
 	if err != nil {
 		log.Printf("token.json mailbox not started: %v", err)
-		writeAuditLog(ctx, "setup_watch", fmt.Sprintf("token.json profile failed: %v", err), false)
+		writeAuditLog(ctx, "", actionSetupWatch, auditFields{fieldStage: stageProfile, fieldErrorKind: errorKind(err)}, false)
 		return
 	}
 	if existing := lookupMailbox(profile.EmailAddress); existing != nil {
@@ -541,11 +456,11 @@ func startTokenFileMailbox(ctx context.Context, srv *gmail.Service) {
 	mb := &mailbox{email: strings.ToLower(profile.EmailAddress), srv: srv}
 	if err := watchMailbox(ctx, mb); err != nil {
 		log.Printf("token.json mailbox not started: %v", err)
-		writeAuditLog(ctx, "setup_watch", fmt.Sprintf("watch registration failed: %v", err), false)
+		writeAuditLog(ctx, "", actionSetupWatch, auditFields{fieldStage: stageWatch, fieldErrorKind: errorKind(err)}, false)
 		return
 	}
 	registerMailbox(mb)
-	writeAuditLog(ctx, "setup_watch", "token.json mailbox watch established", true)
+	writeAuditLog(ctx, "", actionSetupWatch, nil, true)
 }
 
 // Gmail expires a watch after roughly seven days. #83: nothing renewed it, so a listener left
@@ -573,26 +488,27 @@ func renewWatch(ctx context.Context, mb *mailbox) {
 		// Loud on purpose: a silent renewal failure is the original bug wearing a hat.
 		log.Printf("WATCH RENEWAL FAILED for user %q: %v — this mailbox stops receiving mail when the current watch expires",
 			mb.ownerID, err)
-		writeAuditLog(ctx, "renew_watch", fmt.Sprintf("user %q: renewal failed: %v", mb.ownerID, err), false)
+		writeAuditLog(ctx, mb.ownerID, actionRenewWatch, auditFields{fieldStage: stageWatch, fieldErrorKind: errorKind(err)}, false)
 		noteRefusedGrant(ctx, mb.ownerID, err)
 		return
 	}
-	writeAuditLog(ctx, "renew_watch", fmt.Sprintf("user %q: renewed", mb.ownerID), true)
+	writeAuditLog(ctx, mb.ownerID, actionRenewWatch, nil, true)
 }
 
-// Listens to the Pub/Sub subscription. Interim: it authenticates as the token.json account (pubsub
-// scope); a service account replaces that before token.json retires (audit finding 4).
-func listenToPubSub(ctx context.Context, ts oauth2.TokenSource) {
-	client, err := pubsub.NewClient(ctx, ProjectID, option.WithTokenSource(ts))
+// listenToPubSub receives until ctx is cancelled. It authenticates as the token.json account while
+// one exists, else with Application Default Credentials (pubsubOptions).
+func listenToPubSub(ctx context.Context, cfg pubsubConfig, opts []option.ClientOption) {
+	client, err := pubsub.NewClient(ctx, cfg.projectID, opts...)
 	if err != nil {
 		log.Fatalf("Failed to create Pub/Sub client: %v", err)
 	}
 	defer client.Close()
 
-	sub := client.Subscription(SubscriptionID)
+	sub := client.Subscription(cfg.subscriptionID)
 	fmt.Println("Listening for incoming emails on Pub/Sub...")
 
 	err = sub.Receive(ctx, func(ctx context.Context, msg *pubsub.Message) {
+		markReceived()
 		var payload struct {
 			EmailAddress string `json:"emailAddress"`
 			HistoryID    uint64 `json:"historyId"`
@@ -622,9 +538,8 @@ func listenToPubSub(ctx context.Context, ts oauth2.TokenSource) {
 			if msg.DeliveryAttempt != nil && *msg.DeliveryAttempt >= maxDeliveryAttempts {
 				log.Printf("GIVING UP on history %d after %d attempts: %v",
 					payload.HistoryID, *msg.DeliveryAttempt, err)
-				writeAuditLog(ctx, "ingest_abandoned",
-					fmt.Sprintf("history %d abandoned after %d attempts: %v",
-						payload.HistoryID, *msg.DeliveryAttempt, err), false)
+				writeAuditLog(ctx, mb.ownerID, actionIngestAbandoned, auditFields{fieldHistoryID: payload.HistoryID,
+					fieldAttempts: *msg.DeliveryAttempt, fieldReason: reasonTooManyAttempts, fieldErrorKind: errorKind(err)}, false)
 				// Past this range, or every later notification would list it again, hit the same
 				// failure first, and no newer mail would arrive until a restart.
 				advanceBaseline(mb, payload.HistoryID)
@@ -634,7 +549,7 @@ func listenToPubSub(ctx context.Context, ts oauth2.TokenSource) {
 			if msg.DeliveryAttempt == nil {
 				warnNoDeadLetter.Do(func() {
 					log.Printf("WARNING: subscription %s has no dead-letter policy, so failed notifications "+
-						"are retried forever; see infra/pubsub-dead-letter.md", SubscriptionID)
+						"are retried forever; see infra/pubsub-dead-letter.md", cfg.subscriptionID)
 				})
 			}
 			log.Printf("Ingest failed for history %d, will retry: %v", payload.HistoryID, err)
@@ -644,7 +559,8 @@ func listenToPubSub(ctx context.Context, ts oauth2.TokenSource) {
 		msg.Ack()
 	})
 
-	if err != nil {
+	// Receive returns nil on cancellation; an error after a shutdown signal is the shutdown itself.
+	if err != nil && ctx.Err() == nil {
 		log.Fatalf("Error receiving Pub/Sub messages: %v", err)
 	}
 }
@@ -687,7 +603,8 @@ func ingestHistory(ctx context.Context, mb *mailbox, historyID uint64) error {
 		// An expired or pruned history ID is not retryable — Gmail drops history beyond a week.
 		// Fall back rather than fail the message forever.
 		log.Printf("history.list from %d failed (%v); falling back to newest INBOX message", start, err)
-		writeAuditLog(ctx, "fetch_history", fmt.Sprintf("history %d: %v (fell back)", start, err), false)
+		writeAuditLog(ctx, mb.ownerID, actionFetchHistory, auditFields{fieldHistoryID: start,
+			fieldReason: reasonHistoryUnusable, fieldErrorKind: errorKind(err)}, false)
 		advanceBaseline(mb, historyID)
 		return ingestNewestInbox(ctx, mb)
 	}
@@ -697,7 +614,8 @@ func ingestHistory(ctx context.Context, mb *mailbox, historyID uint64) error {
 		if isPermanentIngestFailure(err) {
 			// Retrying cannot help (deleted before the fetch, or a row the database refuses), and
 			// failing the range would hold every newer message behind this one.
-			writeAuditLog(ctx, "ingest_skipped", fmt.Sprintf("msg %s: %v", msgID, err), false)
+			messageRef{ownerID: mb.ownerID, msgID: msgID}.audit(ctx, actionIngestSkipped,
+				auditFields{fieldReason: reasonPermanentFailure, fieldErrorKind: errorKind(err)}, false)
 			continue
 		}
 		if err != nil {
@@ -748,7 +666,7 @@ func ingestNewestInbox(ctx context.Context, mb *mailbox) error {
 	// mail and generate replies to itself.
 	list, err := mb.srv.Users.Messages.List("me").LabelIds("INBOX").MaxResults(1).Do()
 	if err != nil {
-		writeAuditLog(ctx, "fetch_message", fmt.Sprintf("list error: %v", err), false)
+		writeAuditLog(ctx, mb.ownerID, actionFetchMessage, auditFields{fieldStage: stageList, fieldErrorKind: errorKind(err)}, false)
 		return fmt.Errorf("list messages: %w", err)
 	}
 	if len(list.Messages) == 0 {
@@ -769,13 +687,14 @@ func ingestMessage(ctx context.Context, mb *mailbox, msgID string) error {
 		return nil
 	}
 
-	msg, err := fetchMessage(ctx, mb.srv, msgID)
+	ref := messageRef{ownerID: mb.ownerID, msgID: msgID}
+	msg, err := fetchMessage(ctx, mb.srv, ref)
 	if err != nil {
 		return err
 	}
 	if msg.Payload == nil {
 		// Nothing to read or mask; a nil payload must not panic the Pub/Sub callback.
-		writeAuditLog(ctx, "fetch_message", fmt.Sprintf("msg %s: no payload", msgID), false)
+		ref.audit(ctx, actionFetchMessage, auditFields{fieldReason: reasonNoPayload}, false)
 		return nil
 	}
 	if isOwnSentReply(msg) {
@@ -783,29 +702,16 @@ func ingestMessage(ctx context.Context, mb *mailbox, msgID string) error {
 		// already shown under the email it answers, so storing it would add a fake new email.
 		return nil
 	}
-	identity := threadIdentity(msg)
+	facts := senderFacts(msg)
 	content, isComplete := maskMessage(ctx, mb.srv, msg, mb.ownerID)
 	if !isComplete {
-		return quarantine(ctx, mb.ownerID, msgID, msg.Payload.Headers, identity)
+		return quarantine(ctx, mb.ownerID, msgID, facts)
 	}
-
-	authStatus := parseAuthStatus(msg.Payload.Headers)
-
-	stored := StoredMessage{
-		UserID:         mb.ownerID,
-		GmailMessageID: msgID,
-		FromAddr:       headerValue(msg.Payload.Headers, "From"), // kept unmasked on purpose: docs/decisions/shared.md, 2026-10-04
-		ReplyTo:        headerValue(msg.Payload.Headers, "Reply-To"),
-		ReceivedAt:     time.Now().UTC(),
-		IsAutomated:    isAutomated(msg.Payload.Headers),
-		AuthStatus:     authStatus,
-		ThreadIdentity: identity,
-		MaskedContent:  content,
-	}
+	stored := StoredMessage{UserID: mb.ownerID, GmailMessageID: msgID, SenderFacts: facts, MaskedContent: content}
 	isInserted, err := insertMessage(ctx, stored)
 	if err != nil {
 		log.Printf("could not store message %s: %v", msgID, err)
-		writeAuditLog(ctx, "store_message", fmt.Sprintf("msg %s: %v", msgID, err), false)
+		ref.auditFailure(ctx, actionStoreMessage, stageStore, err)
 		return fmt.Errorf("store message %s: %w", msgID, err)
 	}
 	if !isInserted {
@@ -815,8 +721,8 @@ func ingestMessage(ctx context.Context, mb *mailbox, msgID string) error {
 	// Counts only: the sender, subject and body are never written to stdout.
 	log.Printf("stored %s: %d bytes, %d emails / %d phones masked", msgID, len(content.BodyMasked),
 		content.EmailsMasked, content.PhonesMasked)
-	writeAuditLog(ctx, "store_message", fmt.Sprintf("msg %s stored, %d emails / %d phones masked",
-		msgID, content.EmailsMasked, content.PhonesMasked), true)
+	ref.audit(ctx, actionStoreMessage, auditFields{fieldEmailsMasked: content.EmailsMasked,
+		fieldPhonesMasked: content.PhonesMasked}, true)
 	return nil
 }
 
@@ -826,11 +732,12 @@ func isOwnSentReply(msg *gmail.Message) bool {
 	return slices.Contains(msg.LabelIds, "SENT") && !slices.Contains(msg.LabelIds, "INBOX")
 }
 
-func fetchMessage(ctx context.Context, srv *gmail.Service, msgID string) (*gmail.Message, error) {
+func fetchMessage(ctx context.Context, srv *gmail.Service, ref messageRef) (*gmail.Message, error) {
+	msgID := ref.msgID
 	msg, err := srv.Users.Messages.Get("me", msgID).Format("full").Context(ctx).Do()
 	if err != nil {
 		log.Printf("could not retrieve message %s: %v", msgID, err)
-		writeAuditLog(ctx, "fetch_message", fmt.Sprintf("get error for %s: %v", msgID, err), false)
+		ref.auditFailure(ctx, actionFetchMessage, stageFetch, err)
 		return nil, fmt.Errorf("get message %s: %w", msgID, err)
 	}
 	return msg, nil
@@ -848,8 +755,8 @@ func maskMessage(ctx context.Context, srv *gmail.Service, msg *gmail.Message, ow
 	if degradedBody || degradedSnip || degradedSubj {
 		return MaskedContent{}, false
 	}
-	attachments, attachEmails, attachPhones := maskAttachmentText(ctx, msg.Id,
-		ocrAttachments(ctx, srv, msg.Id, msg.Payload), v)
+	ref := messageRef{ownerID: ownerID, msgID: msg.Id}
+	attachments, attachEmails, attachPhones := maskAttachmentText(ctx, ref, ocrAttachments(ctx, srv, ref, msg.Payload), v)
 	return MaskedContent{
 		Subject:       maskedSubject,
 		BodyMasked:    maskedBody + attachments,
@@ -931,59 +838,40 @@ func decodePart(part *gmail.MessagePart) string {
 }
 
 func main() {
-	ctx := context.Background()
-
-	// Load the shared root .env so SUPABASE_* are available without exporting them by hand.
-	// Load does not override vars already set in the environment.
-	if err := godotenv.Load("../.env"); err != nil {
-		log.Printf("no ../.env loaded (%v); relying on the process environment", err)
-	}
-	supabaseURL = os.Getenv("SUPABASE_URL")
-	supabaseKey = os.Getenv("SUPABASE_SERVICE_KEY")
-
-	b, err := os.ReadFile("credentials.json")
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	loadEnvironment()
+	cfg, err := loadPubSubConfig()
 	if err != nil {
-		log.Fatalf("Unable to read client secret file: %v", err)
+		log.Fatalf("listener not started: %v", err)
 	}
-
-	config, err := google.ConfigFromJSON(b,
-		gmail.GmailReadonlyScope,
-		gmail.GmailSendScope,
-		"https://www.googleapis.com/auth/pubsub",
-	)
-	if err != nil {
-		log.Fatalf("Unable to parse client secret file to config: %v", err)
-	}
-
-	tokFile := "token.json"
-	tok, err := tokenFromFile(tokFile)
-	if err != nil {
-		tok = getTokenFromWeb(config)
-		saveToken(tokFile, tok)
-	}
-
-	tokenSource := config.TokenSource(ctx, tok)
-	client := config.Client(ctx, tok)
-
-	srv, err := gmail.NewService(ctx, option.WithHTTPClient(client))
-	if err != nil {
-		log.Fatalf("Unable to retrieve Gmail client: %v", err)
-	}
-
-	if supabaseURL == "" || supabaseKey == "" {
-		log.Println("WARNING: SUPABASE_URL / SUPABASE_SERVICE_KEY not set — storage and audit log writes will fail. Set these env vars before running.")
-	}
+	pubsubTopic = cfg.topicPath()
+	health := startHealthServer(getEnvOrDefault(healthAddrEnv, defaultHealthAddr))
+	defer stopHealthServer(health)
 
 	// 1. Watch every connected user's mailbox, then the token.json one unless it is among them.
+	legacy := legacyTokenSource(ctx)
 	syncConnections(ctx)
-	startTokenFileMailbox(ctx, srv)
+	startLegacyMailbox(ctx, legacy)
 	go syncConnectionsPeriodically(ctx)
-
 	// #83: keep the watches alive. Gmail expires them after about a week.
 	go renewWatchPeriodically(ctx)
 	// #109: finish messages quarantined while Presidio was down.
 	go remaskQuarantinedPeriodically(ctx)
 
-	// 2. Start live Pub/Sub listener loop
-	listenToPubSub(ctx, tokenSource)
+	// 2. Receive until SIGINT or SIGTERM cancels ctx.
+	listenToPubSub(ctx, cfg, pubsubOptions(legacy))
+	log.Printf("listener stopped")
+}
+
+// loadEnvironment reads the shared root .env, which never overrides variables already set.
+func loadEnvironment() {
+	if err := godotenv.Load("../.env"); err != nil {
+		log.Printf("no ../.env loaded (%v); relying on the process environment", err)
+	}
+	supabaseURL = os.Getenv("SUPABASE_URL")
+	supabaseKey = os.Getenv("SUPABASE_SERVICE_KEY")
+	if supabaseURL == "" || supabaseKey == "" {
+		log.Println("WARNING: SUPABASE_URL / SUPABASE_SERVICE_KEY not set — storage and audit log writes will fail. Set these env vars before running.")
+	}
 }

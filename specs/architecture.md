@@ -27,7 +27,7 @@ flowchart LR
 
 n8n is not in the pipeline. Lane A ingests straight from the Gmail API + Pub/Sub, and outbound
 send is the backend calling the Gmail API directly (reusing the listener's send-scoped token).
-The `n8n/` folder is unused scaffolding.
+The n8n scaffolding is archived in `legacy/n8n/`.
 
 ## Components
 

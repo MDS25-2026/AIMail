@@ -4,9 +4,11 @@ Without it nothing configured logging at all, so every logger.info in app/ went 
 last-resort handler, which drops everything below WARNING.
 """
 
+import json
 import logging
-import os
 from contextvars import ContextVar
+
+from app.core.config import LogFormat, get_settings
 
 request_id: ContextVar[str] = ContextVar("request_id", default="-")
 
@@ -22,9 +24,25 @@ class RequestIdFilter(logging.Filter):
         return True
 
 
+class JsonFormatter(logging.Formatter):
+    """One JSON object per line, with the same fields as the text format."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        line = {"time": self.formatTime(record), "level": record.levelname,
+                "request_id": getattr(record, "request_id", "-"), "logger": record.name,
+                "message": record.getMessage()}
+        if record.exc_info:
+            line["exception"] = self.formatException(record.exc_info)
+        return json.dumps(line, ensure_ascii=False)
+
+
+def _formatter() -> logging.Formatter:
+    return JsonFormatter() if get_settings().log_format == LogFormat.JSON else logging.Formatter(LOG_FORMAT)
+
+
 def _level() -> int:
     """A mistyped LOG_LEVEL falls back to INFO rather than failing startup or going silent."""
-    named = logging.getLevelNamesMapping().get(os.getenv("LOG_LEVEL", DEFAULT_LEVEL).upper())
+    named = logging.getLevelNamesMapping().get((get_settings().log_level or DEFAULT_LEVEL).upper())
     return named if named is not None else logging.INFO
 
 
@@ -35,7 +53,7 @@ def configure_logging() -> None:
         return
     handler = logging.StreamHandler()
     handler.addFilter(RequestIdFilter())
-    handler.setFormatter(logging.Formatter(LOG_FORMAT))
+    handler.setFormatter(_formatter())
     root.addHandler(handler)
     root.setLevel(_level())
     for name in QUIET_LOGGERS:

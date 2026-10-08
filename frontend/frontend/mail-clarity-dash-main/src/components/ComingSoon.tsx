@@ -1,6 +1,9 @@
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
+import { cn } from "../lib/utils";
+import { button } from "./variants";
+
 type ComingSoonProps = {
   title: string;
   description: string;
@@ -20,7 +23,7 @@ export default function ComingSoon({ title, description }: ComingSoonProps) {
         <p className="mt-2 text-sm leading-relaxed text-fg-muted">{description}</p>
         <Link
           to="/"
-          className="mt-6 inline-flex items-center rounded-md bg-brand px-4 py-2 text-sm font-semibold text-on-brand hover:bg-brand-strong"
+          className={cn(button({ intent: "primary", size: "md" }), "mt-6 inline-flex items-center")}
         >
           {t("comingSoon.back")}
         </Link>

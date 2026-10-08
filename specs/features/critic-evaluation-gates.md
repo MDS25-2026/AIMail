@@ -115,12 +115,23 @@ studies, and a noisy hard gate produces exactly that desensitisation.
 ## Gate composition
 
 ```
-hard_fail = (not pii_clean) or specifics_unsupported
-soft_fail = incomplete or confidence < REFINE_THRESHOLD
-
-refine while soft_fail (max 3)
-needs_human_review = hard_fail or soft_fail or attempts > 0
+candidate = draft + critic verdict + PII scan + figures check + unaddressed requests (one text)
+failures  = PII found, figure unsupported, request unaddressed, grounding failed
+repair while (failures or confidence < REFINE_THRESHOLD) and the critic answered (max 3)
+keep the best candidate: fewest failures, then confidence
+needs_human_review = any failure, critic unavailable, repair stopped, attempts > 0,
+                     or confidence < REVIEW_THRESHOLD
 ```
+
+**As built (2026-10-08, `email_agent.py`, `Candidate` / `assess` / `repair`).** The deterministic
+checks run on every draft inside the loop, not once after it, so a leaking or misquoting draft is
+rewritten. The repair prompt gets those failures as concrete fixes ("remove the MY_PHONE", "remove
+or correct the figure 60"), then the critic's own notes; the notes guide a rewrite but never demand
+one. An unreachable Presidio is flagged but never repaired, since no rewrite fixes it. The critic's
+reply is validated whole (`CriticVerdict`, strict types); a malformed or failed critique leaves the
+draft unjudged and flagged instead of failing the request, and a failed repair returns the best
+draft so far with the checks of that exact text. `/refine` uses the same `assess`. Every draft
+records `PROMPT_VERSION` in `critic_checks`.
 
 Two changes worth noting. **Separate the refine threshold from the review threshold** — one constant
 currently does both jobs, which is why the flag never fires. And **`attempts > 0` is a better review

@@ -1,0 +1,251 @@
+{
+  "version": 1,
+  "about": "Questions an employee might email, in English, Malay and Chinese, each answered by named sections of the fictional Lumora Works Employee Handbook 2026. A hit is a chunk from one of those sections. Change the questions only by adding a new version file.",
+  "corpus": "Lumora Works Employee Handbook 2026.pdf",
+  "k": 5,
+  "queries": [
+    {
+      "id": "annual-leave-en",
+      "language": "en",
+      "query": "I've been with the company for three years. How many days of annual leave do I get?",
+      "sections": [
+        "1. Annual leave policy"
+      ]
+    },
+    {
+      "id": "annual-leave-ms",
+      "language": "ms",
+      "query": "Saya sudah bekerja di syarikat ini selama tiga tahun. Berapa hari cuti tahunan yang saya layak dapat?",
+      "sections": [
+        "1. Annual leave policy"
+      ]
+    },
+    {
+      "id": "annual-leave-zh",
+      "language": "zh",
+      "query": "我在公司工作了三年，每年可以享有多少天年假？",
+      "sections": [
+        "1. Annual leave policy"
+      ]
+    },
+    {
+      "id": "hospital-leave-en",
+      "language": "en",
+      "query": "I need to be admitted to hospital for surgery next month. How much paid hospitalisation leave can I take?",
+      "sections": [
+        "2. Sick leave and hospitalisation policy"
+      ]
+    },
+    {
+      "id": "hospital-leave-ms",
+      "language": "ms",
+      "query": "Saya perlu dimasukkan ke hospital untuk pembedahan bulan depan. Berapa hari cuti hospital bergaji yang boleh saya ambil?",
+      "sections": [
+        "2. Sick leave and hospitalisation policy"
+      ]
+    },
+    {
+      "id": "hospital-leave-zh",
+      "language": "zh",
+      "query": "我下个月需要住院做手术，可以请多少天带薪住院假？",
+      "sections": [
+        "2. Sick leave and hospitalisation policy"
+      ]
+    },
+    {
+      "id": "paternity-leave-en",
+      "language": "en",
+      "query": "My wife is due to give birth in March. How long is paternity leave?",
+      "sections": [
+        "3. Parental leave policy"
+      ]
+    },
+    {
+      "id": "paternity-leave-ms",
+      "language": "ms",
+      "query": "Isteri saya dijangka bersalin pada bulan Mac. Berapa lama cuti paterniti?",
+      "sections": [
+        "3. Parental leave policy"
+      ]
+    },
+    {
+      "id": "paternity-leave-zh",
+      "language": "zh",
+      "query": "我太太预计三月分娩，陪产假有多少天？",
+      "sections": [
+        "3. Parental leave policy"
+      ]
+    },
+    {
+      "id": "remote-monday-en",
+      "language": "en",
+      "query": "Can I work from home on Mondays?",
+      "sections": [
+        "5. Remote work policy"
+      ]
+    },
+    {
+      "id": "remote-monday-ms",
+      "language": "ms",
+      "query": "Bolehkah saya bekerja dari rumah pada hari Isnin?",
+      "sections": [
+        "5. Remote work policy"
+      ]
+    },
+    {
+      "id": "remote-monday-zh",
+      "language": "zh",
+      "query": "我可以星期一在家工作吗？",
+      "sections": [
+        "5. Remote work policy"
+      ]
+    },
+    {
+      "id": "expense-deadline-en",
+      "language": "en",
+      "query": "How long do I have to submit my travel expense claim, and do I need the receipts?",
+      "sections": [
+        "6. Travel and expense claims policy"
+      ]
+    },
+    {
+      "id": "expense-deadline-ms",
+      "language": "ms",
+      "query": "Berapa lama tempoh untuk menghantar tuntutan perbelanjaan perjalanan, dan adakah resit diperlukan?",
+      "sections": [
+        "6. Travel and expense claims policy"
+      ]
+    },
+    {
+      "id": "expense-deadline-zh",
+      "language": "zh",
+      "query": "差旅费用报销需要在多少天内提交？需要提供收据吗？",
+      "sections": [
+        "6. Travel and expense claims policy"
+      ]
+    },
+    {
+      "id": "reschedule-meeting-en",
+      "language": "en",
+      "query": "I need to move our Thursday meeting. How much notice should I give everyone?",
+      "sections": [
+        "7. Meetings and scheduling policy"
+      ]
+    },
+    {
+      "id": "reschedule-meeting-ms",
+      "language": "ms",
+      "query": "Saya perlu menukar masa mesyuarat hari Khamis. Berapa awal saya perlu memberi notis?",
+      "sections": [
+        "7. Meetings and scheduling policy"
+      ]
+    },
+    {
+      "id": "reschedule-meeting-zh",
+      "language": "zh",
+      "query": "我需要更改星期四的会议时间，应该提前多久通知大家？",
+      "sections": [
+        "7. Meetings and scheduling policy"
+      ]
+    },
+    {
+      "id": "customer-reply-time-en",
+      "language": "en",
+      "query": "How quickly are we expected to reply to a customer's email?",
+      "sections": [
+        "9. Email and customer communication policy"
+      ]
+    },
+    {
+      "id": "customer-reply-time-ms",
+      "language": "ms",
+      "query": "Berapa cepat kita perlu membalas e-mel daripada pelanggan?",
+      "sections": [
+        "9. Email and customer communication policy"
+      ]
+    },
+    {
+      "id": "customer-reply-time-zh",
+      "language": "zh",
+      "query": "我们需要在多长时间内回复客户的电子邮件？",
+      "sections": [
+        "9. Email and customer communication policy"
+      ]
+    },
+    {
+      "id": "send-ic-number-en",
+      "language": "en",
+      "query": "Can I email a customer's IC number to one of our suppliers?",
+      "sections": [
+        "10. Personal data protection policy"
+      ]
+    },
+    {
+      "id": "send-ic-number-ms",
+      "language": "ms",
+      "query": "Bolehkah saya menghantar nombor kad pengenalan pelanggan kepada pembekal melalui e-mel?",
+      "sections": [
+        "10. Personal data protection policy"
+      ]
+    },
+    {
+      "id": "send-ic-number-zh",
+      "language": "zh",
+      "query": "我可以通过电子邮件把客户的身份证号码发给供应商吗？",
+      "sections": [
+        "10. Personal data protection policy"
+      ]
+    },
+    {
+      "id": "training-budget-en",
+      "language": "en",
+      "query": "What is my training budget for courses this year?",
+      "sections": [
+        "11. Training and development policy"
+      ]
+    },
+    {
+      "id": "training-budget-ms",
+      "language": "ms",
+      "query": "Berapakah bajet latihan saya untuk menghadiri kursus tahun ini?",
+      "sections": [
+        "11. Training and development policy"
+      ]
+    },
+    {
+      "id": "training-budget-zh",
+      "language": "zh",
+      "query": "我今年参加课程的培训预算是多少？",
+      "sections": [
+        "11. Training and development policy"
+      ]
+    },
+    {
+      "id": "q3-report-due-en",
+      "language": "en",
+      "query": "When is the final version of the third quarter report due?",
+      "sections": [
+        "8. Reporting and deadlines policy",
+        "12. Key dates for 2026"
+      ]
+    },
+    {
+      "id": "q3-report-due-ms",
+      "language": "ms",
+      "query": "Bilakah laporan suku tahun ketiga versi akhir perlu dihantar?",
+      "sections": [
+        "8. Reporting and deadlines policy",
+        "12. Key dates for 2026"
+      ]
+    },
+    {
+      "id": "q3-report-due-zh",
+      "language": "zh",
+      "query": "第三季度报告的最终版本什么时候截止？",
+      "sections": [
+        "8. Reporting and deadlines policy",
+        "12. Key dates for 2026"
+      ]
+    }
+  ]
+}

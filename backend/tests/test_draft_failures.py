@@ -52,7 +52,7 @@ def test_a_regenerate_the_agent_cannot_answer_is_an_error_not_the_old_draft(monk
     _generation_returns(monkeypatch, {})
     with pytest.raises(dashboard.DraftNotUpdatedError) as caught:
         asyncio.run(dashboard.regenerate_email(str(loaded.id), scope=EVERYTHING))
-    assert (caught.value.code, caught.value.status_code) == (dashboard.DraftErrorCode.AGENT_UNAVAILABLE, 502)
+    assert (caught.value.code, caught.value.status_code) == (dashboard.ErrorCode.AGENT_UNAVAILABLE, 502)
     assert loaded.draft_reply == "Old draft"
 
 
@@ -60,7 +60,7 @@ def test_a_regenerate_refused_for_content_is_an_error_and_keeps_the_draft(monkey
     _generation_returns(monkeypatch, dashboard._not_drafted("gemini_output_truncated"))
     with pytest.raises(dashboard.DraftNotUpdatedError) as caught:
         asyncio.run(dashboard.regenerate_email(str(loaded.id), scope=EVERYTHING))
-    assert (caught.value.code, caught.value.status_code) == (dashboard.DraftErrorCode.DRAFT_REFUSED, 422)
+    assert (caught.value.code, caught.value.status_code) == (dashboard.ErrorCode.DRAFT_REFUSED, 422)
     assert loaded.draft_reply == "Old draft"
 
 
@@ -72,12 +72,12 @@ def test_a_regenerate_judged_to_need_no_reply_is_not_an_error(monkeypatch, loade
 
 def test_a_refine_the_agent_cannot_answer_is_an_error_not_the_old_draft(monkeypatch, loaded):
     async def unavailable(*_args):
-        raise dashboard.DraftNotUpdatedError(dashboard.DraftErrorCode.AGENT_UNAVAILABLE, 502)
+        raise dashboard.DraftNotUpdatedError(dashboard.ErrorCode.AGENT_UNAVAILABLE, 502)
 
     monkeypatch.setattr(dashboard, "_refine", unavailable)
     with pytest.raises(dashboard.DraftNotUpdatedError) as caught:
         asyncio.run(dashboard.refine_email(str(loaded.id), "shorter", "Old draft", scope=EVERYTHING))
-    assert (caught.value.code, caught.value.status_code) == (dashboard.DraftErrorCode.AGENT_UNAVAILABLE, 502)
+    assert (caught.value.code, caught.value.status_code) == (dashboard.ErrorCode.AGENT_UNAVAILABLE, 502)
 
 
 def test_a_quarantined_message_cannot_be_refined(monkeypatch, loaded):
@@ -89,7 +89,7 @@ def test_a_quarantined_message_cannot_be_refined(monkeypatch, loaded):
     monkeypatch.setattr(dashboard, "_refine", must_not_run)
     with pytest.raises(dashboard.DraftNotUpdatedError) as caught:
         asyncio.run(dashboard.refine_email(str(loaded.id), "shorter", "Old draft", scope=EVERYTHING))
-    assert (caught.value.code, caught.value.status_code) == (dashboard.DraftErrorCode.MASKING_PENDING, 409)
+    assert (caught.value.code, caught.value.status_code) == (dashboard.ErrorCode.MASKING_PENDING, 409)
 
 
 @pytest.fixture(autouse=True)
@@ -107,9 +107,9 @@ def _reset_limit():
 ])
 def test_the_route_answers_the_errors_status_and_code(api_client, monkeypatch, path, target, body):
     async def unavailable(*_args, **_kwargs):
-        raise dashboard.DraftNotUpdatedError(dashboard.DraftErrorCode.AGENT_UNAVAILABLE, 502)
+        raise dashboard.DraftNotUpdatedError(dashboard.ErrorCode.AGENT_UNAVAILABLE, 502)
 
     monkeypatch.setattr(target, unavailable)
     response = api_client.post(path, json=body, headers=AUTH)
     assert response.status_code == 502
-    assert response.json()["detail"] == "agent_unavailable"
+    assert response.json()["error"]["code"] == "agent_unavailable"

@@ -1,5 +1,6 @@
 """Read-only aggregates for the admin console. Nothing here returns email content."""
 
+import json
 import re
 from collections import Counter
 from datetime import datetime, timedelta, timezone
@@ -22,10 +23,12 @@ from app.db.models import AuditLog, MaskingStatus, Message
 TOP_REASONS = 10
 AUDIT_DETAIL_CHARS = 240
 _NUMBER = re.compile(r"\d+(?:\.\d+)?")
-# The listener's stable token first; the prose form only for rows written before it existed.
+# Rows from 2026-10-08 carry JSON fields; these prose forms are only for rows written before.
 _WITHHELD = re.compile(r"withheld=(\d+)|(\d+) withheld locally")
 DROP_ATTACHMENT_ACTION = "drop_attachment_text"
 LEGACY_DROP_WORDING = "attachment text dropped"
+LEGACY_DEGRADED_WORDING = "presidio degraded"
+DEGRADED_REASON = "presidio_degraded"
 
 
 def reason_category(reason: str) -> str:
@@ -57,21 +60,37 @@ async def _audit_rows(session: AsyncSession, since: datetime) -> list[AuditLog]:
     return list((await session.scalars(stmt)).all())
 
 
+def _fields(row: AuditLog) -> dict:
+    try:
+        parsed = json.loads(row.detail or "")
+    except ValueError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
 def _is_drop(row: AuditLog) -> bool:
     return row.action == DROP_ATTACHMENT_ACTION or LEGACY_DROP_WORDING in (row.detail or "")
 
 
-def privacy_counts(rows: list[AuditLog]) -> PrivacyCounts:
-    def detail(row: AuditLog) -> str:
-        return row.detail or ""
+def _is_degraded(row: AuditLog) -> bool:
+    return _fields(row).get("reason") == DEGRADED_REASON or LEGACY_DEGRADED_WORDING in (row.detail or "")
 
+
+def _withheld(row: AuditLog) -> int:
+    count = _fields(row).get("withheld")
+    if isinstance(count, int):
+        return count
+    match = _WITHHELD.search(row.detail or "")
+    return int(match.group(1) or match.group(2)) if match else 0
+
+
+def privacy_counts(rows: list[AuditLog]) -> PrivacyCounts:
     return PrivacyCounts(
         quarantined=sum(1 for r in rows if r.action == "quarantine_message" and r.success),
         released=sum(1 for r in rows if r.action == "remask_message" and r.success),
-        degraded_before_fix=sum(1 for r in rows if "presidio degraded" in detail(r)),
+        degraded_before_fix=sum(1 for r in rows if _is_degraded(r)),
         attachment_text_dropped=sum(1 for r in rows if _is_drop(r)),
-        pages_withheld=sum(int(m.group(1) or m.group(2)) for r in rows
-                           if (m := _WITHHELD.search(detail(r)))),
+        pages_withheld=sum(_withheld(r) for r in rows),
         attachment_failures=sum(
             1 for r in rows
             if r.action in ("read_attachment", "ocr_attachment") and r.success is False

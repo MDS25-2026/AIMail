@@ -33,6 +33,8 @@ INGEST_RATE_WINDOW_SECONDS = 60
 # a person clicking and far below what drains the free tier.
 GENERATION_RATE_LIMIT = 10
 GENERATION_RATE_WINDOW_SECONDS = 60
+# Across every user: the model quota is the project's, so many users at once must not exhaust it.
+GLOBAL_GENERATION_RATE_LIMIT = 60
 DETAIL_RATE_LIMIT = 60
 DETAIL_RATE_WINDOW_SECONDS = 60
 # Password guessing on the admin sign-in: five tries per five minutes per client, on top of

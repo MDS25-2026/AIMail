@@ -39,7 +39,7 @@ As a corporate knowledge worker and inbox operator, I want incoming emails autom
   - Evaluation reporting: Stratified split, per-class Precision/Recall/F1, Macro-F1, and Confusion Matrix.
 - 300 DPI annotated Confusion Matrix heatmap export (`results/category_confusion_matrix.png`) for Poster Section 05.
 - Inference runtime surface: `predict_category(masked_email_text: str) -> tuple[EmailCategory, float]`.
-- Database persistence: `category` and `category_confidence` columns on `messages` table via migration `0025_email_category.sql`.
+- Database persistence: `category` and `category_confidence` columns on `messages` table via migration `0033_email_category.sql`.
 - REST API and dashboard contract integration in `DashboardEmail`.
 
 **Out of scope**
@@ -55,7 +55,7 @@ As a corporate knowledge worker and inbox operator, I want incoming emails autom
 - [ ] Given an email text payload, `predict_category` executes in **< 50ms** on CPU (target < 15ms) without initiating any external network or LLM API calls.
 - [ ] Given incoming text, `predict_category` operates **strictly on masked text** (`body_masked`, `snippet_masked`) containing PII tokens (`[PERSON_1]`, `[ORG_1]`, etc.).
 - [ ] Given an empty, whitespace-only, or unparseable email body, `predict_category` defaults gracefully to `internal` at low confidence without throwing an unhandled exception.
-- [ ] Given database migration `0025_email_category.sql`, `messages` table persists `category` (`TEXT`) and `category_confidence` (`REAL`).
+- [ ] Given database migration `0033_email_category.sql`, `messages` table persists `category` (`TEXT`) and `category_confidence` (`REAL`).
 - [ ] Given `GET /emails` and `GET /emails/{id}`, the API response contract `DashboardEmail` includes `category` and `categoryConfidence`.
 - [ ] Given the evaluation script `scripts/eval_category_classifier.py`, it exports `results/category_confusion_matrix.png` at 300 DPI suitable for print inclusion in Poster Section 05.
 
@@ -91,7 +91,7 @@ class DashboardEmail(BaseModel):
 
 ## Data model
 
-Database migration: `backend/app/db/migrations/0025_email_category.sql`:
+Database migration: `backend/app/db/migrations/0033_email_category.sql`:
 
 ```sql
 ALTER TABLE messages
@@ -179,7 +179,7 @@ Classification outputs are purely informational signals for dashboard display an
 
 - 2026-10-08: Selected TF-IDF + Logistic Regression/Calibrated LinearSVC as primary architecture. Rationale: <5ms CPU latency easily satisfies <50ms gate; zero network overhead; lightweight ~3 MB joblib artifact.
 - 2026-10-08: Adopted tri-source hybrid dataset strategy (synthetic Gemini Flash generation + corporate fixtures + 120-row human-audited gold holdout). Rationale: overcomes lack of pre-existing labeled datasets for Han's custom taxonomy while preserving empirical validity for academic defense.
-- 2026-10-08: Assigned database migration to `0025_email_category.sql`. Rationale: `main` merged release 1.5.0 with migrations up to `0024`.
+- 2026-10-08: Database migration `0033_email_category.sql`, renumbered from 0025 when #168 took 0025 to 0032 (migration numbers must be unique).
 
 ## Protected decisions
 

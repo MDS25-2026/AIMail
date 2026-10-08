@@ -26,8 +26,8 @@ As the reply generator (Lane C), I want the most relevant company-policy passage
   extracted text that starts with a section number of at most two digits ("6.", "6.2"), then a
   capital letter, has at most `MAX_HEADING_WORDS` (12) words and does not end in sentence
   punctuation. A document with no such line is chunked as before, labelled with its title.
-- **Relative cutoff (2026-10-07):** a hit scoring below `RELATIVE_CUTOFF` of the best hit for that
-  query (0.93 for Gemini, 0.85 for the local model) is dropped, so a short document does not fill all `k` slots with weak matches. A fixed
+- **Relative cutoff (2026-10-07):** a hit scoring below the cutoff share of the best hit for that
+  query is dropped (per model, in `app/rag/cutoffs.json`, chosen by `make calibrate`; never by hand), so a short document does not fill all `k` slots with weak matches. A fixed
   score cutoff does not work here: on the eval set, relevant and irrelevant hits overlap (Gemini
   0.61-0.73 vs 0.62-0.67; local 0.29-0.60 vs 0.28-0.47), and the two models score on different
   scales.
@@ -127,6 +127,16 @@ DO NOT change this without explicit approval from the Lane A / security owner.
 
 ## Decisions
 
+- 2026-10-08: The cutoff is measured, recorded and checked, not typed in. `eval/retrieval/v1.json` is
+  30 questions (10 each in English, Malay and Chinese) labelled by the handbook section that answers
+  them; `v0.json` is the earlier code-of-conduct set. `make calibrate` records each question's scores
+  (no text) and picks the cutoff with the best mean F1, ties to the lower; CI replays the record
+  (`tests/test_retrieval_calibration.py`) and fails if the committed cutoff differs or the hit rate
+  falls below 0.9. Results: local `embeddinggemma` on v1 0.88 (hit rate 1.00 in every language, F1
+  0.989); Gemini on v0 0.92 (hit rate 1.00, F1 0.805). Gemini is not yet measured in Malay or Chinese:
+  the handbook's only copy belongs to a Private-mode account, so it has local vectors only, and it was
+  not sent to Gemini to get them. Upload a copy with Private mode off and run `make calibrate
+  SET=eval/retrieval/v1.json OWNER=<id>` to measure it.
 - 2026-10-07: Relative cutoff 0.93 (Gemini) / 0.85 (local). Calibrated on 10 hand-labelled
   questions against a fictional handbook split into sections, the five test emails among them
   (EN/MS/ZH). The right section stayed in 10/10 for both; wrong sources shown fell from 26 to 5

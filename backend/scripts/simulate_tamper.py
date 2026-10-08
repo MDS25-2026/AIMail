@@ -29,6 +29,15 @@ async def check_status():
     print(f"{state} ({summary.chained} chained records)")
 
 
+async def _edit_past_the_guard(session, target_id: str, detail: str) -> None:
+    """What an attacker with full database rights would do: switch off the append-only guard (0025)
+    for one transaction and edit a row. The chain check must still catch it."""
+    await session.execute(text("ALTER TABLE audit_log DISABLE TRIGGER trg_audit_append_only"))
+    await session.execute(text("UPDATE audit_log SET detail = :d WHERE id = :id"), {"d": detail, "id": target_id})
+    await session.execute(text("ALTER TABLE audit_log ENABLE TRIGGER trg_audit_append_only"))
+    await session.commit()
+
+
 async def tamper_record():
     async with get_sessionmaker()() as session:
         sql_find = "SELECT id, detail FROM audit_log WHERE chain_seq IS NOT NULL ORDER BY chain_seq DESC LIMIT 1"
@@ -46,12 +55,8 @@ async def tamper_record():
             json.dumps({"id": target_id, "original_detail": original_detail})
         )
 
-        tampered_detail = "UNAUTHORIZED TAMPERED TEXT: Rogue admin altered audit record"
-        sql_tamper = "UPDATE audit_log SET detail = :tampered WHERE id = :id"
-        await session.execute(
-            text(sql_tamper), {"tampered": tampered_detail, "id": target_id}
-        )
-        await session.commit()
+        tampered_detail = '{"tampered":true}'
+        await _edit_past_the_guard(session, target_id, tampered_detail)
 
     print(f"[TAMPERED] Modified record ID: {target_id}")
     print(f"Original detail: {original_detail}")
@@ -69,11 +74,7 @@ async def restore_record():
     original_detail = data["original_detail"]
 
     async with get_sessionmaker()() as session:
-        sql_restore = "UPDATE audit_log SET detail = :orig WHERE id = :id"
-        await session.execute(
-            text(sql_restore), {"orig": original_detail, "id": target_id}
-        )
-        await session.commit()
+        await _edit_past_the_guard(session, target_id, original_detail)
 
     BACKUP_FILE.unlink(missing_ok=True)
     print(f"[RESTORED] Record ID: {target_id} restored to authentic state.")

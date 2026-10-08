@@ -29,7 +29,10 @@ One "Your writing style" card in Settings with three independent parts. Any mix 
   added with "Use as an example" on a reply they sent.
 - **Learn from what I send:** a switch, **off by default**. While on, each send records the draft
   as shown and what was sent, and a rule-based learner lists habits (greeting, sign-off phrase,
-  typical length, repeated word swaps) with their evidence.
+  typical length, repeated word swaps) with their evidence. Habits are learned per language
+  (2026-10-08, migration 0030): each send counts toward the language it is written in, and a draft
+  carries only the habits of its email's language, so "Salam" never opens an English reply.
+  Lengths count Chinese in words, not spaces (`app/core/language.py`, `word_count`).
 - **Reuse my past replies (added 2026-10-07):** while learning is on, each send also stores the
   email and the reply as one searchable item, so a later draft for a similar email can see how the
   user answered before. It is found by the same search as documents (Gemini vectors normally,
@@ -62,6 +65,10 @@ One "Your writing style" card in Settings with three independent parts. Any mix 
       word swaps: a rewrite says the draft missed, not how the user phrases things.
 - [ ] Given a learned habit, then the card shows it with its evidence ("in 7 of your last 10
       replies") and a delete control; a deleted habit never returns.
+- [x] Given three English and three Malay sends with different greetings, then each language
+      learns its own; two of each teach neither (evidence counts within one language).
+- [x] Given a style hint or an example longer than its cap, then it is cut at a whole line or
+      word, never mid-word.
 - [ ] Given learning is on, when the user sends, then the email and the reply are stored as one
       search item of at most `PAST_REPLY_MAX_CHARS` (4000), masked with `mask_for_style`, so every
       placeholder is `(hidden)`: a copied placeholder can never be filled from another thread's

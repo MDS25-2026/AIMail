@@ -6,22 +6,25 @@ the draft and instruction the user typed went to Gemini with any phone number or
 
 import asyncio
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
 import httpx
 import pytest
-from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import email_agent
 from app import dashboard
+from app.agent_contract import Tone
 from app.core.ownership import EVERYTHING
-from app.core.typed_text import mask_typed_text
+from app.core.providers import Provider
+from app.core.typed_text import mask_typed_text, strip_link_queries
 from app.db.models import MaskingStatus, Message
-from tests.conftest import AUTH_HEADERS
+from tests.conftest import AUTH_HEADERS, agent_client
+from tests.drafting import GOOD_VERDICT as GOOD
 
 # ---------- Masking what the user typed ----------
 
@@ -56,7 +59,7 @@ def _stub_agent(monkeypatch, revised: str, evaluation: dict, pii: list[str]):
         return revised
 
     async def critic(*_args, **_kwargs):
-        return evaluation
+        return email_agent.CriticVerdict.model_validate(evaluation)
 
     async def scan(_draft):
         return pii
@@ -66,15 +69,11 @@ def _stub_agent(monkeypatch, revised: str, evaluation: dict, pii: list[str]):
     monkeypatch.setattr(email_agent, "scan_draft_pii", scan)
 
 
-GOOD = {"confidence": 0.92, "grounding_ok": True, "pii_clean": True, "tone_match": True,
-        "completeness": True, "issues": [], "unaddressed_items": []}
-
-
 def _refine(body: dict):
     payload = {"email_body": "Can you confirm Friday?", "draft": "Friday works.",
-               "instruction": "shorter", "thread_context": "", "rag_context": "",
-               "action_items": ["Confirm Friday"]} | body
-    return TestClient(email_agent.app).post("/refine", json=payload)
+               "instruction": "shorter", "thread_context": "", "rag_context": "Claims are paid within 30 days.",
+               "action_items": ["Confirm Friday"], "provider": "gemini"} | body
+    return agent_client().post("/refine", json=payload)
 
 
 def test_a_clean_refined_draft_comes_back_with_its_checks(monkeypatch):
@@ -83,6 +82,13 @@ def test_a_clean_refined_draft_comes_back_with_its_checks(monkeypatch):
     assert body["draft"] == "Friday is fine."
     assert body["confidence"] == 0.92 and body["needs_human_review"] is False
     assert body["review_reasons"] == []
+
+
+def test_a_refined_draft_keeps_the_reasons_the_email_itself_gives(monkeypatch):
+    # Refine used to drop these: refining an ungrounded or phishing email cleared its warning.
+    _stub_agent(monkeypatch, "Friday is fine.", GOOD, [])
+    reasons = _refine({"rag_context": ""}).json()["review_reasons"]
+    assert any("not grounded" in reason for reason in reasons)
 
 
 def test_a_refined_draft_that_leaks_or_invents_is_flagged(monkeypatch):
@@ -117,8 +123,8 @@ def backend(monkeypatch):
     async def load_with_thread(pk, scope):
         return message, []
 
-    async def call_agent(path, payload):
-        state["payload"] = payload
+    async def call_agent(path, request, _answer=None):
+        state["payload"] = request.model_dump(mode="json")
         if isinstance(state["agent"], Exception):
             raise state["agent"]
         return state["agent"]
@@ -161,7 +167,7 @@ def test_a_refine_the_model_refused_is_reported_as_refused(backend):
                                            response=httpx.Response(422, request=request))
     with pytest.raises(dashboard.DraftNotUpdatedError) as caught:
         asyncio.run(dashboard.refine_email(str(message.id), "shorter", "Old draft", scope=EVERYTHING))
-    assert caught.value.code == dashboard.DraftErrorCode.DRAFT_REFUSED
+    assert caught.value.code == dashboard.ErrorCode.DRAFT_REFUSED
 
 
 # ---------- Questions typed into search and ask ----------
@@ -171,16 +177,20 @@ def test_a_refine_the_model_refused_is_reported_as_refused(backend):
 def captured_query(monkeypatch):
     seen = {}
 
-    async def retrieve(query, k, scope):
+    async def retrieve(query, k, scope, provider):
         seen["query"] = query
         return []
 
-    async def answer(question, chunks):
+    async def answer(question, chunks, provider):
         seen["question"] = question
         return "ok"
 
+    async def gemini(_user_id):
+        return Provider.GEMINI
+
     monkeypatch.setattr("app.main.retrieve", retrieve)
     monkeypatch.setattr("app.main.answer", answer)
+    monkeypatch.setattr("app.main.provider_for", gemini)
     return seen
 
 
@@ -192,3 +202,25 @@ def test_a_search_query_is_masked_before_it_is_embedded(api_client, captured_que
 def test_an_ask_question_is_masked_before_it_reaches_the_model(api_client, captured_query):
     api_client.post("/ask", json={"question": "call 012-345 6789 about leave?"}, headers=AUTH_HEADERS)
     assert "012-345 6789" not in captured_query["question"]
+
+
+def test_a_refined_draft_is_stored_with_its_tone(backend):
+    message, state = backend
+    asyncio.run(dashboard.refine_email(str(message.id), "warmer", "Old draft", scope=EVERYTHING, tone=Tone.CASUAL))
+    assert state["writes"]["draft_tone"] == Tone.CASUAL
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("see https://a.com/reset?token=abc&e=x for it", "see https://a.com/reset for it"),
+    ("(http://x.my/p#frag) ok", "(http://x.my/p) ok"),
+    ("http://?q stays: no host", "http://?q stays: no host"),
+    ("no links here?", "no links here?"),
+])
+def test_a_link_keeps_its_host_and_path_but_loses_its_query(text, expected):
+    assert strip_link_queries(text) == expected
+
+
+def test_a_hostile_run_of_schemes_is_read_in_linear_time():
+    started = time.perf_counter()
+    strip_link_queries("http://" * 50_000)
+    assert time.perf_counter() - started < 1.0  # the old pattern took minutes here

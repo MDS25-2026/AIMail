@@ -1,6 +1,8 @@
 import { CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { errorMessage } from "../lib/api/errors";
+
 /**
  * The three states every data-backed page shows before it shows content.
  * Kept in one place so a new page cannot invent its own loading spinner or swallow an error
@@ -20,7 +22,6 @@ type PageErrorProps = { label: string; error: unknown; onRetry?: () => void };
 
 export function PageError({ label, error, onRetry }: PageErrorProps) {
   const { t } = useTranslation();
-  const detail = error instanceof Error ? error.message : t("page.unknownError");
   return (
     <div
       role="alert"
@@ -29,7 +30,7 @@ export function PageError({ label, error, onRetry }: PageErrorProps) {
       <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-danger" />
       <div>
         <p className="text-sm font-semibold text-danger">{t("page.errorTitle", { label })}</p>
-        <p className="mt-1 text-sm text-danger">{detail}</p>
+        <p className="mt-1 text-sm text-danger">{errorMessage(error, t)}</p>
         <p className="mt-2 text-xs text-danger">{t("page.errorHint")}</p>
         {onRetry ? (
           <button

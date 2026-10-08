@@ -3,14 +3,14 @@ import { useTranslation } from "react-i18next";
 import type { Tone } from "../types/email";
 
 type ToneToggleProps = {
-  emailId: string;
   tone: Tone;
-  onToneChange: (emailId: string, tone: Tone) => void;
+  onToneChange: (tone: Tone) => void;
+  disabled?: boolean;
 };
 
 const TONES: Tone[] = ["professional", "casual"];
 
-export default function ToneToggle({ emailId, tone, onToneChange }: ToneToggleProps) {
+export default function ToneToggle({ tone, onToneChange, disabled = false }: ToneToggleProps) {
   const { t } = useTranslation();
   return (
     <div
@@ -23,7 +23,8 @@ export default function ToneToggle({ emailId, tone, onToneChange }: ToneTogglePr
           key={option}
           type="button"
           aria-pressed={tone === option}
-          onClick={() => onToneChange(emailId, option)}
+          disabled={disabled}
+          onClick={() => onToneChange(option)}
           className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
             tone === option ? "bg-surface text-fg shadow-sm" : "text-fg-muted hover:text-fg-body"
           }`}

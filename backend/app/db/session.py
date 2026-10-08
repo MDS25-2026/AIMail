@@ -9,11 +9,13 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from app.core.config import get_settings
+from app.core.config import MisconfiguredError, get_settings
 
 
 @lru_cache
 def get_engine() -> AsyncEngine:
+    if not get_settings().database_url:
+        raise MisconfiguredError("DATABASE_URL is not set")
     # hide_parameters: a DB error's message otherwise carries the bound values, which here are
     # email bodies, into every logged traceback.
     return create_async_engine(

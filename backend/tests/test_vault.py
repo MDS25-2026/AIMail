@@ -21,6 +21,7 @@ KEY = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 @pytest.fixture(autouse=True)
 def vault_key(monkeypatch, test_settings):
     monkeypatch.setenv("PII_VAULT_KEY", KEY)
+    monkeypatch.setenv("PII_VAULT_KEYS", "")  # a developer's .env may hold a keyring
     get_settings.cache_clear()
 
 

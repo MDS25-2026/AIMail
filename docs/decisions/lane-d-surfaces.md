@@ -34,7 +34,9 @@ _No entries yet. Add newest-first using the template in [`README.md`](README.md)
 - Affects: `routes/{index,extension}.tsx`, `components/{EmailDetailPanel,ExtensionPanel,
   DraftActionsBar,RefineInput,PageState,DraftStatus}.tsx`, `lib/{draftGuards,useDraftWorkflow}.ts`,
   `locales/{en,ms,zh}.ts` (new `draftStatus`, `inbox.empty*`, `page.retry`; `draft.sendFailed` removed).
-- Status: implemented by veyroxie; needs Han's review as Lane D owner.
+- Status: implemented by veyroxie; reviewed and accepted by Han 2026-10-08. One gap found: the tone
+  toggle was never disabled, so a tone change could regenerate the draft mid-send, and the draft
+  stayed editable after sending. Fixed in #172.
 
 ### 2026-09-29 — Semantic colour tokens, a verified colour-blind-safe palette, three languages
 - Decision: components use semantic colour classes (`bg-surface`, `text-fg-muted`, `text-danger`
@@ -52,5 +54,7 @@ _No entries yet. Add newest-first using the template in [`README.md`](README.md)
 - Affects: every component and route, `styles.css`, new `src/palette.css`, `src/locales/`,
   `src/lib/{preferences,i18n,highlight,useInboxKeyboard,useFormat}.ts`, `package.json`
   (i18next, react-i18next, both MIT, approved 2026-09-29).
-- Status: implemented by veyroxie; needs Han's review as Lane D owner.
+- Status: implemented by veyroxie; reviewed and accepted by Han 2026-10-08 (no raw colour classes
+  left outside `components/ui/`; the compiler keeps the three locales in step). New Lane D work
+  follows the tokens and locales.
 

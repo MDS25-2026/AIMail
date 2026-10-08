@@ -126,7 +126,7 @@ def test_a_draft_that_fails_for_content_is_stored_as_not_drafted_so_it_is_not_re
     async def no_chunks(*_args, **_kwargs):
         return []
 
-    async def refuses(path, payload):
+    async def refuses(path, request, _answer=None):
         request = httpx.Request("POST", "http://agent/process-email")
         response = httpx.Response(422, json={"detail": "gemini_output_truncated"}, request=request)
         raise httpx.HTTPStatusError("422", request=request, response=response)
@@ -224,3 +224,10 @@ def test_a_regenerate_that_fails_for_content_keeps_the_existing_draft(monkeypatc
     outcome = asyncio.run(dashboard._generate_and_store(message, tone="casual"))
     assert outcome is dashboard.GenerationOutcome.KEPT
     assert message.draft_reply == "Reviewed draft"
+
+
+def test_the_view_shows_the_tone_the_draft_was_written_in():
+    casual = Message(id=uuid4(), draft_reply="Hey!", draft_tone="casual", created_at=datetime(2026, 10, 8, tzinfo=timezone.utc))
+    older = Message(id=uuid4(), draft_reply="Dear", created_at=datetime(2026, 10, 8, tzinfo=timezone.utc))
+    assert _to_email(casual).tone == "casual"
+    assert _to_email(older).tone == "professional"  # written before tones were stored

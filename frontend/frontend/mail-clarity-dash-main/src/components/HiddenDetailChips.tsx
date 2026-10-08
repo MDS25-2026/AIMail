@@ -3,7 +3,10 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { DetailValues } from "../lib/details";
-import { fillFirst, kindOf, unfilledMarkers } from "../lib/hiddenDetails";
+import { fillFirst, unfilledMarkers } from "../lib/hiddenDetails";
+import { kindOf } from "../lib/masking";
+import { cn } from "../lib/utils";
+import { button, field } from "./variants";
 
 type HiddenDetailChipsProps = {
   draft: string;
@@ -32,7 +35,7 @@ export default function HiddenDetailChips({
   };
 
   const fill = () => {
-    if (!open) return;
+    if (!open || disabled) return;
     onDraftChange(fillFirst(draft, open, typed));
     setOpenIndex(null);
     setTyped("");
@@ -67,13 +70,14 @@ export default function HiddenDetailChips({
               onKeyDown={(event) => event.key === "Enter" && fill()}
               aria-label={t("hiddenDetails.typeHere")}
               placeholder={t("hiddenDetails.typeHere")}
-              className="min-w-0 flex-1 rounded-md border border-line-strong px-2 py-1 text-sm"
+              className={cn(field({ size: "sm" }), "min-w-0 flex-1")}
             />
             <button
               type="button"
-              disabled={!typed.trim()}
+              // The panel can be open when a send starts; filling then would change the draft.
+              disabled={disabled || !typed.trim()}
               onClick={fill}
-              className="rounded-md bg-brand px-3 py-1 text-xs font-semibold text-on-brand disabled:opacity-50"
+              className={button({ intent: "primary", size: "xs" })}
             >
               {t("hiddenDetails.fill")}
             </button>
