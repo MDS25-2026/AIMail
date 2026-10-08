@@ -6,16 +6,16 @@ import json
 import pytest
 from sqlalchemy.dialects import postgresql
 
-import email_agent
 import gemini_client
+import model_gateway
 from app import dashboard, private_mode_routes
 from app.core.config import get_settings
 from app.core.constants import LOCAL_EMBEDDING_DIM
 from app.core.ownership import EVERYTHING
-from app.private_mode import DraftProvider
+from app.core.providers import Provider
 from app.rag import ingest
 from app.rag import retrieve as retrieve_module
-from gemini_client import GeminiError, GeminiErrorCode
+from model_runtime import ModelError, ModelErrorCode
 from tests.conftest import agent_client
 from tests.test_account import _signed_in, calls  # noqa: F401  (fixture)
 from tests.test_restorable_masking import mailbox  # noqa: F401  (fixture)
@@ -37,14 +37,14 @@ def local_only(monkeypatch):
     async def gemini(*_args, **_kwargs):
         raise AssertionError("a Private mode request reached Gemini")
 
-    async def local(prompt, response_schema=None, max_output_tokens=None):
+    async def local(prompt, response_schema=None, max_output_tokens=None, system=None):
         asked.append(prompt)
         return _answer_from(response_schema) if response_schema else "Hi [PERSON_1], noted. [PERSON_9]"
 
-    monkeypatch.setattr(email_agent, "generate", gemini)
+    monkeypatch.setattr(model_gateway, "gemini_generate", gemini)
     # Also where a request actually leaves, so a stage calling the client directly is caught too.
     monkeypatch.setattr(gemini_client, "call_model", gemini)
-    monkeypatch.setattr(email_agent, "generate_local", local)
+    monkeypatch.setattr(model_gateway, "generate_local", local)
     return asked
 
 
@@ -66,10 +66,10 @@ def test_without_the_local_model_a_private_draft_fails_and_does_not_fall_back(mo
         raise AssertionError("fell back to Gemini")
 
     async def down(*_args, **_kwargs):
-        raise GeminiError(GeminiErrorCode.UNAVAILABLE, "ollama not running")
+        raise ModelError(ModelErrorCode.UNAVAILABLE, "ollama not running")
 
-    monkeypatch.setattr(email_agent, "generate", gemini)
-    monkeypatch.setattr(email_agent, "generate_local", down)
+    monkeypatch.setattr(model_gateway, "gemini_generate", gemini)
+    monkeypatch.setattr(model_gateway, "generate_local", down)
     response = agent_client().post("/process-email", json={
         "thread_context": "", "email_body": "Hi", "rag_context": "", "provider": "local"})
     assert response.status_code == 503
@@ -83,13 +83,13 @@ def test_a_private_draft_searches_locally_and_asks_for_the_local_model(mailbox, 
         return []
 
     async def local(_user_id):
-        return DraftProvider.LOCAL
+        return Provider.LOCAL
 
     monkeypatch.setattr(dashboard, "retrieve", retrieve)
     monkeypatch.setattr(dashboard, "provider_for", local)
     asyncio.run(dashboard.regenerate_email(str(mailbox["message"].id), scope=EVERYTHING))
     payload = json.loads(mailbox["payloads"][0])
-    assert payload["provider"] == "local" and searched == [DraftProvider.LOCAL]
+    assert payload["provider"] == "local" and searched == [Provider.LOCAL]
 
 
 @pytest.fixture
@@ -102,7 +102,7 @@ def no_gemini_embedding(monkeypatch):
 
 def test_a_private_search_without_a_local_embedding_model_finds_nothing(test_settings, no_gemini_embedding):
     found = asyncio.run(retrieve_module.retrieve("Is Thursday still on?", 5, scope=EVERYTHING,
-                                                 provider=DraftProvider.LOCAL))
+                                                 provider=Provider.LOCAL))
     assert found == []
 
 
@@ -146,7 +146,7 @@ def test_private_mode_can_always_be_switched_off_even_where_it_is_no_longer_set_
         saved.append(provider)
 
     async def still_local(_user_id):
-        return DraftProvider.GEMINI if saved else DraftProvider.LOCAL
+        return Provider.GEMINI if saved else Provider.LOCAL
 
     async def nothing(*_args, **_kwargs):
         return None
@@ -156,14 +156,14 @@ def test_private_mode_can_always_be_switched_off_even_where_it_is_no_longer_set_
     monkeypatch.setattr(private_mode_routes, "_save_choice", save)
     monkeypatch.setattr(private_mode_routes, "provider_for", still_local)
     response = _signed_in().put("/settings/private-mode", json={"enabled": False}, headers=CLIENT)
-    assert response.status_code == 200 and saved == [DraftProvider.GEMINI]
+    assert response.status_code == 200 and saved == [Provider.GEMINI]
     assert response.json() == {"available": False, "enabled": False, "model": "", "search": False}
 
 
 @pytest.mark.parametrize(("model", "is_searched"), [("embeddinggemma", True), ("", False)])
 def test_the_card_says_whether_private_drafts_search_documents(calls, monkeypatch, model, is_searched):  # noqa: F811
     async def local(_user_id):
-        return DraftProvider.LOCAL
+        return Provider.LOCAL
 
     monkeypatch.setenv("LOCAL_EMBEDDING_MODEL", model)
     get_settings.cache_clear()

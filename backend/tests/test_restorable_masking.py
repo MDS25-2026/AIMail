@@ -15,8 +15,8 @@ from app import dashboard
 from app.core import vault
 from app.core.config import get_settings
 from app.core.ownership import EVERYTHING
+from app.core.providers import Provider
 from app.db.models import MaskingStatus, Message
-from app.private_mode import DraftProvider
 
 OWNER = UUID("aaaaaaaa-0000-4000-8000-000000000001")
 KEY = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
@@ -71,7 +71,7 @@ def mailbox(monkeypatch, test_settings):
         return {}
 
     async def gemini(_user_id):
-        return DraftProvider.GEMINI
+        return Provider.GEMINI
 
     for name, value in (("_load", load), ("_load_with_thread", load_with_thread), ("_owner_name", owner_name),
                         ("retrieve", no_chunks), ("_mark_read", nothing),

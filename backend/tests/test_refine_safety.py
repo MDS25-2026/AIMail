@@ -72,7 +72,7 @@ GOOD = {"confidence": 0.92, "grounding_ok": True, "pii_clean": True, "tone_match
 def _refine(body: dict):
     payload = {"email_body": "Can you confirm Friday?", "draft": "Friday works.",
                "instruction": "shorter", "thread_context": "", "rag_context": "",
-               "action_items": ["Confirm Friday"]} | body
+               "action_items": ["Confirm Friday"], "provider": "gemini"} | body
     return agent_client().post("/refine", json=payload)
 
 

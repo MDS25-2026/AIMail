@@ -140,8 +140,10 @@ def test_the_style_is_fenced_as_data_and_cannot_close_its_own_tag():
 
 
 def test_draft_and_refine_requests_accept_the_style_and_default_to_none():
-    assert email_agent.ProcessEmailRequest(thread_context="", email_body="", rag_context="").style_examples == []
-    refine = email_agent.RefineRequest(email_body="", draft="", instruction="", style_hint="Brief.")
+    assert email_agent.ProcessEmailRequest(thread_context="", email_body="", rag_context="",
+                                           provider="gemini").style_examples == []
+    refine = email_agent.RefineRequest(email_body="", draft="", instruction="", style_hint="Brief.",
+                                       provider="gemini")
     assert refine.style_hint == "Brief."
 
 
@@ -309,7 +311,7 @@ def test_no_admin_route_reads_a_writing_style():
 def test_every_drafting_prompt_asks_for_the_emails_own_language(monkeypatch):
     prompts = []
 
-    async def capture(system_prompt, user_prompt, max_tokens=0):
+    async def capture(system_prompt, user_prompt, max_tokens=0, **_kwargs):
         prompts.append(system_prompt)
         return "ok"
 

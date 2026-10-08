@@ -11,9 +11,10 @@ from app.account_routes import account_user_id
 from app.audit import AuditAction, audit
 from app.core.config import get_settings
 from app.core.errors import DomainError, ErrorCode
+from app.core.providers import Provider
 from app.db.models import Message, UserPreferences
 from app.db.session import get_sessionmaker
-from app.private_mode import DraftProvider, is_offered, provider_for
+from app.private_mode import is_offered, provider_for
 from app.rag.local_embed import local_model
 
 router = APIRouter()
@@ -32,7 +33,7 @@ class PrivateModeBody(BaseModel):
     enabled: bool
 
 
-async def _save_choice(user_id: UUID, provider: DraftProvider) -> None:
+async def _save_choice(user_id: UUID, provider: Provider) -> None:
     statement = insert(UserPreferences).values(user_id=user_id, draft_provider=provider)
     async with get_sessionmaker()() as session, session.begin():
         await session.execute(statement.on_conflict_do_update(
@@ -45,7 +46,7 @@ async def _save_choice(user_id: UUID, provider: DraftProvider) -> None:
 
 async def _view(request: Request) -> PrivateModeView:
     provider = await provider_for(account_user_id(request))
-    return PrivateModeView(available=is_offered(), enabled=provider == DraftProvider.LOCAL,
+    return PrivateModeView(available=is_offered(), enabled=provider == Provider.LOCAL,
                            model=get_settings().local_llm_model, search=bool(local_model()))
 
 
@@ -60,6 +61,6 @@ async def put_private_mode(body: PrivateModeBody, request: Request) -> PrivateMo
     # Switching off is always allowed: it must never be stuck on a model the company removed.
     if body.enabled and not is_offered():
         raise DomainError(ErrorCode.PRIVATE_MODE_UNAVAILABLE)
-    await _save_choice(user_id, DraftProvider.LOCAL if body.enabled else DraftProvider.GEMINI)
+    await _save_choice(user_id, Provider.LOCAL if body.enabled else Provider.GEMINI)
     await audit(AuditAction.PRIVATE_MODE, user_id=user_id, enabled=body.enabled)
     return await _view(request)

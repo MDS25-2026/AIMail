@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.constants import EMBEDDING_TAG
 from app.core.ownership import Scope
+from app.core.providers import Provider
 from app.db.models import (
     Chunk,
     DocType,
@@ -17,7 +18,6 @@ from app.db.models import (
     UserPreferences,
 )
 from app.db.session import get_sessionmaker
-from app.private_mode import DraftProvider
 from app.rag.chunk import (
     SECTION_KEY,
     Piece,
@@ -148,7 +148,7 @@ def _pending(already_embedded: Select, limit: int) -> Select:
 def _pending_for_gemini(limit: int) -> Select:
     already_embedded = select(Embedding.chunk_id).where(Embedding.model_name == EMBEDDING_TAG)
     private_users = select(UserPreferences.user_id).where(
-        UserPreferences.draft_provider == DraftProvider.LOCAL)
+        UserPreferences.draft_provider == Provider.LOCAL)
     private_documents = select(Document.id).where(Document.user_id.in_(private_users))
     return _pending(already_embedded, limit).where(Chunk.document_id.not_in(private_documents))
 

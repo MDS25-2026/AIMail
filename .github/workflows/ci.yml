@@ -24,7 +24,7 @@ jobs:
           cache: pip
       # constraints.txt pins what make check last passed with; the floors alone let CI drift.
       - run: pip install -r requirements.txt -c constraints.txt
-      - run: ruff check app tests scripts email_agent.py gemini_client.py
+      - run: ruff check app tests scripts *.py
       - run: pytest -q
 
   frontend:

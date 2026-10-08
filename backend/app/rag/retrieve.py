@@ -5,9 +5,9 @@ from sqlalchemy import ColumnElement, Select, select
 from app.contracts import ContextChunk
 from app.core.constants import EMBEDDING_TAG
 from app.core.ownership import Scope
+from app.core.providers import Provider
 from app.db.models import Chunk, Document, Embedding, LocalEmbedding
 from app.db.session import get_sessionmaker
-from app.private_mode import DraftProvider
 from app.rag.chunk import SECTION_KEY
 from app.rag.embed import embed_query
 from app.rag.local_embed import embed_query_locally, local_model, local_tag
@@ -15,7 +15,7 @@ from app.rag.local_embed import embed_query_locally, local_model, local_tag
 SECTION_SEPARATOR = " · "
 # A hit scoring below this share of the best one is dropped (specs/features/rag-retrieval.md).
 # Per model: Gemini's scores sit close together, the local model's spread wider.
-RELATIVE_CUTOFF = {DraftProvider.GEMINI: 0.93, DraftProvider.LOCAL: 0.85}
+RELATIVE_CUTOFF = {Provider.GEMINI: 0.93, Provider.LOCAL: 0.85}
 
 
 async def _gemini_search(masked_email: str, k: int, scope: Scope) -> Select | None:
@@ -50,7 +50,7 @@ def _search(table: type[Embedding] | type[LocalEmbedding], tag: str, distance: C
 
 
 async def retrieve(masked_email: str, k: int, *, scope: Scope,
-                   provider: DraftProvider = DraftProvider.GEMINI) -> list[ContextChunk]:
+                   provider: Provider = Provider.GEMINI) -> list[ContextChunk]:
     """Return the top-k most similar policy chunks for a masked email.
 
     The masked email is used directly as the query here (the S3 baseline). Query
@@ -58,7 +58,7 @@ async def retrieve(masked_email: str, k: int, *, scope: Scope,
     scope's own documents can ground a draft, so nothing cites another user's files. In Private
     mode the email is embedded and searched locally only.
     """
-    search = _local_search if provider == DraftProvider.LOCAL else _gemini_search
+    search = _local_search if provider == Provider.LOCAL else _gemini_search
     stmt = await search(masked_email, k, scope)
     if stmt is None:
         return []

@@ -19,7 +19,7 @@ from email_agent import (
     unaddressed_requests,
     unsupported_specifics,
 )
-from gemini_client import GeminiError, GeminiErrorCode
+from gemini_client import ModelError, ModelErrorCode
 from tests.conftest import agent_client
 
 
@@ -213,16 +213,16 @@ def test_action_items_drop_blank_and_non_text_entries(monkeypatch):
 
 
 @pytest.mark.parametrize("code, status", [
-    (GeminiErrorCode.DEADLINE_EXCEEDED, 504),
-    (GeminiErrorCode.UNAVAILABLE, 503),
+    (ModelErrorCode.DEADLINE_EXCEEDED, 504),
+    (ModelErrorCode.UNAVAILABLE, 503),
 ])
 def test_a_gemini_failure_reaches_the_caller_as_a_coded_status(monkeypatch, code, status):
     async def failing(*_args, **_kwargs):
-        raise GeminiError(code, "test")
+        raise ModelError(code, "test")
 
     monkeypatch.setattr(email_agent, "call_gemini", failing)
     response = agent_client().post("/process-email", json={
-        "thread_context": "", "email_body": "Hi", "rag_context": ""})
+        "thread_context": "", "email_body": "Hi", "rag_context": "", "provider": "gemini"})
     assert response.status_code == status
     assert response.json()["detail"] == code
 
@@ -240,7 +240,8 @@ def test_phishing_needs_a_credential_ask_beside_a_link(body, expected):
 
 
 def _request(rag_context: str = "Refunds take 14 days.") -> email_agent.ProcessEmailRequest:
-    return email_agent.ProcessEmailRequest(thread_context="", email_body="Hi", rag_context=rag_context)
+    return email_agent.ProcessEmailRequest(thread_context="", email_body="Hi", rag_context=rag_context,
+                                       provider="gemini")
 
 
 def test_an_ungrounded_reply_is_a_review_reason():
@@ -280,13 +281,13 @@ def test_an_unfaithful_translation_is_refused_with_422(monkeypatch):
 
     monkeypatch.setattr(email_agent, "call_gemini", fake)
     response = agent_client().post(
-        "/translate", json={"text": TRANSLATE_SOURCE, "language": "ms"})
+        "/translate", json={"text": TRANSLATE_SOURCE, "language": "ms", "provider": "gemini"})
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "translation_unfaithful"
 
 
 def test_an_unsupported_language_is_rejected_before_any_call():
-    response = agent_client().post("/translate", json={"text": "hi", "language": "fr"})
+    response = agent_client().post("/translate", json={"text": "hi", "language": "fr", "provider": "gemini"})
     assert response.status_code == 422
 
 
@@ -323,9 +324,9 @@ def test_a_critic_reply_that_is_not_an_object_is_a_typed_error(monkeypatch):
         return ["not", "an", "object"]
 
     monkeypatch.setattr(email_agent, "call_gemini", fake)
-    with pytest.raises(GeminiError) as caught:
+    with pytest.raises(ModelError) as caught:
         asyncio.run(email_agent.evaluate_reply("", "", "Hi", "Draft", "professional"))
-    assert caught.value.code == GeminiErrorCode.MALFORMED_JSON
+    assert caught.value.code == ModelErrorCode.MALFORMED_JSON
 
 
 @pytest.mark.parametrize("draft, expected", [
@@ -345,17 +346,17 @@ def test_a_bare_domain_link_counts_for_phishing():
 
 
 @pytest.mark.parametrize("code, status", [
-    (GeminiErrorCode.OUTPUT_TRUNCATED, 422),
-    (GeminiErrorCode.NO_CANDIDATE, 422),
-    (GeminiErrorCode.REJECTED, 422),
+    (ModelErrorCode.OUTPUT_TRUNCATED, 422),
+    (ModelErrorCode.NO_CANDIDATE, 422),
+    (ModelErrorCode.REJECTED, 422),
 ])
 def test_a_content_failure_is_not_worth_retrying(monkeypatch, code, status):
     async def failing(*_args, **_kwargs):
-        raise GeminiError(code, "test")
+        raise ModelError(code, "test")
 
     monkeypatch.setattr(email_agent, "call_gemini", failing)
     response = agent_client().post("/process-email", json={
-        "thread_context": "", "email_body": "Hi", "rag_context": ""})
+        "thread_context": "", "email_body": "Hi", "rag_context": "", "provider": "gemini"})
     assert response.status_code == status
 
 
