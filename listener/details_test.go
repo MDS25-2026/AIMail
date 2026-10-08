@@ -69,7 +69,7 @@ func TestDroppedAttachmentTextLeavesNothingInTheVault(t *testing.T) {
 	t.Setenv("PRESIDIO_ANALYZER_URL", "http://127.0.0.1:1/analyze")
 	v := newDetailVault()
 	v.placeholder(kindPerson, "Aisyah")
-	masked, _, _ := maskAttachmentText(t.Context(), "m1", "IC 880101-14-5523", v)
+	masked, _, _ := maskAttachmentText(t.Context(), messageRef{msgID: "m1"}, "IC 880101-14-5523", v)
 	if masked != "" || len(v.values) != 1 {
 		t.Fatalf("masked %q, vault %v", masked, v.values)
 	}

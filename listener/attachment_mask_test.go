@@ -34,7 +34,7 @@ func TestAttachmentTextIsDroppedWhenNERIsUnavailable(t *testing.T) {
 	// Pointing Presidio at a closed port is how maskText degrades to the regex floor.
 	t.Setenv("PRESIDIO_ANALYZER_URL", "http://127.0.0.1:1/analyze")
 	withSupabase(t, func(w http.ResponseWriter, _ *http.Request) {})
-	masked, _, _ := maskAttachmentText(context.Background(), "m1", "Invoice for Aisyah Rahman", newDetailVault())
+	masked, _, _ := maskAttachmentText(context.Background(), messageRef{msgID: "m1"}, "Invoice for Aisyah Rahman", newDetailVault())
 	if masked != "" {
 		t.Fatalf("degraded attachment text must be dropped, got %q", masked)
 	}

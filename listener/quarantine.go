@@ -57,17 +57,17 @@ func remaskInterval() time.Duration {
 
 func quarantine(ctx context.Context, ownerID, msgID string, facts SenderFacts) error {
 	row := QuarantinedMessage{UserID: ownerID, GmailMessageID: msgID, MaskingStatus: maskingPending, SenderFacts: facts}
+	ref := messageRef{ownerID: ownerID, msgID: msgID}
 	isInserted, err := insertMessage(ctx, row)
 	if err != nil {
-		writeAuditLog(ctx, "quarantine_message", fmt.Sprintf("msg %s: %v", msgID, err), false)
+		ref.auditFailure(ctx, actionQuarantineMessage, stageStore, err)
 		return fmt.Errorf("quarantine message %s: %w", msgID, err)
 	}
 	if !isInserted {
 		return nil // already stored or already quarantined
 	}
 	log.Printf("quarantined %s: NER masking unavailable, content withheld until it is", msgID)
-	writeAuditLog(ctx, "quarantine_message",
-		fmt.Sprintf("msg %s: NER unavailable, content withheld", msgID), true)
+	ref.audit(ctx, actionQuarantineMessage, auditFields{fieldReason: reasonNERUnavailable}, true)
 	return nil
 }
 
@@ -124,7 +124,12 @@ func abandon(ctx context.Context, row quarantinedRow, reason string) {
 		log.Printf("could not abandon %s: %v", row.GmailMessageID, err)
 		return
 	}
-	writeAuditLog(ctx, "remask_message", fmt.Sprintf("msg %s abandoned: %s", row.GmailMessageID, reason), false)
+	row.ref().audit(ctx, actionRemaskMessage,
+		auditFields{fieldReason: reason, fieldAttempts: row.MaskingAttempts + 1, fieldMaskingStatus: maskingAbandoned}, false)
+}
+
+func (row quarantinedRow) ref() messageRef {
+	return messageRef{ownerID: row.UserID, msgID: row.GmailMessageID}
 }
 
 // recordFailure counts one failed attempt, abandoning the row once it has used its attempts.
@@ -180,15 +185,15 @@ func remaskQuarantined(ctx context.Context) {
 // remaskOne releases one row. It reports false when the pass should stop: Presidio or Gmail is
 // down, so every remaining row would fail for the same reason and none of them should be charged.
 func remaskOne(ctx context.Context, srv *gmail.Service, row quarantinedRow) bool {
-	msg, err := fetchMessage(ctx, srv, row.GmailMessageID)
+	msg, err := fetchMessage(ctx, srv, row.ref())
 	switch {
 	case isGone(err):
-		abandon(ctx, row, "no longer in Gmail")
+		abandon(ctx, row, reasonGoneFromGmail)
 		return true
 	case err != nil && isGmailTrouble(err):
 		return false
 	case err != nil || msg.Payload == nil:
-		recordFailure(ctx, row, "fetch failed")
+		recordFailure(ctx, row, reasonFetchFailed)
 		return true
 	}
 	content, isComplete := maskMessage(ctx, srv, msg, row.UserID)
@@ -196,18 +201,18 @@ func remaskOne(ctx context.Context, srv *gmail.Service, row quarantinedRow) bool
 		if !presidioHealthy(ctx) {
 			return false
 		}
-		recordFailure(ctx, row, "masking did not complete")
+		recordFailure(ctx, row, reasonMaskingIncomplete)
 		return true
 	}
 	release := releasePatch{SenderVerdict: senderVerdict(msg.Payload.Headers), MaskedContent: content}
 	if err := supabasePatch(ctx, "messages", messageFilter(row.UserID, row.GmailMessageID), release); err != nil {
 		// Counted like any failure: a PATCH that always fails would otherwise re-read and re-OCR
 		// the attachments every pass, forever.
-		writeAuditLog(ctx, "remask_message", fmt.Sprintf("msg %s: %v", row.GmailMessageID, err), false)
-		recordFailure(ctx, row, "could not store the masked content")
+		row.ref().auditFailure(ctx, actionRemaskMessage, stageStore, err)
+		recordFailure(ctx, row, reasonStoreFailed)
 		return true
 	}
-	writeAuditLog(ctx, "remask_message", fmt.Sprintf("msg %s released from quarantine", row.GmailMessageID), true)
+	row.ref().audit(ctx, actionRemaskMessage, auditFields{fieldReason: reasonReleased}, true)
 	return true
 }
 

@@ -406,15 +406,6 @@ type QuarantinedMessage struct {
 	SenderFacts
 }
 
-// AuditLogEntry records every pipeline action for traceability — required
-// for Lane A's "storage + audit log" scope.
-type AuditLogEntry struct {
-	Action    string    `json:"action"`
-	Detail    string    `json:"detail"`
-	Success   bool      `json:"success"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
 // supabaseInsert POSTs a row to a Supabase table via the PostgREST API. When onConflict names a
 // column, a row colliding on it is ignored rather than erroring — so repeat Gmail notifications for
 // the same message don't duplicate or fail. Pass "" for a plain insert.
@@ -453,20 +444,6 @@ func supabaseInsert(ctx context.Context, table string, row interface{}, onConfli
 		return fmt.Errorf("supabase insert into %s failed: status %d", table, resp.StatusCode)
 	}
 	return nil
-}
-
-// writeAuditLog is a best-effort log write — failures here are logged
-// locally but never block the main pipeline.
-func writeAuditLog(ctx context.Context, action, detail string, success bool) {
-	entry := AuditLogEntry{
-		Action:    action,
-		Detail:    detail,
-		Success:   success,
-		CreatedAt: time.Now().UTC(),
-	}
-	if err := supabaseInsert(ctx, "audit_log", entry, ""); err != nil {
-		log.Printf("audit log write failed: %v", err)
-	}
 }
 
 func getClient(config *oauth2.Config) *http.Client {
@@ -523,7 +500,7 @@ func startTokenFileMailbox(ctx context.Context, srv *gmail.Service) {
 	profile, err := srv.Users.GetProfile("me").Context(ctx).Do()
 	if err != nil {
 		log.Printf("token.json mailbox not started: %v", err)
-		writeAuditLog(ctx, "setup_watch", fmt.Sprintf("token.json profile failed: %v", err), false)
+		writeAuditLog(ctx, "", actionSetupWatch, auditFields{fieldStage: stageProfile, fieldErrorKind: errorKind(err)}, false)
 		return
 	}
 	if existing := lookupMailbox(profile.EmailAddress); existing != nil {
@@ -533,11 +510,11 @@ func startTokenFileMailbox(ctx context.Context, srv *gmail.Service) {
 	mb := &mailbox{email: strings.ToLower(profile.EmailAddress), srv: srv}
 	if err := watchMailbox(ctx, mb); err != nil {
 		log.Printf("token.json mailbox not started: %v", err)
-		writeAuditLog(ctx, "setup_watch", fmt.Sprintf("watch registration failed: %v", err), false)
+		writeAuditLog(ctx, "", actionSetupWatch, auditFields{fieldStage: stageWatch, fieldErrorKind: errorKind(err)}, false)
 		return
 	}
 	registerMailbox(mb)
-	writeAuditLog(ctx, "setup_watch", "token.json mailbox watch established", true)
+	writeAuditLog(ctx, "", actionSetupWatch, nil, true)
 }
 
 // Gmail expires a watch after roughly seven days. #83: nothing renewed it, so a listener left
@@ -565,11 +542,11 @@ func renewWatch(ctx context.Context, mb *mailbox) {
 		// Loud on purpose: a silent renewal failure is the original bug wearing a hat.
 		log.Printf("WATCH RENEWAL FAILED for user %q: %v — this mailbox stops receiving mail when the current watch expires",
 			mb.ownerID, err)
-		writeAuditLog(ctx, "renew_watch", fmt.Sprintf("user %q: renewal failed: %v", mb.ownerID, err), false)
+		writeAuditLog(ctx, mb.ownerID, actionRenewWatch, auditFields{fieldStage: stageWatch, fieldErrorKind: errorKind(err)}, false)
 		noteRefusedGrant(ctx, mb.ownerID, err)
 		return
 	}
-	writeAuditLog(ctx, "renew_watch", fmt.Sprintf("user %q: renewed", mb.ownerID), true)
+	writeAuditLog(ctx, mb.ownerID, actionRenewWatch, nil, true)
 }
 
 // Listens to the Pub/Sub subscription. Interim: it authenticates as the token.json account (pubsub
@@ -614,9 +591,8 @@ func listenToPubSub(ctx context.Context, ts oauth2.TokenSource) {
 			if msg.DeliveryAttempt != nil && *msg.DeliveryAttempt >= maxDeliveryAttempts {
 				log.Printf("GIVING UP on history %d after %d attempts: %v",
 					payload.HistoryID, *msg.DeliveryAttempt, err)
-				writeAuditLog(ctx, "ingest_abandoned",
-					fmt.Sprintf("history %d abandoned after %d attempts: %v",
-						payload.HistoryID, *msg.DeliveryAttempt, err), false)
+				writeAuditLog(ctx, mb.ownerID, actionIngestAbandoned, auditFields{fieldHistoryID: payload.HistoryID,
+					fieldAttempts: *msg.DeliveryAttempt, fieldReason: reasonTooManyAttempts, fieldErrorKind: errorKind(err)}, false)
 				// Past this range, or every later notification would list it again, hit the same
 				// failure first, and no newer mail would arrive until a restart.
 				advanceBaseline(mb, payload.HistoryID)
@@ -679,7 +655,8 @@ func ingestHistory(ctx context.Context, mb *mailbox, historyID uint64) error {
 		// An expired or pruned history ID is not retryable — Gmail drops history beyond a week.
 		// Fall back rather than fail the message forever.
 		log.Printf("history.list from %d failed (%v); falling back to newest INBOX message", start, err)
-		writeAuditLog(ctx, "fetch_history", fmt.Sprintf("history %d: %v (fell back)", start, err), false)
+		writeAuditLog(ctx, mb.ownerID, actionFetchHistory, auditFields{fieldHistoryID: start,
+			fieldReason: reasonHistoryUnusable, fieldErrorKind: errorKind(err)}, false)
 		advanceBaseline(mb, historyID)
 		return ingestNewestInbox(ctx, mb)
 	}
@@ -689,7 +666,8 @@ func ingestHistory(ctx context.Context, mb *mailbox, historyID uint64) error {
 		if isPermanentIngestFailure(err) {
 			// Retrying cannot help (deleted before the fetch, or a row the database refuses), and
 			// failing the range would hold every newer message behind this one.
-			writeAuditLog(ctx, "ingest_skipped", fmt.Sprintf("msg %s: %v", msgID, err), false)
+			messageRef{ownerID: mb.ownerID, msgID: msgID}.audit(ctx, actionIngestSkipped,
+				auditFields{fieldReason: reasonPermanentFailure, fieldErrorKind: errorKind(err)}, false)
 			continue
 		}
 		if err != nil {
@@ -740,7 +718,7 @@ func ingestNewestInbox(ctx context.Context, mb *mailbox) error {
 	// mail and generate replies to itself.
 	list, err := mb.srv.Users.Messages.List("me").LabelIds("INBOX").MaxResults(1).Do()
 	if err != nil {
-		writeAuditLog(ctx, "fetch_message", fmt.Sprintf("list error: %v", err), false)
+		writeAuditLog(ctx, mb.ownerID, actionFetchMessage, auditFields{fieldStage: stageList, fieldErrorKind: errorKind(err)}, false)
 		return fmt.Errorf("list messages: %w", err)
 	}
 	if len(list.Messages) == 0 {
@@ -761,13 +739,14 @@ func ingestMessage(ctx context.Context, mb *mailbox, msgID string) error {
 		return nil
 	}
 
-	msg, err := fetchMessage(ctx, mb.srv, msgID)
+	ref := messageRef{ownerID: mb.ownerID, msgID: msgID}
+	msg, err := fetchMessage(ctx, mb.srv, ref)
 	if err != nil {
 		return err
 	}
 	if msg.Payload == nil {
 		// Nothing to read or mask; a nil payload must not panic the Pub/Sub callback.
-		writeAuditLog(ctx, "fetch_message", fmt.Sprintf("msg %s: no payload", msgID), false)
+		ref.audit(ctx, actionFetchMessage, auditFields{fieldReason: reasonNoPayload}, false)
 		return nil
 	}
 	if isOwnSentReply(msg) {
@@ -784,7 +763,7 @@ func ingestMessage(ctx context.Context, mb *mailbox, msgID string) error {
 	isInserted, err := insertMessage(ctx, stored)
 	if err != nil {
 		log.Printf("could not store message %s: %v", msgID, err)
-		writeAuditLog(ctx, "store_message", fmt.Sprintf("msg %s: %v", msgID, err), false)
+		ref.auditFailure(ctx, actionStoreMessage, stageStore, err)
 		return fmt.Errorf("store message %s: %w", msgID, err)
 	}
 	if !isInserted {
@@ -794,8 +773,8 @@ func ingestMessage(ctx context.Context, mb *mailbox, msgID string) error {
 	// Counts only: the sender, subject and body are never written to stdout.
 	log.Printf("stored %s: %d bytes, %d emails / %d phones masked", msgID, len(content.BodyMasked),
 		content.EmailsMasked, content.PhonesMasked)
-	writeAuditLog(ctx, "store_message", fmt.Sprintf("msg %s stored, %d emails / %d phones masked",
-		msgID, content.EmailsMasked, content.PhonesMasked), true)
+	ref.audit(ctx, actionStoreMessage, auditFields{fieldEmailsMasked: content.EmailsMasked,
+		fieldPhonesMasked: content.PhonesMasked}, true)
 	return nil
 }
 
@@ -805,11 +784,12 @@ func isOwnSentReply(msg *gmail.Message) bool {
 	return slices.Contains(msg.LabelIds, "SENT") && !slices.Contains(msg.LabelIds, "INBOX")
 }
 
-func fetchMessage(ctx context.Context, srv *gmail.Service, msgID string) (*gmail.Message, error) {
+func fetchMessage(ctx context.Context, srv *gmail.Service, ref messageRef) (*gmail.Message, error) {
+	msgID := ref.msgID
 	msg, err := srv.Users.Messages.Get("me", msgID).Format("full").Context(ctx).Do()
 	if err != nil {
 		log.Printf("could not retrieve message %s: %v", msgID, err)
-		writeAuditLog(ctx, "fetch_message", fmt.Sprintf("get error for %s: %v", msgID, err), false)
+		ref.auditFailure(ctx, actionFetchMessage, stageFetch, err)
 		return nil, fmt.Errorf("get message %s: %w", msgID, err)
 	}
 	return msg, nil
@@ -827,8 +807,8 @@ func maskMessage(ctx context.Context, srv *gmail.Service, msg *gmail.Message, ow
 	if degradedBody || degradedSnip || degradedSubj {
 		return MaskedContent{}, false
 	}
-	attachments, attachEmails, attachPhones := maskAttachmentText(ctx, msg.Id,
-		ocrAttachments(ctx, srv, msg.Id, msg.Payload), v)
+	ref := messageRef{ownerID: ownerID, msgID: msg.Id}
+	attachments, attachEmails, attachPhones := maskAttachmentText(ctx, ref, ocrAttachments(ctx, srv, ref, msg.Payload), v)
 	return MaskedContent{
 		Subject:       maskedSubject,
 		BodyMasked:    maskedBody + attachments,

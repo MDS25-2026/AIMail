@@ -209,17 +209,16 @@ func readRedactedImage(ctx context.Context, redacted []byte, mimeType string) (s
 // A failure on one attachment is logged and skipped rather than failing the message: an email
 // whose attachment could not be read is still worth ingesting for its body, and #84 made ingest
 // failures retry, so failing here would loop the whole message over one unreadable file.
-func ocrAttachments(ctx context.Context, srv *gmail.Service, msgID string, payload *gmail.MessagePart) string {
+func ocrAttachments(ctx context.Context, srv *gmail.Service, ref messageRef, payload *gmail.MessagePart) string {
 	if payload == nil {
 		return ""
 	}
 	if skipped := oversizeAttachments(payload, ocrMaxBytes()); skipped > 0 {
-		writeAuditLog(ctx, "read_attachment",
-			fmt.Sprintf("msg %s: %d attachment(s) over the size cap not read; oversize=%d", msgID, skipped, skipped), false)
+		ref.audit(ctx, actionReadAttachment, auditFields{fieldReason: reasonOverSizeCap, fieldOversize: skipped}, false)
 	}
 	var texts []string
 	for _, part := range readableAttachments(payload, ocrMaxBytes()) {
-		if text := readAttachment(ctx, srv, msgID, part); text != "" {
+		if text := readAttachment(ctx, srv, ref, part); text != "" {
 			texts = append(texts, text)
 		}
 	}
@@ -229,56 +228,55 @@ func ocrAttachments(ctx context.Context, srv *gmail.Service, msgID string, paylo
 	return ocrMarker + strings.Join(texts, "\n\n")
 }
 
-func readAttachment(ctx context.Context, srv *gmail.Service, msgID string, part *gmail.MessagePart) string {
+func readAttachment(ctx context.Context, srv *gmail.Service, ref messageRef, part *gmail.MessagePart) string {
 	attachment, err := srv.Users.Messages.Attachments.
-		Get("me", msgID, part.Body.AttachmentId).Context(ctx).Do()
+		Get("me", ref.msgID, part.Body.AttachmentId).Context(ctx).Do()
 	if err != nil {
-		logOCRFailure(ctx, msgID, "fetch", err)
+		logOCRFailure(ctx, ref, stageFetch, err)
 		return ""
 	}
 	raw, err := base64.URLEncoding.DecodeString(attachment.Data)
 	if err != nil {
-		logOCRFailure(ctx, msgID, "decode", err)
+		logOCRFailure(ctx, ref, stageDecode, err)
 		return ""
 	}
 	result, err := readLocally(ctx, raw, part.MimeType)
 	if err != nil {
 		// Not falling through to OCR on purpose: see readLocally's comment.
-		logOCRFailure(ctx, msgID, "read locally", err)
+		logOCRFailure(ctx, ref, stageReadLocally, err)
 		return ""
 	}
 
 	texts := []string{result.Text}
 	for _, img := range result.Images {
-		texts = append(texts, transcribe(ctx, msgID, img.Data, img.MimeType))
+		texts = append(texts, transcribe(ctx, ref, img.Data, img.MimeType))
 	}
 	text := strings.TrimSpace(strings.Join(texts, "\n\n"))
-	writeAuditLog(ctx, "read_attachment", fmt.Sprintf(
-		// The key=value tail is read by the admin console; keep it stable if the prose changes.
-		"msg %s: %s, %d page(s), %d redacted image(s) sent for OCR, %d withheld locally, %d chars; withheld=%d unread=%d",
-		msgID, part.MimeType, result.Pages, len(result.Images), result.SkippedPages, len(text),
-		result.SkippedPages, result.UnreadPages), true)
+	// The admin console counts withheld and unread pages from these keys.
+	ref.audit(ctx, actionReadAttachment, auditFields{fieldMimeType: part.MimeType, fieldPages: result.Pages,
+		fieldImagesSent: len(result.Images), fieldWithheld: result.SkippedPages, fieldUnread: result.UnreadPages,
+		fieldChars: len(text)}, true)
 	return text
 }
 
 // transcribe OCRs one image the reader has already redacted and cleared.
-func transcribe(ctx context.Context, msgID, encoded, mimeType string) string {
+func transcribe(ctx context.Context, ref messageRef, encoded, mimeType string) string {
 	redacted, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {
-		logOCRFailure(ctx, msgID, "decode redacted image", err)
+		logOCRFailure(ctx, ref, stageDecodeRedacted, err)
 		return ""
 	}
 	text, err := readRedactedImage(ctx, redacted, mimeType)
 	if err != nil {
-		logOCRFailure(ctx, msgID, "read", err)
+		logOCRFailure(ctx, ref, stageOCR, err)
 		return ""
 	}
 	return text
 }
 
-func logOCRFailure(ctx context.Context, msgID, stage string, err error) {
+func logOCRFailure(ctx context.Context, ref messageRef, stage string, err error) {
 	// The error is logged, never the attachment: a reader failure means the file still holds
 	// whatever PII it held.
-	fmt.Printf("OCR %s failed for msg %s: %v\n", stage, msgID, err)
-	writeAuditLog(ctx, "ocr_attachment", fmt.Sprintf("msg %s: %s failed: %v", msgID, stage, err), false)
+	fmt.Printf("OCR %s failed for msg %s: %v\n", stage, ref.msgID, err)
+	ref.auditFailure(ctx, actionOCRAttachment, stage, err)
 }
