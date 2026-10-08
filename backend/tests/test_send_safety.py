@@ -102,8 +102,11 @@ def harness(monkeypatch):
     async def audit(action, *, success=True, user_id=None, **fields):
         state["audits"].append((action, success))
 
+    async def mark_unknown(_table, row_id):
+        state["marked_unknown"] = row_id
+
     for name, value in (("_load", load), ("_claim_send", claim), ("_release_send_claim", release),
-                        ("send_reply", send_reply), ("audit", audit)):
+                        ("send_reply", send_reply), ("audit", audit), ("mark_outcome_unknown", mark_unknown)):
         monkeypatch.setattr(dashboard, name, value)
     return state
 
@@ -118,6 +121,8 @@ def test_an_unknown_outcome_keeps_the_claim_so_it_is_never_sent_twice(harness):
         _approve(harness)
     assert harness["released"] == 0
     assert ("send_outcome_unknown", False) in harness["audits"]
+    # Marked, so the reconciler settles it against Gmail later.
+    assert harness["marked_unknown"] == harness["message"].id
 
 
 def test_an_ordinary_failure_still_releases_the_claim(harness):

@@ -33,6 +33,7 @@ class AuditAction(StrEnum):
     TRANSLATE_EMAIL = "translate_email"
     APPROVE_AND_SEND = "approve_and_send"
     SEND_OUTCOME_UNKNOWN = "send_outcome_unknown"
+    SEND_RECONCILED = "send_reconciled"
     CONFIRM_SENDER = "confirm_sender"
     DOCUMENT_DELETED = "document_deleted"
     DISCONNECT_GMAIL = "disconnect_gmail"

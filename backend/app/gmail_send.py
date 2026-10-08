@@ -334,6 +334,19 @@ async def replied_in_thread_since(thread_id: str, since: datetime, *, owner_id: 
                for m in messages)
 
 
+async def sent_message_in_thread_since(thread_id: str, since: datetime, *, owner_id: UUID | None) -> str | None:
+    """The id of a message the owner sent in this thread after `since`, if Gmail has one: how a send whose
+    answer was lost is confirmed or ruled out (app/send_reconciler.py)."""
+    since_ms = int(since.timestamp() * 1000)
+    async with httpx.AsyncClient(timeout=30) as client:
+        response = await _gmail_request(client, "GET", f"{_THREADS_URL}/{thread_id}", owner_id,
+                                        params={"format": "minimal"})
+        response.raise_for_status()
+        messages = response.json().get("messages", [])
+    sent = [m for m in messages if "SENT" in m.get("labelIds", []) and int(m.get("internalDate", 0)) > since_ms]
+    return sent[0].get("id") if sent else None
+
+
 async def profile_address() -> str:
     """The address of the original single mailbox (token.json), the owner of unowned rows."""
     async with httpx.AsyncClient(timeout=30) as client:

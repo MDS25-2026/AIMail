@@ -4,7 +4,7 @@
 VENV := .venv/bin
 .DEFAULT_GOAL := help
 
-.PHONY: help check test lint typecheck hooks dev backend agent web test-reader migrate seed ingest eval eval-reform baseline backfill generate ml-deps distilbert eval-classifier label eval-critic latency extension
+.PHONY: help check test lint typecheck hooks dev backend worker agent web test-reader migrate seed ingest eval eval-reform baseline backfill generate ml-deps distilbert eval-classifier label eval-critic latency extension
 
 help:  ## list targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  make %-12s %s\n", $$1, $$2}'
@@ -34,6 +34,9 @@ dev:  ## run ALL services (backend, agent, web, listener) in one terminal; Ctrl+
 backend:  ## run the backend API on :8000 (frees the port first so restarts never clash)
 	-fuser -k 8000/tcp 2>/dev/null
 	cd backend && ../$(VENV)/uvicorn app.main:app --reload --no-access-log
+
+worker:  ## run every background job (drafting, embedding, holding replies, retention, reconciliation)
+	cd backend && ../$(VENV)/python -m app.worker
 
 agent:  ## run the Lane C email agent on :8001 (localhost-only; frees the port first)
 	-fuser -k 8001/tcp 2>/dev/null

@@ -41,8 +41,9 @@ from app.core.vault import ThreadMap, build_thread_map
 from app.db.models import AuthStatus, MaskingStatus, Message, ModelEgress, UserProfile
 from app.db.session import get_sessionmaker
 from app.egress_log import egress_for, save_egress
-from app.email_policy import Action, drafting_filter, refusal_for
+from app.email_policy import Action, refusal_for
 from app.gmail_send import SendError, SendOutcomeUnknownError, send_reply
+from app.jobs import claim_for_drafting, claim_one_for_drafting, release_drafting
 from app.normalise.quantities import quantities_in
 from app.past_replies import remember_reply
 from app.personalisation import DEFAULT_POLICY, Policy, apply_policy, load_policy
@@ -51,6 +52,7 @@ from app.private_mode import provider_for
 from app.rag.embed import EmbeddingError
 from app.rag.retrieve import retrieve
 from app.rag.utils import format_rag_context
+from app.send_reconciler import mark_outcome_unknown
 from app.writing_style import edit_ratio, is_learning, relearn, style_for
 from model_gateway import track_egress
 
@@ -227,9 +229,6 @@ def _own_details(message: Message) -> ThreadMap:
     )
 
 
-# A message whose drafting fails this many times is left for a human instead of being retried
-# every poll cycle, which would spend quota and hold back the messages behind it.
-MAX_GENERATION_ATTEMPTS = 5
 
 
 class AlreadySentError(DomainError):
@@ -291,24 +290,14 @@ async def generate_pending(limit: int | None = None) -> int:
     under Gemini's free-tier rate limit). Fewest attempts first, so a message that keeps failing
     sinks behind newer ones. No connection is held while the agent works.
     """
-    stmt = (
-        select(Message.id)
-        .where(
-            Message.generated_at.is_(None),
-            drafting_filter(),
-            Message.generation_attempts < MAX_GENERATION_ATTEMPTS,
-        )
-        .order_by(Message.generation_attempts, Message.created_at.desc())
-    )
-    if limit is not None:
-        stmt = stmt.limit(limit)
-    async with get_sessionmaker()() as session:
-        pending = (await session.scalars(stmt)).all()
     generated = 0
-    for pk in pending:
-        loaded = await _load_with_thread(pk, EVERYTHING)
-        if loaded and await _generate_and_store(*loaded) is GenerationOutcome.STORED:
-            generated += 1
+    for pk in await claim_for_drafting(limit):
+        try:
+            loaded = await _load_with_thread(pk, EVERYTHING)
+            if loaded and await _generate_and_store(*loaded) is GenerationOutcome.STORED:
+                generated += 1
+        finally:
+            await release_drafting(pk)
     return generated
 
 
@@ -462,14 +451,15 @@ async def _generate_and_store(
     if generated.get(NOT_DRAFTED) and message.draft_reply:
         return GenerationOutcome.KEPT  # a regenerate failed for content keeps the reviewed draft
     is_usable = bool(generated) and (bool(generated.get("draft")) or generated.get("category") == "NA")
-    fields = (_generation_fields(generated) if is_usable
-              else {"generation_attempts": (message.generation_attempts or 0) + 1})
+    # Counted in SQL: two failures at once both count, where a value read before the call would lose one.
+    fields = _generation_fields(generated) if is_usable else {"generation_attempts": Message.generation_attempts + 1}
     if not await _update_unsent(message.id, fields):
         return GenerationOutcome.SKIPPED
+    if not is_usable:
+        message.generation_attempts = (message.generation_attempts or 0) + 1
+        return GenerationOutcome.FAILED
     for column, value in fields.items():
         setattr(message, column, value)
-    if not is_usable:
-        return GenerationOutcome.FAILED
     await audit(AuditAction.GENERATE_DRAFT, user_id=message.user_id, message=message.id, tone=tone,
                 confidence=message.critic_confidence, review=message.needs_human_review)
     return GenerationOutcome.STORED if fields.get("draft_reply") else GenerationOutcome.NO_REPLY
@@ -495,8 +485,12 @@ async def email_detail(message_id: str, *, scope: Scope) -> DashboardEmail | Non
         return None
     message, thread = loaded
     details = await _details_for(message, thread)
-    if message.generated_at is None and message.sent_at is None:
-        await _generate_and_store(message, thread, details=details)
+    # Drafted here only if no worker is drafting it already; otherwise it shows as being drafted.
+    if message.generated_at is None and message.sent_at is None and await claim_one_for_drafting(pk):
+        try:
+            await _generate_and_store(message, thread, details=details)
+        finally:
+            await release_drafting(pk)
     # Opening the detail view is the moment a person actually reads it.
     await _mark_read(pk)
     message.read_at = message.read_at or datetime.now(timezone.utc)
@@ -635,7 +629,9 @@ async def approve_and_send(message_id: str, draft: str, *, scope: Scope) -> Dash
             owner_id=message.user_id,
         )
     except SendOutcomeUnknownError:
-        # The claim stays: Gmail may have sent, and releasing it would invite a second copy.
+        # The claim stays: Gmail may have sent, and releasing it would invite a second copy. The mark
+        # is what lets the reconciler settle it later (app/send_reconciler.py).
+        await mark_outcome_unknown(Message, pk)
         await audit(AuditAction.SEND_OUTCOME_UNKNOWN, user_id=message.user_id, success=False,
                     message=message_id)
         raise

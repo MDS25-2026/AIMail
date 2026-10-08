@@ -6,7 +6,6 @@ message content had no limit at all. Message content is kept until MESSAGE_CONTE
 because clearing it removes the user's own inbox view; the rest expire by default.
 """
 
-import asyncio
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -17,7 +16,7 @@ from sqlalchemy import Executable, delete, func, update
 from app.core.config import get_settings
 from app.db.models import HoldingReply, Message, ModelEgress
 from app.db.session import get_sessionmaker
-from app.vault_retention import RUN_EVERY, expired
+from app.vault_retention import expired
 
 logger = logging.getLogger(__name__)
 
@@ -85,17 +84,3 @@ async def apply_retention() -> dict[str, int]:
             result = await session.execute(policy.statement(days))
         changed[policy.name] = result.rowcount or 0
     return changed
-
-
-async def retention_daily() -> None:
-    """For the life of the worker; a failed pass is logged and tried again the next day."""
-    while True:
-        try:
-            changed = {name: count for name, count in (await apply_retention()).items() if count}
-            if changed:
-                logger.info("retention pass: %s", changed)
-        except asyncio.CancelledError:
-            break
-        except Exception:
-            logger.exception("retention pass failed")
-        await asyncio.sleep(RUN_EVERY.total_seconds())

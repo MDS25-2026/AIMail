@@ -6,7 +6,6 @@ answered meanwhile, in AIMail or in Gmail itself), and the reply is sent or canc
 reason. A reply that cannot be sent in time is cancelled rather than sent late.
 """
 
-import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -22,7 +21,6 @@ from app.audit import AuditAction, audit
 from app.core.constants import (
     HOLD_WINDOW_MINUTES,
     HOLDING_REPLY_DAILY_CAP,
-    HOLDING_REPLY_POLL_SECONDS,
     HOLDING_REPLY_STALE_MINUTES,
 )
 from app.core.language import Language, detect_language
@@ -37,6 +35,7 @@ from app.holding_reply import (
     refusal_on_arrival,
     render,
 )
+from app.send_reconciler import mark_outcome_unknown
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +59,10 @@ class Due:
     owner_email: str
 
 
+# Serialises one user's holding-reply claims (pg_advisory_xact_lock), so the cap holds across workers.
+LOCK_PREFIX = "holding_reply:"
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -81,12 +84,13 @@ async def schedule_new() -> int:
             if refusal_on_arrival(message, settings, owner_email):
                 continue
             language = choose_language(detect_language(message.body_masked or ""), settings)
-            await session.execute(insert(HoldingReply).values(
+            inserted = await session.scalar(insert(HoldingReply).values(
                 user_id=message.user_id, message_id=message.id, language=language,
                 recipient_addr=address_of(message.from_addr),
                 scheduled_for=(message.received_at or now) + HOLD_WINDOW,
-            ).on_conflict_do_nothing(index_elements=["message_id"]))
-            scheduled += 1
+            ).on_conflict_do_nothing(index_elements=["message_id"]).returning(HoldingReply.id))
+            # Another worker may have scheduled it first; only rows actually inserted count.
+            scheduled += inserted is not None
     if scheduled:
         await audit(AuditAction.HOLDING_REPLY_SCHEDULED, count=scheduled)
     return scheduled
@@ -151,12 +155,24 @@ async def _cancel(reply_id: UUID, reason: Refusal, owner_id: UUID | None) -> Non
     await audit(AuditAction.HOLDING_REPLY_CANCELLED, user_id=owner_id, reply=reply_id, reason=reason)
 
 
-async def _claim(reply_id: UUID) -> bool:
-    """Claim-then-send, as approve_and_send does: two backends can never both send it."""
+async def _claim(due: Due) -> bool:
+    """Claim-then-send, as approve_and_send does: two workers can never both send it.
+
+    The daily cap and the sender cooldown are checked inside the claim, under a lock per user, so two
+    passes running at once cannot both pass a count taken before either sent.
+    """
+    user_id, recipient = due.reply.user_id, due.reply.recipient_addr
     async with get_sessionmaker()() as session, session.begin():
+        await session.execute(select(func.pg_advisory_xact_lock(func.hashtext(f"{LOCK_PREFIX}{user_id}"))))
+        sent_today = select(func.count()).select_from(HoldingReply).where(
+            HoldingReply.user_id == user_id, HoldingReply.sent_at >= func.now() - timedelta(days=1))
+        recent_to_sender = select(HoldingReply.id).where(
+            HoldingReply.user_id == user_id, HoldingReply.recipient_addr == recipient,
+            HoldingReply.sent_at >= func.now() - timedelta(days=due.settings.cooldown_days))
         claimed = await session.scalar(update(HoldingReply).where(
-            HoldingReply.id == reply_id, HoldingReply.sent_at.is_(None),
-            HoldingReply.cancelled_reason.is_(None)).values(sent_at=func.now()).returning(HoldingReply.id))
+            HoldingReply.id == due.reply.id, HoldingReply.sent_at.is_(None), HoldingReply.cancelled_reason.is_(None),
+            sent_today.scalar_subquery() < HOLDING_REPLY_DAILY_CAP, ~exists(recent_to_sender),
+        ).values(sent_at=func.now()).returning(HoldingReply.id))
     return claimed is not None
 
 
@@ -168,13 +184,14 @@ async def _release(reply_id: UUID) -> None:
 async def _send(due: Due) -> None:
     language = Language(due.reply.language)
     text = render(due.settings.templates[language], language, due.message.from_addr, due.settings.leave_until)
-    if not await _claim(due.reply.id):
+    if not await _claim(due):
         return
     try:
         sent = await gmail_send.send_reply(
             due.message.gmail_message_id, due.message.from_addr or "", due.message.subject or "", text,
             owner_id=due.reply.user_id, extra_headers=AUTO_REPLY_HEADERS)
     except gmail_send.SendOutcomeUnknownError:
+        await mark_outcome_unknown(HoldingReply, due.reply.id)
         await audit(AuditAction.HOLDING_REPLY_OUTCOME_UNKNOWN, user_id=due.reply.user_id, success=False,
                     reply=due.reply.id)
         return  # the claim stays: Gmail may have sent it, and a second copy is worse than none
@@ -212,16 +229,3 @@ async def send_due() -> int:
         await _send(due)
         sent += 1
     return sent
-
-
-async def holding_replies_loop() -> None:
-    """Runs for the life of the process; a failed pass is logged and tried again next poll."""
-    while True:
-        try:
-            await schedule_new()
-            await send_due()
-        except asyncio.CancelledError:
-            break
-        except Exception:
-            logger.exception("holding reply pass failed")
-        await asyncio.sleep(HOLDING_REPLY_POLL_SECONDS)

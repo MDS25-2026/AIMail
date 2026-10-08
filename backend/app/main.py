@@ -6,9 +6,8 @@ Serves the Lane B retrieval demo: search (POST /search), the knowledge-base inve
 that belongs in specs/context/api-contracts.md with Lane D.
 """
 
-import asyncio
 import logging
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Literal
@@ -42,7 +41,6 @@ from app.core.auth import (
 from app.core.config import get_settings
 from app.core.constants import (
     ADMIN_PREFIX,
-    EMBED_POLL_SECONDS,
     MAX_DRAFT_CHARS,
     MAX_PASTE_CHARS,
     MAX_UPLOAD_BYTES,
@@ -69,7 +67,6 @@ from app.dashboard import (
     confirm_sender,
     email_detail,
     email_for_thread,
-    generate_pending,
     list_dashboard_emails,
     refine_email,
     regenerate_email,
@@ -78,17 +75,15 @@ from app.dashboard import (
 from app.egress_log import save_egress
 from app.gmail_send import SendError, SendOutcomeUnknownError
 from app.holding_reply_routes import router as holding_reply_router
-from app.holding_reply_scheduler import holding_replies_loop
 from app.private_mode import provider_for
 from app.private_mode_routes import router as private_mode_router
 from app.rag.chunk import extract_pdf_bytes
 from app.rag.embed import EmbeddingError
 from app.rag.generate import answer
-from app.rag.ingest import embed_pending, embed_pending_locally, ingest_text
+from app.rag.ingest import ingest_text
 from app.rag.library import DocumentSummary, delete_document, list_documents
 from app.rag.mask import DocumentMaskingError
 from app.rag.retrieve import ContextChunk, retrieve
-from app.retention import retention_daily
 from app.sign_in import router as sign_in_router
 from app.writing_style_routes import router as writing_style_router
 from model_gateway import track_egress
@@ -98,19 +93,9 @@ configure_logging()
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    """Background work for the life of the process: embed pending chunks, and poll for drafts to
-    pre-generate. Both are held (asyncio keeps only weak references to tasks) and both
-    are cancelled on shutdown."""
+    """The API runs no background jobs: they live in the worker (app/worker.py)."""
     await mailbox.resolve_owner()
-    tasks = [asyncio.create_task(_embed_missing_loop()), asyncio.create_task(retention_daily()),
-             asyncio.create_task(holding_replies_loop())]
-    if get_settings().auto_generate:
-        tasks.append(asyncio.create_task(_pregen_loop()))
-    try:
-        yield
-    finally:
-        for task in tasks:
-            task.cancel()
+    yield
 
 
 app = FastAPI(title="AImail backend", dependencies=[Depends(require_auth)], lifespan=_lifespan)
@@ -139,47 +124,6 @@ app.add_middleware(
 _STATIC = Path(__file__).parent / "static"
 
 logger = logging.getLogger(__name__)
-
-
-
-async def _pregen_loop() -> None:
-    """Periodically pre-generate drafts for new messages so opening them is instant."""
-    poll = get_settings().generate_poll_seconds
-    while True:
-        try:
-            await asyncio.sleep(poll)
-            # Small batch per cycle so the ~6-calls-per-email pipeline stays under the Gemini
-            # free-tier rate limit instead of bursting the whole backlog at once.
-            count = await generate_pending(limit=2)
-            if count:
-                logger.info("pre-generated %d draft(s)", count)
-        except asyncio.CancelledError:
-            break
-        except Exception:
-            logger.exception("pre-generation poll failed")
-
-
-async def _embed_missing_loop() -> None:
-    """Chunks without a vector get one, on each side, from startup on. Free when none are pending;
-    it also catches up after a tag bump, a fresh database, or a user switching Private mode."""
-    while True:
-        await _embed_missing("Gemini", embed_pending)
-        await _embed_missing("local", embed_pending_locally)
-        try:
-            await asyncio.sleep(EMBED_POLL_SECONDS)
-        except asyncio.CancelledError:
-            break
-
-
-async def _embed_missing(side: str, embed: Callable[[], Awaitable[int]]) -> None:
-    try:
-        count = await embed()
-    except Exception:
-        logger.exception("%s embedding of pending chunks failed; retrieval may be empty", side)
-        return
-    if count:
-        logger.info("embedded %d pending chunk(s) with the %s model", count, side)
-
 
 
 

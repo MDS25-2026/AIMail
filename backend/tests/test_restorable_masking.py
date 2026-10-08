@@ -81,7 +81,7 @@ def mailbox(monkeypatch, test_settings):
                         ("_call_agent", call_agent), ("_claim_send", claim), ("send_reply", send_reply),
                         ("audit", nothing), ("_update_unsent", _true), ("_style_fields", no_style),
                         ("is_learning", _false), ("provider_for", gemini), ("egress_for", no_egress),
-                        ("save_egress", nothing)):
+                        ("save_egress", nothing), ("claim_one_for_drafting", _true), ("release_drafting", nothing)):
         monkeypatch.setattr(dashboard, name, value)
     monkeypatch.setattr(dashboard.connections, "can_send", can_send)
     return state

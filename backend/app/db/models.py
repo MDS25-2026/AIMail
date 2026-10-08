@@ -189,6 +189,10 @@ class Message(Base):
     masking_status: Mapped[str] = mapped_column(Text, server_default=MaskingStatus.COMPLETE)
     # Failed drafting attempts; the poller skips a message after MAX_GENERATION_ATTEMPTS (0014).
     generation_attempts: Mapped[int] = mapped_column(server_default="0")
+    # Set when Gmail's answer to a send was lost; only these are reconciled (migration 0028).
+    send_outcome_unknown_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # A worker drafting this message holds it until then (migration 0027, app/jobs.py).
+    generation_claimed_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Where an approved reply goes when the sender set Reply-To; shown to the approver (0014).
     reply_to: Mapped[str | None] = mapped_column(Text)
 
@@ -310,6 +314,7 @@ class HoldingReply(Base):
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     cancelled_reason: Mapped[str | None] = mapped_column(Text)
     sent_message_id: Mapped[str | None] = mapped_column(Text)
+    send_outcome_unknown_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
