@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import email_agent
 from app import dashboard
 from app.core.ownership import EVERYTHING
+from app.core.providers import Provider
 from app.core.typed_text import mask_typed_text
 from app.db.models import MaskingStatus, Message
 from tests.conftest import AUTH_HEADERS, agent_client
@@ -170,16 +171,20 @@ def test_a_refine_the_model_refused_is_reported_as_refused(backend):
 def captured_query(monkeypatch):
     seen = {}
 
-    async def retrieve(query, k, scope):
+    async def retrieve(query, k, scope, provider):
         seen["query"] = query
         return []
 
-    async def answer(question, chunks):
+    async def answer(question, chunks, provider):
         seen["question"] = question
         return "ok"
 
+    async def gemini(_user_id):
+        return Provider.GEMINI
+
     monkeypatch.setattr("app.main.retrieve", retrieve)
     monkeypatch.setattr("app.main.answer", answer)
+    monkeypatch.setattr("app.main.provider_for", gemini)
     return seen
 
 

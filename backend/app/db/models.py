@@ -345,3 +345,20 @@ class StyleHabit(Base):
     out_of: Mapped[int] = mapped_column(SmallInteger)
     suppressed: Mapped[bool] = mapped_column(default=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ModelEgress(Base):
+    """One prompt that left for a model (migration 0026). No text: what, where, how much, what was hidden."""
+
+    __tablename__ = "model_egress"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    user_id: Mapped[UUID | None] = mapped_column(ForeignKey("user_profile.id", ondelete="CASCADE"))
+    message_id: Mapped[UUID | None] = mapped_column(ForeignKey("messages.id", ondelete="CASCADE"))
+    purpose: Mapped[str] = mapped_column(Text)
+    provider: Mapped[str] = mapped_column(Text)
+    chars: Mapped[int]
+    sha256: Mapped[str] = mapped_column(Text)
+    hidden: Mapped[dict] = mapped_column(JSONB, default=dict)
+    caught: Mapped[int] = mapped_column(default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

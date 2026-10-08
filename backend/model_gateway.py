@@ -18,6 +18,9 @@ from dataclasses import asdict, dataclass, field
 from app.core.providers import Provider
 from app.core.redaction import PLACEHOLDER, REDACTION_MARKER
 from app.core.typed_text import mask_typed_text
+from app.rag.embed import embed_documents as gemini_embed_documents
+from app.rag.embed import embed_query as gemini_embed_query
+from app.rag.local_embed import embed_documents_locally, embed_query_locally
 from gemini_client import generate as gemini_generate
 from local_client import generate_local
 
@@ -80,3 +83,21 @@ async def generate(prompt: str, *, provider: Provider, purpose: str, system: str
     answer = generate_local if provider == Provider.LOCAL else gemini_generate
     return await answer(safe_prompt, response_schema=response_schema, max_output_tokens=max_output_tokens,
                         system=safe_system)
+
+
+async def embed_documents(texts: list[str], *, provider: Provider, purpose: str) -> list[list[float]]:
+    """Vectors for stored chunks; the same last net and record as generation."""
+    safe = [_checked(text, provider, purpose) for text in texts]
+    return await (embed_documents_locally(safe) if provider == Provider.LOCAL else gemini_embed_documents(safe))
+
+
+async def embed_query(text: str, *, provider: Provider, purpose: str) -> list[float] | None:
+    """The vector a search compares against stored chunks, or None for empty input."""
+    safe = _checked(text, provider, purpose)
+    return await (embed_query_locally(safe) if provider == Provider.LOCAL else gemini_embed_query(safe))
+
+
+def _checked(text: str, provider: Provider, purpose: str) -> str:
+    safe, caught = last_net(text)
+    _note(purpose, provider, safe, caught)
+    return safe

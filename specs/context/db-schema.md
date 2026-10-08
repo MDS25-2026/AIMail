@@ -235,3 +235,5 @@ lowercased.
 - [ ] `email_embedding` — pgvector index over historical replies for retrieval.
 
 > The `chat` → `conversation` parent/child shape is the memory backbone: each new email in a thread reuses the prior `conversation` rows as context, which is what gives the agent its "attention span" across replies. See [`../agent-pipeline.md`](../agent-pipeline.md) for how these tables are read and written during a generation.
+- [x] `schema_migrations` (version, checksum, applied_at): the migration ledger (app/db/migrate.py), RLS on.
+- [x] `model_egress`: one row per prompt that left for a model (purpose, provider, chars, sha256, hidden by kind, caught), FK to user and message, RLS on (migration 0026).

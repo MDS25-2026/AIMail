@@ -41,3 +41,13 @@ old rows) and `verification` is `verified` | `tampered` | `unverifiable`.
 One policy decides it: backend `refusal_for(message, action)`, dashboard `draftAvailability(email)`. The email
 response carries `authStatus` and `masking`; the dashboard derives availability from them with the same rules:
 quarantined (`masking` pending or abandoned) shows no draft; `spoof_detected` shows the sender check; otherwise ready.
+
+## Reaching a model: `model_gateway`
+
+Every prompt and every embedding goes through `backend/model_gateway.py` (`generate`, `embed_documents`,
+`embed_query`), in the backend and the agent. The provider is a required argument; agent requests without
+`provider` are refused (422). The gateway runs the fixed-format floor over the whole prompt as a last net, sends
+system rules as the system message, and records each prompt as an egress record (purpose, provider, chars,
+sha256, hidden details by kind, details caught by the last net). The backend keeps them in `model_egress`
+(migration 0026); the email detail response returns them as `egress` for the privacy receipt. Switching
+Private mode on deletes the user's Gemini vectors; `/search` and `/ask` use the user's provider.

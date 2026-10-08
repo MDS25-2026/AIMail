@@ -17,6 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.core.ownership import LEGACY
+from app.core.providers import Provider
 from app.rag.eval import hit_rate, precision_at_k, reciprocal_rank, relevance_judgments
 from app.rag.reformulate import reformulate
 from app.rag.retrieve import retrieve
@@ -32,8 +33,8 @@ async def main(path: Path, use_reformulation: bool) -> None:
     print(f"queries={len(cases)} k={k}  mode={mode}\n")
     print(f"  {'hit':<4}{'rank':<6}{'p@k':<6}query")
     for case in cases:
-        query = await reformulate(case["query"]) if use_reformulation else case["query"]
-        judgments = relevance_judgments(await retrieve(query, k, scope=LEGACY), case["relevant"])
+        query = await reformulate(case["query"], provider=Provider.GEMINI) if use_reformulation else case["query"]
+        judgments = relevance_judgments(await retrieve(query, k, scope=LEGACY, provider=Provider.GEMINI), case["relevant"])
         precisions.append(precision_at_k(judgments))
         rrs.append(reciprocal_rank(judgments))
         hits += int(hit_rate(judgments))

@@ -4,7 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
-from sqlalchemy import func, update
+from sqlalchemy import Delete, delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 
 from app.account_routes import account_user_id
@@ -12,7 +12,7 @@ from app.audit import AuditAction, audit
 from app.core.config import get_settings
 from app.core.errors import DomainError, ErrorCode
 from app.core.providers import Provider
-from app.db.models import Message, UserPreferences
+from app.db.models import Chunk, Document, Embedding, Message, UserPreferences
 from app.db.session import get_sessionmaker
 from app.private_mode import is_offered, provider_for
 from app.rag.local_embed import local_model
@@ -42,6 +42,17 @@ async def _save_choice(user_id: UUID, provider: Provider) -> None:
         # with the new choice, instead of staying undrafted for good.
         await session.execute(update(Message).where(Message.user_id == user_id, Message.generated_at.is_(None))
                               .values(generation_attempts=0))
+        if provider == Provider.LOCAL:
+            await session.execute(_forget_cloud_vectors(user_id))
+
+
+def _forget_cloud_vectors(user_id: UUID) -> Delete:
+    """Gemini vectors of this user's documents: kept, they would let a cloud search still find them.
+
+    Switching back re-embeds them in the background (app/rag/ingest.py).
+    """
+    owned_chunks = select(Chunk.id).join(Document, Document.id == Chunk.document_id).where(Document.user_id == user_id)
+    return delete(Embedding).where(Embedding.chunk_id.in_(owned_chunks))
 
 
 async def _view(request: Request) -> PrivateModeView:

@@ -75,13 +75,15 @@ from app.dashboard import (
     regenerate_email,
     translate_email,
 )
+from app.egress_log import save_egress
 from app.gmail_send import SendError, SendOutcomeUnknownError
 from app.holding_reply_routes import router as holding_reply_router
 from app.holding_reply_scheduler import holding_replies_loop
+from app.private_mode import provider_for
 from app.private_mode_routes import router as private_mode_router
 from app.rag.chunk import extract_pdf_bytes
 from app.rag.embed import EmbeddingError
-from app.rag.generate import GenerationError, answer
+from app.rag.generate import answer
 from app.rag.ingest import embed_pending, embed_pending_locally, ingest_text
 from app.rag.library import DocumentSummary, delete_document, list_documents
 from app.rag.mask import DocumentMaskingError
@@ -89,6 +91,8 @@ from app.rag.retrieve import ContextChunk, retrieve
 from app.sign_in import router as sign_in_router
 from app.vault_retention import expire_vaults_daily
 from app.writing_style_routes import router as writing_style_router
+from model_gateway import track_egress
+from model_runtime import ModelError
 
 configure_logging()
 
@@ -188,7 +192,7 @@ async def _ai_service_unreachable(request: Request, exc: Exception) -> JSONRespo
     return error_response(ErrorCode.AI_SERVICE_UNREACHABLE)
 
 
-for _ai_exc in (EmbeddingError, GenerationError):
+for _ai_exc in (EmbeddingError, ModelError):
     app.add_exception_handler(_ai_exc, _ai_service_unreachable)
 
 
@@ -227,16 +231,25 @@ async def demo_page() -> FileResponse:
 
 @app.post("/search", dependencies=[Depends(rate_limit_generation), Depends(require_mailbox)])
 async def search(request: SearchRequest, http: Request) -> list[ContextChunk]:
-    # A typed query is embedded by Gemini, so fixed-format details are masked first.
-    return await retrieve(mask_typed_text(request.query), request.k, scope=scope_of(http))
+    # A typed query is embedded, so fixed-format details are masked first; by the user's own provider.
+    scope = scope_of(http)
+    provider = await provider_for(scope.owner_id)
+    with track_egress() as sent:
+        found = await retrieve(mask_typed_text(request.query), request.k, scope=scope, provider=provider)
+    await save_egress(sent, user_id=scope.owner_id, message_id=None)
+    return found
 
 
 @app.post("/ask", dependencies=[Depends(rate_limit_generation), Depends(require_mailbox)])
 async def ask(request: AskRequest, http: Request) -> AskResponse:
     # Full RAG loop demo: retrieve policy chunks, then generate a grounded answer from them.
     question = mask_typed_text(request.question)
-    chunks = await retrieve(question, request.k, scope=scope_of(http))
-    text = await answer(question, chunks)
+    scope = scope_of(http)
+    provider = await provider_for(scope.owner_id)
+    with track_egress() as sent:
+        chunks = await retrieve(question, request.k, scope=scope, provider=provider)
+        text = await answer(question, chunks, provider=provider)
+    await save_egress(sent, user_id=scope.owner_id, message_id=None)
     return AskResponse(answer=text, sources=chunks)
 
 

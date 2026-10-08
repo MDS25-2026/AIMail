@@ -21,6 +21,7 @@ from app.core import ownership, supabase_auth
 from app.core.auth import SESSION_COOKIE
 from app.core.config import get_settings
 from app.core.ownership import EVERYTHING, LEGACY, Scope
+from app.core.providers import Provider
 from app.db.models import Message
 from app.main import app
 from app.rag import ingest, library, retrieve
@@ -216,11 +217,11 @@ def test_the_document_list_is_filtered_by_owner(captured):
 
 
 def test_retrieval_only_grounds_on_the_owners_documents(captured, monkeypatch):
-    async def vector(_text):
+    async def vector(_text, **_kwargs):
         return [0.0] * 3
 
-    monkeypatch.setattr(retrieve, "embed_query", vector)
-    asyncio.run(retrieve.retrieve("leave policy", 5, scope=Scope(owner_id=ALICE)))
+    monkeypatch.setattr(retrieve.model_gateway, "embed_query", vector)
+    asyncio.run(retrieve.retrieve("leave policy", 5, scope=Scope(owner_id=ALICE), provider=Provider.GEMINI))
     assert f"document.user_id = '{ALICE}'" in _sql(captured[0])
 
 

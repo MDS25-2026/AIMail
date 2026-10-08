@@ -2,6 +2,7 @@
 
 from sqlalchemy import ColumnElement, Select, select
 
+import model_gateway
 from app.contracts import ContextChunk
 from app.core.constants import EMBEDDING_TAG
 from app.core.ownership import Scope
@@ -9,17 +10,17 @@ from app.core.providers import Provider
 from app.db.models import Chunk, Document, Embedding, LocalEmbedding
 from app.db.session import get_sessionmaker
 from app.rag.chunk import SECTION_KEY
-from app.rag.embed import embed_query
-from app.rag.local_embed import embed_query_locally, local_model, local_tag
+from app.rag.local_embed import local_model, local_tag
 
 SECTION_SEPARATOR = " · "
+SEARCH = "search"  # the egress purpose of embedding a query
 # A hit scoring below this share of the best one is dropped (specs/features/rag-retrieval.md).
 # Per model: Gemini's scores sit close together, the local model's spread wider.
 RELATIVE_CUTOFF = {Provider.GEMINI: 0.93, Provider.LOCAL: 0.85}
 
 
 async def _gemini_search(masked_email: str, k: int, scope: Scope) -> Select | None:
-    query_vector = await embed_query(masked_email)
+    query_vector = await model_gateway.embed_query(masked_email, provider=Provider.GEMINI, purpose=SEARCH)
     if query_vector is None:
         return None
     return _search(Embedding, EMBEDDING_TAG, Embedding.embedding.cosine_distance(query_vector), k, scope)
@@ -29,7 +30,7 @@ async def _local_search(masked_email: str, k: int, scope: Scope) -> Select | Non
     # No local embedding model set up: Private mode drafts without search rather than ask Gemini.
     if not local_model():
         return None
-    query_vector = await embed_query_locally(masked_email)
+    query_vector = await model_gateway.embed_query(masked_email, provider=Provider.LOCAL, purpose=SEARCH)
     if query_vector is None:
         return None
     distance = LocalEmbedding.embedding.cosine_distance(query_vector)
@@ -49,8 +50,7 @@ def _search(table: type[Embedding] | type[LocalEmbedding], tag: str, distance: C
     )
 
 
-async def retrieve(masked_email: str, k: int, *, scope: Scope,
-                   provider: Provider = Provider.GEMINI) -> list[ContextChunk]:
+async def retrieve(masked_email: str, k: int, *, scope: Scope, provider: Provider) -> list[ContextChunk]:
     """Return the top-k most similar policy chunks for a masked email.
 
     The masked email is used directly as the query here (the S3 baseline). Query

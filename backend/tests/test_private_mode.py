@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from uuid import uuid4
 
 import pytest
 from sqlalchemy.dialects import postgresql
@@ -97,7 +98,7 @@ def no_gemini_embedding(monkeypatch):
     async def gemini(*_args, **_kwargs):
         raise AssertionError("a Private mode search reached the Gemini embedding call")
 
-    monkeypatch.setattr(retrieve_module, "embed_query", gemini)
+    monkeypatch.setattr(model_gateway, "gemini_embed_query", gemini)
 
 
 def test_a_private_search_without_a_local_embedding_model_finds_nothing(test_settings, no_gemini_embedding):
@@ -115,7 +116,7 @@ def test_a_private_search_embeds_and_searches_only_locally(test_settings, no_gem
         embedded.append(text)
         return [0.0] * LOCAL_EMBEDDING_DIM
 
-    monkeypatch.setattr(retrieve_module, "embed_query_locally", local)
+    monkeypatch.setattr(model_gateway, "embed_query_locally", local)
     statement = asyncio.run(retrieve_module._local_search("Is Thursday still on?", 5, EVERYTHING))
     sql = str(statement)
     assert embedded == ["Is Thursday still on?"]
@@ -169,3 +170,8 @@ def test_the_card_says_whether_private_drafts_search_documents(calls, monkeypatc
     get_settings.cache_clear()
     monkeypatch.setattr(private_mode_routes, "provider_for", local)
     assert _signed_in().get("/settings/private-mode").json()["search"] is is_searched
+
+
+def test_switching_private_mode_on_forgets_the_users_cloud_vectors():
+    sql = str(private_mode_routes._forget_cloud_vectors(uuid4()).compile(dialect=postgresql.dialect()))
+    assert sql.startswith("DELETE FROM embedding") and "document.user_id" in sql

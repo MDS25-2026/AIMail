@@ -6,6 +6,7 @@ from pathlib import Path
 from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import model_gateway
 from app.core.constants import EMBEDDING_TAG
 from app.core.ownership import Scope
 from app.core.providers import Provider
@@ -25,13 +26,14 @@ from app.rag.chunk import (
     estimate_tokens,
     extract_pdf_text,
 )
-from app.rag.embed import EmbeddingError, embed_documents
-from app.rag.local_embed import embed_documents_locally, local_model, local_tag
+from app.rag.embed import EmbeddingError
+from app.rag.local_embed import local_model, local_tag
 from app.rag.mask import mask_document
 
 logger = logging.getLogger(__name__)
 
 EMBED_BATCH = 100
+INDEX = "index"  # the egress purpose of embedding stored chunks
 
 
 async def ingest_pdf(
@@ -104,7 +106,8 @@ async def embed_pending(batch_size: int = EMBED_BATCH) -> int:
             chunks = (await session.scalars(_pending_for_gemini(batch_size))).all()
             if not chunks:
                 return embedded
-            vectors = await embed_documents([c.content for c in chunks])
+            vectors = await model_gateway.embed_documents([c.content for c in chunks], provider=Provider.GEMINI,
+                                                          purpose=INDEX)
             session.add_all(
                 Embedding(chunk_id=c.id, embedding=v, model_name=EMBEDDING_TAG)
                 for c, v in zip(chunks, vectors, strict=True)
@@ -123,7 +126,8 @@ async def embed_pending_locally(batch_size: int = EMBED_BATCH) -> int:
             chunks = (await session.scalars(_pending_for_local(batch_size))).all()
             if not chunks:
                 return embedded
-            vectors = await embed_documents_locally([c.content for c in chunks])
+            vectors = await model_gateway.embed_documents([c.content for c in chunks], provider=Provider.LOCAL,
+                                                          purpose=INDEX)
             session.add_all(
                 LocalEmbedding(chunk_id=c.id, embedding=v, model_name=local_tag())
                 for c, v in zip(chunks, vectors, strict=True)

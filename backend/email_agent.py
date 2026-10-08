@@ -801,7 +801,7 @@ Rules:
 async def translate(req: TranslateRequest) -> dict:
     """Translate masked text. 422 when the result fails the faithfulness checks."""
     try:
-        with deadline(), using(req.provider):
+        with deadline(), track_egress() as egress, using(req.provider):
             translated = await translate_text(req.text, req.language)
     except ModelError as error:
         raise _unavailable(error) from error
@@ -809,7 +809,7 @@ async def translate(req: TranslateRequest) -> dict:
     if problems:
         raise HTTPException(status_code=422, detail={"code": UNFAITHFUL_TRANSLATION,
                                                      "problems": problems})
-    return {"language": req.language, "text": translated}
+    return {"language": req.language, "text": translated, "egress": egress}
 
 
 class RefineRequest(BaseModel):

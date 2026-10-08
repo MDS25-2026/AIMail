@@ -24,6 +24,7 @@ from app.contracts import (
     ContextChunk,
     DashboardEmail,
     Detail,
+    EgressRecord,
     MeasureView,
     QuantityView,
     Source,
@@ -37,8 +38,9 @@ from app.core.middleware import REQUEST_ID_HEADER
 from app.core.ownership import EVERYTHING, Scope
 from app.core.redaction import PLACEHOLDER, has_redaction_marker
 from app.core.vault import ThreadMap, build_thread_map
-from app.db.models import AuthStatus, MaskingStatus, Message, UserProfile
+from app.db.models import AuthStatus, MaskingStatus, Message, ModelEgress, UserProfile
 from app.db.session import get_sessionmaker
+from app.egress_log import egress_for, save_egress
 from app.email_policy import Action, drafting_filter, refusal_for
 from app.gmail_send import SendError, SendOutcomeUnknownError, send_reply
 from app.normalise.quantities import quantities_in
@@ -50,6 +52,7 @@ from app.rag.embed import EmbeddingError
 from app.rag.retrieve import retrieve
 from app.rag.utils import format_rag_context
 from app.writing_style import edit_ratio, is_learning, relearn, style_for
+from model_gateway import track_egress
 
 logger = logging.getLogger(__name__)
 
@@ -144,6 +147,7 @@ def _to_email(
     policy: Policy = DEFAULT_POLICY,
     thread: list[Message] | None = None,
     details: ThreadMap | None = None,
+    egress: list[ModelEgress] | None = None,
 ) -> DashboardEmail:
     details = details or ThreadMap()
     key = str(message.id)
@@ -172,7 +176,13 @@ def _to_email(
         replyTo=message.reply_to or None,
         threadId=message.thread_id,
         details=[Detail(**detail) for detail in details.details()],
+        egress=[_egress_view(row) for row in egress or []],
     )
+
+
+def _egress_view(row: ModelEgress) -> EgressRecord:
+    return EgressRecord(purpose=row.purpose, provider=row.provider, chars=row.chars, hidden=row.hidden or {},
+                        caught=row.caught, at=row.created_at.isoformat() if row.created_at else "")
 
 
 async def _owner_name(owner_id: UUID | None) -> str:
@@ -375,8 +385,9 @@ async def _generate(message: Message, tone: str, thread: list[Message], details:
     """
     try:
         provider = await provider_for(message.user_id)
-        chunks = await retrieve(message.body_masked or "", k=5, scope=Scope(owner_id=message.user_id),
-                                provider=provider)
+        with track_egress() as searched:
+            chunks = await retrieve(message.body_masked or "", k=5, scope=Scope(owner_id=message.user_id),
+                                    provider=provider)
         payload = {
             "thread_context": thread_context(message, thread, details),
             "email_body": details.renumber(str(message.id), message.body_masked or ""),
@@ -392,6 +403,7 @@ async def _generate(message: Message, tone: str, thread: list[Message], details:
             if exc.response.status_code != AGENT_CONTENT_FAILURE:
                 raise
             generated = _not_drafted(_agent_error_code(exc.response))
+        await save_egress([*searched, *generated.pop("egress", [])], user_id=message.user_id, message_id=message.id)
         return generated | {"rag_sources": _source_records(chunks)}
     except (httpx.HTTPError, EmbeddingError, ValueError) as exc:
         logger.warning("draft generation failed for message %s: %s", message.id, exc)
@@ -488,7 +500,7 @@ async def email_detail(message_id: str, *, scope: Scope) -> DashboardEmail | Non
     # Opening the detail view is the moment a person actually reads it.
     await _mark_read(pk)
     message.read_at = message.read_at or datetime.now(timezone.utc)
-    return _to_email(message, thread=thread, details=details)
+    return _to_email(message, thread=thread, details=details, egress=await egress_for(message.id))
 
 
 async def email_for_thread(thread_id: str, *, scope: Scope) -> DashboardEmail | None:
@@ -709,6 +721,7 @@ async def _refine(
     except (httpx.HTTPError, ValueError) as exc:
         logger.warning("refine failed for message %s: %s", message.id, exc)
         raise DraftNotUpdatedError(ErrorCode.AGENT_UNAVAILABLE) from exc
+    await save_egress(refined.pop("egress", []), user_id=message.user_id, message_id=message.id)
     if not refined.get("draft"):
         raise DraftNotUpdatedError(ErrorCode.AGENT_UNAVAILABLE)
     return refined
@@ -778,6 +791,7 @@ async def translate_email(message_id: str, language: str, *, scope: Scope) -> di
         raise TranslationError(ErrorCode.AGENT_UNAVAILABLE, "agent unreachable") from exc
     await audit(AuditAction.TRANSLATE_EMAIL, user_id=message.user_id, message=message_id,
                 language=language)
+    await save_egress(translated.pop("egress", []), user_id=message.user_id, message_id=message.id)
     return translated
 
 

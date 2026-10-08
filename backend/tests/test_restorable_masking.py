@@ -70,6 +70,9 @@ def mailbox(monkeypatch, test_settings):
     async def no_style(_user_id):
         return {}
 
+    async def no_egress(_message_id):
+        return []
+
     async def gemini(_user_id):
         return Provider.GEMINI
 
@@ -77,7 +80,8 @@ def mailbox(monkeypatch, test_settings):
                         ("retrieve", no_chunks), ("_mark_read", nothing),
                         ("_call_agent", call_agent), ("_claim_send", claim), ("send_reply", send_reply),
                         ("audit", nothing), ("_update_unsent", _true), ("_style_fields", no_style),
-                        ("is_learning", _false), ("provider_for", gemini)):
+                        ("is_learning", _false), ("provider_for", gemini), ("egress_for", no_egress),
+                        ("save_egress", nothing)):
         monkeypatch.setattr(dashboard, name, value)
     monkeypatch.setattr(dashboard.connections, "can_send", can_send)
     return state
