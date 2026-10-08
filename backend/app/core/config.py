@@ -16,8 +16,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from app.core.constants import (
     CHAT_MODEL,
     DEFAULT_ADMIN_ORIGINS,
-    EMBEDDING_DIM,
-    EMBEDDING_MODEL,
 )
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -68,8 +66,6 @@ class Settings(BaseSettings):
     # Shared bearer token every API caller must present (see app/core/auth.py). Empty means
     # the API refuses all requests rather than silently running unauthenticated.
     backend_api_token: str = ""
-    embedding_model: str = EMBEDDING_MODEL
-    embedding_dim: int = EMBEDDING_DIM
     gemini_chat_model: str = CHAT_MODEL
     email_agent_url: str = "http://127.0.0.1:8001"  # Lane C /process-email service
     # Dashboard sign-in (docs/adr/0005): Supabase sends the user back to BACKEND_PUBLIC_URL, which

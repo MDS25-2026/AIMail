@@ -17,6 +17,7 @@ from app.audit import AuditAction, audit_row
 from app.core.ratelimit import PostgresCounters
 from app.db.migrate import apply_pending, pending
 from app.db.session import get_engine, get_sessionmaker
+from app.rag.embedding_models import check_columns
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "")
 pytestmark = pytest.mark.skipif(not TEST_DATABASE_URL, reason="set TEST_DATABASE_URL to a throwaway database")
@@ -110,3 +111,7 @@ def test_rate_limit_hits_are_counted_once_each_under_concurrency():
         return await asyncio.gather(*(counters.hit(key, 0.0) for _ in range(CONCURRENT_WRITES)))
 
     assert sorted(_run(scenario())) == list(range(1, CONCURRENT_WRITES + 1))
+
+
+def test_the_embedding_columns_have_the_registered_widths():
+    _run(check_columns())  # raises MisconfiguredError on a mismatch

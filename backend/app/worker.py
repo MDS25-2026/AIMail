@@ -18,6 +18,7 @@ from app.core.constants import EMBED_POLL_SECONDS, HOLDING_REPLY_POLL_SECONDS
 from app.core.logging_setup import configure_logging
 from app.dashboard import generate_pending
 from app.holding_reply_scheduler import schedule_new, send_due
+from app.rag.embedding_models import check_columns
 from app.rag.ingest import embed_pending, embed_pending_locally
 from app.retention import apply_retention
 from app.send_reconciler import reconcile_sends
@@ -77,6 +78,7 @@ async def _every(job: Job) -> None:
 
 async def run() -> None:
     configure_logging()
+    await check_columns()
     await mailbox.resolve_owner()
     stop = asyncio.Event()
     for sig in (signal.SIGTERM, signal.SIGINT):

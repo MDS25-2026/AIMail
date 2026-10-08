@@ -43,6 +43,7 @@ from app.core.auth import (
 from app.core.config import get_settings
 from app.core.constants import (
     ADMIN_PREFIX,
+    EMBEDDING_MODEL,
     MAX_DRAFT_CHARS,
     MAX_PASTE_CHARS,
     MAX_UPLOAD_BYTES,
@@ -59,6 +60,7 @@ from app.core.errors import (
 from app.core.health import database_answers, health_router
 from app.core.logging_setup import configure_logging
 from app.core.middleware import request_context
+from app.core.providers import Provider
 from app.core.ratelimit import (
     rate_limit_detail,
     rate_limit_generation,
@@ -81,7 +83,8 @@ from app.holding_reply_routes import router as holding_reply_router
 from app.private_mode import provider_for
 from app.private_mode_routes import router as private_mode_router
 from app.rag.chunk import extract_pdf_bytes
-from app.rag.embed import EmbeddingError
+from app.rag.embedding_models import REGISTRY, check_columns
+from app.rag.errors import EmbeddingError
 from app.rag.generate import answer
 from app.rag.ingest import ingest_text
 from app.rag.library import DocumentSummary, delete_document, list_documents
@@ -97,6 +100,7 @@ configure_logging()
 @asynccontextmanager
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """The API runs no background jobs: they live in the worker (app/worker.py)."""
+    await check_columns()
     await mailbox.resolve_owner()
     yield
     await agent_client.close()
@@ -335,8 +339,8 @@ async def system_info(request: Request) -> SystemInfo:
     documents = await list_documents(scope) if scope else []
     return SystemInfo(
         chat_model=settings.gemini_chat_model,
-        embedding_model=settings.embedding_model,
-        embedding_dim=settings.embedding_dim,
+        embedding_model=EMBEDDING_MODEL,
+        embedding_dim=REGISTRY[Provider.GEMINI].dimensions,
         priority_model=settings.priority_model,
         auth_enabled=bool(settings.backend_api_token),
         auto_generate=settings.auto_generate,

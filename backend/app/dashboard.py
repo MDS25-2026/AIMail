@@ -58,7 +58,7 @@ from app.past_replies import remember_reply
 from app.personalisation import DEFAULT_POLICY, Policy, apply_policy, load_policy
 from app.plain_text import plain_text
 from app.private_mode import provider_for
-from app.rag.embed import EmbeddingError
+from app.rag.errors import EmbeddingError
 from app.rag.retrieve import retrieve
 from app.rag.utils import format_rag_context
 from app.send_reconciler import mark_outcome_unknown

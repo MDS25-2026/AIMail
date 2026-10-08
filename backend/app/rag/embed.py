@@ -7,11 +7,10 @@ import numpy as np
 from google.genai import errors, types
 
 from app.core.constants import EMBEDDING_DIM, EMBEDDING_MODEL
+from app.core.providers import Provider
+from app.rag.embedding_models import checked
+from app.rag.errors import EmbeddingError
 from app.rag.gemini import gemini_client
-
-
-class EmbeddingError(RuntimeError):
-    """Raised when the embeddings API cannot be reached."""
 
 
 def l2_normalize(vectors: np.ndarray) -> np.ndarray:
@@ -43,7 +42,7 @@ def _embed_sync(texts: list[str], task_type: str) -> list[list[float]]:
             "and that GOOGLE_API_KEY is set"
         ) from exc
     raw = np.array([e.values for e in result.embeddings], dtype=np.float32)
-    return l2_normalize(raw).tolist()
+    return checked(l2_normalize(raw).tolist(), Provider.GEMINI, EMBEDDING_MODEL)
 
 
 async def _embed(texts: list[str], task_type: str) -> list[list[float]]:

@@ -26,7 +26,7 @@ from app.rag.chunk import (
     estimate_tokens,
     extract_pdf_text,
 )
-from app.rag.embed import EmbeddingError
+from app.rag.errors import EmbeddingError
 from app.rag.local_embed import local_model, local_tag
 from app.rag.mask import MaskProfile, mask_document
 
