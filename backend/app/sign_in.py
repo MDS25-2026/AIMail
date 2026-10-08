@@ -16,7 +16,6 @@ from fastapi import (
     Cookie,
     Depends,
     Header,
-    HTTPException,
     Request,
     Response,
     status,
@@ -29,12 +28,12 @@ from app.core import supabase_auth
 from app.core.auth import (
     CLIENT_HEADER,
     SESSION_COOKIE,
-    AuthError,
     Principal,
     current_principal,
     scope_of_principal,
 )
 from app.core.config import get_settings
+from app.core.errors import DomainError, ErrorCode
 from app.core.supabase_auth import Session
 
 router = APIRouter(prefix="/auth")
@@ -89,7 +88,7 @@ async def _require_client_header(
     marker: Annotated[str | None, Header(alias=CLIENT_HEADER)] = None,
 ) -> None:
     if marker != "1":
-        raise HTTPException(status.HTTP_403_FORBIDDEN, AuthError.CLIENT_HEADER_MISSING)
+        raise DomainError(ErrorCode.CLIENT_HEADER_MISSING)
 
 
 @router.get("/google/start")
@@ -162,13 +161,13 @@ async def refresh_current_session(
     refresh_token: Annotated[str | None, Cookie(alias=REFRESH_COOKIE)] = None,
 ) -> Response:
     if not refresh_token:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, AuthError.SIGNED_OUT)
+        raise DomainError(ErrorCode.SIGNED_OUT)
     try:
         session = await supabase_auth.refresh_session(refresh_token)
     except supabase_auth.InvalidGrantError as exc:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, AuthError.SIGNED_OUT) from exc
+        raise DomainError(ErrorCode.SIGNED_OUT) from exc
     except (supabase_auth.SupabaseUnavailableError, supabase_auth.SupabaseNotConfiguredError) as exc:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, AuthError.SUPABASE_UNAVAILABLE) from exc
+        raise DomainError(ErrorCode.SUPABASE_UNAVAILABLE) from exc
     _set_session(response, session)
     response.status_code = status.HTTP_204_NO_CONTENT
     return response

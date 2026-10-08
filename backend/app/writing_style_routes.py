@@ -1,10 +1,9 @@
 """The writing style card's routes (specs/features/writing-profile.md). Per signed-in user only."""
 
 from datetime import datetime
-from enum import StrEnum
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Request, Response, status
+from fastapi import APIRouter, Request, Response, status
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
@@ -12,6 +11,7 @@ from sqlalchemy.sql.dml import ReturningDelete, ReturningUpdate
 
 from app.account_routes import account_user_id
 from app.audit import audit
+from app.core.errors import DomainError, ErrorCode
 from app.db.models import Message, StyleExample, StyleHabit, WritingStyle
 from app.db.session import get_sessionmaker
 from app.past_replies import forget_replies
@@ -25,11 +25,6 @@ from app.writing_style import (
 
 router = APIRouter(prefix="/profile/writing")
 
-
-class StyleError(StrEnum):
-    TOO_MANY_EXAMPLES = "too_many_examples"
-    EMPTY = "empty"
-    NOT_FOUND = "not_found"
 
 
 class ExampleView(BaseModel):
@@ -127,7 +122,7 @@ async def _sent_text(user_id: UUID, email_id: UUID) -> str:
         text = await session.scalar(select(Message.draft_reply).where(
             Message.id == email_id, Message.user_id == user_id, Message.sent_at.is_not(None)))
     if not text:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, StyleError.NOT_FOUND)
+        raise DomainError(ErrorCode.NOT_FOUND)
     return text
 
 
@@ -137,12 +132,12 @@ async def add_example(body: ExampleBody, request: Request) -> WritingStyleView:
     source = ExampleSource.PASTED if body.text is not None else ExampleSource.SENT
     raw = body.text if body.emailId is None else await _sent_text(user_id, body.emailId)
     if not raw.strip():
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, StyleError.EMPTY)
+        raise DomainError(ErrorCode.EMPTY)
     text = (await mask_for_style(raw))[:MAX_EXAMPLE_CHARS]
     async with get_sessionmaker()() as session, session.begin():
         count = await session.scalar(select(func.count(StyleExample.id)).where(StyleExample.user_id == user_id))
         if count >= MAX_EXAMPLES:
-            raise HTTPException(status.HTTP_409_CONFLICT, StyleError.TOO_MANY_EXAMPLES)
+            raise DomainError(ErrorCode.TOO_MANY_EXAMPLES)
         session.add(StyleExample(user_id=user_id, text=text, source=source))
     await audit("writing_style_example_added", f"user={user_id} source={source}", user_id=user_id)
     return await _view(user_id)
@@ -153,7 +148,7 @@ async def _delete_one(statement: ReturningDelete | ReturningUpdate, user_id: UUI
     async with get_sessionmaker()() as session, session.begin():
         removed = await session.scalar(statement)
     if removed is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, StyleError.NOT_FOUND)
+        raise DomainError(ErrorCode.NOT_FOUND)
     await audit(action, f"user={user_id} id={item_id}", user_id=user_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

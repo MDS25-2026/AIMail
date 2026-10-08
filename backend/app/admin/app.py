@@ -22,7 +22,6 @@ from app.admin.auth import (
     ACCESS_COOKIE,
     REFRESH_COOKIE,
     Admin,
-    AdminAuthError,
     Session,
     clear_session_cookies,
     refresh,
@@ -42,7 +41,7 @@ from app.admin.schemas import (
 )
 from app.audit import audit
 from app.core.constants import ADMIN_SIGN_IN_LIMIT, ADMIN_SIGN_IN_WINDOW_SECONDS
-from app.core.db_errors import register_database_handlers
+from app.core.errors import DomainError, ErrorCode, register_error_handlers
 from app.core.ratelimit import RateLimiter
 from app.db.session import get_sessionmaker
 
@@ -56,7 +55,7 @@ AdminUser = Annotated[Admin, Depends(require_admin)]
 
 
 # The same split as the main app: an outage is a 503, a real SQL fault is logged and a 500.
-register_database_handlers(admin_app)
+register_error_handlers(admin_app)
 
 
 @admin_app.post("/session", dependencies=[Depends(rate_limit_sign_in), Depends(require_admin_header)])
@@ -80,7 +79,7 @@ async def _admin_or_revoke(session: Session) -> Admin:
         return await verify_admin(session.access_token)
     except HTTPException as exc:
         await sign_out(session.access_token)
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, AdminAuthError.BAD_CREDENTIALS) from exc
+        raise DomainError(ErrorCode.INVALID_CREDENTIALS) from exc
 
 
 @admin_app.post("/session/refresh", dependencies=[Depends(require_admin_header)])
@@ -89,7 +88,7 @@ async def refresh_session(
     refresh_token: Annotated[str | None, Cookie(alias=REFRESH_COOKIE)] = None,
 ) -> AdminIdentity:
     if not refresh_token:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, AdminAuthError.SIGNED_OUT)
+        raise DomainError(ErrorCode.ADMIN_SIGNED_OUT)
     session = await refresh(refresh_token)
     admin = await verify_admin(session.access_token)
     set_session_cookies(response, session)

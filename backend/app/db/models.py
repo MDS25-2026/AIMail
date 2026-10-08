@@ -108,7 +108,8 @@ class AuditLog(Base):
     __tablename__ = "audit_log"
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    user_id: Mapped[UUID | None] = mapped_column(ForeignKey("user_profile.id", ondelete="SET NULL"))
+    # No foreign key (migration 0025): the hash covers it, so it must outlive the profile unchanged.
+    user_id: Mapped[UUID | None]
     action: Mapped[str | None] = mapped_column(Text)
     detail: Mapped[str | None] = mapped_column(Text)
     success: Mapped[bool | None]
@@ -124,6 +125,8 @@ class AuthStatus(StrEnum):
 
     PASS = "pass"
     SPOOF_DETECTED = "spoof_detected"
+    # No verdict from Google's own server (none, temperror, no header): drafted, never auto-answered.
+    UNVERIFIED = "unverified"
     # The owner looked at a flagged email and said the sender is real; drafting is allowed again.
     SENDER_CONFIRMED = "sender_confirmed"
 
@@ -193,7 +196,7 @@ class Message(Base):
     def is_masked(self) -> bool:
         """Content exists and was masked with NER. Nothing reads or drafts from a row that is not."""
         return self.masking_status == MaskingStatus.COMPLETE
-    auth_status: Mapped[str | None] = mapped_column(Text, default=AuthStatus.PASS)
+    auth_status: Mapped[str] = mapped_column(Text, default=AuthStatus.UNVERIFIED)
 
     @property
     def is_spoofed(self) -> bool:

@@ -58,4 +58,4 @@ def test_the_paste_route_answers_503_when_masking_is_unavailable(api_client, mon
     _presidio(monkeypatch, _down)
     response = api_client.post("/documents", json={"title": "Leave", "text": POLICY}, headers=AUTH)
     assert response.status_code == 503
-    assert response.json()["detail"] == "masking_unavailable"
+    assert response.json()["error"]["code"] == "masking_unavailable"

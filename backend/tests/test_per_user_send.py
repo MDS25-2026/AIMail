@@ -118,5 +118,5 @@ def test_a_user_who_granted_read_only_is_refused_before_anything_is_claimed(monk
     monkeypatch.setattr(dashboard, "_claim_send", claim)
     with pytest.raises(dashboard.SendRejectedError) as caught:
         asyncio.run(dashboard.approve_and_send(str(message.id), "Thanks", scope=EVERYTHING))
-    assert (caught.value.code, caught.value.status_code) == (dashboard.SendErrorCode.SEND_NOT_GRANTED, 403)
+    assert (caught.value.code, caught.value.status_code) == (dashboard.ErrorCode.SEND_NOT_GRANTED, 403)
     assert claimed == []

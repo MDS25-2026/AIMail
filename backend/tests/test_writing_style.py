@@ -292,7 +292,7 @@ def test_nothing_is_stored_when_the_masker_is_down(calls, monkeypatch):  # noqa:
     monkeypatch.setattr(writing_style_routes, "_save_style", save)
     response = _signed_in().put("/profile/writing/description", json={"description": "Warm, Aisyah"},
                                 headers=CLIENT)
-    assert response.status_code == 503 and response.json()["detail"] == "masking_unavailable"
+    assert response.status_code == 503 and response.json()["error"]["code"] == "masking_unavailable"
     assert stored == []
 
 

@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, Field
 
+from app.core.errors import ErrorCode
 from app.core.language import Language
 from app.core.phishing import phishing_signal
 from app.db.models import HoldingReplySettings, MaskingStatus, Message
@@ -47,18 +48,6 @@ class ReplyScope(StrEnum):
     NEEDS_REPLY = "needs_reply"
     ALL = "all"
 
-
-class SettingsError(StrEnum):
-    UNKNOWN_PLACEHOLDER = "unknown_placeholder"
-    RETURN_DATE_NEEDS_LEAVE = "return_date_needs_leave"
-    EMPTY_TEMPLATE = "empty_template"
-    TEMPLATE_TOO_LONG = "template_too_long"
-    NO_DEFAULT_TEMPLATE = "no_default_template"
-    UNKNOWN_TIMEZONE = "unknown_timezone"
-    LEAVE_NEEDS_DATES = "leave_needs_dates"
-    LEAVE_ENDS_BEFORE_IT_STARTS = "leave_ends_before_it_starts"
-    WORKDAY_ENDS_BEFORE_IT_STARTS = "workday_ends_before_it_starts"
-    BAD_WORK_DAYS = "bad_work_days"
 
 
 class Refusal(StrEnum):
@@ -106,40 +95,40 @@ class SettingsBody(BaseModel):
 
 
 class InvalidSettingsError(ValueError):
-    def __init__(self, code: SettingsError) -> None:
+    def __init__(self, code: ErrorCode) -> None:
         super().__init__(code)
         self.code = code
 
 
-def _template_errors(body: SettingsBody) -> SettingsError | None:
+def _template_errors(body: SettingsBody) -> ErrorCode | None:
     for template in body.templates.values():
         fields = set(TEMPLATE_FIELD.findall(template))
         if not template.strip():
-            return SettingsError.EMPTY_TEMPLATE
+            return ErrorCode.EMPTY_TEMPLATE
         if len(template) > MAX_TEMPLATE_CHARS:
-            return SettingsError.TEMPLATE_TOO_LONG
+            return ErrorCode.TEMPLATE_TOO_LONG
         if fields - KNOWN_FIELDS:
-            return SettingsError.UNKNOWN_PLACEHOLDER
+            return ErrorCode.UNKNOWN_PLACEHOLDER
         if RETURN_DATE_FIELD in fields and body.leaveUntil is None:
-            return SettingsError.RETURN_DATE_NEEDS_LEAVE
+            return ErrorCode.RETURN_DATE_NEEDS_LEAVE
     if body.enabled and body.defaultLanguage not in body.templates:
-        return SettingsError.NO_DEFAULT_TEMPLATE
+        return ErrorCode.NO_DEFAULT_TEMPLATE
     return None
 
 
-def _schedule_errors(body: SettingsBody) -> SettingsError | None:
+def _schedule_errors(body: SettingsBody) -> ErrorCode | None:
     try:
         ZoneInfo(body.timezone)
     except (ZoneInfoNotFoundError, ValueError):
-        return SettingsError.UNKNOWN_TIMEZONE
+        return ErrorCode.UNKNOWN_TIMEZONE
     if not body.workDays or any(day not in range(1, 8) for day in body.workDays):
-        return SettingsError.BAD_WORK_DAYS
+        return ErrorCode.BAD_WORK_DAYS
     if body.workEnd <= body.workStart:
-        return SettingsError.WORKDAY_ENDS_BEFORE_IT_STARTS
+        return ErrorCode.WORKDAY_ENDS_BEFORE_IT_STARTS
     if body.activeWhen == ActiveWhen.LEAVE and (body.leaveFrom is None or body.leaveUntil is None):
-        return SettingsError.LEAVE_NEEDS_DATES
+        return ErrorCode.LEAVE_NEEDS_DATES
     if body.leaveFrom and body.leaveUntil and body.leaveUntil < body.leaveFrom:
-        return SettingsError.LEAVE_ENDS_BEFORE_IT_STARTS
+        return ErrorCode.LEAVE_ENDS_BEFORE_IT_STARTS
     return None
 
 

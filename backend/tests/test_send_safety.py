@@ -130,7 +130,7 @@ def test_an_ordinary_failure_still_releases_the_claim(harness):
 def test_a_draft_with_a_redaction_marker_is_refused_before_anything_is_claimed(harness):
     with pytest.raises(dashboard.SendRejectedError) as caught:
         _approve(harness, "Hi [Redacted], your number is [PHONE_REDACTED].")
-    assert (caught.value.code, caught.value.status_code) == (dashboard.SendErrorCode.REDACTION_MARKERS, 422)
+    assert (caught.value.code, caught.value.status_code) == (dashboard.ErrorCode.REDACTION_MARKERS, 422)
     assert harness["claimed"] == harness["sent"] == 0
 
 
@@ -138,7 +138,7 @@ def test_an_email_that_is_not_masked_cannot_be_replied_to(harness):
     harness["message"] = _message(masking_status=MaskingStatus.PENDING)
     with pytest.raises(dashboard.SendRejectedError) as caught:
         _approve(harness)
-    assert (caught.value.code, caught.value.status_code) == (dashboard.SendErrorCode.MASKING_PENDING, 409)
+    assert (caught.value.code, caught.value.status_code) == (dashboard.ErrorCode.MASKING_PENDING, 409)
     assert harness["sent"] == 0
 
 
@@ -153,13 +153,13 @@ def test_the_route_reports_an_unknown_outcome_distinctly(api_client, monkeypatch
     monkeypatch.setattr("app.main.approve_and_send", unknown)
     response = api_client.post("/emails/x/send", json={"draft": "Thanks."}, headers=AUTH)
     assert response.status_code == 504
-    assert response.json()["detail"] == "send_outcome_unknown"
+    assert response.json()["error"]["code"] == "send_outcome_unknown"
 
 
 def test_the_route_reports_a_rejected_draft_with_its_code(api_client, monkeypatch):
     async def rejected(*_args, **_kwargs):
-        raise dashboard.SendRejectedError(dashboard.SendErrorCode.REDACTION_MARKERS, 422)
+        raise dashboard.SendRejectedError(dashboard.ErrorCode.REDACTION_MARKERS, 422)
 
     monkeypatch.setattr("app.main.approve_and_send", rejected)
     response = api_client.post("/emails/x/send", json={"draft": "Hi [Redacted]"}, headers=AUTH)
-    assert (response.status_code, response.json()["detail"]) == (422, "redaction_markers")
+    assert (response.status_code, response.json()["error"]["code"]) == (422, "redaction_markers")

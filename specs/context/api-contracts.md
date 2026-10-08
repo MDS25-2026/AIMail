@@ -2,6 +2,12 @@
 
 This file is the **contract between frontend and backend**. Every REST endpoint AImail exposes is documented here. Frontend and backend must both match this file.
 
+> **Errors (2026-10-08):** every error is `{"error": {"code": "<code>", "message": "<English, for logs>"}}`.
+> Codes and their statuses live in one registry, `backend/app/core/errors.py` (`ErrorCode`); the older
+> `{"detail": "<code>"}` responses are gone. Some codes were renamed in the move: `DATABASE_UNREACHABLE` ->
+> `database_unreachable`, `AI_SERVICE_UNREACHABLE` -> `ai_service_unreachable`, `email_too_long_to_translate` ->
+> `too_large`, `agent_unreachable` -> `agent_unavailable`, and PDF upload errors -> `not_pdf` / `unreadable_pdf`.
+
 ## Rules
 
 - Add an endpoint here **before** writing it.

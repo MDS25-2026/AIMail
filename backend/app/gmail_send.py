@@ -22,6 +22,7 @@ from sqlalchemy import select, update
 
 from app.core import token_crypt
 from app.core.config import get_settings
+from app.core.errors import DomainError, ErrorCode
 from app.db.models import MailboxConnection
 from app.db.session import get_sessionmaker
 
@@ -56,7 +57,20 @@ class SentReply:
     message_id: str | None
 
 
-class SendError(RuntimeError):
+class _CodedSendError(DomainError):
+    """A send failure the API answers with its code only; the reason (which can name local paths) is logged."""
+
+    code_for_class = ErrorCode.SEND_FAILED
+
+    def __init__(self, reason: str = "") -> None:
+        super().__init__(self.code_for_class)
+        self.reason = reason
+
+    def __str__(self) -> str:
+        return self.reason or self.code.value
+
+
+class SendError(_CodedSendError):
     """Sending the reply via Gmail failed, before Gmail could have sent it."""
 
 
@@ -71,9 +85,13 @@ class GoogleAccessExpiredError(GmailAccessError):
 class AccessExpiredSendError(SendError):
     """The send failed because the user's Google access has ended."""
 
+    code_for_class = ErrorCode.GOOGLE_ACCESS_EXPIRED
 
-class SendOutcomeUnknownError(RuntimeError):
+
+class SendOutcomeUnknownError(_CodedSendError):
     """Gmail may have sent the reply but the answer was lost. Never retried: that risks a second copy."""
+
+    code_for_class = ErrorCode.SEND_OUTCOME_UNKNOWN
 
 
 # Failures raised before a request can reach Gmail. Any other transport failure on the POST may

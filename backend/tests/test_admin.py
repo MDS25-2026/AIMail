@@ -96,7 +96,7 @@ def session_reply(token: str) -> httpx.Response:
 
 def test_no_session_is_signed_out(client):
     response = client.get("/admin/overview")
-    assert response.status_code == 401 and response.json()["detail"] == "admin_signed_out"
+    assert response.status_code == 401 and response.json()["error"]["code"] == "admin_signed_out"
 
 
 def test_the_shared_dashboard_token_does_not_open_admin(client):
@@ -110,7 +110,7 @@ def test_an_admin_session_reads_the_console(client):
 
 def test_a_real_account_without_the_role_is_forbidden(client):
     response = client.get("/admin/overview", headers=cookie(mint(role=None)))
-    assert response.status_code == 403 and response.json()["detail"] == "not_an_admin"
+    assert response.status_code == 403 and response.json()["error"]["code"] == "not_an_admin"
 
 
 def test_a_role_claimed_in_user_metadata_is_ignored(client):
@@ -128,7 +128,7 @@ def test_a_role_claimed_in_user_metadata_is_ignored(client):
 ])
 def test_an_expired_foreign_or_malformed_token_is_rejected(client, token):
     response = client.get("/admin/overview", headers=cookie(token))
-    assert response.status_code == 401 and response.json()["detail"] == "admin_session_invalid"
+    assert response.status_code == 401 and response.json()["error"]["code"] == "admin_session_invalid"
 
 
 # ---------- Sign-in ----------
@@ -151,7 +151,7 @@ def test_a_non_admin_sign_in_is_refused_and_its_session_ended(client, monkeypatc
                     if "token" in request.url.path else httpx.Response(204))
     response = client.post("/admin/session", json={"email": "a@b.c", "password": "x"}, headers=CSRF)
     # Told the same as a wrong password, so the form cannot confirm a valid one.
-    assert response.status_code == 401 and response.json()["detail"] == "invalid_credentials"
+    assert response.status_code == 401 and response.json()["error"]["code"] == "invalid_credentials"
     assert "set-cookie" not in response.headers
     assert any(path.endswith("/logout") for path in seen)
 
@@ -159,12 +159,12 @@ def test_a_non_admin_sign_in_is_refused_and_its_session_ended(client, monkeypatc
 def test_wrong_credentials_are_a_plain_401(client, monkeypatch):
     supabase(monkeypatch, lambda request: httpx.Response(400, json={"error": "invalid_grant"}))
     response = client.post("/admin/session", json={"email": "a@b.c", "password": "bad"}, headers=CSRF)
-    assert response.status_code == 401 and response.json()["detail"] == "invalid_credentials"
+    assert response.status_code == 401 and response.json()["error"]["code"] == "invalid_credentials"
 
 
 def test_sign_in_without_the_admin_header_is_refused(client):
     response = client.post("/admin/session", json={"email": "a@b.c", "password": "x"})
-    assert response.status_code == 403 and response.json()["detail"] == "admin_header_missing"
+    assert response.status_code == 403 and response.json()["error"]["code"] == "admin_header_missing"
 
 
 def test_password_guessing_is_rate_limited(client, monkeypatch):
@@ -179,7 +179,7 @@ def test_unconfigured_admin_auth_fails_closed(client, monkeypatch):
     monkeypatch.setenv("SUPABASE_ANON_KEY", "")
     get_settings.cache_clear()
     response = client.post("/admin/session", json={"email": "a@b.c", "password": "x"}, headers=CSRF)
-    assert response.status_code == 503 and response.json()["detail"] == "admin_auth_not_configured"
+    assert response.status_code == 503 and response.json()["error"]["code"] == "admin_auth_not_configured"
 
 
 def test_sign_out_clears_both_cookies(client, monkeypatch):

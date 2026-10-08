@@ -136,7 +136,7 @@ def test_two_embedding_passes_never_take_the_same_chunk(test_settings):
 def test_private_mode_cannot_be_switched_on_where_the_company_has_not_set_it_up(calls, monkeypatch):  # noqa: F811
     monkeypatch.setattr(private_mode_routes, "is_offered", lambda: False)
     response = _signed_in().put("/settings/private-mode", json={"enabled": True}, headers=CLIENT)
-    assert response.status_code == 409 and response.json()["detail"] == "private_mode_unavailable"
+    assert response.status_code == 409 and response.json()["error"]["code"] == "private_mode_unavailable"
 
 
 def test_private_mode_can_always_be_switched_off_even_where_it_is_no_longer_set_up(calls, monkeypatch):  # noqa: F811

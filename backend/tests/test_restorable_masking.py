@@ -154,7 +154,7 @@ def test_an_approved_reply_goes_out_with_the_real_details_and_is_stored_with_pla
 def test_a_placeholder_nobody_can_fill_stops_the_send_before_anything_is_claimed(mailbox):
     with pytest.raises(dashboard.SendRejectedError) as caught:
         asyncio.run(dashboard.approve_and_send(str(mailbox["message"].id), "Dear [PERSON_7]", scope=EVERYTHING))
-    assert (caught.value.code, caught.value.status_code) == (dashboard.SendErrorCode.UNRESOLVED_PLACEHOLDERS, 422)
+    assert (caught.value.code, caught.value.status_code) == (dashboard.ErrorCode.UNRESOLVED_PLACEHOLDERS, 422)
     assert mailbox["claimed"] == 0 and mailbox["sent"] == []
 
 
@@ -174,7 +174,7 @@ def test_an_email_from_before_restorable_masking_behaves_as_it_always_did(mailbo
     monkeypatch.setattr(dashboard, "get_sessionmaker", lambda: lambda: _Session(old))
     with pytest.raises(dashboard.SendRejectedError) as caught:
         asyncio.run(dashboard.approve_and_send(str(old.id), "Hi [Redacted]", scope=EVERYTHING))
-    assert caught.value.code == dashboard.SendErrorCode.REDACTION_MARKERS
+    assert caught.value.code == dashboard.ErrorCode.REDACTION_MARKERS
     asyncio.run(dashboard.approve_and_send(str(old.id), "Hi Aisyah, thanks.", scope=EVERYTHING))
     assert mailbox["sent"] == ["Hi Aisyah, thanks."]
 

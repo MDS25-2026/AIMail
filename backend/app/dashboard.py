@@ -10,7 +10,7 @@ unreachable the email still returns with its Lane A/B fields and stays uncached 
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from enum import Enum, StrEnum
+from enum import Enum
 from uuid import UUID
 
 import httpx
@@ -30,6 +30,7 @@ from app.contracts import (
     ThreadMessage,
 )
 from app.core.config import get_settings
+from app.core.errors import DomainError, ErrorCode
 from app.core.logging_setup import request_id
 from app.core.middleware import REQUEST_ID_HEADER
 from app.core.ownership import EVERYTHING, Scope
@@ -151,7 +152,7 @@ def _to_email(
         preview=details.renumber(key, message.snippet_masked or ""),
         body=details.renumber(key, message.body_masked or ""),
         timestamp=(message.received_at or message.created_at).isoformat(),
-        authStatus=AuthStatus(message.auth_status or AuthStatus.PASS),
+        authStatus=AuthStatus(message.auth_status or AuthStatus.UNVERIFIED),
         # The classifier's prediction, then the user's policy on top of it.
         priority=apply_policy(message, policy),
         threadContext=_thread_view(thread or [], details),
@@ -219,34 +220,15 @@ def _own_details(message: Message) -> ThreadMap:
 MAX_GENERATION_ATTEMPTS = 5
 
 
-class AlreadySentError(RuntimeError):
+class AlreadySentError(DomainError):
     """The draft of a sent message is the record of what went out; it is never replaced."""
 
-
-class DraftErrorCode(StrEnum):
-    AGENT_UNAVAILABLE = "agent_unavailable"  # the agent or retrieval failed; try again later
-    DRAFT_REFUSED = "draft_refused"  # the model failed on this content; the old draft stays
-    MASKING_PENDING = "masking_pending"  # quarantined: there is nothing masked to draft from
-    # The sender failed SPF, DKIM or DMARC and the owner has not confirmed them: no draft for a spoofer.
-    SENDER_UNVERIFIED = "sender_unverified"
+    def __init__(self, message_id: str = "") -> None:
+        super().__init__(ErrorCode.ALREADY_SENT, f"message {message_id} was already sent")
 
 
-class DraftNotUpdatedError(RuntimeError):
+class DraftNotUpdatedError(DomainError):
     """A regenerate or refine that changed nothing. Answering 200 with the old draft hid it."""
-
-    def __init__(self, code: DraftErrorCode, status_code: int) -> None:
-        super().__init__(code)
-        self.code = code
-        self.status_code = status_code
-
-
-class SendErrorCode(StrEnum):
-    REDACTION_MARKERS = "redaction_markers"  # "[Redacted]" would reach the recipient as written
-    MASKING_PENDING = "masking_pending"  # quarantined: there is nothing safe to reply to yet
-    SEND_NOT_GRANTED = "send_not_granted"  # the owner allowed AIMail to read their Gmail, not send
-    # A placeholder with no known value: invented by the model, or its vault expired or will not open.
-    UNRESOLVED_PLACEHOLDERS = "unresolved_placeholders"
-    SENDER_UNVERIFIED = "sender_unverified"  # failed SPF, DKIM or DMARC, not confirmed by the owner
 
 
 @dataclass(frozen=True)
@@ -262,19 +244,14 @@ def _outgoing(draft: str, details: ThreadMap) -> OutgoingReply:
     stored = details.tokenise_known(draft)
     sent, unresolved = details.restore(stored)
     if unresolved:
-        raise SendRejectedError(SendErrorCode.UNRESOLVED_PLACEHOLDERS, 422)
+        raise SendRejectedError(ErrorCode.UNRESOLVED_PLACEHOLDERS)
     if has_redaction_marker(sent):
-        raise SendRejectedError(SendErrorCode.REDACTION_MARKERS, 422)
+        raise SendRejectedError(ErrorCode.REDACTION_MARKERS)
     return OutgoingReply(stored=stored, sent=sent, restored=len(PLACEHOLDER.findall(stored)))
 
 
-class SendRejectedError(RuntimeError):
+class SendRejectedError(DomainError):
     """A draft refused before anything is claimed or sent; the dashboard's own check can be bypassed."""
-
-    def __init__(self, code: SendErrorCode, status_code: int) -> None:
-        super().__init__(code)
-        self.code = code
-        self.status_code = status_code
 
 
 class GenerationOutcome(Enum):
@@ -564,7 +541,7 @@ async def regenerate_email(
     if message.sent_at is not None:
         raise AlreadySentError(message_id)
     if message.is_spoofed:
-        raise DraftNotUpdatedError(DraftErrorCode.SENDER_UNVERIFIED, 409)
+        raise DraftNotUpdatedError(ErrorCode.SENDER_UNVERIFIED)
     details = await _details_for(message, thread)
     outcome = await _generate_and_store(message, thread, tone, details)
     _raise_unless_updated(message, outcome)
@@ -575,11 +552,11 @@ def _raise_unless_updated(message: Message, outcome: GenerationOutcome) -> None:
     if outcome in (GenerationOutcome.STORED, GenerationOutcome.NO_REPLY):
         return
     if outcome is GenerationOutcome.KEPT:
-        raise DraftNotUpdatedError(DraftErrorCode.DRAFT_REFUSED, 422)
+        raise DraftNotUpdatedError(ErrorCode.DRAFT_REFUSED)
     if outcome is GenerationOutcome.FAILED:
-        raise DraftNotUpdatedError(DraftErrorCode.AGENT_UNAVAILABLE, 502)
+        raise DraftNotUpdatedError(ErrorCode.AGENT_UNAVAILABLE)
     if not message.is_masked:
-        raise DraftNotUpdatedError(DraftErrorCode.MASKING_PENDING, 409)
+        raise DraftNotUpdatedError(ErrorCode.MASKING_PENDING)
     raise AlreadySentError(str(message.id))  # SKIPPED on a masked row: sent while generating
 
 
@@ -631,12 +608,12 @@ async def approve_and_send(message_id: str, draft: str, *, scope: Scope) -> Dash
     if message is None:
         return None
     if not message.is_masked:
-        raise SendRejectedError(SendErrorCode.MASKING_PENDING, 409)
+        raise SendRejectedError(ErrorCode.MASKING_PENDING)
     if message.is_spoofed:
-        raise SendRejectedError(SendErrorCode.SENDER_UNVERIFIED, 409)
+        raise SendRejectedError(ErrorCode.SENDER_UNVERIFIED)
     reply = _outgoing(draft, await _details_for(message, await _thread_for(message)))
     if message.user_id is not None and not await connections.can_send(message.user_id):
-        raise SendRejectedError(SendErrorCode.SEND_NOT_GRANTED, 403)
+        raise SendRejectedError(ErrorCode.SEND_NOT_GRANTED)
     if message.sent_at is not None or not await _claim_send(pk):
         return _to_email(await _load(pk, scope) or message)
     try:
@@ -725,19 +702,21 @@ async def _refine(
     except httpx.HTTPStatusError as exc:
         logger.warning("refine failed for message %s: %s", message.id, exc)
         if exc.response.status_code == AGENT_CONTENT_FAILURE:
-            raise DraftNotUpdatedError(DraftErrorCode.DRAFT_REFUSED, 422) from exc
-        raise DraftNotUpdatedError(DraftErrorCode.AGENT_UNAVAILABLE, 502) from exc
+            raise DraftNotUpdatedError(ErrorCode.DRAFT_REFUSED) from exc
+        raise DraftNotUpdatedError(ErrorCode.AGENT_UNAVAILABLE) from exc
     except (httpx.HTTPError, ValueError) as exc:
         logger.warning("refine failed for message %s: %s", message.id, exc)
-        raise DraftNotUpdatedError(DraftErrorCode.AGENT_UNAVAILABLE, 502) from exc
+        raise DraftNotUpdatedError(ErrorCode.AGENT_UNAVAILABLE) from exc
     if not refined.get("draft"):
-        raise DraftNotUpdatedError(DraftErrorCode.AGENT_UNAVAILABLE, 502)
+        raise DraftNotUpdatedError(ErrorCode.AGENT_UNAVAILABLE)
     return refined
 
 
 # Mirrors the agent's own bound (email_agent.MAX_TRANSLATE_CHARS), checked here first so an
 # over-long body gets a clear answer instead of a validation error that echoes the body back.
 MAX_TRANSLATE_CHARS = 12_000
+
+
 AGENT_ERROR = "agent_error"
 
 
@@ -752,13 +731,14 @@ def _agent_error_code(response: httpx.Response) -> str:
     return detail if isinstance(detail, str) and detail.startswith("gemini_") else AGENT_ERROR
 
 
-class TranslationError(RuntimeError):
-    """Translation was refused (unfaithful) or the agent could not produce one."""
+def _translation_refusal(response: httpx.Response) -> ErrorCode:
+    """The agent's own codes are internal; the reader is told unfaithful, or try again later."""
+    is_unfaithful = _agent_error_code(response) == ErrorCode.TRANSLATION_UNFAITHFUL
+    return ErrorCode.TRANSLATION_UNFAITHFUL if is_unfaithful else ErrorCode.AGENT_UNAVAILABLE
 
-    def __init__(self, code: str, status_code: int) -> None:
-        super().__init__(code)
-        self.code = code
-        self.status_code = status_code
+
+class TranslationError(DomainError):
+    """Translation was refused (unfaithful) or the agent could not produce one."""
 
 
 async def translate_email(message_id: str, language: str, *, scope: Scope) -> dict | None:
@@ -774,20 +754,20 @@ async def translate_email(message_id: str, language: str, *, scope: Scope) -> di
     if message is None:
         return None
     if not message.is_masked:
-        raise TranslationError("masking_pending", 409)
+        raise TranslationError(ErrorCode.MASKING_PENDING)
     details = await _details_for(message, await _thread_for(message))
     text = details.renumber(str(message.id), plain_text(message.body_masked or ""))
     if len(text) > MAX_TRANSLATE_CHARS:
-        raise TranslationError("email_too_long_to_translate", 413)
+        raise TranslationError(ErrorCode.TOO_LARGE, "email too long to translate")
     try:
         translated = await _call_agent("/translate", {"text": text, "language": language,
                                                       "provider": await provider_for(message.user_id)})
     except httpx.HTTPStatusError as exc:
         await audit("translate_email", f"message={message_id} language={language}", success=False,
                     user_id=message.user_id)
-        raise TranslationError(_agent_error_code(exc.response), exc.response.status_code) from exc
+        raise TranslationError(_translation_refusal(exc.response)) from exc
     except httpx.HTTPError as exc:
-        raise TranslationError("agent_unreachable", 502) from exc
+        raise TranslationError(ErrorCode.AGENT_UNAVAILABLE, "agent unreachable") from exc
     await audit("translate_email", f"message={message_id} language={language}",
                 user_id=message.user_id)
     return translated
@@ -808,9 +788,9 @@ async def refine_email(
     if message.sent_at is not None:
         raise AlreadySentError(message_id)
     if not message.is_masked:
-        raise DraftNotUpdatedError(DraftErrorCode.MASKING_PENDING, 409)
+        raise DraftNotUpdatedError(ErrorCode.MASKING_PENDING)
     if message.is_spoofed:
-        raise DraftNotUpdatedError(DraftErrorCode.SENDER_UNVERIFIED, 409)
+        raise DraftNotUpdatedError(ErrorCode.SENDER_UNVERIFIED)
     details = await _details_for(message, thread)
     try:
         refined = await _refine(message, thread, draft, instruction, details)

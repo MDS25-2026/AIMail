@@ -161,7 +161,7 @@ def test_a_refine_the_model_refused_is_reported_as_refused(backend):
                                            response=httpx.Response(422, request=request))
     with pytest.raises(dashboard.DraftNotUpdatedError) as caught:
         asyncio.run(dashboard.refine_email(str(message.id), "shorter", "Old draft", scope=EVERYTHING))
-    assert caught.value.code == dashboard.DraftErrorCode.DRAFT_REFUSED
+    assert caught.value.code == dashboard.ErrorCode.DRAFT_REFUSED
 
 
 # ---------- Questions typed into search and ask ----------

@@ -98,7 +98,7 @@ def test_a_session_cookie_works_for_reads(client):
 
 def test_a_cookie_request_that_changes_state_needs_the_client_header(client):
     response = _signed_in(client, OWNER).post("/emails/e1/send", json={"draft": "Thanks."})
-    assert response.status_code == 403 and response.json()["detail"] == "client_header_missing"
+    assert response.status_code == 403 and response.json()["error"]["code"] == "client_header_missing"
 
 
 def test_a_supabase_bearer_works_without_the_header(client):

@@ -6,13 +6,13 @@ project's published ES256 keys (app/core/supabase_auth.py) and requires app_meta
 """
 
 from dataclasses import dataclass
-from enum import StrEnum
 from typing import Annotated
 
 from fastapi import Cookie, Header, HTTPException, Response, status
 
 from app.core import supabase_auth
 from app.core.config import get_settings
+from app.core.errors import ErrorCode
 from app.core.supabase_auth import Session
 
 ACCESS_COOKIE = "aimail_admin"
@@ -24,26 +24,17 @@ CSRF_HEADER = "X-AIMail-Admin"
 ADMIN_ROLE = "admin"
 
 
-class AdminAuthError(StrEnum):
-    NOT_CONFIGURED = "admin_auth_not_configured"
-    SIGNED_OUT = "admin_signed_out"
-    SESSION_INVALID = "admin_session_invalid"
-    NOT_ADMIN = "not_an_admin"
-    BAD_CREDENTIALS = "invalid_credentials"
-    CSRF_HEADER_MISSING = "admin_header_missing"
-    SUPABASE_UNAVAILABLE = "supabase_unavailable"
 
-
-def _fail(status_code: int, code: AdminAuthError) -> HTTPException:
+def _fail(status_code: int, code: ErrorCode) -> HTTPException:
     return HTTPException(status_code=status_code, detail=code)
 
 
-def _from_supabase(exc: Exception, grant_failure: AdminAuthError) -> HTTPException:
+def _from_supabase(exc: Exception, grant_failure: ErrorCode) -> HTTPException:
     """The admin console's HTTP answer for a shared-plumbing failure."""
     if isinstance(exc, supabase_auth.SupabaseNotConfiguredError):
-        return _fail(status.HTTP_503_SERVICE_UNAVAILABLE, AdminAuthError.NOT_CONFIGURED)
+        return _fail(status.HTTP_503_SERVICE_UNAVAILABLE, ErrorCode.ADMIN_AUTH_NOT_CONFIGURED)
     if isinstance(exc, supabase_auth.SupabaseUnavailableError):
-        return _fail(status.HTTP_503_SERVICE_UNAVAILABLE, AdminAuthError.SUPABASE_UNAVAILABLE)
+        return _fail(status.HTTP_503_SERVICE_UNAVAILABLE, ErrorCode.SUPABASE_UNAVAILABLE)
     return _fail(status.HTTP_401_UNAUTHORIZED, grant_failure)
 
 
@@ -62,9 +53,9 @@ async def verify_admin(token: str) -> Admin:
     try:
         claims = await supabase_auth.verify_access_token(token)
     except _SUPABASE_FAILURES as exc:
-        raise _from_supabase(exc, AdminAuthError.SESSION_INVALID) from exc
+        raise _from_supabase(exc, ErrorCode.ADMIN_SESSION_INVALID) from exc
     if (claims.get("app_metadata") or {}).get("role") != ADMIN_ROLE:
-        raise _fail(status.HTTP_403_FORBIDDEN, AdminAuthError.NOT_ADMIN)
+        raise _fail(status.HTTP_403_FORBIDDEN, ErrorCode.NOT_AN_ADMIN)
     return Admin(user_id=claims["sub"], email=claims.get("email", ""))
 
 
@@ -72,7 +63,7 @@ async def require_admin(
     token: Annotated[str | None, Cookie(alias=ACCESS_COOKIE)] = None,
 ) -> Admin:
     if not token:
-        raise _fail(status.HTTP_401_UNAUTHORIZED, AdminAuthError.SIGNED_OUT)
+        raise _fail(status.HTTP_401_UNAUTHORIZED, ErrorCode.ADMIN_SIGNED_OUT)
     return await verify_admin(token)
 
 
@@ -83,21 +74,21 @@ async def require_admin_header(
     cross-origin script cannot without a preflight, which only ADMIN_ORIGINS pass (app/core/cors.py).
     SameSite alone is not enough: every localhost port is the same site."""
     if marker != "1":
-        raise _fail(status.HTTP_403_FORBIDDEN, AdminAuthError.CSRF_HEADER_MISSING)
+        raise _fail(status.HTTP_403_FORBIDDEN, ErrorCode.ADMIN_HEADER_MISSING)
 
 
 async def sign_in(email: str, password: str) -> Session:
     try:
         return await supabase_auth.password_session(email, password)
     except _SUPABASE_FAILURES as exc:
-        raise _from_supabase(exc, AdminAuthError.BAD_CREDENTIALS) from exc
+        raise _from_supabase(exc, ErrorCode.INVALID_CREDENTIALS) from exc
 
 
 async def refresh(refresh_token: str) -> Session:
     try:
         return await supabase_auth.refresh_session(refresh_token)
     except _SUPABASE_FAILURES as exc:
-        raise _from_supabase(exc, AdminAuthError.SIGNED_OUT) from exc
+        raise _from_supabase(exc, ErrorCode.ADMIN_SIGNED_OUT) from exc
 
 
 async def sign_out(access_token: str) -> None:

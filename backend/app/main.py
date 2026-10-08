@@ -17,7 +17,6 @@ from uuid import UUID
 from fastapi import (
     Depends,
     FastAPI,
-    HTTPException,
     Request,
     Response,
     UploadFile,
@@ -51,7 +50,12 @@ from app.core.constants import (
     UPLOAD_CHUNK_BYTES,
 )
 from app.core.cors import PathScopedCORS, origins_from
-from app.core.db_errors import register_database_handlers
+from app.core.errors import (
+    DomainError,
+    ErrorCode,
+    error_response,
+    register_error_handlers,
+)
 from app.core.logging_setup import configure_logging
 from app.core.middleware import request_context
 from app.core.ratelimit import (
@@ -61,10 +65,6 @@ from app.core.ratelimit import (
 )
 from app.core.typed_text import mask_typed_text
 from app.dashboard import (
-    AlreadySentError,
-    DraftNotUpdatedError,
-    SendRejectedError,
-    TranslationError,
     approve_and_send,
     confirm_sender,
     email_detail,
@@ -75,7 +75,7 @@ from app.dashboard import (
     regenerate_email,
     translate_email,
 )
-from app.gmail_send import AccessExpiredSendError, SendError, SendOutcomeUnknownError
+from app.gmail_send import SendError, SendOutcomeUnknownError
 from app.holding_reply_routes import router as holding_reply_router
 from app.holding_reply_scheduler import holding_replies_loop
 from app.private_mode_routes import router as private_mode_router
@@ -179,20 +179,13 @@ async def _embed_missing(side: str, embed: Callable[[], Awaitable[int]]) -> None
 
 
 
-register_database_handlers(app)
+register_error_handlers(app)
 
 
 async def _ai_service_unreachable(request: Request, exc: Exception) -> JSONResponse:
-    # Gemini embedding/generation failures become a clean 503 instead of a raw 500.
-    return JSONResponse(
-        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        content={
-            "error": {
-                "code": "AI_SERVICE_UNREACHABLE",
-                "message": "Cannot reach the Gemini AI service - check GOOGLE_API_KEY and connectivity.",
-            }
-        },
-    )
+    # Embedding and generation failures become a clean 503 instead of a raw 500.
+    logger.warning("AI service unreachable on %s: %s", request.url.path, exc)
+    return error_response(ErrorCode.AI_SERVICE_UNREACHABLE)
 
 
 for _ai_exc in (EmbeddingError, GenerationError):
@@ -203,8 +196,7 @@ for _ai_exc in (EmbeddingError, GenerationError):
 async def _masking_unavailable(request: Request, exc: DocumentMaskingError) -> JSONResponse:
     # Refused, not stored unmasked: the same fail-closed rule the listener follows for email.
     logger.warning("document masking unavailable: %s", exc)
-    return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                        content={"detail": "masking_unavailable"})
+    return error_response(ErrorCode.MASKING_UNAVAILABLE)
 
 
 class SearchRequest(BaseModel):
@@ -263,9 +255,7 @@ async def emails(request: Request) -> list[DashboardEmail]:
 async def email_detail_route(message_id: str, request: Request) -> DashboardEmail:
     # Detail view: adds Lane C generation (retrieve + /process-email) for one opened email.
     email = await email_detail(message_id, scope=scope_of(request))
-    if email is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "email not found")
-    return email
+    return _found(email)
 
 
 # Gmail thread ids are 16 hex digits; bounded so the path never carries anything else.
@@ -278,9 +268,14 @@ async def email_for_thread_route(
 ) -> DashboardEmail:
     # The Chrome extension's lookup: the email Gmail has open, by its thread.
     email = await email_for_thread(thread_id, scope=scope_of(request))
-    if email is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "email not found")
-    return email
+    return _found(email)
+
+
+def _found[T](value: T | None) -> T:
+    """Someone else's email answers exactly like a missing one, so an id reveals nothing."""
+    if value is None:
+        raise DomainError(ErrorCode.NOT_FOUND)
+    return value
 
 
 class RegenerateRequest(BaseModel):
@@ -291,9 +286,7 @@ class RegenerateRequest(BaseModel):
 async def confirm_sender_route(message_id: str, request: Request) -> DashboardEmail:
     # The owner checked a sender that failed SPF/DKIM/DMARC and says it is real; drafting resumes.
     email = await confirm_sender(message_id, scope=scope_of(request))
-    if email is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "email not found")
-    return email
+    return _found(email)
 
 
 @app.post("/emails/{message_id}/regenerate", dependencies=[Depends(rate_limit_generation), Depends(require_mailbox)])
@@ -301,16 +294,8 @@ async def regenerate_email_route(
     message_id: str, request: Request, body: RegenerateRequest | None = None
 ) -> DashboardEmail:
     # Force a fresh draft in the requested tone (Regenerate button / tone toggle). Body optional.
-    try:
-        email = await regenerate_email(message_id, scope=scope_of(request),
-                                       tone=body.tone if body else "professional")
-    except AlreadySentError as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, "already_sent") from exc
-    except DraftNotUpdatedError as exc:
-        raise HTTPException(exc.status_code, exc.code) from exc
-    if email is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "email not found")
-    return email
+    return _found(await regenerate_email(message_id, scope=scope_of(request),
+                                         tone=body.tone if body else "professional"))
 
 
 class RefineRequest(BaseModel):
@@ -321,15 +306,7 @@ class RefineRequest(BaseModel):
 @app.post("/emails/{message_id}/refine", dependencies=[Depends(rate_limit_generation), Depends(require_mailbox)])
 async def refine_email_route(message_id: str, body: RefineRequest, request: Request) -> DashboardEmail:
     # Revise the current draft per the user's instruction (dashboard's Refine box).
-    try:
-        email = await refine_email(message_id, body.instruction, body.draft, scope=scope_of(request))
-    except AlreadySentError as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, "already_sent") from exc
-    except DraftNotUpdatedError as exc:
-        raise HTTPException(exc.status_code, exc.code) from exc
-    if email is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "email not found")
-    return email
+    return _found(await refine_email(message_id, body.instruction, body.draft, scope=scope_of(request)))
 
 
 class TranslateRequest(BaseModel):
@@ -349,13 +326,7 @@ async def translate_email_route(
     message_id: str, body: TranslateRequest, request: Request
 ) -> TranslateResponse:
     # The masked body in the reader's language; refused (422) if the result is unfaithful.
-    try:
-        translated = await translate_email(message_id, body.language, scope=scope_of(request))
-    except TranslationError as exc:
-        raise HTTPException(exc.status_code, exc.code) from exc
-    if translated is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "email not found")
-    return TranslateResponse(**translated)
+    return TranslateResponse(**_found(await translate_email(message_id, body.language, scope=scope_of(request))))
 
 
 class SendRequest(BaseModel):
@@ -367,20 +338,11 @@ async def send_email_route(message_id: str, body: SendRequest, request: Request)
     # Human-approved send: reply to the original sender with the draft, then mark it sent.
     try:
         email = await approve_and_send(message_id, body.draft, scope=scope_of(request))
-    except SendRejectedError as exc:
-        raise HTTPException(exc.status_code, exc.code) from exc
-    except SendOutcomeUnknownError as exc:
-        logger.warning("send outcome unknown for %s: %s", message_id, exc)
-        raise HTTPException(status.HTTP_504_GATEWAY_TIMEOUT, "send_outcome_unknown") from exc
-    except AccessExpiredSendError as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, "google_access_expired") from exc
-    except SendError as exc:
-        # The reason stays in the log: it can name local credential paths.
+    except (SendError, SendOutcomeUnknownError) as exc:
+        # The reason stays in the log (it can name local credential paths); the answer carries the code.
         logger.warning("send failed for %s: %s", message_id, exc)
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "send_failed") from exc
-    if email is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "email not found")
-    return email
+        raise
+    return _found(email)
 
 
 class SystemInfo(BaseModel):
@@ -441,7 +403,7 @@ async def add_document(request: DocumentRequest, http: Request) -> dict[str, int
 async def remove_document(document_id: UUID, http: Request) -> Response:
     """Chunks and both kinds of vector go with it (ON DELETE CASCADE)."""
     if not await delete_document(document_id, scope_of(http)):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "document not found")
+        raise DomainError(ErrorCode.NOT_FOUND)
     await audit("document_deleted", f"document={document_id}", user_id=scope_of(http).owner_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -453,10 +415,7 @@ async def _read_capped(file: UploadFile) -> bytes:
     while chunk := await file.read(UPLOAD_CHUNK_BYTES):
         total += len(chunk)
         if total > MAX_UPLOAD_BYTES:
-            raise HTTPException(
-                status.HTTP_413_CONTENT_TOO_LARGE,
-                f"file exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)} MB limit",
-            )
+            raise DomainError(ErrorCode.TOO_LARGE, f"file exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)} MB limit")
         chunks.append(chunk)
     return b"".join(chunks)
 
@@ -465,17 +424,14 @@ async def _read_capped(file: UploadFile) -> bytes:
 async def upload_document(file: UploadFile, request: Request) -> dict[str, int]:
     filename = file.filename or ""
     if not filename.lower().endswith(".pdf"):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "only .pdf files are supported")
+        raise DomainError(ErrorCode.NOT_PDF, "only .pdf files are supported")
     data = await _read_capped(file)
     if not data.startswith(PDF_MAGIC):
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            "file is not a PDF (the .pdf extension does not match its contents)",
-        )
+        raise DomainError(ErrorCode.NOT_PDF, "the .pdf extension does not match the contents")
     try:
         text = extract_pdf_bytes(data)
     except Exception as exc:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "could not read the PDF") from exc
+        raise DomainError(ErrorCode.UNREADABLE_PDF) from exc
     count = await ingest_text(f"upload://{filename}", filename, text,
                               scope=scope_of(request).owner_of_new_rows())
     return {"chunks": count}
