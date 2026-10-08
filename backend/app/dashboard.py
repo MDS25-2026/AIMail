@@ -38,7 +38,7 @@ from app.core.vault import ThreadMap, build_thread_map
 from app.db.models import AuthStatus, MaskingStatus, Message, UserProfile
 from app.db.session import get_sessionmaker
 from app.gmail_send import SendError, SendOutcomeUnknownError, send_reply
-from app.ml.category import EmailCategory, predict_category
+from app.ml.category import predict_category
 from app.normalise.quantities import quantities_in
 from app.past_replies import remember_reply
 from app.personalisation import DEFAULT_POLICY, Policy, apply_policy, load_policy

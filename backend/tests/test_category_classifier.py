@@ -1,7 +1,7 @@
 """Unit tests for the 6-category B2B email taxonomy classifier (#141)."""
 
 import time
-import pytest
+
 from app.contracts import DashboardEmail
 from app.db.models import AuthStatus
 from app.ml.category import CATEGORY_DISPLAY_NAMES, EmailCategory, predict_category

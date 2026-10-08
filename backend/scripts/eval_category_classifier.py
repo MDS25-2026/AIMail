@@ -18,9 +18,9 @@ from pathlib import Path
 
 import joblib
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 from sklearn.metrics import classification_report, confusion_matrix, f1_score
 
@@ -45,7 +45,7 @@ CATEGORY_ORDER = [
 def plot_confusion_matrix(cm, labels, display_labels, out_path: Path) -> None:
     from sklearn.metrics import ConfusionMatrixDisplay
 
-    fig, ax = plt.subplots(figsize=(8.0, 6.5), dpi=200)
+    _fig, ax = plt.subplots(figsize=(8.0, 6.5), dpi=200)
     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=display_labels)
     disp.plot(ax=ax, cmap="Blues", colorbar=True, values_format="d")
 
@@ -109,7 +109,7 @@ def main() -> None:
     display_labels = [CATEGORY_DISPLAY_NAMES[EmailCategory(c)] for c in CATEGORY_ORDER]
 
     print("\n" + "=" * 70)
-    print(f"EMPIRICAL EVALUATION RESULTS (GOLDOUT TEST SET)")
+    print("EMPIRICAL EVALUATION RESULTS (GOLDOUT TEST SET)")
     print("=" * 70)
     print(f"Macro F1-Score:           {macro_f1:.4f}  (Gate: >= 0.8500 -> {'PASS' if macro_f1 >= 0.85 else 'REVIEW'})")
     print(f"Average CPU Latency:      {avg_latency_ms:.2f} ms  (Gate: < 50.0 ms -> {'PASS' if avg_latency_ms < 50.0 else 'FAIL'})")

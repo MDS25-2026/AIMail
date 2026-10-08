@@ -26,7 +26,6 @@ import json
 import logging
 import os
 import random
-import sys
 import time
 from pathlib import Path
 
@@ -201,7 +200,7 @@ def _generate_batch(client: httpx.Client, category: str, subtopic: str, batch_si
                         combined = f"Subject: {sub}\n\n{body}"
                         valid.append({"text": combined, "category": category})
                 return valid
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning("Batch generation attempt %d failed: %s", attempt + 1, exc)
             time.sleep(2.0)
 
