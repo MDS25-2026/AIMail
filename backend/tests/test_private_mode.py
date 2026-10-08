@@ -4,7 +4,6 @@ import asyncio
 import json
 
 import pytest
-from fastapi.testclient import TestClient
 from sqlalchemy.dialects import postgresql
 
 import email_agent
@@ -17,6 +16,7 @@ from app.private_mode import DraftProvider
 from app.rag import ingest
 from app.rag import retrieve as retrieve_module
 from gemini_client import GeminiError, GeminiErrorCode
+from tests.conftest import agent_client
 from tests.test_account import _signed_in, calls  # noqa: F401  (fixture)
 from tests.test_restorable_masking import mailbox  # noqa: F401  (fixture)
 
@@ -49,7 +49,7 @@ def local_only(monkeypatch):
 
 
 def test_a_private_draft_refine_and_translation_never_reach_gemini(local_only):
-    agent = TestClient(email_agent.app)
+    agent = agent_client()
     draft = agent.post("/process-email", json={
         "thread_context": "", "email_body": "Hi, I'm [PERSON_1]. Is Thursday still on?",
         "rag_context": "", "sign_off": "[PERSON_9]", "provider": "local"})
@@ -70,7 +70,7 @@ def test_without_the_local_model_a_private_draft_fails_and_does_not_fall_back(mo
 
     monkeypatch.setattr(email_agent, "generate", gemini)
     monkeypatch.setattr(email_agent, "generate_local", down)
-    response = TestClient(email_agent.app).post("/process-email", json={
+    response = agent_client().post("/process-email", json={
         "thread_context": "", "email_body": "Hi", "rag_context": "", "provider": "local"})
     assert response.status_code == 503
 

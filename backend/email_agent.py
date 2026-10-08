@@ -11,6 +11,7 @@ import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
+from app.core.agent_auth import require_agent_token
 from app.core.config import get_settings
 from app.core.logging_setup import configure_logging
 from app.core.middleware import request_context
@@ -58,6 +59,8 @@ configure_logging()
 app = FastAPI()
 # Same request id as the backend call that asked for the draft, so both logs line up.
 app.middleware("http")(request_context)
+# Registered last so it runs first: nothing reaches a model without the backend's token.
+app.middleware("http")(require_agent_token)
 
 
 # ---------- Pydantic schemas: request/response contract ----------

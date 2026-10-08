@@ -12,7 +12,6 @@ from uuid import uuid4
 
 import httpx
 import pytest
-from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -21,7 +20,7 @@ from app import dashboard
 from app.core.ownership import EVERYTHING
 from app.core.typed_text import mask_typed_text
 from app.db.models import MaskingStatus, Message
-from tests.conftest import AUTH_HEADERS
+from tests.conftest import AUTH_HEADERS, agent_client
 
 # ---------- Masking what the user typed ----------
 
@@ -74,7 +73,7 @@ def _refine(body: dict):
     payload = {"email_body": "Can you confirm Friday?", "draft": "Friday works.",
                "instruction": "shorter", "thread_context": "", "rag_context": "",
                "action_items": ["Confirm Friday"]} | body
-    return TestClient(email_agent.app).post("/refine", json=payload)
+    return agent_client().post("/refine", json=payload)
 
 
 def test_a_clean_refined_draft_comes_back_with_its_checks(monkeypatch):

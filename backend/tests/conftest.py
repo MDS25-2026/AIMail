@@ -27,6 +27,7 @@ def fresh_settings():
     """Each test reads settings, and builds its engine, from its own environment, never a previous test's."""
     _clear_caches()
     yield
+    os.environ.pop("AGENT_TOKEN", None)  # set by agent_client(); never carried into the next test
     _clear_caches()
 
 
@@ -49,3 +50,15 @@ def test_settings(monkeypatch):
 @pytest.fixture
 def api_client(test_settings):
     return TestClient(app)
+
+
+AGENT_TOKEN = "test-agent-token"
+
+
+def agent_client() -> TestClient:
+    """The agent as the backend calls it: with the service token (app/core/agent_auth.py)."""
+    os.environ["AGENT_TOKEN"] = AGENT_TOKEN
+    get_settings.cache_clear()
+    import email_agent
+
+    return TestClient(email_agent.app, headers={"X-AIMail-Agent-Token": AGENT_TOKEN})

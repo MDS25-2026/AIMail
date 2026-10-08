@@ -20,6 +20,7 @@ from email_agent import (
     unsupported_specifics,
 )
 from gemini_client import GeminiError, GeminiErrorCode
+from tests.conftest import agent_client
 
 
 @pytest.mark.parametrize("raw, expected", [
@@ -220,7 +221,7 @@ def test_a_gemini_failure_reaches_the_caller_as_a_coded_status(monkeypatch, code
         raise GeminiError(code, "test")
 
     monkeypatch.setattr(email_agent, "call_gemini", failing)
-    response = TestClient(email_agent.app).post("/process-email", json={
+    response = agent_client().post("/process-email", json={
         "thread_context": "", "email_body": "Hi", "rag_context": ""})
     assert response.status_code == status
     assert response.json()["detail"] == code
@@ -278,14 +279,14 @@ def test_an_unfaithful_translation_is_refused_with_422(monkeypatch):
         return {"translation": "Kepada Ali, invois RM 99 perlu dibayar."}
 
     monkeypatch.setattr(email_agent, "call_gemini", fake)
-    response = TestClient(email_agent.app).post(
+    response = agent_client().post(
         "/translate", json={"text": TRANSLATE_SOURCE, "language": "ms"})
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "translation_unfaithful"
 
 
 def test_an_unsupported_language_is_rejected_before_any_call():
-    response = TestClient(email_agent.app).post("/translate", json={"text": "hi", "language": "fr"})
+    response = agent_client().post("/translate", json={"text": "hi", "language": "fr"})
     assert response.status_code == 422
 
 
@@ -353,7 +354,7 @@ def test_a_content_failure_is_not_worth_retrying(monkeypatch, code, status):
         raise GeminiError(code, "test")
 
     monkeypatch.setattr(email_agent, "call_gemini", failing)
-    response = TestClient(email_agent.app).post("/process-email", json={
+    response = agent_client().post("/process-email", json={
         "thread_context": "", "email_body": "Hi", "rag_context": ""})
     assert response.status_code == status
 
@@ -366,3 +367,10 @@ def test_a_changed_figure_after_another_number_is_caught_in_translation():
 
 def test_a_correct_figure_after_another_number_is_supported():
     assert unsupported_specifics("We will ship the 500 kg today.", "Invoice 12345 500 kg please") == []
+
+
+def test_the_agent_refuses_a_caller_without_the_service_token(monkeypatch):
+
+    agent_client()  # configures the token
+    response = TestClient(email_agent.app).post("/translate", json={"text": "Hi", "language": "ms"})
+    assert response.status_code == 403

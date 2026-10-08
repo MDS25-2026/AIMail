@@ -29,6 +29,7 @@ from app.contracts import (
     Source,
     ThreadMessage,
 )
+from app.core.agent_auth import agent_headers
 from app.core.config import get_settings
 from app.core.errors import DomainError, ErrorCode
 from app.core.logging_setup import request_id
@@ -339,7 +340,7 @@ async def _call_agent(path: str, payload: dict) -> dict:
     # Lane C runs a multi-step pipeline under its own 100 s deadline; this sits just above it.
     async with httpx.AsyncClient(timeout=AGENT_TIMEOUT_SECONDS) as client:
         response = await client.post(
-            url, json=payload, headers={REQUEST_ID_HEADER: request_id.get()}
+            url, json=payload, headers={REQUEST_ID_HEADER: request_id.get(), **agent_headers()}
         )
         response.raise_for_status()
         return response.json()
