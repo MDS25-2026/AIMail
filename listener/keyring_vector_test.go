@@ -17,8 +17,9 @@ const (
 )
 
 const (
-	keyringVectorGo = "testdata/keyring_vector_go.json"
-	vectorOwner     = "aaaaaaaa-0000-4000-8000-000000000001"
+	keyringVectorGo     = "testdata/keyring_vector_go.json"
+	keyringVectorPython = "testdata/keyring_vector_python.json"
+	vectorOwner         = "aaaaaaaa-0000-4000-8000-000000000001"
 )
 
 type sealedTokenCase struct {
@@ -75,6 +76,10 @@ func openKeyringVector(t *testing.T, path string) {
 			t.Fatalf("vault under %q: %v, %v", c.KeyID, details, err)
 		}
 	}
+}
+
+func TestTheBackendsKeyringVectorOpensHere(t *testing.T) {
+	openKeyringVector(t, keyringVectorPython)
 }
 
 func TestOurOwnKeyringVectorOpens(t *testing.T) {

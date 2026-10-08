@@ -1,7 +1,8 @@
 """Personal details hidden from the AI, kept per email in an encrypted vault (restorable masking).
 
 The listener replaces each detail with a numbered placeholder such as [PERSON_1] and seals the
-placeholder-to-value map with PII_VAULT_KEY, bound to the owner and Gmail id. Here the backend opens
+placeholder-to-value map with the PII_VAULT_KEYS keyring (or the older PII_VAULT_KEY), bound to the
+owner and Gmail id. Here the backend opens
 the vaults of a thread and builds one ThreadMap: the same person keeps one number across every
 message, the dashboard can show the owner the real details, typed text can be turned back into
 placeholders before it reaches the AI, and an approved reply can be filled in at send time.
@@ -22,7 +23,7 @@ from app.core.typed_text import mask_typed_text
 logger = logging.getLogger(__name__)
 
 _AAD_PREFIX = "aimail-pii-vault:v1:"
-_SETTING = "PII_VAULT_KEY"
+SETTINGS = sealed_box.KeySettings(ring="PII_VAULT_KEYS", legacy="PII_VAULT_KEY")
 
 
 class DetailKind(StrEnum):
@@ -48,19 +49,24 @@ def _aad(owner_id: UUID | None, gmail_message_id: str) -> bytes:
     return f"{_AAD_PREFIX}{owner_id or ''}:{gmail_message_id}".encode()
 
 
-def seal_vault(details: dict[str, str], owner_id: UUID | None, gmail_message_id: str) -> bytes:
-    """The listener's job; here for tests and the shared vector."""
-    plaintext = json.dumps(details, ensure_ascii=False, sort_keys=True).encode()
+def keyring() -> sealed_box.Keyring:
+    settings = get_settings()
     try:
-        return sealed_box.seal(plaintext, _aad(owner_id, gmail_message_id), get_settings().pii_vault_key, _SETTING)
+        return sealed_box.parse_keyring(settings.pii_vault_keys, settings.pii_vault_key, SETTINGS)
     except sealed_box.SealKeyError as exc:
         raise VaultUnavailableError(str(exc)) from exc
 
 
+def seal_vault(details: dict[str, str], owner_id: UUID | None, gmail_message_id: str) -> bytes:
+    """The listener's job, and a reseal's (reseal_for_owner, scripts/reseal_secrets.py)."""
+    plaintext = json.dumps(details, ensure_ascii=False, sort_keys=True).encode()
+    return sealed_box.seal(plaintext, _aad(owner_id, gmail_message_id), keyring())
+
+
 def open_vault(sealed: bytes, owner_id: UUID | None, gmail_message_id: str) -> dict[str, str]:
     try:
-        raw = sealed_box.unseal(sealed, _aad(owner_id, gmail_message_id), get_settings().pii_vault_key, _SETTING)
-    except (sealed_box.SealKeyError, sealed_box.SealOpenError) as exc:
+        raw = sealed_box.unseal(sealed, _aad(owner_id, gmail_message_id), keyring())
+    except sealed_box.SealOpenError as exc:
         raise VaultUnavailableError(str(exc)) from exc
     details = json.loads(raw)
     return {key: value for key, value in details.items() if PLACEHOLDER.fullmatch(key) and isinstance(value, str)}
