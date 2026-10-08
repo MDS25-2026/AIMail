@@ -20,6 +20,7 @@ VECTOR = json.loads((Path(__file__).resolve().parents[2] / "listener/testdata/to
 @pytest.fixture(autouse=True)
 def _key(monkeypatch, test_settings):
     monkeypatch.setenv("TOKEN_ENCRYPTION_KEY", VECTOR["key"])
+    monkeypatch.setenv("TOKEN_ENCRYPTION_KEYS", "")  # a developer's .env may hold a keyring
     get_settings.cache_clear()
 
 

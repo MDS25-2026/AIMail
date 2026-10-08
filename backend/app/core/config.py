@@ -71,9 +71,14 @@ class Settings(BaseSettings):
     # Encrypts stored Google refresh tokens (app/core/token_crypt.py): 32 random bytes, base64.
     # Empty means no token can be stored or read (fail closed). Shared with the listener.
     token_encryption_key: str = ""
+    # Key rotation (app/core/sealed_box.py): "kid:base64key,kid2:base64key", first entry primary.
+    # TOKEN_ENCRYPTION_KEY above stays readable as kid "legacy". Shared with the listener.
+    token_encryption_keys: str = ""
     # Encrypts each email's personal-detail vault (specs/features/restorable-masking.md): 32 random
     # bytes, base64, shared with the listener. Empty means details are never stored or shown.
     pii_vault_key: str = ""
+    # The vault keyring, in the same form as TOKEN_ENCRYPTION_KEYS; PII_VAULT_KEY is its "legacy" kid.
+    pii_vault_keys: str = ""
     # A vault is emptied after this many days, or 7 days after its reply was sent.
     vault_retention_days: int = 30
     # The Google OAuth client in Supabase's Google provider; refreshes connected users' tokens.
@@ -126,7 +131,8 @@ class Settings(BaseSettings):
     def _deployed_settings_are_safe(self) -> "Settings":
         if self.environment == Environment.DEV:
             return self
-        missing = [name for name in _REQUIRED_WHEN_DEPLOYED if not getattr(self, name)]
+        missing = [" or ".join(names) for names in _REQUIRED_WHEN_DEPLOYED
+                   if not any(getattr(self, name) for name in names)]
         local = [name for name in _PUBLIC_URLS if urlparse(getattr(self, name)).hostname in LOCAL_HOSTS]
         if missing or local:
             raise MisconfiguredError(f"{self.environment} needs: {', '.join(missing)}; "
@@ -135,8 +141,11 @@ class Settings(BaseSettings):
 
 
 # A deployed instance without these would run unauthenticated, unencrypted or unreachable.
-_REQUIRED_WHEN_DEPLOYED = ("google_api_key", "backend_api_token", "agent_token", "token_encryption_key",
-                           "pii_vault_key", "frontend_origins")
+# Each entry is satisfied by any one of its settings (a single key or its keyring).
+_REQUIRED_WHEN_DEPLOYED: tuple[tuple[str, ...], ...] = (
+    ("google_api_key",), ("backend_api_token",), ("agent_token",), ("frontend_origins",),
+    ("token_encryption_key", "token_encryption_keys"), ("pii_vault_key", "pii_vault_keys"),
+)
 _PUBLIC_URLS = ("backend_public_url", "dashboard_url")
 
 

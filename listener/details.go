@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -32,10 +31,7 @@ const (
 	kindOrg      detailKind = "ORG"
 )
 
-const (
-	vaultAADPrefix = "aimail-pii-vault:v1:"
-	vaultKeyEnv    = "PII_VAULT_KEY"
-)
+const vaultAADPrefix = "aimail-pii-vault:v1:"
 
 var placeholderRegex = regexp.MustCompile(`\[(PERSON|EMAIL|PHONE|IC|PASSPORT|ACCOUNT|CARD|LOCATION|ORG)_\d+\]`)
 
@@ -97,14 +93,11 @@ var warnNoVaultKey sync.Once
 // sealed is the vault as PostgREST takes a bytea in JSON (`\x` then hex), or "" when there is
 // nothing to keep or no key: the email is still masked, its details just cannot be restored.
 func (v *detailVault) sealed(ownerID, gmailMessageID string) string {
-	key := os.Getenv(vaultKeyEnv)
 	if len(v.values) == 0 {
 		return ""
 	}
-	if key == "" {
-		warnNoVaultKey.Do(func() {
-			log.Printf("WARNING: %s is not set; emails are masked but their details cannot be shown or restored", vaultKeyEnv)
-		})
+	keys, isUsable := vaultKeyring()
+	if !isUsable {
 		return ""
 	}
 	plaintext, err := json.Marshal(v.values) // map keys marshal sorted, like the backend's
@@ -112,12 +105,24 @@ func (v *detailVault) sealed(ownerID, gmailMessageID string) string {
 		log.Printf("could not encode the detail vault for %s: %v", gmailMessageID, err)
 		return ""
 	}
-	sealed, err := sealWith(key, vaultKeyEnv, plaintext, vaultAADPrefix+ownerID+":"+gmailMessageID)
+	sealed, err := keys.seal(plaintext, vaultAADPrefix+ownerID+":"+gmailMessageID)
 	if err != nil {
 		log.Printf("could not seal the detail vault for %s: %v", gmailMessageID, err)
 		return ""
 	}
 	return `\x` + hex.EncodeToString(sealed)
+}
+
+// vaultKeyring is the vault keys, or false (said once) when none are set or they do not parse.
+func vaultKeyring() (keyring, bool) {
+	keys, err := vaultKeys.load()
+	if err == nil {
+		return keys, true
+	}
+	warnNoVaultKey.Do(func() {
+		log.Printf("WARNING: %v; emails are masked but their details cannot be shown or restored", err)
+	})
+	return keyring{}, false
 }
 
 // runeSpans converts regexp byte offsets to rune offsets, the unit Presidio reports.

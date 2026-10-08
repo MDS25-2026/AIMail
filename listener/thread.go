@@ -34,28 +34,3 @@ func headerValue(headers []*gmail.MessagePartHeader, name string) string {
 	}
 	return ""
 }
-
-// Sender check results; the backend's AuthStatus enum mirrors them (migration 0024).
-const (
-	authPass          = "pass"
-	authSpoofDetected = "spoof_detected"
-)
-
-// A failed check in any Authentication-Results header marks the email; softfail and none do not.
-var authFailures = []string{"spf=fail", "dkim=fail", "dmarc=fail"}
-
-// parseAuthStatus checks Authentication-Results headers for SPF, DKIM, or DMARC failures (#148).
-func parseAuthStatus(headers []*gmail.MessagePartHeader) string {
-	for _, h := range headers {
-		if !strings.EqualFold(h.Name, "Authentication-Results") {
-			continue
-		}
-		val := strings.ToLower(h.Value)
-		for _, failure := range authFailures {
-			if strings.Contains(val, failure) {
-				return authSpoofDetected
-			}
-		}
-	}
-	return authPass
-}
