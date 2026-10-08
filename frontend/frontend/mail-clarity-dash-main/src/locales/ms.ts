@@ -36,6 +36,7 @@ export const ms: Translations = {
   },
   priority: { high: "Segera", medium: "Sederhana", low: "Rendah" },
   detail: {
+    fromAt: "{{sender}} · {{when}}",
     empty: "Pilih e-mel untuk melihat draf AI",
     email: "E-mel",
     notSentYet: "Tiada apa-apa dihantar sehingga anda meluluskan draf ini.",
@@ -102,7 +103,6 @@ export const ms: Translations = {
     errorTitle: "Tidak dapat memuatkan {{label}}",
     errorHint:
       "Pastikan pelayan belakang berjalan pada URL yang dikonfigurasi dan token API sepadan.",
-    unknownError: "Ralat tidak diketahui",
     retry: "Cuba lagi",
     notFoundTitle: "Halaman tidak ditemui",
     notFoundBody: "Halaman yang anda cari tidak wujud atau telah dipindahkan.",
@@ -127,6 +127,8 @@ export const ms: Translations = {
     open: "Buka {{subject}} dalam peti masuk",
   },
   knowledge: {
+    removeQuestion: "Buang {{title}}? Draf berhenti merujuknya serta-merta.",
+    uploadFailed: "Muat naik gagal.",
     heading: "Pangkalan pengetahuan",
     description:
       "Dokumen polisi yang dirujuk AImail semasa menyokong balasan. Setiap draf memetik bahagian yang digunakannya.",
@@ -155,12 +157,6 @@ export const ms: Translations = {
     removeNo: "Simpan",
     removing: "Membuang…",
     removeFailed: "Tidak dapat membuangnya. Cuba lagi.",
-    errors: {
-      too_large: "Fail itu melebihi had 10 MB.",
-      rate_limited: "Terlalu banyak muat naik sekarang. Tunggu seminit dan cuba lagi.",
-      not_pdf: "Fail itu ditolak: ia mesti PDF sebenar.",
-      failed: "Muat naik gagal.",
-    },
   },
   settings: {
     title: "Tetapan",
@@ -299,20 +295,6 @@ export const ms: Translations = {
       "6": "Sab",
       "7": "Ahd",
     },
-    errors: {
-      unknown_placeholder:
-        "Hanya {name} dan {return_date} boleh digunakan dalam kurungan kerinting.",
-      return_date_needs_leave: "Tetapkan tarikh tamat cuti untuk menggunakan {return_date}.",
-      empty_template: "Mesej tidak boleh kosong.",
-      template_too_long: "Mesej itu terlalu panjang (paling banyak 2000 aksara).",
-      no_default_template: "Tulis mesej dalam bahasa sandaran anda dahulu.",
-      unknown_timezone: "Zon waktu itu tidak dikenali.",
-      leave_needs_dates: 'Tetapkan kedua-dua tarikh cuti untuk menggunakan "Bercuti".',
-      leave_ends_before_it_starts: "Cuti tidak boleh tamat sebelum bermula.",
-      workday_ends_before_it_starts: "Hari kerja anda tidak boleh tamat sebelum bermula.",
-      bad_work_days: "Pilih sekurang-kurangnya satu hari kerja.",
-      invalid: "Tetapan itu tidak dapat disimpan.",
-    },
     reasons: {
       disabled: "Tidak dihantar: balasan sementara dimatikan",
       before_enabled: "Tidak dihantar: tiba sebelum dihidupkan",
@@ -336,6 +318,8 @@ export const ms: Translations = {
     },
   },
   writingStyle: {
+    deleting: "Memadam…",
+    failed: "Ada masalah. Cuba lagi.",
     quickLabel: "Pilihan pantas",
     quick: {
       formal: { label: "Lebih formal", text: "Formal dan sopan." },
@@ -391,14 +375,6 @@ export const ms: Translations = {
     keep: "Simpan",
     useAsExample: "Guna sebagai contoh",
     addedAsExample: "Ditambah ke gaya penulisan anda.",
-    errors: {
-      masking_unavailable:
-        "Tidak dapat menyembunyikan butiran peribadi sekarang, jadi tiada apa yang disimpan. Cuba lagi sebentar lagi.",
-      too_many_examples: "Anda sudah ada 3 contoh. Buang satu dahulu.",
-      empty: "Tiada apa untuk disimpan.",
-      not_found: "Balasan itu tidak dijumpai.",
-      failed: "Ada masalah. Cuba lagi.",
-    },
   },
   reconnect: {
     banner:
@@ -486,6 +462,9 @@ export const ms: Translations = {
       "Pendengar mencuba berulang kali tetapi tidak dapat membuang data peribadi daripada e-mel ini, atau ia telah dipadam daripada Gmail terlebih dahulu. Kandungannya tidak pernah disimpan, jadi tiada apa untuk dibaca atau didraf. Bukanya dalam Gmail jika anda memerlukannya.",
   },
   security: {
+    unverified:
+      "AIMail tidak dapat mengesahkan pengirim ini: domain mereka tidak memberikan keputusan SPF, DKIM atau DMARC. Semak siapa pengirimnya sebelum anda menghantar.",
+    confirming: "Mengesahkan…",
     spoofBadge: "Penyamaran dikesan",
     spoofTitle: "Pengesahan pengirim gagal — draf automatik dinyahdayakan",
     spoofBody:
@@ -499,6 +478,7 @@ export const ms: Translations = {
     confirmFailed: "Tidak dapat mengesahkan pengirim. Cuba lagi.",
   },
   admin: {
+    signInFailed: "Log masuk gagal.",
     title: "Pentadbir",
     subtitle:
       "Kesihatan saluran, peristiwa privasi dan kebolehpercayaan model. Kiraan dan ID sahaja: tiada kandungan e-mel.",
@@ -511,15 +491,6 @@ export const ms: Translations = {
     signingIn: "Sedang log masuk…",
     signOut: "Log keluar",
     signedInAs: "Log masuk sebagai {{email}}",
-    errors: {
-      invalid_credentials: "E-mel dan kata laluan itu tidak sepadan dengan mana-mana akaun.",
-      not_an_admin: "Akaun ini tiada akses pentadbir.",
-      admin_auth_not_configured:
-        "Log masuk pentadbir belum dikonfigurasi pada pelayan (SUPABASE_ANON_KEY).",
-      supabase_unavailable: "Perkhidmatan log masuk tidak dapat dicapai. Cuba sebentar lagi.",
-      rate_limited: "Terlalu banyak percubaan. Tunggu beberapa minit dan cuba lagi.",
-      generic: "Log masuk gagal.",
-    },
     window: "Tempoh",
     days_one: "{{count}} hari lepas",
     days_other: "{{count}} hari lepas",
@@ -566,47 +537,81 @@ export const ms: Translations = {
     loading: "data pentadbir",
   },
   audit: {
+    shortHash: "{{head}}…{{tail}}",
     title: "Jejak Audit",
     subtitle:
       "Peristiwa AI dan perlindungan data anda, setiap satu dipautkan dengan hash SHA-256 kepada yang sebelumnya, supaya rekod yang diubah atau dipadam dapat dikesan.",
-    chainIntact: "Lejar Sah: Rantaian Hash SHA-256 Disahkan",
-    chainBroken: "Lejar Terjejas: Percanggahan Rantaian Hash Dikesan",
+    chainIntact: "Rantaian hash utuh",
+    chainBroken: "Rantaian hash terputus: satu rekod telah diubah atau dibuang",
     verifiedCount: "{{verified}} daripada {{total}} rekod disahkan dalam rantaian hash",
+    algorithmLabel: "Algoritma",
+    algorithm: "Rantaian hash SHA-256",
+    headHash: "Hash terkini",
+    headHashHint:
+      "Catat hash ini di suatu tempat di luar AIMail. Jika seluruh rantaian dibina semula, ia tidak akan sepadan lagi.",
+    noHeadHash: "Belum ada rekod, jadi tiada hash untuk dicatat.",
     empty: "Tiada rekod audit ditemui lagi.",
-    exportJson: "Eksport Resit Audit (JSON)",
+    exportJson: "Eksport resit audit (JSON)",
+    filterLabel: "Tapis rekod",
+    filterPlaceholder: "Tapis mengikut tindakan, butiran atau hash",
+    showing: "Memaparkan {{shown}} daripada {{total}} rekod",
+    noFields: "Tiada butiran direkodkan",
+    inspect: "Periksa hash rekod ini",
+    copy: "Salin",
+    copyNamed: "Salin {{name}}",
+    copied: "Disalin",
+    copyFailed: "Tidak dapat menyalin. Pilih teks itu sebaliknya.",
     headers: {
-      timestamp: "Cap Masa",
-      action: "Peristiwa / Tindakan",
-      status: "Status",
-      detail: "Ringkasan Peristiwa",
-      proof: "Bukti Kriptografi",
+      timestamp: "Masa",
+      action: "Tindakan",
+      status: "Keputusan",
+      detail: "Butiran",
+      proof: "Semakan hash",
     },
     status: {
-      passed: "[LULUS]",
-      failed: "[GAGAL]",
-      protected: "[DILINDUNGI]",
-      quarantined: "[DIKUARANTIN]",
-      unknown: "[BELUM SELESAI]",
+      passed: "Lulus",
+      failed: "Gagal",
+      unknown: "Tidak direkodkan",
+    },
+    verification: {
+      verified: "Disahkan",
+      tampered: "Diusik",
+      unverifiable: "Tidak dapat disahkan",
     },
     actions: {
-      generate_draft: "Draf Dijana",
-      store_message: "Mesej Diterima",
-      pii_mask: "PII Diredaksi",
-      approve_and_send: "Dilulus & Dihantar",
-      quarantine: "Penyamaran Dikuarantin",
-      system: "Peristiwa Sistem",
+      generate_draft: "Draf ditulis",
+      refine_draft: "Draf diperhalusi",
+      approve_and_send: "Balasan diluluskan dan dihantar",
+      send_outcome_unknown: "Keputusan penghantaran tidak diketahui",
+      confirm_sender: "Pengirim disahkan",
+      translate_email: "E-mel diterjemah",
+      store_message: "E-mel disimpan",
+      pii_mask: "Butiran peribadi disembunyikan",
+      quarantine: "Ditahan sehingga disembunyikan",
+      document_deleted: "Dokumen dibuang",
+      private_mode: "Mod Peribadi diubah",
+      disconnect_gmail: "Gmail diputuskan",
     },
     modal: {
-      title: "Bukti Pengesahan Kriptografi",
+      title: "Semakan rantaian hash",
       subtitle: "Cara rekod ini dipautkan kepada rekod sebelumnya.",
-      recordId: "ID Rekod",
-      timestamp: "Dicatat Pada",
-      action: "Jenis Tindakan",
-      prevHash: "Hash Blok Sebelumnya (Induk)",
-      currentHash: "Hash Blok Semasa (Sendiri)",
-      formula: "Formula Hash",
+      recordId: "ID rekod",
+      timestamp: "Dicatat pada",
+      action: "Tindakan",
+      check: "Semakan",
+      fields: "Butiran",
+      prevHash: "Hash rekod sebelumnya",
+      currentHash: "Hash rekod ini",
+      firstRecord: "Tiada: ini rekod pertama dalam rantaian.",
+      noHash: "Tiada: rekod ini ditulis sebelum rantaian hash wujud.",
+      formula: "Formula hash",
       formulaDesc:
         "SHA-256(prev_hash | sequence | action | detail | success | user_id | timestamp)",
+      verified: "Hash rekod ini sepadan dengan kandungannya dan rekod sebelumnya.",
+      tampered:
+        "Hash rekod ini tidak sepadan dengan kandungannya: ia telah diubah selepas ditulis.",
+      unverifiable:
+        "Rekod ini tidak dapat disemak: ia ditulis sebelum rantaian hash, atau hashnya tidak dapat dikira semula. Itu tidak sama dengan lulus.",
       intactMessage:
         "Hash rekod ini merangkumi hash rekod sebelumnya, jadi mengubah atau memadam rekod lebih awal akan menggagalkan semakan. Seseorang yang mempunyai akses penuh pangkalan data boleh membina semula seluruh rantaian; hash terkini yang direkodkan di tempat lain dapat mengesannya.",
       close: "Tutup",
@@ -623,16 +628,6 @@ export const ms: Translations = {
       refine:
         "Draf tidak dapat diperhalusi. Teks dan arahan anda tidak berubah, jadi cuba lagi sebentar lagi.",
       send: "Balasan tidak dihantar. Draf anda tidak berubah, jadi cuba lagi sebentar lagi.",
-      refused:
-        "AI tidak dapat menulis draf untuk e-mel ini, dan mencuba lagi tidak akan mengubahnya. Teks anda tidak berubah: tulis balasan sendiri, atau cuba nada yang satu lagi.",
-      sendUnknown:
-        "Kami tidak dapat mengesahkan sama ada balasan telah dihantar. Semak folder Dihantar Gmail anda sebelum menghantar semula.",
-      accessExpired:
-        "Google telah menamatkan akses AIMail ke Gmail anda, jadi balasan tidak dihantar. Log masuk semula untuk menyambung semula; draf anda tidak berubah.",
-      sendNotGranted:
-        "AIMail tidak dibenarkan menghantar daripada Gmail anda. Log keluar, log masuk semula dan tandakan kotak yang membenarkan AIMail menghantar e-mel. Draf anda tidak berubah.",
-      unresolved:
-        "Balasan ini mempunyai pemegang tempat yang tidak dapat diisi oleh AIMail, seperti [PERSON_3]. Taip butiran sebenar di tempatnya, kemudian hantar.",
     },
     replaceEdits: "Draf baharu akan menggantikan perubahan yang anda taip.",
     replaceConfirm: "Gantikan perubahan saya",
@@ -698,6 +693,105 @@ export const ms: Translations = {
     },
     footer:
       "Log masuk dengan Google membenarkan AIMail membaca dan menghantar Gmail anda. AIMail ialah projek tahun akhir di Monash University Malaysia.",
+  },
+  errors: {
+    admin_signed_out: "Anda belum log masuk ke konsol pentadbir.",
+    admin_session_invalid: "Sesi pentadbir anda telah tamat. Log masuk semula.",
+    admin_header_missing:
+      "Permintaan itu ditolak kerana ia tidak datang daripada konsol. Muat semula halaman.",
+    generic: "Ada masalah. Cuba lagi sebentar lagi.",
+    network: "Tidak dapat menghubungi AIMail. Semak sambungan anda dan cuba lagi.",
+    signed_out: "Sesi anda telah tamat. Log masuk semula untuk meneruskan.",
+    sender_unverified:
+      "Pengirim ini gagal pengesahan. Semak pengirim sebelum mendraf atau menghantar.",
+    masking_pending:
+      "Butiran peribadi dalam e-mel ini masih sedang disembunyikan, jadi ia belum boleh digunakan.",
+    already_sent: "Balasan ini telah pun dihantar.",
+    redaction_markers:
+      "Balasan ini masih mengandungi butiran tersembunyi seperti [Redacted]. Taip butiran sebenar sebelum menghantar.",
+    unresolved_placeholders:
+      "Balasan ini mempunyai pemegang tempat yang tidak dapat diisi oleh AIMail, seperti [PERSON_3]. Taip butiran sebenar di tempatnya, kemudian hantar.",
+    send_not_granted:
+      "AIMail tidak dibenarkan menghantar daripada Gmail anda. Log keluar, log masuk semula dan tandakan kotak yang membenarkan AIMail menghantar e-mel. Draf anda tidak berubah.",
+    google_access_expired:
+      "Google telah menamatkan akses AIMail ke Gmail anda, jadi balasan tidak dihantar. Log masuk semula untuk menyambung semula; draf anda tidak berubah.",
+    send_failed:
+      "Gmail tidak menerima balasan itu, jadi ia tidak dihantar. Draf anda tidak berubah; cuba lagi sebentar lagi.",
+    send_outcome_unknown:
+      "Kami tidak dapat mengesahkan sama ada balasan telah dihantar. Semak folder Dihantar Gmail anda sebelum menghantar semula.",
+    draft_refused:
+      "AI tidak dapat menulis draf untuk e-mel ini, dan mencuba lagi tidak akan mengubahnya. Teks anda tidak berubah: tulis balasan sendiri, atau cuba nada yang satu lagi.",
+    agent_unavailable:
+      "Perkhidmatan mendraf tidak tersedia sekarang. Teks anda tidak berubah; cuba lagi sebentar lagi.",
+    private_mode_unavailable:
+      "Mod Peribadi dihidupkan, tetapi tiada model peribadi disediakan di sini, jadi tiada apa yang boleh didraf. Matikan Mod Peribadi dalam Tetapan.",
+    masking_unavailable:
+      "Tidak dapat menyembunyikan butiran peribadi sekarang, jadi tiada apa yang disimpan. Cuba lagi sebentar lagi.",
+    too_many_examples: "Anda sudah ada 3 contoh. Buang satu dahulu.",
+    empty: "Tiada apa untuk disimpan.",
+    too_long: "Teks itu terlalu panjang.",
+    not_found: "Item itu tidak dijumpai. Ia mungkin telah dibuang.",
+    rate_limited: "Terlalu banyak permintaan sekarang. Tunggu seminit dan cuba lagi.",
+    too_large: "Fail itu melebihi had 10 MB.",
+    not_pdf: "Fail itu ditolak: ia mesti PDF sebenar.",
+    unknown_placeholder: "Hanya {name} dan {return_date} boleh digunakan dalam kurungan kerinting.",
+    return_date_needs_leave: "Tetapkan tarikh tamat cuti untuk menggunakan {return_date}.",
+    empty_template: "Mesej tidak boleh kosong.",
+    template_too_long: "Mesej itu terlalu panjang (paling banyak 2000 aksara).",
+    no_default_template: "Tulis mesej dalam bahasa sandaran anda dahulu.",
+    unknown_timezone: "Zon waktu itu tidak dikenali.",
+    leave_needs_dates: 'Tetapkan kedua-dua tarikh cuti untuk menggunakan "Bercuti".',
+    leave_ends_before_it_starts: "Cuti tidak boleh tamat sebelum bermula.",
+    workday_ends_before_it_starts: "Hari kerja anda tidak boleh tamat sebelum bermula.",
+    bad_work_days: "Pilih sekurang-kurangnya satu hari kerja.",
+    invalid: "Tetapan itu tidak dapat disimpan.",
+    invalid_credentials: "E-mel dan kata laluan itu tidak sepadan dengan mana-mana akaun.",
+    not_an_admin: "Akaun ini tiada akses pentadbir.",
+    admin_auth_not_configured:
+      "Log masuk pentadbir belum dikonfigurasi pada pelayan (SUPABASE_ANON_KEY).",
+    supabase_unavailable: "Perkhidmatan log masuk tidak dapat dicapai. Cuba sebentar lagi.",
+  },
+  confirm: { retry: "Cuba lagi" },
+  meta: {
+    app: {
+      title: "AIMail",
+      description:
+        "Pembantu peti masuk AI: mel bertopeng, draf berasas sumber, balasan yang diluluskan manusia.",
+    },
+    inbox: {
+      title: "AIMail: papan pemuka peti masuk AI",
+      description:
+        "Peti masuk mengikut keutamaan dengan ringkasan AI, item tindakan dan draf balasan yang dihantar hanya selepas anda meluluskannya.",
+    },
+    drafts: { title: "Draf AIMail", description: "Draf balasan yang menunggu semakan anda." },
+    sent: {
+      title: "AIMail dihantar",
+      description: "Balasan yang diluluskan manusia dan dihantar oleh AIMail.",
+    },
+    knowledge: {
+      title: "Pangkalan pengetahuan AIMail",
+      description: "Dokumen dasar yang menjadi asas draf balasan AIMail.",
+    },
+    audit: {
+      title: "Jejak audit AIMail",
+      description:
+        "Jejak audit anda, setiap rekod dipautkan kepada yang sebelumnya dengan hash SHA-256.",
+    },
+    settings: {
+      title: "Tetapan AIMail",
+      description: "Apa yang dijalankan oleh instans AIMail ini.",
+    },
+    admin: { title: "Pentadbir AIMail", description: "Kesihatan saluran dan peristiwa privasi." },
+    extension: {
+      title: "Panel sambungan Chrome AIMail",
+      description:
+        "Panel sisi AIMail yang ringkas dengan ringkasan AI, item tindakan dan draf balasan.",
+    },
+    signin: {
+      title: "AIMail: pembantu e-mel peribadi",
+      description:
+        "AIMail mendraf balasan untuk e-mel kerja anda, menyembunyikan butiran peribadi sebelum AI melihatnya, dan tidak menghantar apa-apa tanpa kelulusan anda.",
+    },
   },
   announce: {
     regenerated: "Draf dijana semula",

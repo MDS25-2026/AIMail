@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 
-import { SignedOutError, fetchEmails, sendEmail } from "../api";
+import { fetchEmails, sendEmail } from "../api/emails";
+import { ApiErrorCode } from "../api/errors";
 
 function recordFetch(status: number, body: unknown = []) {
   const calls: { url: string; init: RequestInit }[] = [];
@@ -36,8 +37,8 @@ describe("calls to the backend (ADR 0005)", () => {
   });
 
   test("a 401 means signed out, so the app can send the reader to sign in", async () => {
-    recordFetch(401, { detail: "signed_out" });
-    await expect(fetchEmails()).rejects.toBeInstanceOf(SignedOutError);
+    recordFetch(401, { error: { code: "signed_out", message: "no session" } });
+    await expect(fetchEmails()).rejects.toMatchObject({ code: ApiErrorCode.SignedOut });
   });
 });
 
@@ -65,7 +66,7 @@ describe("staying signed in", () => {
 
   test("when the renewal is refused too, the reader is signed out, without looping", async () => {
     const paths = answerInTurn(401, 401);
-    await expect(fetchEmails()).rejects.toBeInstanceOf(SignedOutError);
+    await expect(fetchEmails()).rejects.toMatchObject({ code: ApiErrorCode.SignedOut });
     expect(paths).toEqual(["/emails", "/auth/session/refresh"]);
   });
 

@@ -1,47 +1,30 @@
 import { useTranslation } from "react-i18next";
 
+import type { DraftWorkflow } from "../lib/useDraftWorkflow";
 import ApproveSendButton from "./ApproveSendButton";
+import { button } from "./variants";
 
-type DraftActionsBarProps = {
-  emailId: string | null;
-  onRegenerate: (emailId: string) => void;
-  onApproveSend: (emailId: string) => void;
-  isRegenerating?: boolean;
-  isRefining?: boolean;
-  isSending?: boolean;
-  isSent?: boolean;
-  /** The first draft is still being written; acting now would act on the preview. */
-  isGenerating?: boolean;
-};
+type DraftActionsBarProps = { workflow: DraftWorkflow; isSent: boolean };
 
-export default function DraftActionsBar({
-  emailId,
-  onRegenerate,
-  onApproveSend,
-  isRegenerating = false,
-  isRefining = false,
-  isSending = false,
-  isSent = false,
-  isGenerating = false,
-}: DraftActionsBarProps) {
+export default function DraftActionsBar({ workflow, isSent }: DraftActionsBarProps) {
   // Every mutation blocks the others: the draft must not change under a send, and a send must
   // not go out mid-change. Sending is the irreversible one, so it is the one guarded hardest.
   const { t } = useTranslation();
-  const isDraftChanging = isRegenerating || isRefining || isGenerating;
+  const isDraftChanging =
+    workflow.isRegenerating || workflow.isRefining || workflow.status.isGenerating;
   return (
     <div className="flex items-center justify-end gap-2">
       <button
         type="button"
-        disabled={emailId === null || isDraftChanging || isSending}
-        onClick={() => emailId && onRegenerate(emailId)}
-        className="rounded-md border border-line-strong bg-surface px-4 py-2 text-sm font-medium text-fg-body hover:bg-surface-muted disabled:cursor-not-allowed disabled:text-fg-subtle"
+        disabled={workflow.isBusy}
+        onClick={workflow.regenerate}
+        className={button({ size: "md" })}
       >
-        {isRegenerating ? t("draft.regenerating") : t("draft.regenerate")}
+        {workflow.isRegenerating ? t("draft.regenerating") : t("draft.regenerate")}
       </button>
       <ApproveSendButton
-        emailId={emailId}
-        onApproveSend={onApproveSend}
-        isSending={isSending}
+        onApproveSend={workflow.send}
+        isSending={workflow.isSending}
         isSent={isSent}
         isDraftChanging={isDraftChanging}
       />

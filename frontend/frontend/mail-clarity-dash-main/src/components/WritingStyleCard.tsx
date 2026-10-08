@@ -1,24 +1,23 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { errorMessage } from "../lib/api/errors";
 import {
-  addStyleExample,
-  deleteStyleExample,
-  deleteWritingStyle,
-  fetchWritingStyle,
-  hideStyleHabit,
-  saveStyleDescription,
-  setStyleLearning,
-  type WritingStyle,
-} from "../lib/api";
-import {
-  MAX_DESCRIPTION_CHARS,
-  styleErrorText,
-  togglePhrase,
-  WRITING_STYLE_KEY,
-} from "../lib/writingStyle";
+  useAddStyleExample,
+  useDeleteStyleExample,
+  useDeleteWritingStyle,
+  useHideStyleHabit,
+  useSaveStyleDescription,
+  useSetStyleLearning,
+  useWritingStyle,
+} from "../lib/queries";
+import { cn } from "../lib/utils";
+import { MAX_DESCRIPTION_CHARS, togglePhrase } from "../lib/writingStyle";
+import { ReplyLength, StyleHabitKind, type StyleHabit, type WritingStyle } from "../types/profile";
+import ConfirmAction from "./ConfirmAction";
+import { InlineAlert } from "./InlineMessages";
+import { button, field } from "./variants";
 
 /**
  * Writing style (specs/features/writing-profile.md): how the reader's drafts should sound, in their
@@ -28,43 +27,32 @@ import {
 const MAX_EXAMPLE_CHARS = 1500;
 const QUICK_PICKS = ["formal", "thanks", "shorter", "warmer"] as const;
 
-const REPLY_LENGTHS = ["short", "medium", "long"] as const;
-const isReplyLength = (value: string): value is (typeof REPLY_LENGTHS)[number] =>
-  (REPLY_LENGTHS as readonly string[]).includes(value);
+const REPLY_LENGTHS: ReadonlySet<string> = new Set(Object.values(ReplyLength));
+const isReplyLength = (value: string): value is ReplyLength => REPLY_LENGTHS.has(value);
 
-const INPUT =
-  "w-full rounded-md border border-line-strong bg-surface px-2 py-1 text-sm text-fg focus-visible:outline-2 focus-visible:outline-brand";
-const BUTTON =
-  "rounded-md bg-brand px-3 py-1.5 text-sm font-semibold text-on-brand hover:bg-brand-strong disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand";
-const QUIET_BUTTON =
-  "shrink-0 rounded-md border border-line px-2 py-1 text-xs font-medium text-fg-body hover:bg-surface-muted disabled:opacity-60";
+const INPUT = cn(field({ size: "sm" }), "w-full");
+const BUTTON = button({ intent: "primary" });
+const QUIET_BUTTON = cn(button({ intent: "quiet", size: "xs" }), "shrink-0");
 
-function habitText(habit: WritingStyle["habits"][number], t: TFunction): string {
-  if (habit.kind === "length") {
+/** A failed change, in words; null while nothing has failed. */
+function failureText(error: Error | null, t: TFunction): string | null {
+  return error && errorMessage(error, t, "writingStyle.failed");
+}
+
+function habitText(habit: StyleHabit, t: TFunction): string {
+  if (habit.kind === StyleHabitKind.Length) {
     return isReplyLength(habit.value) ? t(`writingStyle.habit.length.${habit.value}`) : "";
   }
-  if (habit.kind === "swap") {
+  if (habit.kind === StyleHabitKind.Swap) {
     const [before, after] = habit.value.split(" → ");
     return t("writingStyle.habit.swap", { before, after });
   }
   return t(`writingStyle.habit.${habit.kind}`, { value: habit.value });
 }
 
-/** Every change answers with the whole stored style, so the cache is replaced, never patched. */
-function useStyleChange<T>(change: (input: T) => Promise<WritingStyle | void>) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: change,
-    onSuccess: (style) =>
-      style
-        ? queryClient.setQueryData(WRITING_STYLE_KEY, style)
-        : void queryClient.invalidateQueries({ queryKey: WRITING_STYLE_KEY }),
-  });
-}
-
 export default function WritingStyleCard() {
   const { t } = useTranslation();
-  const style = useQuery({ queryKey: WRITING_STYLE_KEY, queryFn: fetchWritingStyle });
+  const style = useWritingStyle();
   return (
     <section className="space-y-5 rounded-lg border border-line bg-surface p-4">
       <div>
@@ -73,11 +61,7 @@ export default function WritingStyleCard() {
         </h2>
         <p className="mt-1 text-sm text-fg-muted">{t("writingStyle.intro")}</p>
       </div>
-      {style.isError ? (
-        <p role="alert" className="text-sm text-danger">
-          {t("writingStyle.loadFailed")}
-        </p>
-      ) : null}
+      {style.isError ? <InlineAlert>{t("writingStyle.loadFailed")}</InlineAlert> : null}
       {style.data ? (
         <>
           {/* Keyed by the stored text, so deleting everything empties the box too. */}
@@ -104,8 +88,8 @@ function AiSees({ text }: { text: string }) {
 function Description({ saved }: { saved: string }) {
   const { t } = useTranslation();
   const [text, setText] = useState(saved);
-  const save = useStyleChange(saveStyleDescription);
-  const error = styleErrorText(save.error, t);
+  const save = useSaveStyleDescription();
+  const error = failureText(save.error, t);
   return (
     <form
       className="space-y-2"
@@ -149,11 +133,7 @@ function Description({ saved }: { saved: string }) {
         })}
       </div>
       {saved ? <AiSees text={saved} /> : null}
-      {error ? (
-        <p role="alert" className="text-sm text-danger">
-          {error}
-        </p>
-      ) : null}
+      {error ? <InlineAlert>{error}</InlineAlert> : null}
       <button type="submit" disabled={save.isPending || text === saved} className={BUTTON}>
         {save.isPending ? t("writingStyle.saving") : t("writingStyle.save")}
       </button>
@@ -164,10 +144,10 @@ function Description({ saved }: { saved: string }) {
 function Examples({ style }: { style: WritingStyle }) {
   const { t } = useTranslation();
   const [text, setText] = useState("");
-  const add = useStyleChange((pasted: string) => addStyleExample({ text: pasted }));
-  const remove = useStyleChange(deleteStyleExample);
+  const add = useAddStyleExample();
+  const remove = useDeleteStyleExample();
   const isFull = style.examples.length >= style.maxExamples;
-  const error = styleErrorText(add.error ?? remove.error, t);
+  const error = failureText(add.error ?? remove.error, t);
   return (
     <div className="space-y-2 border-t border-line-subtle pt-4">
       <p className="text-sm font-medium text-fg">
@@ -201,7 +181,7 @@ function Examples({ style }: { style: WritingStyle }) {
           className="space-y-2"
           onSubmit={(event) => {
             event.preventDefault();
-            add.mutate(text, { onSuccess: () => setText("") });
+            add.mutate({ text }, { onSuccess: () => setText("") });
           }}
         >
           <textarea
@@ -218,20 +198,16 @@ function Examples({ style }: { style: WritingStyle }) {
           </button>
         </form>
       )}
-      {error ? (
-        <p role="alert" className="text-sm text-danger">
-          {error}
-        </p>
-      ) : null}
+      {error ? <InlineAlert>{error}</InlineAlert> : null}
     </div>
   );
 }
 
 function Learning({ style }: { style: WritingStyle }) {
   const { t } = useTranslation();
-  const toggle = useStyleChange(setStyleLearning);
-  const hide = useStyleChange(hideStyleHabit);
-  const error = styleErrorText(toggle.error ?? hide.error, t);
+  const toggle = useSetStyleLearning();
+  const hide = useHideStyleHabit();
+  const error = failureText(toggle.error ?? hide.error, t);
   return (
     <div className="space-y-2 border-t border-line-subtle pt-4">
       <label className="flex items-center gap-2 text-sm font-medium text-fg">
@@ -268,47 +244,27 @@ function Learning({ style }: { style: WritingStyle }) {
           </li>
         ))}
       </ul>
-      {error ? (
-        <p role="alert" className="text-sm text-danger">
-          {error}
-        </p>
-      ) : null}
+      {error ? <InlineAlert>{error}</InlineAlert> : null}
     </div>
   );
 }
 
 function DeleteEverything() {
   const { t } = useTranslation();
-  const [isConfirming, setIsConfirming] = useState(false);
-  const erase = useStyleChange(deleteWritingStyle);
-  const error = styleErrorText(erase.error, t);
+  const erase = useDeleteWritingStyle();
   return (
-    <div className="flex flex-wrap items-center gap-2 border-t border-line-subtle pt-4 text-sm">
-      {isConfirming ? (
-        <>
-          <span className="text-fg-muted">{t("writingStyle.deleteConfirm")}</span>
-          <button
-            type="button"
-            className="rounded-md border border-danger px-2 py-1 text-xs font-semibold text-danger"
-            disabled={erase.isPending}
-            onClick={() => erase.mutate(undefined, { onSuccess: () => setIsConfirming(false) })}
-          >
-            {t("writingStyle.deleteYes")}
-          </button>
-          <button type="button" className={QUIET_BUTTON} onClick={() => setIsConfirming(false)}>
-            {t("writingStyle.keep")}
-          </button>
-        </>
-      ) : (
-        <button type="button" className={QUIET_BUTTON} onClick={() => setIsConfirming(true)}>
-          {t("writingStyle.deleteEverything")}
-        </button>
-      )}
-      {error ? (
-        <p role="alert" className="w-full text-sm text-danger">
-          {error}
-        </p>
-      ) : null}
+    <div className="border-t border-line-subtle pt-4">
+      <ConfirmAction
+        trigger={t("writingStyle.deleteEverything")}
+        question={t("writingStyle.deleteConfirm")}
+        confirm={t("writingStyle.deleteYes")}
+        pending={t("writingStyle.deleting")}
+        cancel={t("writingStyle.keep")}
+        onConfirm={() => erase.mutateAsync(undefined)}
+        onCancel={erase.reset}
+        isPending={erase.isPending}
+        error={failureText(erase.error, t)}
+      />
     </div>
   );
 }

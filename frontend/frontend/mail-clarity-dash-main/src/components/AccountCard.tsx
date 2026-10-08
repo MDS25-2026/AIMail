@@ -1,10 +1,9 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-import { deleteAccount, disconnectGmail } from "../lib/api";
-import { queryKeys, useSession } from "../lib/queries";
+import { useDeleteAccount, useDisconnectGmail, useSession } from "../lib/queries";
+import { cn } from "../lib/utils";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -14,11 +13,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "./ui/alert-dialog";
+import { InlineAlert, InlineStatus } from "./InlineMessages";
+import { button, field } from "./variants";
 
-const DANGER_BUTTON =
-  "rounded-md border border-danger-line px-3 py-1.5 text-sm font-semibold text-danger hover:bg-danger-soft disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger";
-const CONFIRM_BUTTON =
-  "rounded-md bg-danger px-3 py-1.5 text-sm font-semibold text-on-brand hover:opacity-90 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger";
+const DANGER_BUTTON = button({ intent: "danger" });
+const CONFIRM_BUTTON = button({ intent: "dangerSolid" });
 
 /** Settings > Account: disconnect Gmail, or delete everything (specs/features/per-user-mailboxes.md). */
 export default function AccountCard() {
@@ -41,16 +40,8 @@ export default function AccountCard() {
 
 function DisconnectGmail() {
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
-  const disconnect = useMutation({
-    mutationFn: disconnectGmail,
-    onSuccess: () => {
-      setIsOpen(false);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.session });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.emails });
-    },
-  });
+  const disconnect = useDisconnectGmail();
   return (
     <AccountAction
       title={t("account.disconnectTitle")}
@@ -60,7 +51,7 @@ function DisconnectGmail() {
       onOpenChange={setIsOpen}
       isPending={disconnect.isPending}
       error={disconnect.isError ? t("account.disconnectFailed") : null}
-      onConfirm={() => disconnect.mutate()}
+      onConfirm={() => disconnect.mutate(undefined, { onSuccess: () => setIsOpen(false) })}
       done={disconnect.isSuccess ? t("account.disconnected") : null}
     />
   );
@@ -69,16 +60,9 @@ function DisconnectGmail() {
 function DeleteAccount({ email }: { email: string }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const [typed, setTyped] = useState("");
-  const remove = useMutation({
-    mutationFn: deleteAccount,
-    onSuccess: () => {
-      queryClient.clear();
-      void navigate({ to: "/signin" });
-    },
-  });
+  const remove = useDeleteAccount(() => void navigate({ to: "/signin" }));
   // Typing the address is the confirmation: nothing about it can be undone.
   const isConfirmed = typed.trim().toLowerCase() === email.toLowerCase();
   return (
@@ -102,7 +86,7 @@ function DeleteAccount({ email }: { email: string }) {
           value={typed}
           onChange={(event) => setTyped(event.target.value)}
           autoComplete="off"
-          className="w-full rounded-md border border-line-strong bg-surface px-3 py-1.5 text-sm text-fg focus-visible:outline-2 focus-visible:outline-brand"
+          className={cn(field(), "w-full")}
         />
       </label>
     </AccountAction>
@@ -131,11 +115,7 @@ function AccountAction(props: AccountActionProps) {
       <button type="button" className={DANGER_BUTTON} onClick={() => props.onOpenChange(true)}>
         {props.buttonLabel}
       </button>
-      {props.done ? (
-        <p role="status" className="text-xs text-success">
-          {props.done}
-        </p>
-      ) : null}
+      {props.done ? <InlineStatus size="xs">{props.done}</InlineStatus> : null}
       <AlertDialog
         open={props.isOpen}
         onOpenChange={(open) => !props.isPending && props.onOpenChange(open)}
@@ -148,11 +128,7 @@ function AccountAction(props: AccountActionProps) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           {props.children}
-          {props.error ? (
-            <p role="alert" className="text-sm text-danger">
-              {props.error}
-            </p>
-          ) : null}
+          {props.error ? <InlineAlert>{props.error}</InlineAlert> : null}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={props.isPending}>{t("account.cancel")}</AlertDialogCancel>
             <button

@@ -1,13 +1,6 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import {
-  DraftRefusedError,
-  GoogleAccessExpiredError,
-  SendNotGrantedError,
-  SendOutcomeUnknownError,
-  UnresolvedPlaceholdersError,
-} from "./api";
 import { detailValues, restoreDetails } from "./details";
 import { useDetailsHidden } from "./detailsVisibility";
 import { findRedactionMarkers, findTemplatePlaceholders, hasUnsavedEdits } from "./draftGuards";
@@ -20,32 +13,8 @@ export enum DraftAction {
   Send = "send",
 }
 
-/** Why the last action failed; each value is a `draftStatus.failed.*` message. */
-export enum DraftFailure {
-  Regenerate = "regenerate",
-  Refine = "refine",
-  Send = "send",
-  Refused = "refused",
-  SendUnknown = "sendUnknown",
-  SendNotGranted = "sendNotGranted",
-  AccessExpired = "accessExpired",
-  Unresolved = "unresolved",
-}
-
-const FAILURE_BY_ACTION: Record<DraftAction, DraftFailure> = {
-  [DraftAction.Regenerate]: DraftFailure.Regenerate,
-  [DraftAction.Refine]: DraftFailure.Refine,
-  [DraftAction.Send]: DraftFailure.Send,
-};
-
-function failureFor(error: unknown, action: DraftAction): DraftFailure {
-  if (error instanceof DraftRefusedError) return DraftFailure.Refused;
-  if (error instanceof SendOutcomeUnknownError) return DraftFailure.SendUnknown;
-  if (error instanceof SendNotGrantedError) return DraftFailure.SendNotGranted;
-  if (error instanceof GoogleAccessExpiredError) return DraftFailure.AccessExpired;
-  if (error instanceof UnresolvedPlaceholdersError) return DraftFailure.Unresolved;
-  return FAILURE_BY_ACTION[action];
-}
+/** The last action that failed, and why; DraftStatus turns it into words. */
+export type DraftFailure = { action: DraftAction; error: unknown };
 
 export enum ConfirmKind {
   ReplaceEdits = "replaceEdits",
@@ -65,7 +34,35 @@ export type DraftWorkflowStatus = {
   pendingConfirm: PendingConfirm | null;
   onConfirm: () => void;
   onCancel: () => void;
+  /** The first draft is still being written; acting now would act on the preview. */
+  isGenerating: boolean;
+  isLoadFailed: boolean;
+  onRetryLoad: () => void;
 };
+
+/** The detail query the email came from; any query result fits. Absent when there is none. */
+export type DetailLoad = { isLoading: boolean; isError: boolean; refetch: () => unknown };
+
+export type DraftWorkflow = {
+  draft: string;
+  tone: Tone;
+  setDraft: (text: string) => void;
+  /** A tone change regenerates the draft in that tone. */
+  setTone: (tone: Tone) => void;
+  regenerate: () => void;
+  /** Rejects on failure, so the caller can keep the instruction the reader typed. */
+  refine: (instruction: string) => Promise<void>;
+  send: () => void;
+  status: DraftWorkflowStatus;
+  announcement: string;
+  isRegenerating: boolean;
+  isRefining: boolean;
+  isSending: boolean;
+  /** Anything in flight; the draft must not change under a send, nor a send go out mid-change. */
+  isBusy: boolean;
+};
+
+const NO_DETAIL: DetailLoad = { isLoading: false, isError: false, refetch: () => undefined };
 
 // Every piece of local state remembers which email it belongs to, so a response that lands after
 // the reader moved on can neither clear the new email's edits nor show its error there.
@@ -83,7 +80,10 @@ const shownOnScreen = () => undefined;
  * Guards the two ways a reader lost work: a regenerate silently replacing their edits, and a
  * redaction marker going out to the recipient unnoticed. Failures stay on screen until the next try.
  */
-export function useDraftWorkflow(email: Email | null) {
+export function useDraftWorkflow(
+  email: Email | null,
+  detail: DetailLoad = NO_DETAIL,
+): DraftWorkflow {
   const { t } = useTranslation();
   const emailId = email?.id ?? null;
   const [isHidingDetails] = useDetailsHidden();
@@ -130,8 +130,7 @@ export function useDraftWorkflow(email: Email | null) {
     try {
       await run();
     } catch (error) {
-      const failure = failureFor(error, action);
-      if (seq === requestSeqRef.current) setFailed({ emailId: id, value: failure });
+      if (seq === requestSeqRef.current) setFailed({ emailId: id, value: { action, error } });
       throw error;
     }
     if (seq !== requestSeqRef.current) return;
@@ -161,7 +160,6 @@ export function useDraftWorkflow(email: Email | null) {
     startRegenerate(emailId, nextTone);
   };
 
-  /** Rejects on failure, so the caller can keep the instruction the reader typed. */
   const refine = async (instruction: string) => {
     if (emailId === null) return;
     const id = emailId;
@@ -203,25 +201,35 @@ export function useDraftWorkflow(email: Email | null) {
     },
     onConfirm: confirm,
     onCancel: () => setPending(null),
+    isGenerating: detail.isLoading,
+    isLoadFailed: detail.isError,
+    onRetryLoad: () => void detail.refetch(),
   };
 
+  const setDraft = (text: string) => {
+    if (emailId === null) return;
+    setTyped({ emailId, value: text });
+    // The warning is moot once every marker has been typed over.
+    const isMarkerWarning = pendingAction?.kind === ConfirmKind.SendMarkers;
+    if (isMarkerWarning && findRedactionMarkers(text).length === 0) setPending(null);
+  };
+
+  const isRegenerating = regenerateMutation.isPending;
+  const isRefining = refineMutation.isPending;
+  const isSending = sendMutation.isPending;
   return {
     draft,
     tone,
-    setDraft: (text: string) => {
-      if (emailId === null) return;
-      setTyped({ emailId, value: text });
-      // The warning is moot once every marker has been typed over.
-      const isMarkerWarning = pendingAction?.kind === ConfirmKind.SendMarkers;
-      if (isMarkerWarning && findRedactionMarkers(text).length === 0) setPending(null);
-    },
-    regenerate,
+    setDraft,
+    setTone: regenerate,
+    regenerate: () => regenerate(),
     refine,
     send,
     status,
     announcement,
-    isRegenerating: regenerateMutation.isPending,
-    isRefining: refineMutation.isPending,
-    isSending: sendMutation.isPending,
+    isRegenerating,
+    isRefining,
+    isSending,
+    isBusy: isRegenerating || isRefining || isSending || detail.isLoading,
   };
 }

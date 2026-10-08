@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 
 import { detailValues } from "../lib/details";
 import { useDetailsHidden } from "../lib/detailsVisibility";
-import { hiddenCounts, kindOf } from "../lib/hiddenDetails";
+import { hiddenCounts } from "../lib/hiddenDetails";
+import { kindOf } from "../lib/masking";
 import type { Email } from "../types/email";
 import {
   Dialog,

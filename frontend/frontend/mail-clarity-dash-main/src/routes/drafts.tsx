@@ -3,9 +3,10 @@ import { useTranslation } from "react-i18next";
 
 import AppShell from "../components/AppShell";
 import ComingSoon from "../components/ComingSoon";
+import { Page, pageMeta } from "../lib/pageMeta";
 
 export const Route = createFileRoute("/drafts")({
-  head: () => ({ meta: [{ title: "AIMail Drafts" }] }),
+  head: ({ match }) => ({ meta: pageMeta(match.context.preferences.language, Page.Drafts) }),
   component: DraftsPage,
 });
 

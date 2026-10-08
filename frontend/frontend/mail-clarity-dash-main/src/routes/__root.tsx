@@ -13,22 +13,28 @@ import { useTranslation } from "react-i18next";
 
 import appCss from "../styles.css?url";
 import PreferencesProvider from "../components/PreferencesProvider";
+import { button } from "../components/variants";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { Page, pageMeta } from "../lib/pageMeta";
 import { coloursAttribute, SYSTEM_THEME_SCRIPT, Theme } from "../lib/preferences";
 import { readPreferences } from "../lib/readPreferences";
+import { cn } from "../lib/utils";
 
 function NotFoundComponent() {
   const { t } = useTranslation();
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="flex min-h-screen items-center justify-center bg-app px-4">
       <div className="max-w-md text-center">
-        <h1 className="text-7xl font-bold text-foreground">404</h1>
-        <h2 className="mt-4 text-xl font-semibold text-foreground">{t("page.notFoundTitle")}</h2>
-        <p className="mt-2 text-sm text-muted-foreground">{t("page.notFoundBody")}</p>
+        <h1 className="text-7xl font-bold text-fg">404</h1>
+        <h2 className="mt-4 text-xl font-semibold text-fg">{t("page.notFoundTitle")}</h2>
+        <p className="mt-2 text-sm text-fg-muted">{t("page.notFoundBody")}</p>
         <div className="mt-6">
           <Link
             to="/"
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            className={cn(
+              button({ intent: "primary", size: "md" }),
+              "inline-flex items-center justify-center",
+            )}
           >
             {t("page.goHome")}
           </Link>
@@ -47,25 +53,26 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
   }, [error]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="flex min-h-screen items-center justify-center bg-app px-4">
       <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          {t("page.crashTitle")}
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">{t("page.crashBody")}</p>
+        <h1 className="text-xl font-semibold tracking-tight text-fg">{t("page.crashTitle")}</h1>
+        <p className="mt-2 text-sm text-fg-muted">{t("page.crashBody")}</p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {
               router.invalidate();
               reset();
             }}
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            className={cn(
+              button({ intent: "primary", size: "md" }),
+              "inline-flex items-center justify-center",
+            )}
           >
             {t("page.tryAgain")}
           </button>
           <a
             href="/"
-            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+            className={cn(button({ size: "md" }), "inline-flex items-center justify-center")}
           >
             {t("page.goHome")}
           </a>
@@ -78,15 +85,11 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   // Cookie-backed, so the server renders the reader's theme and language on the first paint.
   beforeLoad: () => ({ preferences: readPreferences() }),
-  head: () => ({
+  head: ({ match }) => ({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "AIMail" },
-      {
-        name: "description",
-        content: "AI inbox assistant: masked mail, grounded drafts, human-approved replies.",
-      },
+      ...pageMeta(match.context.preferences.language, Page.App),
     ],
     links: [
       {
