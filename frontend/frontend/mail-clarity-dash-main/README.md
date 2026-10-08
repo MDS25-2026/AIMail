@@ -66,7 +66,9 @@ COMPONENTS
 
    the extension panel: asks before a regenerate replaces typed edits, warns before a reply
 
-   containing a redaction marker is sent, and keeps failures on screen
+   containing a redaction marker is sent, keeps failures on screen, and locks the draft (tone,
+
+   regenerate, refine, editing) while an action runs and once the reply is sent
 
 BEHAVIOR
 
