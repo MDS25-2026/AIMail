@@ -45,6 +45,9 @@ export const zh: Translations = {
     title: "回复草稿",
     regenerate: "重新生成",
     regenerating: "正在重新生成…",
+    undoSendingIn_one: "{{count}} 秒后发送…",
+    undoSendingIn_other: "{{count}} 秒后发送…",
+    undo: "撤销",
     approveSend: "批准并发送",
     sending: "正在发送…",
     sent: "已发送",
@@ -628,6 +631,7 @@ export const zh: Translations = {
     sendTemplates_one: "这封回复仍有 {{count}} 处方括号空位，例如 [Your Name]。收件人会原样看到。",
     sendTemplates_other:
       "这封回复仍有 {{count}} 处方括号空位，例如 [Your Name]。收件人会原样看到。",
+    toneWarning: "您的草稿可能含有不够专业的语气。仍然发送？",
   },
   signIn: {
     google: "使用 Google 登录",

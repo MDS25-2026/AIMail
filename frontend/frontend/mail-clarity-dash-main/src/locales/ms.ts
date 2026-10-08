@@ -51,6 +51,9 @@ export const ms: Translations = {
     title: "Draf balasan",
     regenerate: "Jana semula",
     regenerating: "Menjana semula…",
+    undoSendingIn_one: "Menghantar dalam {{count}} saat…",
+    undoSendingIn_other: "Menghantar dalam {{count}} saat…",
+    undo: "Batal",
     approveSend: "Lulus & Hantar",
     sending: "Menghantar…",
     sent: "Dihantar",
@@ -668,6 +671,7 @@ export const ms: Translations = {
       "Balasan ini masih mempunyai {{count}} ruang dalam kurungan, seperti [Your Name]. Penerima akan melihatnya begitu sahaja.",
     sendTemplates_other:
       "Balasan ini masih mempunyai {{count}} ruang dalam kurungan, seperti [Your Name]. Penerima akan melihatnya begitu sahaja.",
+    toneWarning: "Draf anda mungkin mempunyai nada yang tidak profesional. Hantar juga?",
   },
   signIn: {
     google: "Log masuk dengan Google",

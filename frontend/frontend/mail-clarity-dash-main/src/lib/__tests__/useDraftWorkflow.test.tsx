@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, waitFor } from "@testing-library/react";
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 
 import { deferred, stubFetch, type StubReply } from "../../test/fetchStub";
 import { emailFixture } from "../../test/emailFixture";
@@ -124,5 +124,24 @@ describe("a sent reply is final (#172)", () => {
     stubFetch({});
     const { result } = renderWorkflow(emailFixture({ id: "u" }));
     expect(result.current.isDraftLocked).toBe(false);
+  });
+});
+
+describe("the undo window", () => {
+  afterEach(() => vi.useRealTimers());
+
+  test("Send waits out the countdown, and Undo means nothing is sent", () => {
+    vi.useFakeTimers();
+    const calls = stubFetch({});
+    const { result } = renderWorkflow(
+      emailFixture({ id: "w", draftReply: "Thanks, see you Friday." }),
+    );
+    act(() => result.current.send());
+    expect(result.current.undoCountdown).toBe(5);
+    expect(result.current.isDraftLocked).toBe(true);
+    act(() => result.current.undoSend());
+    act(() => vi.advanceTimersByTime(6_000));
+    expect(result.current.undoCountdown).toBeNull();
+    expect(calls).toEqual([]);
   });
 });
