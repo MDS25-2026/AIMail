@@ -174,6 +174,11 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   exists (2026-10-08), a failed critique or repair answers `200` with that draft, flagged for review
   with `critic unavailable: <code>` or `repair stopped: <code>`. See
   [`../features/llm-resilience.md`](../features/llm-resilience.md).
+- Probes (2026-10-08, `app/core/health.py`): the backend and the agent answer `GET /healthz`
+  (`200 {"status": "ok"}` while the process serves) and `GET /readyz` (`200` once ready, else `503`
+  with `{"status": "failed", "checks": {"<name>": "failed"}}`; the backend checks its database, the
+  agent that a model is configured, without calling one). Neither needs a session or the agent token,
+  and neither is in the OpenAPI schema. The listener's own probes are on `:8095`.
 - The Lane C agent (`:8001`) carries no token of its own and is bound to `127.0.0.1`; it is
   reachable only by the backend on the same host.
 - Errors follow this shape:

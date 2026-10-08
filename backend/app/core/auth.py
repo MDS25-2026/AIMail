@@ -18,13 +18,14 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from app.core import ownership, supabase_auth
 from app.core.config import get_settings
 from app.core.errors import DomainError, ErrorCode
+from app.core.health import HEALTH_PATHS
 from app.core.ownership import Scope
 
 SESSION_COOKIE = "aimail_session"
 CLIENT_HEADER = "X-AIMail-Client"
 
-# The demo page doubles as the liveness check; the sign-in routes run before there is a session.
-_EXEMPT_PATHS = frozenset({"/"})
+# The demo page and the host's probes; the sign-in routes run before there is a session.
+_EXEMPT_PATHS = frozenset({"/"}) | HEALTH_PATHS
 _EXEMPT_PREFIXES = ("/auth/",)
 _STATE_CHANGING = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 

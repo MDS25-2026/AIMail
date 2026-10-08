@@ -32,6 +32,7 @@ from app.agent_contract import (
 )
 from app.core.agent_auth import require_agent_token
 from app.core.config import get_settings
+from app.core.health import health_router, model_configured
 from app.core.logging_setup import configure_logging
 from app.core.middleware import request_context
 from app.core.phishing import phishing_signal
@@ -80,6 +81,7 @@ app = FastAPI()
 app.middleware("http")(request_context)
 # Registered last so it runs first: nothing reaches a model without the backend's token.
 app.middleware("http")(require_agent_token)
+app.include_router(health_router({"model": model_configured}))
 
 
 # ---------- Pydantic schemas: request/response contract ----------

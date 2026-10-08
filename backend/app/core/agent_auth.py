@@ -13,6 +13,7 @@ from starlette.responses import Response
 
 from app.core.config import LOCAL_HOSTS, get_settings
 from app.core.errors import ErrorCode, error_response
+from app.core.health import HEALTH_PATHS
 
 AGENT_TOKEN_HEADER = "X-AIMail-Agent-Token"
 
@@ -30,6 +31,7 @@ def _is_allowed(request: Request) -> bool:
 
 
 async def require_agent_token(request: Request, call_next: RequestResponseEndpoint) -> Response | JSONResponse:
-    if not _is_allowed(request):
+    # A host's probes carry no token, and the health routes relay nothing to a model.
+    if request.url.path not in HEALTH_PATHS and not _is_allowed(request):
         return error_response(ErrorCode.FORBIDDEN, "agent token missing or wrong")
     return await call_next(request)

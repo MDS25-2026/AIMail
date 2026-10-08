@@ -56,6 +56,7 @@ from app.core.errors import (
     error_response,
     register_error_handlers,
 )
+from app.core.health import database_answers, health_router
 from app.core.logging_setup import configure_logging
 from app.core.middleware import request_context
 from app.core.ratelimit import (
@@ -105,6 +106,7 @@ app = FastAPI(title="AImail backend", dependencies=[Depends(require_auth)], life
 app.middleware("http")(request_context)
 # Its own app, so the shared token never applies there: admin is a Supabase session (ADR 0004).
 app.mount(ADMIN_PREFIX, admin_app)
+app.include_router(health_router({"database": database_answers}))
 app.include_router(sign_in_router)
 app.include_router(account_router)
 app.include_router(holding_reply_router)

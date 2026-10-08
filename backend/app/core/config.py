@@ -25,6 +25,11 @@ ENV_FILE_VARIABLE = "AIMAIL_ENV_FILE"
 LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
 
+class LogFormat(StrEnum):
+    TEXT = "text"  # a terminal
+    JSON = "json"  # a deployed host's log search, which filters by field
+
+
 class Environment(StrEnum):
     DEV = "dev"
     STAGING = "staging"
@@ -52,7 +57,7 @@ class Settings(BaseSettings):
     trusted_proxy_hops: int = 0
     log_level: str = "INFO"
     # "json" in a deployed environment so the host's log search can filter by field.
-    log_format: str = "text"
+    log_format: LogFormat = LogFormat.TEXT
     # How to read 03/04/2026 in an email: DMY (Malaysia), MDY or YMD.
     date_order: str = ""
     # The agent's whole-request budget and its Gemini models.
