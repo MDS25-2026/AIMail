@@ -12,6 +12,7 @@ from sqlalchemy.sql.dml import ReturningDelete, ReturningUpdate
 from app.account_routes import account_user_id
 from app.audit import AuditAction, audit
 from app.core.errors import DomainError, ErrorCode
+from app.core.language import Language
 from app.db.models import Message, StyleExample, StyleHabit, WritingStyle
 from app.db.session import get_sessionmaker
 from app.past_replies import forget_replies
@@ -20,6 +21,7 @@ from app.writing_style import (
     MAX_EXAMPLE_CHARS,
     MAX_EXAMPLES,
     ExampleSource,
+    clip,
     mask_for_style,
 )
 
@@ -40,6 +42,8 @@ class HabitView(BaseModel):
     value: str
     evidence: int
     outOf: int
+    # The language of the replies it was learned from; none for a habit learned before that was kept.
+    language: Language | None = None
 
 
 class WritingStyleView(BaseModel):
@@ -82,7 +86,8 @@ async def _view(user_id: UUID) -> WritingStyleView:
         description=style.description if style else "",
         learning=bool(style and style.learning_enabled),
         examples=[ExampleView(id=str(e.id), text=e.text, source=e.source, createdAt=e.created_at) for e in examples],
-        habits=[HabitView(id=str(h.id), kind=h.kind, value=h.value, evidence=h.evidence, outOf=h.out_of)
+        habits=[HabitView(id=str(h.id), kind=h.kind, value=h.value, evidence=h.evidence, outOf=h.out_of,
+                          language=h.language)
                 for h in habits],
     )
 
@@ -133,7 +138,7 @@ async def add_example(body: ExampleBody, request: Request) -> WritingStyleView:
     raw = body.text if body.emailId is None else await _sent_text(user_id, body.emailId)
     if not raw.strip():
         raise DomainError(ErrorCode.EMPTY)
-    text = (await mask_for_style(raw))[:MAX_EXAMPLE_CHARS]
+    text = clip(await mask_for_style(raw), MAX_EXAMPLE_CHARS)
     async with get_sessionmaker()() as session, session.begin():
         count = await session.scalar(select(func.count(StyleExample.id)).where(StyleExample.user_id == user_id))
         if count >= MAX_EXAMPLES:

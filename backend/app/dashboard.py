@@ -43,6 +43,7 @@ from app.contracts import (
     ThreadMessage,
 )
 from app.core.errors import DomainError, ErrorCode
+from app.core.language import detect_language
 from app.core.ownership import EVERYTHING, Scope
 from app.core.redaction import PLACEHOLDER, has_redaction_marker
 from app.core.vault import ThreadMap, build_thread_map
@@ -378,7 +379,7 @@ async def _generate(message: Message, tone: Tone, thread: list[Message], details
             tone=TONE_PROMPTS[tone],
             sign_off=details.owner or "",
             provider=provider,
-            **await _style_fields(message.user_id),
+            **await _style_fields(message),
         )
         try:
             generated = await _call_agent("/process-email", request, ProcessEmailResponse)
@@ -668,12 +669,12 @@ async def _relearn_after_send(user_id: UUID) -> None:
         logger.exception("writing style: relearning failed for user %s", user_id)
 
 
-async def _style_fields(user_id: UUID | None) -> dict:
-    """The user's writing style for a draft request; masked when stored, so it can go as is."""
-    if user_id is None:
+async def _style_fields(message: Message) -> dict:
+    """The user's writing style for a reply to this email, in its language; masked when stored."""
+    if message.user_id is None:
         return {"style_hint": "", "style_examples": []}  # unowned rows have no style to look up
     async with get_sessionmaker()() as session:
-        style = await style_for(session, user_id)
+        style = await style_for(session, message.user_id, detect_language(message.body_masked or ""))
     return {"style_hint": style.hint, "style_examples": style.examples}
 
 
@@ -701,7 +702,7 @@ async def _refine(
         action_items=message.action_items or [],
         sign_off=details.owner or "",
         provider=await provider_for(message.user_id),
-        **await _style_fields(message.user_id),
+        **await _style_fields(message),
     )
     try:
         refined = await _call_agent("/refine", request, RefineResponse)

@@ -231,6 +231,7 @@ function Learning({ style }: { style: WritingStyle }) {
               <p className="text-fg-body">{habitText(habit, t)}</p>
               <p className="text-xs text-fg-muted">
                 {t("writingStyle.evidence", { count: habit.evidence, outOf: habit.outOf })}
+                {habit.language ? ` · ${t(`languages.${habit.language}`)}` : ""}
               </p>
             </div>
             <button

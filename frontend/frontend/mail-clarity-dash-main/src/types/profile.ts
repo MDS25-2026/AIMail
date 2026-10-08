@@ -1,3 +1,4 @@
+import type { Language } from "../lib/preferences";
 import { assertSameValues, type Schemas, type WithEnums } from "./schema";
 
 /** Writing style (specs/features/writing-profile.md). Every text is the masked copy that was stored. */
@@ -23,7 +24,10 @@ export enum ReplyLength {
 
 export type StyleExample = WithEnums<Schemas["ExampleView"], { source: ExampleSource }>;
 
-export type StyleHabit = WithEnums<Schemas["HabitView"], { kind: StyleHabitKind }>;
+export type StyleHabit = WithEnums<
+  Schemas["HabitView"],
+  { kind: StyleHabitKind; language?: Language | null }
+>;
 
 export type WritingStyle = WithEnums<
   Schemas["WritingStyleView"],
@@ -31,3 +35,4 @@ export type WritingStyle = WithEnums<
 >;
 
 assertSameValues<`${ExampleSource}`, Schemas["ExampleSource"]>(true);
+assertSameValues<`${Language}`, Schemas["Language"]>(true);

@@ -230,7 +230,7 @@ lowercased.
 - [x] `user_preferences.draft_provider` — `gemini` or `local` (Private mode, [`../features/local-model.md`](../features/local-model.md), migration 0022).
 - [x] `messages.auth_status` (`pass` / `spoof_detected` / `sender_confirmed`), and on `audit_log`: `user_id` (FK, set null), `prev_hash`, `current_hash`, `chain_seq` (unique), filled by the `trg_compute_audit_hash` trigger with `audit_row_hash()` ([`../features/sender-verification-and-audit.md`](../features/sender-verification-and-audit.md), migration 0024, replacing PR #161's 0019/0020).
 - [x] `local_embedding` — Private mode's search vectors: `chunk_id` (FK, cascade), `embedding vector(768)`, `model_name`; unique on (`chunk_id`, `model_name`), own HNSW index. Never searched together with `embedding` ([`../features/local-model.md`](../features/local-model.md), migration 0023).
-- [x] `writing_style`, `style_example`, `style_habit`, `messages.draft_shown`, `messages.edit_ratio` — per-user writing style, masked before storage; see [`../features/writing-profile.md`](../features/writing-profile.md) (migration 0020).
+- [x] `writing_style`, `style_example`, `style_habit`, `messages.draft_shown`, `messages.edit_ratio` — per-user writing style, masked before storage; see [`../features/writing-profile.md`](../features/writing-profile.md) (migration 0020); `style_habit.language` (en/ms/zh, NULL for habits learned before 0030) keeps habits per language (migration 0030).
 - [ ] `holding_reply_settings`, `holding_reply`, `messages.is_automated` — proposed in [`../features/holding-reply.md`](../features/holding-reply.md).
 - [ ] `email_embedding` — pgvector index over historical replies for retrieval.
 

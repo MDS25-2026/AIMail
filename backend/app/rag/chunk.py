@@ -7,9 +7,11 @@ from pathlib import Path
 
 from pypdf import PdfReader
 
+from app.core.language import word_count
+
 # Chunks are packed to a target word count but always end on a sentence boundary, so a chunk
 # never cuts mid-sentence. ~1.3 tokens/word (English) maps the spec's 512/128-token target
-# onto these word counts; token_count is an estimate.
+# onto these word counts; token_count is an estimate. Chinese is counted in words too (word_count).
 TARGET_WORDS = 380
 OVERLAP_WORDS = 96
 TOKENS_PER_WORD = 1.3
@@ -18,12 +20,13 @@ TOKENS_PER_WORD = 1.3
 # "30 days.") does not trigger a split (it is not followed by whitespace + a capital).
 # One space, not \s+: _sentences collapses whitespace first, and a fixed width leaves nothing to
 # backtrack over, so no input can make the split slow (CodeQL py/polynomial-redos).
-_SENTENCE_BOUNDARY = re.compile(r"(?<=[.!?]) (?=[A-Z])")
+# Chinese ends a sentence with full-width punctuation and no space or capital after it.
+_SENTENCE_BOUNDARY = re.compile(r"(?<=[.!?]) (?=[A-Z])|(?<=[。！？]) ?")
 
 
 # A section heading (specs/features/rag-retrieval.md): "6. Travel claims", "6.2 Late claims". The dot
 # keeps a page footer ("21 April 2025") out; two digits at most keep a wrapped year ("2026. Self-...") out.
-_SECTION_HEADING = re.compile(r"\d{1,2}(?:\.\d{1,2})*\. *[A-Z].*|\d{1,2}(?:\.\d{1,2})+ +[A-Z].*")
+_SECTION_HEADING = re.compile(r"\d{1,2}(?:\.\d{1,2})*\. *[A-Z一-鿿].*|\d{1,2}(?:\.\d{1,2})+ +[A-Z一-鿿].*")
 # A contents page lists every heading with dot leaders to a page number; those lines are not sections.
 _DOT_LEADER = ".."
 _SENTENCE_END = (".", "!", "?", ":", ";", ",")
@@ -64,7 +67,7 @@ def _overlap_tail(sentences: list[str]) -> tuple[list[str], int]:
     tail: list[str] = []
     words = 0
     for sentence in reversed(sentences):
-        count = len(sentence.split())
+        count = word_count(sentence)
         if tail and words + count > OVERLAP_WORDS:
             break
         tail.insert(0, sentence)
@@ -80,7 +83,7 @@ def chunk_text(text: str) -> list[str]:
     current: list[str] = []
     current_words = 0
     for sentence in sentences:
-        count = len(sentence.split())
+        count = word_count(sentence)
         if current and current_words + count > TARGET_WORDS:
             chunks.append(" ".join(current))
             current, current_words = _overlap_tail(current)
@@ -91,7 +94,7 @@ def chunk_text(text: str) -> list[str]:
 
 
 def _is_heading(line: str) -> bool:
-    return (bool(_SECTION_HEADING.fullmatch(line)) and len(line.split()) <= MAX_HEADING_WORDS
+    return (bool(_SECTION_HEADING.fullmatch(line)) and word_count(line) <= MAX_HEADING_WORDS
             and not line.endswith(_SENTENCE_END) and _DOT_LEADER not in line)
 
 
@@ -117,4 +120,4 @@ def chunk_sections(text: str) -> list[Piece]:
 
 
 def estimate_tokens(chunk: str) -> int:
-    return round(len(chunk.split()) * TOKENS_PER_WORD)
+    return round(word_count(chunk) * TOKENS_PER_WORD)

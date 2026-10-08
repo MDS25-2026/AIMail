@@ -348,6 +348,8 @@ class StyleHabit(Base):
     value: Mapped[str] = mapped_column(Text)
     evidence: Mapped[int] = mapped_column(SmallInteger)
     out_of: Mapped[int] = mapped_column(SmallInteger)
+    # en, ms or zh (migration 0030); none for a habit learned before languages were recorded.
+    language: Mapped[str | None] = mapped_column(Text)
     suppressed: Mapped[bool] = mapped_column(default=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

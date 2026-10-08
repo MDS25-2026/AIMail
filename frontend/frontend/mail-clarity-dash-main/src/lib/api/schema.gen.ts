@@ -838,6 +838,7 @@ export interface components {
             id: string;
             /** Kind */
             kind: string;
+            language?: components["schemas"]["Language"] | null;
             /** Outof */
             outOf: number;
             /** Value */
