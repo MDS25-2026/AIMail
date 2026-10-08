@@ -25,10 +25,10 @@ export const regenerateEmail = (id: string, tone: Tone) =>
   request<Email>(emailPath(id, "/regenerate"), { method: HttpMethod.Post, json: { tone } });
 
 /** Revise the current draft per a user instruction. */
-export const refineEmail = (id: string, instruction: string, draft: string) =>
+export const refineEmail = (id: string, instruction: string, draft: string, tone: Tone) =>
   request<Email>(emailPath(id, "/refine"), {
     method: HttpMethod.Post,
-    json: { instruction, draft },
+    json: { instruction, draft, tone },
   });
 
 /** The masked body in another language. 422 means the translation failed its faithfulness checks. */

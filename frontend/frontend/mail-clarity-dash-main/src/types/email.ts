@@ -7,81 +7,22 @@
 export type Priority = "high" | "medium" | "low";
 export type Tone = "professional" | "casual";
 
-export type ThreadMessage = {
-  sender: string;
-  snippet: string;
-  /** A reply the reader sent from AIMail, shown under the email it answered. */
-  isOwnReply: boolean;
-  /** The full masked body, expanded in the conversation view. */
-  body: string;
-  /** ISO 8601: when it arrived, or for the reader's reply, when it was sent. */
-  timestamp: string | null;
-};
+import { assertSameValues, type Schemas, type WithEnums } from "./schema";
 
-export type Source = {
-  /** The policy document's title. */
-  label: string;
-  chunkId?: string | null;
-  /** The passage exactly as the model saw it when drafting. */
-  excerpt?: string;
-  /** Cosine similarity, 0-1. */
-  score?: number | null;
-};
-
-export type Measure = { value: number; unit: string };
-
-/** A quantity in the body, in both systems; the side matching `system` is as the sender wrote it. */
-export type Quantity = {
-  text: string;
-  system: "metric" | "imperial";
-  metric: Measure;
-  imperial: Measure;
-};
-
+export type ThreadMessage = Schemas["ThreadMessage"];
+export type Source = Schemas["Source"];
+export type Measure = Schemas["MeasureView"];
+export type Quantity = Schemas["QuantityView"];
+export type Detail = Schemas["Detail"];
+export type EgressRecord = Schemas["EgressRecord"];
 export type Translation = { language: string; text: string };
 
-/** A personal detail the AI only ever saw as its placeholder (restorable masking). */
-export type Detail = {
-  placeholder: string;
-  value: string;
-  kind: string;
-};
+/** The detail and list views of an email, with the finite sets as this app's enums. */
+export type Email = WithEnums<
+  Schemas["DashboardEmail"],
+  { authStatus?: AuthStatus; masking?: MaskingStatus; priority: Priority; tone: Tone }
+>;
 
-export type Email = {
-  id: string;
-  sender: string;
-  subject: string;
-  /** Short snippet for the inbox list. */
-  preview: string;
-  /** Full masked email body for the detail view. */
-  body: string;
-  /** ISO 8601 */
-  timestamp: string;
-  priority: Priority;
-  threadContext: ThreadMessage[];
-  aiSummary: string;
-  actionItems: string[];
-  draftReply: string;
-  tone: Tone;
-  sources: Source[];
-  piiMasked: boolean;
-  /** 0-1, from the Critic Agent's confidence pass. */
-  criticConfidence: number;
-  /** ISO 8601 when the approved reply was sent, else null/undefined. */
-  sentAt?: string | null;
-  /** Opened at least once. Anything new is unread. */
-  isRead?: boolean;
-  quantities?: Quantity[];
-  masking?: MaskingStatus;
-  /** The Gmail thread, so the inbox can show one row per conversation. */
-  threadId?: string | null;
-  /** The real values behind this email's placeholders; detail responses only, owner only. */
-  details?: Detail[];
-  /** The sender's SPF/DKIM/DMARC check, or the owner's confirmation that the sender is real. */
-  authStatus?: AuthStatus;
-};
-
-/** messages.auth_status (specs/context/backbone-contracts.md). Anything else reads as unverified. */
 export enum AuthStatus {
   Pass = "pass",
   SpoofDetected = "spoof_detected",
@@ -98,3 +39,7 @@ export enum MaskingStatus {
 
 /** Below this the draft is flagged "review recommended". */
 export const CRITIC_CONFIDENCE_THRESHOLD = 0.8;
+
+assertSameValues<`${AuthStatus}`, Schemas["AuthStatus"]>(true);
+assertSameValues<`${MaskingStatus}`, Schemas["DashboardEmail"]["masking"]>(true);
+assertSameValues<Tone, Schemas["Tone"]>(true);

@@ -48,12 +48,14 @@ export const mockEmails: Email[] = [
       "Hi Dana,\n\nThanks for pushing this through legal. I can confirm we're moving forward with 120 seats for the Q3 renewal. Please go ahead and countersign — I'll forward the executed copy to procurement once it's back.\n\nBest,\nAlex",
     tone: "professional",
     sources: [
-      { label: "Past emails (8)" },
-      { label: "MSA_redline_v4.pdf" },
-      { label: "CRM: Whitfield Corp" },
+      { label: "Past emails (8)", excerpt: "" },
+      { label: "MSA_redline_v4.pdf", excerpt: "" },
+      { label: "CRM: Whitfield Corp", excerpt: "" },
     ],
     piiMasked: true,
     criticConfidence: 0.92,
+    isRead: false,
+    quantities: [],
   },
   {
     id: "eml_002",
@@ -89,9 +91,14 @@ export const mockEmails: Email[] = [
     draftReply:
       "Hey Priya,\n\nGood catch — looks like the migration failed on the 418 deploy. I'll re-run it this morning and ping the channel once staging is current.\n\nThanks,\nAlex",
     tone: "casual",
-    sources: [{ label: "Past emails (3)" }, { label: "Deploy log #418" }],
+    sources: [
+      { label: "Past emails (3)", excerpt: "" },
+      { label: "Deploy log #418", excerpt: "" },
+    ],
     piiMasked: false,
     criticConfidence: 0.83,
+    isRead: false,
+    quantities: [],
   },
   {
     id: "eml_003",
@@ -112,9 +119,11 @@ export const mockEmails: Email[] = [
     draftReply:
       "Hi Marcus,\n\nThanks for reaching out. I'm attaching our current SOC 2 Type II report and have routed the questionnaire to our security team — you should have completed answers by Wednesday.\n\nBest,\nAlex",
     tone: "professional",
-    sources: [{ label: "SOC2_TypeII_2026.pdf" }],
+    sources: [{ label: "SOC2_TypeII_2026.pdf", excerpt: "" }],
     piiMasked: true,
     criticConfidence: 0.71,
+    isRead: false,
+    quantities: [],
   },
   {
     id: "eml_004",
@@ -140,9 +149,11 @@ export const mockEmails: Email[] = [
     draftReply:
       "Hi there,\n\nThanks for the reminder. I'll send over my bio and headshot before the end of the month.\n\nBest,\nAlex",
     tone: "professional",
-    sources: [{ label: "Speaker packet.pdf" }],
+    sources: [{ label: "Speaker packet.pdf", excerpt: "" }],
     piiMasked: true,
     criticConfidence: 0.64,
+    isRead: false,
+    quantities: [],
   },
   {
     id: "eml_005",
@@ -174,8 +185,13 @@ export const mockEmails: Email[] = [
     draftReply:
       "Hey Jen,\n\nYes please — 8:30 in the hotel lobby works for me. See you Tuesday!\n\nAlex",
     tone: "casual",
-    sources: [{ label: "Past emails (5)" }, { label: "Calendar: Offsite" }],
+    sources: [
+      { label: "Past emails (5)", excerpt: "" },
+      { label: "Calendar: Offsite", excerpt: "" },
+    ],
     piiMasked: false,
     criticConfidence: 0.88,
+    isRead: false,
+    quantities: [],
   },
 ];

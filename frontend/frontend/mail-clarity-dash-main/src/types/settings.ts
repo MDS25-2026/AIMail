@@ -1,5 +1,6 @@
 /** Holding reply and Private mode settings (specs/features/holding-reply.md, local-model.md). */
 import type { Language } from "../lib/preferences";
+import { assertSameValues, type Schemas, type WithEnums } from "./schema";
 
 export enum ActiveWhen {
   OutsideHours = "outside_hours",
@@ -41,33 +42,24 @@ export enum CancelReason {
   Other = "other",
 }
 
-export type HoldingReplySettings = {
-  enabled: boolean;
-  activeWhen: ActiveWhen;
-  workDays: number[];
-  workStart: string;
-  workEnd: string;
-  timezone: string;
-  leaveFrom: string | null;
-  leaveUntil: string | null;
-  audience: Audience;
-  scope: ReplyScope;
-  cooldownDays: number;
-  templates: Partial<Record<Language, string>>;
-  defaultLanguage: Language;
-};
+/** Required: the same model is the request body, where its defaults make fields optional; reads have all. */
+export type HoldingReplySettings = WithEnums<
+  Required<Schemas["SettingsBody"]>,
+  {
+    activeWhen: ActiveWhen;
+    audience: Audience;
+    scope: ReplyScope;
+    templates: Partial<Record<Language, string>>;
+    defaultLanguage: Language;
+  }
+>;
 
-export type HoldingReplyRecord = {
-  id: string;
-  emailId: string;
-  recipient: string;
-  language: string;
-  scheduledFor: string;
-  sentAt: string | null;
-  /** A CancelReason; a newer backend may send one this build does not know yet. */
-  cancelledReason: string | null;
-  subject: string;
-};
+/** cancelledReason is a CancelReason; a newer backend may send one this build does not know yet. */
+export type HoldingReplyRecord = Schemas["HoldingReplyView"];
 
 /** Not offered when `available` is false. */
-export type PrivateMode = { available: boolean; enabled: boolean; model: string; search: boolean };
+export type PrivateMode = Schemas["PrivateModeView"];
+
+assertSameValues<`${ActiveWhen}`, Schemas["ActiveWhen"]>(true);
+assertSameValues<`${Audience}`, Schemas["Audience"]>(true);
+assertSameValues<`${ReplyScope}`, Schemas["ReplyScope"]>(true);

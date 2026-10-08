@@ -4,12 +4,24 @@
 VENV := .venv/bin
 .DEFAULT_GOAL := help
 
-.PHONY: help check test lint typecheck hooks dev backend worker agent web test-reader migrate seed ingest eval eval-reform baseline backfill generate ml-deps distilbert eval-classifier label eval-critic latency extension
+.PHONY: help api-types api-types-check check test lint typecheck hooks dev backend worker agent web test-reader migrate seed ingest eval eval-reform baseline backfill generate ml-deps distilbert eval-classifier label eval-critic latency extension
 
 help:  ## list targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  make %-12s %s\n", $$1, $$2}'
 
-check: test lint typecheck  ## backend tests + ruff; dashboard typecheck, eslint, unit tests, palette check
+check: test lint typecheck api-types-check  ## backend tests + ruff; dashboard typecheck, eslint, unit tests, palette check; API types fresh
+
+DASHBOARD := frontend/frontend/mail-clarity-dash-main
+OPENAPI := backend/.openapi.json
+
+api-types:  ## regenerate the dashboard's API types from the backend's OpenAPI schema
+	cd backend && ../$(VENV)/python scripts/dump_openapi.py .openapi.json
+	cd $(DASHBOARD) && npx openapi-typescript ../../../$(OPENAPI) -o src/lib/api/schema.gen.ts
+
+api-types-check:  ## fail when the dashboard's API types no longer match the backend
+	cd backend && ../$(VENV)/python scripts/dump_openapi.py .openapi.json
+	cd $(DASHBOARD) && npx openapi-typescript ../../../$(OPENAPI) -o ../../../backend/.schema.check.ts
+	diff -q backend/.schema.check.ts $(DASHBOARD)/src/lib/api/schema.gen.ts || (echo "API types are stale: run make api-types" && exit 1)
 
 hooks:  ## install git hooks (pre-push runs 'make check')
 	git config core.hooksPath .githooks

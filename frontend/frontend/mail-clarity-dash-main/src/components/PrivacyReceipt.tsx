@@ -5,7 +5,7 @@ import { detailValues } from "../lib/details";
 import { useDetailsHidden } from "../lib/detailsVisibility";
 import { hiddenCounts } from "../lib/hiddenDetails";
 import { kindOf } from "../lib/masking";
-import type { Email } from "../types/email";
+import type { EgressRecord, Email } from "../types/email";
 import {
   Dialog,
   DialogContent,
@@ -84,9 +84,42 @@ export default function PrivacyReceipt({ email }: { email: Email }) {
               )}
             </section>
           </div>
+          <EgressRecords records={email.egress ?? []} />
           <p className="text-xs text-fg-muted">{t("receipt.alsoSent")}</p>
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** What actually left for a model while working on this email, as the backend recorded it (no text). */
+function EgressRecords({ records }: { records: readonly EgressRecord[] }) {
+  const { t } = useTranslation();
+  return (
+    <section>
+      <h3 className="text-sm font-semibold text-fg">{t("receipt.egressTitle")}</h3>
+      <p className="text-xs text-fg-muted">{t("receipt.egressHint")}</p>
+      {records.length === 0 ? (
+        <p className="mt-2 text-sm text-fg-muted">{t("receipt.egressNone")}</p>
+      ) : (
+        <ul className="mt-2 space-y-1 text-sm">
+          {records.map((record) => (
+            <li key={`${record.at}-${record.purpose}`} className="text-fg-body">
+              {t("receipt.egressLine", {
+                purpose: t(`receipt.purpose.${record.purpose}`, { defaultValue: record.purpose }),
+                provider: t(`receipt.provider.${record.provider}`),
+                chars: record.chars,
+                hidden: Object.values(record.hidden).reduce((sum, count) => sum + count, 0),
+              })}
+              {record.caught > 0 ? (
+                <span className="ml-1 text-danger">
+                  {t("receipt.egressCaught", { count: record.caught })}
+                </span>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

@@ -38,7 +38,8 @@ const restrictImports = (options) => ({
 });
 
 export default tseslint.config(
-  { ignores: ["dist", ".output", ".vinxi", "extension-dist"] },
+  // Generated from the backend schema (make api-types); formatting it would make the staleness check fail.
+  { ignores: ["dist", ".output", ".vinxi", "extension-dist", "src/lib/api/schema.gen.ts"] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],

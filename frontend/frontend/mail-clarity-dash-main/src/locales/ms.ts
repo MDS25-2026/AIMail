@@ -229,6 +229,31 @@ export const ms: Translations = {
     },
   },
   receipt: {
+    egressTitle: "Apa yang dihantar kepada AI",
+    egressHint:
+      "Setiap permintaan yang dibuat AIMail semasa mengendalikan e-mel ini, seperti yang direkodkan. Tiada teks disimpan.",
+    egressNone: "Belum ada apa-apa dihantar kepada AI untuk e-mel ini.",
+    egressLine:
+      "{{purpose}} kepada {{provider}}: {{chars}} aksara, {{hidden}} butiran disembunyikan",
+    egressCaught_one: "({{count}} butiran ditutup pada semakan terakhir)",
+    egressCaught_other: "({{count}} butiran ditutup pada semakan terakhir)",
+    provider: {
+      gemini: "Google Gemini",
+      local: "model syarikat anda sendiri",
+    },
+    purpose: {
+      route: "Pengisihan",
+      summary: "Ringkasan",
+      actions: "Tindakan",
+      draft: "Draf",
+      critic: "Semakan draf",
+      repair: "Pembetulan draf",
+      refine: "Penambahbaikan anda",
+      translate: "Terjemahan",
+      search: "Carian dokumen",
+      index: "Pengindeksan dokumen",
+      ask: "Soalan",
+    },
     open: "Resit privasi",
     title: "Resit privasi",
     description:

@@ -1,3 +1,5 @@
+import { assertSameValues, type Schemas, type WithEnums } from "./schema";
+
 /** Writing style (specs/features/writing-profile.md). Every text is the masked copy that was stored. */
 
 export enum StyleHabitKind {
@@ -19,20 +21,13 @@ export enum ReplyLength {
   Long = "long",
 }
 
-export type StyleExample = { id: string; text: string; source: ExampleSource; createdAt: string };
+export type StyleExample = WithEnums<Schemas["ExampleView"], { source: ExampleSource }>;
 
-export type StyleHabit = {
-  id: string;
-  kind: StyleHabitKind;
-  value: string;
-  evidence: number;
-  outOf: number;
-};
+export type StyleHabit = WithEnums<Schemas["HabitView"], { kind: StyleHabitKind }>;
 
-export type WritingStyle = {
-  description: string;
-  learning: boolean;
-  examples: StyleExample[];
-  habits: StyleHabit[];
-  maxExamples: number;
-};
+export type WritingStyle = WithEnums<
+  Schemas["WritingStyleView"],
+  { examples: StyleExample[]; habits: StyleHabit[] }
+>;
+
+assertSameValues<`${ExampleSource}`, Schemas["ExampleSource"]>(true);

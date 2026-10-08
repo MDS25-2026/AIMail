@@ -220,6 +220,30 @@ export const en = {
     },
   },
   receipt: {
+    egressTitle: "What left for the AI",
+    egressHint:
+      "Each request AIMail made while working on this email, as recorded. No text is kept.",
+    egressNone: "Nothing has been sent to an AI for this email yet.",
+    egressLine: "{{purpose}} to {{provider}}: {{chars}} characters, {{hidden}} details hidden",
+    egressCaught_one: "({{count}} detail masked at the last check)",
+    egressCaught_other: "({{count}} details masked at the last check)",
+    provider: {
+      gemini: "Google Gemini",
+      local: "your company's own model",
+    },
+    purpose: {
+      route: "Sorting",
+      summary: "Summary",
+      actions: "Action items",
+      draft: "Draft",
+      critic: "Draft check",
+      repair: "Draft fix",
+      refine: "Your refine",
+      translate: "Translation",
+      search: "Document search",
+      index: "Document indexing",
+      ask: "Question",
+    },
     open: "Privacy receipt",
     title: "Privacy receipt",
     description:

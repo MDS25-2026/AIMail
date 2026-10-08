@@ -20,6 +20,10 @@ export function emailFixture(overrides: Partial<Email> = {}): Email {
     criticConfidence: 0.9,
     masking: MaskingStatus.Complete,
     authStatus: AuthStatus.Pass,
+    quantities: [],
+    isRead: true,
+    details: [],
+    egress: [],
     ...overrides,
   };
 }

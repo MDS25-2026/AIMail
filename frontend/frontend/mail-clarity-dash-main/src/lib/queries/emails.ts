@@ -94,11 +94,11 @@ export function useRegenerateEmail() {
   );
 }
 
-type RefineVariables = { emailId: string; instruction: string; draft: string };
+type RefineVariables = { emailId: string; instruction: string; draft: string; tone: Tone };
 
 export function useRefineEmail() {
-  return useDraftMutation(({ emailId, instruction, draft }: RefineVariables) =>
-    refineEmail(emailId, instruction, draft),
+  return useDraftMutation(({ emailId, instruction, draft, tone }: RefineVariables) =>
+    refineEmail(emailId, instruction, draft, tone),
   );
 }
 

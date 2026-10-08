@@ -1,3 +1,5 @@
+import { assertSameValues, type Schemas, type WithEnums } from "./schema";
+
 /** The signed-in user's audit trail, GET /audit (specs/context/backbone-contracts.md). */
 
 export enum AuditVerification {
@@ -10,22 +12,12 @@ export enum AuditVerification {
 /** The parsed `detail` object; rows written before 2026-10-08 arrive as {"text": "<prose>"}. */
 export type AuditFields = Readonly<Record<string, string | number | boolean | null>>;
 
-export type AuditTrailEvent = {
-  id: string;
-  createdAt: string;
-  action: string;
-  fields: AuditFields;
-  success: boolean | null;
-  prevHash: string | null;
-  currentHash: string | null;
-  verification: AuditVerification;
-};
+export type AuditTrailEvent = WithEnums<
+  Schemas["AuditEventOut"],
+  { fields: AuditFields; verification: AuditVerification }
+>;
 
-export type AuditTrail = {
-  isChainIntact: boolean;
-  totalRecords: number;
-  verifiedRecords: number;
-  /** The latest hash; recorded outside the database, it shows if the whole chain was rebuilt. */
-  headHash: string | null;
-  events: AuditTrailEvent[];
-};
+/** headHash: recorded outside the database, it shows if the whole chain was rebuilt. */
+export type AuditTrail = WithEnums<Schemas["AuditTrailResponse"], { events: AuditTrailEvent[] }>;
+
+assertSameValues<`${AuditVerification}`, Schemas["Verification"]>(true);

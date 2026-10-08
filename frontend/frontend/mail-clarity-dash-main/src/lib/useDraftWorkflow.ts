@@ -163,7 +163,8 @@ export function useDraftWorkflow(
   const refine = async (instruction: string) => {
     if (emailId === null) return;
     const id = emailId;
-    const request = () => refineMutation.mutateAsync({ emailId: id, instruction, draft });
+    // The chosen tone goes too, so the revision and its review keep it.
+    const request = () => refineMutation.mutateAsync({ emailId: id, instruction, draft, tone });
     await runMutation(id, DraftAction.Refine, request, t("announce.refined"));
   };
 
