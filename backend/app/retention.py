@@ -14,7 +14,7 @@ from datetime import timedelta
 from sqlalchemy import Executable, delete, func, update
 
 from app.core.config import get_settings
-from app.db.models import HoldingReply, Message, ModelEgress
+from app.db.models import HoldingReply, Message, ModelEgress, RateLimitCounter
 from app.db.session import get_sessionmaker
 from app.vault_retention import expired
 
@@ -25,6 +25,8 @@ LEARNING_PAIR_DAYS = 90
 # Past the longest cooldown a holding reply can set (30 days), the address is not needed to space replies.
 HOLDING_RECIPIENT_DAYS = 60
 EGRESS_DAYS = 365
+# Rate-limit windows last a minute or two; a day of history is plenty to look back on.
+RATE_LIMIT_WINDOW_DAYS = 1
 KEEP_FOREVER = 0
 
 
@@ -57,6 +59,10 @@ def _egress(days: int) -> Executable:
     return delete(ModelEgress).where(ModelEgress.created_at < _older_than(days))
 
 
+def _rate_limit_windows(days: int) -> Executable:
+    return delete(RateLimitCounter).where(RateLimitCounter.window_start < _older_than(days))
+
+
 def _message_content(days: int) -> Executable:
     # Counts, priority, thread identity and the audit trail stay; the readable content goes.
     return (update(Message).where(Message.created_at < _older_than(days), Message.body_masked != "")
@@ -69,6 +75,7 @@ POLICIES: tuple[Policy, ...] = (
     Policy("learning_pairs", lambda: LEARNING_PAIR_DAYS, _learning_pairs),
     Policy("holding_reply_recipients", lambda: HOLDING_RECIPIENT_DAYS, _holding_recipients),
     Policy("model_egress", lambda: EGRESS_DAYS, _egress),
+    Policy("rate_limit_windows", lambda: RATE_LIMIT_WINDOW_DAYS, _rate_limit_windows),
     Policy("message_content", lambda: get_settings().message_content_retention_days, _message_content),
 )
 

@@ -1,12 +1,11 @@
 """Request id, security headers and the generation rate limit, observed from outside."""
 
-from collections import deque
 
 import pytest
 
 from app.core.constants import GENERATION_RATE_LIMIT
 from app.core.middleware import REQUEST_ID_HEADER, incoming_request_id
-from app.core.ratelimit import RateLimiter, rate_limit_generation
+from app.core.ratelimit import rate_limit_generation
 from tests.conftest import AUTH_HEADERS as AUTH
 
 
@@ -51,13 +50,6 @@ def test_model_spending_routes_are_throttled(api_client, generation_limit):
     for _ in range(GENERATION_RATE_LIMIT):
         assert api_client.post("/search", json={}, headers=AUTH).status_code == 422
     assert api_client.post("/search", json={}, headers=AUTH).status_code == 429
-
-
-def test_idle_clients_are_evicted():
-    limiter = RateLimiter("test", limit=1, window=10)
-    limiter._hits["old"] = deque([0.0])
-    limiter._evict_idle(cutoff=5.0)
-    assert "old" not in limiter._hits
 
 
 def test_a_decoded_newline_in_the_path_cannot_forge_a_log_line():

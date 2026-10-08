@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     # Dashboard origins allowed to call the API with the session cookie, comma-separated.
     frontend_origins: str = ""
     admin_origins: str = DEFAULT_ADMIN_ORIGINS
+    # Proxies in front of the API that append to X-Forwarded-For; 0 trusts only the socket address.
+    trusted_proxy_hops: int = 0
     log_level: str = "INFO"
     # "json" in a deployed environment so the host's log search can filter by field.
     log_format: str = "text"

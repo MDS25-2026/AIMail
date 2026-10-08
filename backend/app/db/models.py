@@ -367,3 +367,13 @@ class ModelEgress(Base):
     hidden: Mapped[dict] = mapped_column(JSONB, default=dict)
     caught: Mapped[int] = mapped_column(default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class RateLimitCounter(Base):
+    """One fixed rate-limit window per key, shared by every API instance (migration 0029)."""
+
+    __tablename__ = "rate_limit_counter"
+
+    key: Mapped[str] = mapped_column(Text, primary_key=True)
+    window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    hits: Mapped[int] = mapped_column(default=0)

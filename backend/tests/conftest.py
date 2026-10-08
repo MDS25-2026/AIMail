@@ -15,11 +15,19 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.config import get_settings
+from app.core.ratelimit import MemoryCounters, all_limiters
 from app.db.session import get_engine, get_sessionmaker
 from app.main import app
 
 API_TOKEN = "test-token-not-a-real-secret"
 AUTH_HEADERS = {"Authorization": f"Bearer {API_TOKEN}"}
+
+
+@pytest.fixture(autouse=True)
+def memory_rate_limits():
+    """Counters in memory, fresh per test: tests have no database (production uses Postgres)."""
+    for limiter in all_limiters():
+        limiter.store = MemoryCounters()
 
 
 @pytest.fixture(autouse=True)
