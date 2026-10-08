@@ -61,6 +61,9 @@ Pub/Sub; no `credentials.json` or `token.json` goes into the image. Probe `GET :
   defaults; the listener exits at startup naming whichever is missing.
 - `LISTENER_HEALTH_ADDR` — where `/healthz` and `/readyz` are served; default `127.0.0.1:8095`.
 - `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` — read from the repo-root `.env` (loaded via godotenv).
+- `TOKEN_ENCRYPTION_KEYS` / `PII_VAULT_KEYS` — keyrings for rotation, `kid:base64key,kid2:base64key`
+  with the first entry primary; must match the backend's. New vaults are sealed in format 2 under the
+  primary key, and any listed key still opens what it sealed. The single keys below are kid `legacy`.
 - `TOKEN_ENCRYPTION_KEY` — unseals stored refresh tokens; must match the backend's.
 - `PII_VAULT_KEY` — seals each email's detail vault; must match the backend's. Without it, emails
   are still masked but their details cannot be shown or restored.

@@ -39,7 +39,7 @@ func TestASealedTokenReadBackFromPostgRESTStillDecrypts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, err := unsealToken(v.Key, decoded, v.UserID); err != nil || got != v.Plaintext {
+	if got, err := unsealToken(mustKeyring(t, "", v.Key), decoded, v.UserID); err != nil || got != v.Plaintext {
 		t.Fatalf("got %q, %v", got, err)
 	}
 }

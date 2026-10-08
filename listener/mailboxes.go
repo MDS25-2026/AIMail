@@ -151,7 +151,11 @@ func connectionService(ctx context.Context, row connectionRow) (*gmail.Service, 
 	if err != nil {
 		return nil, err
 	}
-	refreshToken, err := unsealToken(os.Getenv("TOKEN_ENCRYPTION_KEY"), sealed, row.UserID)
+	keys, err := tokenKeys.load()
+	if err != nil {
+		return nil, err
+	}
+	refreshToken, err := unsealToken(keys, sealed, row.UserID)
 	if err != nil {
 		return nil, err
 	}

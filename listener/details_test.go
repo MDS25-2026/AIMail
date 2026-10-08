@@ -81,7 +81,11 @@ func openVault(t *testing.T, sealedHex, ownerID, gmailID string) (map[string]str
 	if err != nil {
 		t.Fatal(err)
 	}
-	plain, err := openWith(testVaultKey, vaultKeyEnv, raw, vaultAADPrefix+ownerID+":"+gmailID)
+	kr, err := vaultKeys.parse("", testVaultKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain, err := kr.open(raw, vaultAADPrefix+ownerID+":"+gmailID)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +94,8 @@ func openVault(t *testing.T, sealedHex, ownerID, gmailID string) (map[string]str
 }
 
 func TestTheVaultIsSealedForItsOwnEmailOnly(t *testing.T) {
-	t.Setenv(vaultKeyEnv, testVaultKey)
+	t.Setenv(vaultKeys.ring, "")
+	t.Setenv(vaultKeys.legacy, testVaultKey)
 	v := newDetailVault()
 	v.placeholder(kindPerson, "Aisyah")
 	sealed := v.sealed("owner-1", "gm-1")
@@ -106,11 +111,12 @@ func TestTheVaultIsSealedForItsOwnEmailOnly(t *testing.T) {
 }
 
 func TestNoKeyOrNoDetailsStoresNoVault(t *testing.T) {
-	t.Setenv(vaultKeyEnv, testVaultKey)
+	t.Setenv(vaultKeys.ring, "")
+	t.Setenv(vaultKeys.legacy, testVaultKey)
 	if newDetailVault().sealed("o", "gm") != "" {
 		t.Fatal("an empty vault was stored")
 	}
-	t.Setenv(vaultKeyEnv, "")
+	t.Setenv(vaultKeys.legacy, "")
 	v := newDetailVault()
 	v.placeholder(kindPerson, "Aisyah")
 	if v.sealed("o", "gm") != "" {
@@ -140,23 +146,5 @@ func TestAVaultSealedByTheBackendOpensHere(t *testing.T) {
 	got, err := openVault(t, `\x`+hex.EncodeToString(sealed), vec.Owner, vec.GmailID)
 	if err != nil || got["[PERSON_1]"] != vec.Details["[PERSON_1]"] {
 		t.Fatalf("got %v, %v", got, err)
-	}
-}
-
-// Writes the Go-sealed vector the backend's tests open (run with WRITE_VAULT_VECTOR=1 once).
-func TestWriteGoSealedVaultVector(t *testing.T) {
-	if os.Getenv("WRITE_VAULT_VECTOR") == "" {
-		t.Skip("set WRITE_VAULT_VECTOR=1 to regenerate testdata/vault_vector_go.json")
-	}
-	t.Setenv(vaultKeyEnv, testVaultKey)
-	v := newDetailVault()
-	v.placeholder(kindPerson, "Aisyah Rahman")
-	v.placeholder(kindPhone, "012-345 6789")
-	sealedHex := v.sealed("aaaaaaaa-0000-4000-8000-000000000001", "gm-vector")
-	sealed, _ := hex.DecodeString(strings.TrimPrefix(sealedHex, `\x`))
-	out, _ := json.MarshalIndent(vaultVector{Key: testVaultKey, Owner: "aaaaaaaa-0000-4000-8000-000000000001",
-		GmailID: "gm-vector", Details: v.values, Sealed: base64.StdEncoding.EncodeToString(sealed)}, "", "  ")
-	if err := os.WriteFile("testdata/vault_vector_go.json", append(out, '\n'), 0o644); err != nil {
-		t.Fatal(err)
 	}
 }
