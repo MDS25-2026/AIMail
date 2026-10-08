@@ -384,8 +384,9 @@ type MaskedContent struct {
 
 // StoredMessage is what we persist for each processed email, post-masking.
 type StoredMessage struct {
-	UserID         string `json:"user_id,omitempty"` // the mailbox owner; omitted (NULL) for token.json
-	GmailMessageID string `json:"gmail_message_id"`
+	UserID         string      `json:"user_id,omitempty"` // the mailbox owner; omitted (NULL) for token.json
+	GmailMessageID string      `json:"gmail_message_id"`
+	SlaPriority    SLAPriority `json:"sla_priority,omitempty"` // deterministic pre-AI priority; empty means let AI decide
 	SenderFacts
 	MaskedContent
 }
@@ -707,7 +708,15 @@ func ingestMessage(ctx context.Context, mb *mailbox, msgID string) error {
 	if !isComplete {
 		return quarantine(ctx, mb.ownerID, msgID, facts)
 	}
-	stored := StoredMessage{UserID: mb.ownerID, GmailMessageID: msgID, SenderFacts: facts, MaskedContent: content}
+
+	slaPriority := ClassifySLA(content.Subject, content.BodyMasked, time.Now().UTC())
+	stored := StoredMessage{
+		UserID:         mb.ownerID,
+		GmailMessageID: msgID,
+		SlaPriority:    slaPriority,
+		SenderFacts:    facts,
+		MaskedContent:  content,
+	}
 	isInserted, err := insertMessage(ctx, stored)
 	if err != nil {
 		log.Printf("could not store message %s: %v", msgID, err)
