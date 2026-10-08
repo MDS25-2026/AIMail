@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { AuthStatus, MaskingStatus, type Email } from "../types/email";
 import { detailValues } from "../lib/details";
+import { isQuarantined } from "../lib/draftAvailability";
 import { DetailsContext } from "../lib/detailsContext";
 import { useFormat } from "../lib/useFormat";
 import PriorityBadge from "./PriorityBadge";
@@ -69,7 +70,7 @@ export default function EmailListItem({
           >
             <WithDetails text={email.subject} />
           </div>
-          {email.masking === MaskingStatus.Pending || email.masking === MaskingStatus.Abandoned ? (
+          {isQuarantined(email) ? (
             <p className="mt-0.5 text-xs font-medium text-warning">
               {t(
                 email.masking === MaskingStatus.Abandoned

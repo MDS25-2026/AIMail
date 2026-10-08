@@ -71,28 +71,7 @@ function ThreadPanel({ threadId, account, onSignIn }: ThreadPanelProps) {
 function OpenEmail({ initial, account }: { initial: Email; account: string }) {
   const { data: email } = useSeededEmail(initial);
   const workflow = useDraftWorkflow(email);
-  return (
-    <SidePanel
-      email={email}
-      account={account}
-      draft={workflow.draft}
-      tone={workflow.tone}
-      onDraftChange={workflow.setDraft}
-      onToneChange={(_emailId, tone) => workflow.regenerate(tone)}
-      onRegenerate={() => workflow.regenerate()}
-      onRefine={(_emailId, instruction) => workflow.refine(instruction)}
-      onApproveSend={workflow.send}
-      isRegenerating={workflow.isRegenerating}
-      isRefining={workflow.isRefining}
-      isSending={workflow.isSending}
-      status={{
-        ...workflow.status,
-        isGenerating: false,
-        isLoadFailed: false,
-        onRetryLoad: () => undefined,
-      }}
-    />
-  );
+  return <SidePanel email={email} workflow={workflow} account={account} />;
 }
 
 function SignedOut({ onSignIn }: { onSignIn: OpenSignIn }) {

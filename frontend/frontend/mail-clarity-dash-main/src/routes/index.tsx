@@ -48,7 +48,7 @@ function DashboardPage() {
   // The detail call re-runs generation (~15s), so show the list row's copy until it lands.
   const listEmail = (emails.data ?? []).find((item) => item.id === selectedEmailId) ?? null;
   const email = selected.data ?? listEmail;
-  const workflow = useDraftWorkflow(email);
+  const workflow = useDraftWorkflow(email, selected);
 
   const didAutoSelectRef = useRef(false);
   useEffect(() => {
@@ -94,25 +94,7 @@ function DashboardPage() {
         </aside>
 
         <section className="min-h-0 min-w-0 flex-1 bg-surface-muted">
-          <EmailDetailPanel
-            email={email}
-            draft={workflow.draft}
-            tone={workflow.tone}
-            onDraftChange={workflow.setDraft}
-            onToneChange={(_emailId, tone) => workflow.regenerate(tone)}
-            onRegenerate={() => workflow.regenerate()}
-            onRefine={(_emailId, instruction) => workflow.refine(instruction)}
-            onApproveSend={workflow.send}
-            isRegenerating={workflow.isRegenerating}
-            isRefining={workflow.isRefining}
-            isSending={workflow.isSending}
-            status={{
-              ...workflow.status,
-              isGenerating: selected.isLoading,
-              isLoadFailed: selected.isError,
-              onRetryLoad: () => void selected.refetch(),
-            }}
-          />
+          <EmailDetailPanel email={email} workflow={workflow} />
         </section>
       </>
     </AppShell>

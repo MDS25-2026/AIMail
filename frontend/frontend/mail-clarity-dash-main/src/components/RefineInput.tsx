@@ -1,17 +1,19 @@
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 
+import { cn } from "../lib/utils";
+import { button, field } from "./variants";
+
 type RefineInputProps = {
-  emailId: string;
   /** Rejects when the refine fails. */
-  onRefine: (emailId: string, instruction: string) => Promise<void>;
+  onRefine: (instruction: string) => Promise<void>;
   disabled?: boolean;
 };
 
 // Keys, not text: the suggestion is sent to the model in the reader's language.
 const SUGGESTIONS = ["refine.suggestionDirect", "refine.suggestionDeadline"] as const;
 
-export default function RefineInput({ emailId, onRefine, disabled = false }: RefineInputProps) {
+export default function RefineInput({ onRefine, disabled = false }: RefineInputProps) {
   const { t } = useTranslation();
   const [instruction, setInstruction] = useState("");
 
@@ -20,7 +22,7 @@ export default function RefineInput({ emailId, onRefine, disabled = false }: Ref
     const trimmed = instruction.trim();
     if (!trimmed) return;
     // Cleared only once the refine lands: a failed one keeps the instruction for the retry.
-    onRefine(emailId, trimmed).then(
+    onRefine(trimmed).then(
       () => setInstruction(""),
       () => undefined,
     );
@@ -36,13 +38,9 @@ export default function RefineInput({ emailId, onRefine, disabled = false }: Ref
           onChange={(event) => setInstruction(event.target.value)}
           placeholder={t("refine.placeholder")}
           aria-label={t("refine.placeholder")}
-          className="flex-1 rounded-md border border-line-strong px-3 py-2 text-sm text-fg placeholder:text-fg-subtle disabled:bg-surface-muted"
+          className={cn(field(), "flex-1")}
         />
-        <button
-          type="submit"
-          disabled={disabled}
-          className="rounded-md border border-line-strong bg-surface px-3 py-2 text-sm font-medium text-fg-body hover:bg-surface-muted disabled:cursor-not-allowed disabled:text-fg-subtle"
-        >
+        <button type="submit" disabled={disabled} className={button({ size: "md" })}>
           {disabled ? t("refine.pending") : t("refine.submit")}
         </button>
       </form>
@@ -53,7 +51,7 @@ export default function RefineInput({ emailId, onRefine, disabled = false }: Ref
             key={suggestion}
             type="button"
             disabled={disabled}
-            onClick={() => void onRefine(emailId, t(suggestion)).catch(() => undefined)}
+            onClick={() => void onRefine(t(suggestion)).catch(() => undefined)}
             className="rounded-full border border-line bg-surface px-2.5 py-1 text-xs text-fg-body hover:bg-surface-muted disabled:cursor-not-allowed disabled:text-fg-subtle"
           >
             {t(suggestion)}

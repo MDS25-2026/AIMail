@@ -5,11 +5,7 @@ import { useTranslation } from "react-i18next";
 import { errorMessage } from "../lib/api/errors";
 import { ConfirmKind, DraftAction, type DraftWorkflowStatus } from "../lib/useDraftWorkflow";
 
-export type DraftStatusProps = DraftWorkflowStatus & {
-  isGenerating: boolean;
-  isLoadFailed: boolean;
-  onRetryLoad: () => void;
-};
+type DraftStatusProps = DraftWorkflowStatus;
 
 function confirmMessage(kind: ConfirmKind, count: number, t: TFunction): string {
   if (kind === ConfirmKind.ReplaceEdits) return t("draftStatus.replaceEdits");

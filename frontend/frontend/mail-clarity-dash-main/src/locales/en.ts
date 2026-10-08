@@ -31,6 +31,7 @@ export const en = {
   },
   priority: { high: "Urgent", medium: "Medium", low: "Low" },
   detail: {
+    fromAt: "{{sender}} · {{when}}",
     empty: "Select an email to see the AI draft",
     email: "Email",
     notSentYet: "Nothing is sent until you approve this draft.",
@@ -446,6 +447,8 @@ export const en = {
       "The listener tried repeatedly and could not remove personal data from this email, or it was deleted from Gmail first. Its content was never stored, so there is nothing to read or draft. Open it in Gmail if you need it.",
   },
   security: {
+    unverified:
+      "AIMail couldn't verify this sender: their domain gave no SPF, DKIM or DMARC result. Check who it is before you send.",
     confirming: "Confirming…",
     spoofBadge: "Spoof detected",
     spoofTitle: "Sender authentication failed — automated draft disabled",

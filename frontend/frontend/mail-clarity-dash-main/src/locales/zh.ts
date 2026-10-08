@@ -30,6 +30,7 @@ export const zh: Translations = {
   },
   priority: { high: "紧急", medium: "中等", low: "低" },
   detail: {
+    fromAt: "{{sender}} · {{when}}",
     empty: "选择一封邮件以查看 AI 草稿",
     email: "邮件",
     notSentYet: "在您批准此草稿之前，不会发送任何内容。",
@@ -432,6 +433,8 @@ export const zh: Translations = {
       "监听器多次尝试仍无法移除此邮件中的个人数据，或该邮件已先从 Gmail 中删除。其内容从未保存，因此没有可阅读或起草的内容。如需查看，请在 Gmail 中打开。",
   },
   security: {
+    unverified:
+      "AIMail 无法验证此发件人：其域名没有提供 SPF、DKIM 或 DMARC 结果。发送前请先确认对方身份。",
     confirming: "正在确认…",
     spoofBadge: "检测到伪造",
     spoofTitle: "发件人身份验证失败 — 已禁用自动起草",

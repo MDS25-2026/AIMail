@@ -36,6 +36,7 @@ export const ms: Translations = {
   },
   priority: { high: "Segera", medium: "Sederhana", low: "Rendah" },
   detail: {
+    fromAt: "{{sender}} · {{when}}",
     empty: "Pilih e-mel untuk melihat draf AI",
     email: "E-mel",
     notSentYet: "Tiada apa-apa dihantar sehingga anda meluluskan draf ini.",
@@ -461,6 +462,8 @@ export const ms: Translations = {
       "Pendengar mencuba berulang kali tetapi tidak dapat membuang data peribadi daripada e-mel ini, atau ia telah dipadam daripada Gmail terlebih dahulu. Kandungannya tidak pernah disimpan, jadi tiada apa untuk dibaca atau didraf. Bukanya dalam Gmail jika anda memerlukannya.",
   },
   security: {
+    unverified:
+      "AIMail tidak dapat mengesahkan pengirim ini: domain mereka tidak memberikan keputusan SPF, DKIM atau DMARC. Semak siapa pengirimnya sebelum anda menghantar.",
     confirming: "Mengesahkan…",
     spoofBadge: "Penyamaran dikesan",
     spoofTitle: "Pengesahan pengirim gagal — draf automatik dinyahdayakan",
