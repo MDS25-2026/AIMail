@@ -695,6 +695,10 @@ export const ms: Translations = {
       "Log masuk dengan Google membenarkan AIMail membaca dan menghantar Gmail anda. AIMail ialah projek tahun akhir di Monash University Malaysia.",
   },
   errors: {
+    admin_signed_out: "Anda belum log masuk ke konsol pentadbir.",
+    admin_session_invalid: "Sesi pentadbir anda telah tamat. Log masuk semula.",
+    admin_header_missing:
+      "Permintaan itu ditolak kerana ia tidak datang daripada konsol. Muat semula halaman.",
     generic: "Ada masalah. Cuba lagi sebentar lagi.",
     network: "Tidak dapat menghubungi AIMail. Semak sambungan anda dan cuba lagi.",
     signed_out: "Sesi anda telah tamat. Log masuk semula untuk meneruskan.",

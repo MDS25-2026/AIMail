@@ -35,7 +35,10 @@ export enum ApiErrorCode {
   WorkdayEndsBeforeItStarts = "workday_ends_before_it_starts",
   BadWorkDays = "bad_work_days",
   Invalid = "invalid",
-  // Admin console sign-in (docs/adr/0004).
+  // Admin console sign-in (docs/adr/0004, backend/app/admin/auth.py AdminAuthError).
+  AdminSignedOut = "admin_signed_out",
+  AdminSessionInvalid = "admin_session_invalid",
+  AdminHeaderMissing = "admin_header_missing",
   InvalidCredentials = "invalid_credentials",
   NotAnAdmin = "not_an_admin",
   AdminAuthNotConfigured = "admin_auth_not_configured",

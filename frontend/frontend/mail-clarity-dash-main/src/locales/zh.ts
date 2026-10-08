@@ -655,6 +655,9 @@ export const zh: Translations = {
       "使用 Google 登录即允许 AIMail 读取和发送您的 Gmail。AIMail 是马来西亚莫纳什大学的毕业项目。",
   },
   errors: {
+    admin_signed_out: "您尚未登录管理控制台。",
+    admin_session_invalid: "您的管理会话已结束，请重新登录。",
+    admin_header_missing: "该请求未来自控制台，已被拒绝。请刷新页面。",
     generic: "出了点问题，请稍后重试。",
     network: "无法连接 AIMail。请检查网络连接后重试。",
     signed_out: "您的会话已结束。请重新登录以继续。",

@@ -13,7 +13,8 @@ const SERVER_ONLY = {
 };
 const REACT_QUERY = {
   name: "@tanstack/react-query",
-  message: "Use the hooks in src/lib/queries; only the data layer and the providers use React Query.",
+  message:
+    "Use the hooks in src/lib/queries; only the data layer and the providers use React Query.",
 };
 // Fetchers and cache keys stay behind the hooks; types, config and errors may be imported anywhere.
 const FETCHERS = {
@@ -26,6 +27,7 @@ const FETCHERS = {
     "**/lib/api/profile",
     "**/lib/api/audit",
     "**/lib/queries/*",
+    "**/lib/adminApi",
   ],
   allowTypeImports: true,
   message: "Components get data through the hooks exported from src/lib/queries.",

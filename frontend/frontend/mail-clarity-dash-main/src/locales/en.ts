@@ -677,6 +677,10 @@ export const en = {
       "Signing in with Google lets AIMail read and send your Gmail. AIMail is a final-year project at Monash University Malaysia.",
   },
   errors: {
+    admin_signed_out: "You're not signed in to the admin console.",
+    admin_session_invalid: "Your admin session has ended. Sign in again.",
+    admin_header_missing:
+      "The request was refused because it didn't come from the console. Reload the page.",
     generic: "Something went wrong. Try again in a moment.",
     network: "Couldn't reach AIMail. Check your connection and try again.",
     signed_out: "Your session has ended. Sign in again to continue.",

@@ -13,6 +13,8 @@ import {
 } from "../adminApi";
 import { queryKeys } from "./keys";
 
+export { isAuthError } from "../adminApi";
+
 const keys = queryKeys.admin;
 
 /** Who is signed in to the console (docs/adr/0004). A 401 is an answer ("nobody"), not retried. */

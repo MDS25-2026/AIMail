@@ -1,6 +1,6 @@
 import type { AdminIdentity, AuditEvent, FlaggedDraft, Overview } from "../types/admin";
 import { BACKEND_URL } from "./api/config";
-import { ApiError, apiErrorFrom } from "./api/errors";
+import { ApiError, ApiErrorCode, apiErrorFrom } from "./api/errors";
 
 /**
  * The admin console API (docs/adr/0004). The session is an HttpOnly cookie the backend sets, so
@@ -36,6 +36,13 @@ function refreshOnce(): Promise<boolean> {
   return refreshing;
 }
 
+/** The console's own sign-out is never the reader's: it must not send them to the dashboard sign-in. */
+async function adminErrorFrom(res: Response, endpoint: string): Promise<ApiError> {
+  const error = await apiErrorFrom(res, endpoint);
+  if (error.code !== ApiErrorCode.SignedOut) return error;
+  return new ApiError(error.status, ApiErrorCode.AdminSignedOut, endpoint);
+}
+
 /** True for an error that means "not signed in as an admin": retrying cannot fix it. */
 export function isAuthError(error: unknown): boolean {
   return error instanceof ApiError && (error.status === UNAUTHORIZED || error.status === FORBIDDEN);
@@ -45,7 +52,7 @@ export function isAuthError(error: unknown): boolean {
 async function getJson<T>(path: string): Promise<T> {
   let res = await send(path);
   if (res.status === UNAUTHORIZED && (await refreshOnce())) res = await send(path);
-  if (!res.ok) throw await apiErrorFrom(res, `GET /admin${path.split("?")[0]}`);
+  if (!res.ok) throw await adminErrorFrom(res, `GET /admin${path.split("?")[0]}`);
   return res.json();
 }
 
@@ -61,11 +68,11 @@ export async function signIn(email: string, password: string): Promise<AdminIden
     headers: { "Content-Type": "application/json", ...ADMIN_HEADER },
     body: JSON.stringify({ email, password }),
   });
-  if (!res.ok) throw await apiErrorFrom(res, "POST /admin/session");
+  if (!res.ok) throw await adminErrorFrom(res, "POST /admin/session");
   return res.json();
 }
 
 export async function signOut(): Promise<void> {
   const res = await send("/session", { method: "DELETE", headers: ADMIN_HEADER });
-  if (!res.ok) throw await apiErrorFrom(res, "DELETE /admin/session");
+  if (!res.ok) throw await adminErrorFrom(res, "DELETE /admin/session");
 }
