@@ -33,6 +33,10 @@ The agent has no token of its own outside dev: a deployed environment refuses to
   TEST_DATABASE_URL=postgresql://postgres:test@127.0.0.1:55491/postgres ../.venv/bin/pytest -q tests/test_database.py
   ```
 
+CI's `listener` job starts Presidio with `infra/start-presidio.sh` (the same compose services, analyzer first,
+one restart if it does not answer within two minutes, its logs on failure) and runs the masking recall gate
+against it.
+
 ## Configuration
 
 Every setting is in the repo-root [`.env.example`](../.env.example), with what it does. Images read
