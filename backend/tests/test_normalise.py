@@ -69,11 +69,10 @@ def test_dates_resolve_regardless_of_how_they_are_written(text, expected):
     assert list(dates_in(text, NOW)) == [expected]
 
 
-def test_an_ambiguous_slash_date_follows_the_configured_order(monkeypatch):
-    monkeypatch.setenv("DATE_ORDER", "DMY")
-    assert slash_date(5, 9, 2026) == date(2026, 9, 5)
-    monkeypatch.setenv("DATE_ORDER", "MDY")
-    assert slash_date(5, 9, 2026) == date(2026, 5, 9)
+@pytest.mark.parametrize(("order", "expected"), [("DMY", date(2026, 9, 5)), ("MDY", date(2026, 5, 9))])
+def test_an_ambiguous_slash_date_follows_the_configured_order(monkeypatch, order, expected):
+    monkeypatch.setenv("DATE_ORDER", order)
+    assert slash_date(5, 9, 2026) == expected
 
 
 def test_an_unknown_date_order_falls_back_to_day_first(monkeypatch):

@@ -10,15 +10,8 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import gemini_client
-from gemini_client import (
-    CircuitBreaker,
-    GeminiError,
-    GeminiErrorCode,
-    deadline,
-    gemini_payload,
-    generate,
-    models_in_order,
-)
+from gemini_client import CircuitBreaker, gemini_payload, generate, models_in_order
+from model_runtime import ModelError, ModelErrorCode, deadline, track_calls
 
 PRIMARY = "primary-model"
 FALLBACK = "fallback-model"
@@ -91,9 +84,9 @@ BAD_INPUT = {"error": {"status": "INVALID_ARGUMENT", "message": "invalid argumen
 def test_a_client_error_is_not_retried(monkeypatch):
     monkeypatch.setenv("GEMINI_FALLBACK_MODEL", "")
     asked = route(monkeypatch, lambda model: httpx.Response(400, json=BAD_INPUT))
-    with pytest.raises(GeminiError) as caught:
+    with pytest.raises(ModelError) as caught:
         run(generate("hi"))
-    assert caught.value.code == GeminiErrorCode.REJECTED
+    assert caught.value.code == ModelErrorCode.REJECTED
     assert asked == [PRIMARY]
 
 
@@ -106,16 +99,16 @@ def test_a_rate_limit_is_retried_on_the_same_model(monkeypatch):
 
 def test_a_truncated_reply_is_refused_not_passed_off_as_whole(monkeypatch):
     route(monkeypatch, lambda model: httpx.Response(200, json=reply("half a sen", "MAX_TOKENS")))
-    with pytest.raises(GeminiError) as caught:
+    with pytest.raises(ModelError) as caught:
         run(generate("hi", max_output_tokens=5))
-    assert caught.value.code == GeminiErrorCode.OUTPUT_TRUNCATED
+    assert caught.value.code == ModelErrorCode.OUTPUT_TRUNCATED
 
 
 def test_a_blocked_reply_is_a_typed_error(monkeypatch):
     route(monkeypatch, lambda model: httpx.Response(200, json={"candidates": []}))
-    with pytest.raises(GeminiError) as caught:
+    with pytest.raises(ModelError) as caught:
         run(generate("hi"))
-    assert caught.value.code == GeminiErrorCode.NO_CANDIDATE
+    assert caught.value.code == ModelErrorCode.NO_CANDIDATE
 
 
 def test_schema_reply_comes_back_parsed(monkeypatch):
@@ -130,9 +123,9 @@ def test_a_spent_deadline_stops_before_calling(monkeypatch):
         with deadline(0):
             await generate("hi")
 
-    with pytest.raises(GeminiError) as caught:
+    with pytest.raises(ModelError) as caught:
         run(late())
-    assert caught.value.code == GeminiErrorCode.DEADLINE_EXCEEDED
+    assert caught.value.code == ModelErrorCode.DEADLINE_EXCEEDED
     assert asked == []
 
 
@@ -175,7 +168,7 @@ def test_every_attempt_is_tracked_with_its_outcome(monkeypatch):
     route(monkeypatch, lambda model: next(answers))
 
     async def tracked() -> list[dict]:
-        with gemini_client.track_calls() as calls:
+        with track_calls() as calls:
             await generate("hi")
         return calls
 
@@ -194,9 +187,9 @@ def test_a_long_retry_after_moves_to_the_fallback_instead_of_waiting(monkeypatch
 def test_a_rejected_request_does_not_open_the_breaker_or_try_the_fallback(monkeypatch):
     asked = route(monkeypatch, lambda model: httpx.Response(400, json=BAD_INPUT))
     for _ in range(gemini_client.BREAKER_THRESHOLD + 1):
-        with pytest.raises(GeminiError) as caught:
+        with pytest.raises(ModelError) as caught:
             run(generate("hi"))
-        assert caught.value.code == GeminiErrorCode.REJECTED
+        assert caught.value.code == ModelErrorCode.REJECTED
     assert not gemini_client.breaker_for(PRIMARY).is_open()
     assert FALLBACK not in asked
 
@@ -208,9 +201,9 @@ def test_a_rejected_request_does_not_open_the_breaker_or_try_the_fallback(monkey
 ])
 def test_a_blocked_or_empty_reply_never_passes_as_text(monkeypatch, candidate):
     route(monkeypatch, lambda model: httpx.Response(200, json={"candidates": [candidate]}))
-    with pytest.raises(GeminiError) as caught:
+    with pytest.raises(ModelError) as caught:
         run(generate("hi"))
-    assert caught.value.code == GeminiErrorCode.NO_CANDIDATE
+    assert caught.value.code == ModelErrorCode.NO_CANDIDATE
 
 
 def test_a_hung_attempt_is_cut_at_the_deadline(monkeypatch):
@@ -225,9 +218,9 @@ def test_a_hung_attempt_is_cut_at_the_deadline(monkeypatch):
         with deadline(0.2):
             await generate("hi")
 
-    with pytest.raises(GeminiError) as caught:
+    with pytest.raises(ModelError) as caught:
         run(bounded())
-    assert caught.value.code in (GeminiErrorCode.DEADLINE_EXCEEDED, GeminiErrorCode.UNAVAILABLE)
+    assert caught.value.code in (ModelErrorCode.DEADLINE_EXCEEDED, ModelErrorCode.UNAVAILABLE)
 
 
 @pytest.mark.parametrize("body, expected", [
@@ -245,6 +238,6 @@ def test_a_bad_api_key_is_unavailable_not_rejected(monkeypatch):
     monkeypatch.setenv("GEMINI_FALLBACK_MODEL", "")
     bad_key = {"error": {"status": "INVALID_ARGUMENT", "details": [{"reason": "API_KEY_INVALID"}]}}
     route(monkeypatch, lambda model: httpx.Response(400, json=bad_key))
-    with pytest.raises(GeminiError) as caught:
+    with pytest.raises(ModelError) as caught:
         run(generate("hi"))
-    assert caught.value.code == GeminiErrorCode.UNAVAILABLE
+    assert caught.value.code == ModelErrorCode.UNAVAILABLE

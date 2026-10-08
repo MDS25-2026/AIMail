@@ -19,7 +19,9 @@ from email_agent import (
     unaddressed_requests,
     unsupported_specifics,
 )
-from gemini_client import GeminiError, GeminiErrorCode
+from gemini_client import ModelError, ModelErrorCode
+from tests.conftest import agent_client
+from tests.drafting import candidate, context
 
 
 @pytest.mark.parametrize("raw, expected", [
@@ -58,29 +60,28 @@ def test_unreachable_scanner_is_not_a_clean_bill(findings, expected):
 
 
 def test_clean_draft_needs_no_review():
-    assert build_review_reasons({"grounding_ok": True, "completeness": True}, 0.95, 0, []) == []
+    assert build_review_reasons(candidate(confidence=0.95), 0) == []
 
 
 def test_tone_alone_never_triggers_review():
     """Style is advisory: a correct, PII-clean, complete draft is not blocked on register."""
-    reasons = build_review_reasons(
-        {"grounding_ok": True, "completeness": True, "tone_match": False}, 1.0, 0, [])
+    reasons = build_review_reasons(candidate(confidence=1.0, tone_match=False), 0)
     assert reasons == []
 
 
 def test_a_refined_draft_always_reaches_a_human():
-    reasons = build_review_reasons({"grounding_ok": True, "completeness": True}, 1.0, 1, [])
+    reasons = build_review_reasons(candidate(confidence=1.0), 1)
     assert any("refine" in r for r in reasons)
 
 
 def test_pii_finding_triggers_review_even_at_full_confidence():
-    reasons = build_review_reasons({"grounding_ok": True, "completeness": True}, 1.0, 0, ["MY_NRIC"])
+    reasons = build_review_reasons(candidate(pii=["MY_NRIC"], confidence=1.0), 0)
     assert any("pii" in r for r in reasons)
 
 
 def test_failed_grounding_triggers_review_even_at_full_confidence():
     """The gate the old code could never reach: high self-reported score, failed real check."""
-    reasons = build_review_reasons({"grounding_ok": False, "completeness": True}, 1.0, 0, [])
+    reasons = build_review_reasons(candidate(grounding_ok=False, confidence=1.0), 0)
     assert any("grounding" in r for r in reasons)
 
 
@@ -123,7 +124,7 @@ def test_single_digits_are_prose_not_facts():
 
 
 def test_unsupported_figures_reach_the_reviewer():
-    reasons = build_review_reasons({"grounding_ok": True, "completeness": True}, 1.0, 0, [], ["60"])
+    reasons = build_review_reasons(candidate(specifics=["60"], confidence=1.0), 0)
     assert any("not in source" in r for r in reasons)
 
 
@@ -131,29 +132,27 @@ ITEMS = ["Confirm the licence count", "Refund the difference", "Send the correct
 
 
 def test_unaddressed_indices_map_back_to_request_text():
-    assert unaddressed_requests({"unaddressed_items": [2]}, ITEMS) == ["Refund the difference"]
+    assert unaddressed_requests([2], ITEMS) == ["Refund the difference"]
 
 
-@pytest.mark.parametrize("indices", [[0], [4], [-1], ["2"], [None]])
+@pytest.mark.parametrize("indices", [[0], [4], [-1]])
 def test_out_of_range_indices_are_dropped_not_trusted(indices):
     """A hostile email reaches the critic's prompt, so its indices are not trusted either."""
-    assert unaddressed_requests({"unaddressed_items": indices}, ITEMS) == []
+    assert unaddressed_requests(indices, ITEMS) == []
 
 
 def test_no_unaddressed_items_is_clean():
-    assert unaddressed_requests({"unaddressed_items": []}, ITEMS) == []
-    assert unaddressed_requests({}, ITEMS) == []
+    assert unaddressed_requests([], ITEMS) == []
 
 
 def test_unaddressed_requests_are_named_in_the_review_reason():
     """'Incomplete' is not actionable; 'did not address X' is."""
-    reasons = build_review_reasons({"grounding_ok": True}, 1.0, 0, [], [],
-                                   ["Refund the difference"])
+    reasons = build_review_reasons(candidate(unaddressed=["Refund the difference"], confidence=1.0), 0)
     assert any("Refund the difference" in r for r in reasons)
 
 
 def test_boolean_completeness_still_used_when_nothing_was_extracted():
-    reasons = build_review_reasons({"grounding_ok": True, "completeness": False}, 1.0, 0, [], [], [])
+    reasons = build_review_reasons(candidate(completeness=False, confidence=1.0), 0)
     assert any("everything asked" in r for r in reasons)
 
 
@@ -212,16 +211,16 @@ def test_action_items_drop_blank_and_non_text_entries(monkeypatch):
 
 
 @pytest.mark.parametrize("code, status", [
-    (GeminiErrorCode.DEADLINE_EXCEEDED, 504),
-    (GeminiErrorCode.UNAVAILABLE, 503),
+    (ModelErrorCode.DEADLINE_EXCEEDED, 504),
+    (ModelErrorCode.UNAVAILABLE, 503),
 ])
 def test_a_gemini_failure_reaches_the_caller_as_a_coded_status(monkeypatch, code, status):
     async def failing(*_args, **_kwargs):
-        raise GeminiError(code, "test")
+        raise ModelError(code, "test")
 
     monkeypatch.setattr(email_agent, "call_gemini", failing)
-    response = TestClient(email_agent.app).post("/process-email", json={
-        "thread_context": "", "email_body": "Hi", "rag_context": ""})
+    response = agent_client().post("/process-email", json={
+        "thread_context": "", "email_body": "Hi", "rag_context": "", "provider": "gemini"})
     assert response.status_code == status
     assert response.json()["detail"] == code
 
@@ -239,11 +238,12 @@ def test_phishing_needs_a_credential_ask_beside_a_link(body, expected):
 
 
 def _request(rag_context: str = "Refunds take 14 days.") -> email_agent.ProcessEmailRequest:
-    return email_agent.ProcessEmailRequest(thread_context="", email_body="Hi", rag_context=rag_context)
+    return email_agent.ProcessEmailRequest(thread_context="", email_body="Hi", rag_context=rag_context,
+                                       provider="gemini")
 
 
 def test_an_ungrounded_reply_is_a_review_reason():
-    reasons = email_agent.input_reasons(_request(rag_context="  "), False)
+    reasons = email_agent.input_reasons("Hi", "  ")
     assert any("not grounded" in reason for reason in reasons)
 
 
@@ -278,14 +278,14 @@ def test_an_unfaithful_translation_is_refused_with_422(monkeypatch):
         return {"translation": "Kepada Ali, invois RM 99 perlu dibayar."}
 
     monkeypatch.setattr(email_agent, "call_gemini", fake)
-    response = TestClient(email_agent.app).post(
-        "/translate", json={"text": TRANSLATE_SOURCE, "language": "ms"})
+    response = agent_client().post(
+        "/translate", json={"text": TRANSLATE_SOURCE, "language": "ms", "provider": "gemini"})
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "translation_unfaithful"
 
 
 def test_an_unsupported_language_is_rejected_before_any_call():
-    response = TestClient(email_agent.app).post("/translate", json={"text": "hi", "language": "fr"})
+    response = agent_client().post("/translate", json={"text": "hi", "language": "fr", "provider": "gemini"})
     assert response.status_code == 422
 
 
@@ -322,9 +322,9 @@ def test_a_critic_reply_that_is_not_an_object_is_a_typed_error(monkeypatch):
         return ["not", "an", "object"]
 
     monkeypatch.setattr(email_agent, "call_gemini", fake)
-    with pytest.raises(GeminiError) as caught:
-        asyncio.run(email_agent.evaluate_reply("", "", "Hi", "Draft", "professional"))
-    assert caught.value.code == GeminiErrorCode.MALFORMED_JSON
+    with pytest.raises(ModelError) as caught:
+        asyncio.run(email_agent.evaluate_reply(context(), "Draft"))
+    assert caught.value.code == ModelErrorCode.MALFORMED_JSON
 
 
 @pytest.mark.parametrize("draft, expected", [
@@ -344,17 +344,17 @@ def test_a_bare_domain_link_counts_for_phishing():
 
 
 @pytest.mark.parametrize("code, status", [
-    (GeminiErrorCode.OUTPUT_TRUNCATED, 422),
-    (GeminiErrorCode.NO_CANDIDATE, 422),
-    (GeminiErrorCode.REJECTED, 422),
+    (ModelErrorCode.OUTPUT_TRUNCATED, 422),
+    (ModelErrorCode.NO_CANDIDATE, 422),
+    (ModelErrorCode.REJECTED, 422),
 ])
 def test_a_content_failure_is_not_worth_retrying(monkeypatch, code, status):
     async def failing(*_args, **_kwargs):
-        raise GeminiError(code, "test")
+        raise ModelError(code, "test")
 
     monkeypatch.setattr(email_agent, "call_gemini", failing)
-    response = TestClient(email_agent.app).post("/process-email", json={
-        "thread_context": "", "email_body": "Hi", "rag_context": ""})
+    response = agent_client().post("/process-email", json={
+        "thread_context": "", "email_body": "Hi", "rag_context": "", "provider": "gemini"})
     assert response.status_code == status
 
 
@@ -366,3 +366,10 @@ def test_a_changed_figure_after_another_number_is_caught_in_translation():
 
 def test_a_correct_figure_after_another_number_is_supported():
     assert unsupported_specifics("We will ship the 500 kg today.", "Invoice 12345 500 kg please") == []
+
+
+def test_the_agent_refuses_a_caller_without_the_service_token(monkeypatch):
+
+    agent_client()  # configures the token
+    response = TestClient(email_agent.app).post("/translate", json={"text": "Hi", "language": "ms"})
+    assert response.status_code == 403

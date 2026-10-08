@@ -3,6 +3,7 @@
 import pytest
 
 from app import dashboard
+from app.core.errors import ErrorCode
 from app.plain_text import plain_text
 from tests.conftest import AUTH_HEADERS as AUTH
 
@@ -28,12 +29,12 @@ def test_a_bad_id_is_404(api_client, monkeypatch):
 
 def test_an_unfaithful_translation_surfaces_as_422_with_its_code(api_client, monkeypatch):
     async def refused(message_id: str, language: str, *, scope):
-        raise dashboard.TranslationError("translation_unfaithful", 422)
+        raise dashboard.TranslationError(ErrorCode.TRANSLATION_UNFAITHFUL)
 
     monkeypatch.setattr("app.main.translate_email", refused)
     response = api_client.post("/emails/x/translate", json={"language": "ms"}, headers=AUTH)
     assert response.status_code == 422
-    assert response.json()["detail"] == "translation_unfaithful"
+    assert response.json()["error"]["code"] == "translation_unfaithful"
 
 
 @pytest.fixture(autouse=True)

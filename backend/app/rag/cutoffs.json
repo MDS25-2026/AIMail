@@ -1,0 +1,14 @@
+{
+  "gemini": {
+    "cutoff": 0.92,
+    "model": "gemini-embedding-001/retrieval-task",
+    "eval_set": "retrieval/v0",
+    "calibrated_on": "2026-10-08"
+  },
+  "local": {
+    "cutoff": 0.88,
+    "model": "embeddinggemma/search-prompts",
+    "eval_set": "retrieval/v1",
+    "calibrated_on": "2026-10-08"
+  }
+}

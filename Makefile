@@ -4,12 +4,24 @@
 VENV := .venv/bin
 .DEFAULT_GOAL := help
 
-.PHONY: help check test lint typecheck hooks dev backend agent web test-reader migrate seed ingest eval eval-reform baseline backfill generate ml-deps distilbert eval-classifier label eval-critic latency extension
+.PHONY: help api-types api-types-check check test lint typecheck hooks dev backend worker agent web test-reader migrate seed ingest eval eval-reform baseline backfill generate ml-deps distilbert eval-classifier label eval-critic latency extension
 
 help:  ## list targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  make %-12s %s\n", $$1, $$2}'
 
-check: test lint typecheck  ## backend tests + ruff; dashboard typecheck, eslint, unit tests, palette check
+check: test lint typecheck api-types-check  ## backend tests + ruff; dashboard typecheck, eslint, unit tests, palette check; API types fresh
+
+DASHBOARD := frontend/frontend/mail-clarity-dash-main
+OPENAPI := backend/.openapi.json
+
+api-types:  ## regenerate the dashboard's API types from the backend's OpenAPI schema
+	cd backend && ../$(VENV)/python scripts/dump_openapi.py .openapi.json
+	cd $(DASHBOARD) && npx openapi-typescript ../../../$(OPENAPI) -o src/lib/api/schema.gen.ts
+
+api-types-check:  ## fail when the dashboard's API types no longer match the backend
+	cd backend && ../$(VENV)/python scripts/dump_openapi.py .openapi.json
+	cd $(DASHBOARD) && npx openapi-typescript ../../../$(OPENAPI) -o ../../../backend/.schema.check.ts
+	diff -q backend/.schema.check.ts $(DASHBOARD)/src/lib/api/schema.gen.ts || (echo "API types are stale: run make api-types" && exit 1)
 
 hooks:  ## install git hooks (pre-push runs 'make check')
 	git config core.hooksPath .githooks
@@ -19,7 +31,7 @@ test:  ## backend unit tests
 	cd backend && ../$(VENV)/pytest -q
 
 lint:  ## backend lint
-	cd backend && ../$(VENV)/ruff check app tests scripts email_agent.py gemini_client.py
+	cd backend && ../$(VENV)/ruff check app tests scripts *.py
 
 typecheck:  ## dashboard typecheck, palette contrast/colour-blind checks, lint and unit tests
 	cd frontend/frontend/mail-clarity-dash-main && npx tsc --noEmit
@@ -34,6 +46,9 @@ dev:  ## run ALL services (backend, agent, web, listener) in one terminal; Ctrl+
 backend:  ## run the backend API on :8000 (frees the port first so restarts never clash)
 	-fuser -k 8000/tcp 2>/dev/null
 	cd backend && ../$(VENV)/uvicorn app.main:app --reload --no-access-log
+
+worker:  ## run every background job (drafting, embedding, holding replies, retention, reconciliation)
+	cd backend && ../$(VENV)/python -m app.worker
 
 agent:  ## run the Lane C email agent on :8001 (localhost-only; frees the port first)
 	-fuser -k 8001/tcp 2>/dev/null
@@ -51,31 +66,8 @@ test-reader:  ## attachment reader tests, inside its image against the real OCR 
 	docker build -q -t aimail-attachment-reader:test listener/attachment-reader
 	docker run --rm --user root --entrypoint sh aimail-attachment-reader:test -c 'pip install -q pytest && python -m pytest -q -p no:warnings tests'
 
-migrate:  ## create all tables; run BEFORE starting a newer listener (it writes masking_status)
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0001_rag_tables.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0002_messages.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0003_messages_unique.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0004_message_generation.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0005_message_sent.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0006_message_read.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0007_personalisation.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0008_critic_attempts.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0009_thread_identity.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0010_critic_checks.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0011_rag_sources.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0012_masking_status.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0013_masking_attempts.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0014_generation_attempts_reply_to.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0015_enable_rls.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0016_mailbox_connection.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0017_owner_scoping.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0018_pii_vault.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0019_holding_reply.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0020_writing_style.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0021_needs_reconnect.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0022_private_mode.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0023_local_embedding.sql
-	cd backend && ../$(VENV)/python scripts/apply_migration.py app/db/migrations/0024_sender_auth_and_audit_chain.sql
+migrate:  ## apply every pending migration in order (schema_migrations records what ran)
+	cd backend && ../$(VENV)/python scripts/migrate.py
 
 seed:  ## load sample policy chunks
 	cd backend && ../$(VENV)/python scripts/seed_demo.py
@@ -83,11 +75,15 @@ seed:  ## load sample policy chunks
 ingest:  ## ingest a policy PDF: make ingest PDF=path.pdf TITLE="Name"
 	cd backend && ../$(VENV)/python scripts/ingest.py "$(PDF)" "$(TITLE)"
 
-eval:  ## retrieval eval, S3 baseline
-	cd backend && ../$(VENV)/python scripts/eval_retrieval.py scripts/eval_set.json
+SET ?= eval/retrieval/v0.json
+eval:  ## retrieval eval at today's cutoff: make eval [SET=eval/retrieval/v1.json OWNER=<uuid> PROVIDER=local]
+	cd backend && ../$(VENV)/python scripts/eval_retrieval.py --set $(SET) $(if $(OWNER),--owner $(OWNER)) $(if $(PROVIDER),--provider $(PROVIDER))
 
-eval-reform:  ## retrieval eval with query reformulation (S5)
-	cd backend && ../$(VENV)/python scripts/eval_retrieval.py scripts/eval_set.json --reformulate
+eval-reform:  ## retrieval eval with query reformulation (S5), same options as eval
+	cd backend && ../$(VENV)/python scripts/eval_retrieval.py --set $(SET) $(if $(OWNER),--owner $(OWNER)) $(if $(PROVIDER),--provider $(PROVIDER)) --reformulate
+
+calibrate:  ## re-measure the retrieval cutoff and record it, same options as eval
+	cd backend && ../$(VENV)/python scripts/eval_retrieval.py --set $(SET) $(if $(OWNER),--owner $(OWNER)) $(if $(PROVIDER),--provider $(PROVIDER)) --calibrate
 
 TEXT ?= text
 LABEL ?= label

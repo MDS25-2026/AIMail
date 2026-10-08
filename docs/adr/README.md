@@ -46,13 +46,17 @@ Each ADR follows the structure used by ADRs 0001 onward:
 
 | #    | Title                                                                          | Status                              |
 |------|--------------------------------------------------------------------------------|-------------------------------------|
-| 0001 | [No Chrome extension for AImail v1](0001-no-chrome-extension.md)               | Accepted                            |
+| 0001 | [No Chrome extension for AImail v1](0001-no-chrome-extension.md)               | Accepted; 0003 proposes to supersede it |
 | 0002 | [Orchestration framework choice (LangChain vs. direct SDK)](0002-orchestration-framework.md) | Accepted                            |
-| 0004 | [Admin console behind Supabase Auth, tokens in HttpOnly cookies](0004-admin-console-supabase-auth.md) | Accepted (0003 is reserved for the extension ADR, #92) |
+| 0003 | [Mail is ingested server-side only; a Gmail side panel may show it, read-only](0003-server-side-ingestion-with-a-read-only-panel.md) | Proposed (the extension ADR, #92) |
+| 0004 | [Admin console behind Supabase Auth, tokens in HttpOnly cookies](0004-admin-console-supabase-auth.md) | Accepted |
+| 0005 | [Dashboard sign-in with Google through Supabase](0005-dashboard-google-sign-in.md) | Accepted |
+| 0006 | [Restorable masking: numbered placeholders with an encrypted vault](0006-restorable-masking.md) | Accepted by the owner 2026-10-05 |
+| 0007 | [The dashboard and the API are served from one site](0007-one-site-for-the-dashboard-and-api.md) | Proposed |
 
 ## Numbering
 
-ADRs are numbered sequentially in **decision order**, not insertion order. The next ADR is `0003-*.md`. Don't reuse numbers, even for rejected ADRs.
+ADRs are numbered sequentially in **decision order**, not insertion order. The next ADR is `0008-*.md`. Don't reuse numbers, even for rejected ADRs.
 
 ## Cross-references
 

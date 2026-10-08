@@ -1,26 +1,24 @@
 """Settings > Private mode. Per signed-in user only."""
 
-from enum import StrEnum
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Request
 from pydantic import BaseModel
-from sqlalchemy import func, update
+from sqlalchemy import Delete, delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 
 from app.account_routes import account_user_id
-from app.audit import audit
+from app.audit import AuditAction, audit
 from app.core.config import get_settings
-from app.db.models import Message, UserPreferences
+from app.core.errors import DomainError, ErrorCode
+from app.core.providers import Provider
+from app.db.models import Chunk, Document, Embedding, Message, UserPreferences
 from app.db.session import get_sessionmaker
-from app.private_mode import DraftProvider, is_offered, provider_for
+from app.private_mode import is_offered, provider_for
 from app.rag.local_embed import local_model
 
 router = APIRouter()
 
-
-class PrivateModeError(StrEnum):
-    UNAVAILABLE = "private_mode_unavailable"
 
 
 class PrivateModeView(BaseModel):
@@ -35,7 +33,7 @@ class PrivateModeBody(BaseModel):
     enabled: bool
 
 
-async def _save_choice(user_id: UUID, provider: DraftProvider) -> None:
+async def _save_choice(user_id: UUID, provider: Provider) -> None:
     statement = insert(UserPreferences).values(user_id=user_id, draft_provider=provider)
     async with get_sessionmaker()() as session, session.begin():
         await session.execute(statement.on_conflict_do_update(
@@ -44,11 +42,22 @@ async def _save_choice(user_id: UUID, provider: DraftProvider) -> None:
         # with the new choice, instead of staying undrafted for good.
         await session.execute(update(Message).where(Message.user_id == user_id, Message.generated_at.is_(None))
                               .values(generation_attempts=0))
+        if provider == Provider.LOCAL:
+            await session.execute(_forget_cloud_vectors(user_id))
+
+
+def _forget_cloud_vectors(user_id: UUID) -> Delete:
+    """Gemini vectors of this user's documents: kept, they would let a cloud search still find them.
+
+    Switching back re-embeds them in the background (app/rag/ingest.py).
+    """
+    owned_chunks = select(Chunk.id).join(Document, Document.id == Chunk.document_id).where(Document.user_id == user_id)
+    return delete(Embedding).where(Embedding.chunk_id.in_(owned_chunks))
 
 
 async def _view(request: Request) -> PrivateModeView:
     provider = await provider_for(account_user_id(request))
-    return PrivateModeView(available=is_offered(), enabled=provider == DraftProvider.LOCAL,
+    return PrivateModeView(available=is_offered(), enabled=provider == Provider.LOCAL,
                            model=get_settings().local_llm_model, search=bool(local_model()))
 
 
@@ -62,7 +71,7 @@ async def put_private_mode(body: PrivateModeBody, request: Request) -> PrivateMo
     user_id = account_user_id(request)
     # Switching off is always allowed: it must never be stuck on a model the company removed.
     if body.enabled and not is_offered():
-        raise HTTPException(status.HTTP_409_CONFLICT, PrivateModeError.UNAVAILABLE)
-    await _save_choice(user_id, DraftProvider.LOCAL if body.enabled else DraftProvider.GEMINI)
-    await audit("private_mode", f"user={user_id} enabled={body.enabled}", user_id=user_id)
+        raise DomainError(ErrorCode.PRIVATE_MODE_UNAVAILABLE)
+    await _save_choice(user_id, Provider.LOCAL if body.enabled else Provider.GEMINI)
+    await audit(AuditAction.PRIVATE_MODE, user_id=user_id, enabled=body.enabled)
     return await _view(request)

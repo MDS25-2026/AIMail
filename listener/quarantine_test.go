@@ -14,8 +14,8 @@ import (
 )
 
 func TestAQuarantinedRowCarriesNoContent(t *testing.T) {
-	row := QuarantinedMessage{GmailMessageID: "m1", FromAddr: "a@b.c", ReceivedAt: time.Now(),
-		MaskingStatus: maskingPending}
+	row := QuarantinedMessage{GmailMessageID: "m1", MaskingStatus: maskingPending,
+		SenderFacts: SenderFacts{FromAddr: "a@b.c", ReceivedAt: time.Now()}}
 	encoded, _ := json.Marshal(row)
 	for _, column := range []string{"subject", "body_masked", "snippet_masked"} {
 		if strings.Contains(string(encoded), column) {

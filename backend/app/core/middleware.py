@@ -11,8 +11,9 @@ import time
 import uuid
 from collections.abc import Awaitable, Callable
 
-from fastapi import Request, Response
+from fastapi import Request, Response, status
 
+from app.core.health import HEALTH_PATHS
 from app.core.logging_setup import request_id
 
 logger = logging.getLogger("app.request")
@@ -64,8 +65,10 @@ async def request_context(
         response = await call_next(request)
         apply_security_headers(response, request.url.path)
         response.headers[REQUEST_ID_HEADER] = request_id.get()
-        logger.info("%s %s -> %d in %.0f ms", request.method, printable(request.url.path),
-                    response.status_code, (time.perf_counter() - started) * 1000)
+        # A host probes every few seconds; only a failing probe is worth a line at INFO.
+        is_quiet = request.url.path in HEALTH_PATHS and response.status_code < status.HTTP_400_BAD_REQUEST
+        logger.log(logging.DEBUG if is_quiet else logging.INFO, "%s %s -> %d in %.0f ms", request.method,
+                   printable(request.url.path), response.status_code, (time.perf_counter() - started) * 1000)
         return response
     finally:
         request_id.reset(token)

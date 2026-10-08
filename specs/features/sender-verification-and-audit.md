@@ -49,6 +49,19 @@ each user a record of what AIMail did for them that shows when a record was chan
       rolled-back transaction).
 - [x] Given two users, then each sees only their own audit rows.
 
+## Ledger rules (2026-10-08, migration 0025)
+
+- **Append-only:** a trigger refuses UPDATE and DELETE on `audit_log`, for every role.
+- **No foreign key under the hash:** `user_id` stays, opaque, after an account is deleted, so deletion no
+  longer rewrites rows or breaks the chain, and the deletion's own row is written.
+- **Structured:** `detail` is compact JSON of fields from one action list (`app/audit.py`, `AuditAction`;
+  the listener uses the same names). The API returns it parsed as `fields`.
+- **Same transaction where it matters:** a send's row and a sender confirmation's row commit with the
+  change they record (`record(session, ...)`); other rows are written on their own and a failed write is
+  logged.
+- **Three states:** each row is `verified`, `tampered` or `unverifiable` (written before the chain);
+  unverifiable is never shown as verified.
+
 ## Limitations (say these on the poster too)
 
 - Anyone with full database rights can rebuild the whole chain. Recording the head hash outside

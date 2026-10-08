@@ -8,7 +8,10 @@ import httpx
 import numpy as np
 
 from app.core.config import get_settings
-from app.rag.embed import EmbeddingError, l2_normalize
+from app.core.providers import Provider
+from app.rag.embed import l2_normalize
+from app.rag.embedding_models import checked
+from app.rag.errors import EmbeddingError
 
 EMBED_PATH = "/api/embed"
 EMBED_TIMEOUT_SECONDS = 60
@@ -37,7 +40,7 @@ async def _embed(texts: list[str]) -> list[list[float]]:
         raw = np.array(response.json()["embeddings"], dtype=np.float32)
     except (httpx.HTTPError, KeyError, ValueError) as exc:
         raise EmbeddingError(f"could not reach the local embedding model at {url}") from exc
-    return l2_normalize(raw).tolist()
+    return checked(l2_normalize(raw).tolist(), Provider.LOCAL, local_model())
 
 
 async def embed_documents_locally(texts: list[str]) -> list[list[float]]:

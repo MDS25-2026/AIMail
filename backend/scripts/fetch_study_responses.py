@@ -14,16 +14,14 @@ Usage (from backend/):
 
 import argparse
 import csv
-import os
 import sys
 from pathlib import Path
 
 import httpx
-from dotenv import load_dotenv
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-load_dotenv()
+from app.core.config import get_settings
 
 TABLE = "study_responses"
 
@@ -71,8 +69,8 @@ def main() -> None:
     parser.add_argument("--out", default="study_responses.csv")
     args = parser.parse_args()
 
-    url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_SERVICE_KEY")
+    url = get_settings().supabase_url
+    key = get_settings().supabase_service_key
     if not url or not key:
         raise SystemExit("SUPABASE_URL and SUPABASE_SERVICE_KEY must be set in .env")
 

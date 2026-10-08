@@ -26,6 +26,6 @@ export function splitAround(
   openedAt: string,
 ): { earlier: ThreadMessage[]; later: ThreadMessage[] } {
   const isEarlier = (message: ThreadMessage) =>
-    message.timestamp === null || message.timestamp <= openedAt;
+    message.timestamp == null || message.timestamp <= openedAt; // no date: assume it came first
   return { earlier: messages.filter(isEarlier), later: messages.filter((m) => !isEarlier(m)) };
 }

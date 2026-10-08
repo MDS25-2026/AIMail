@@ -3,11 +3,12 @@
 Moved from app/ml/temporal.py, which now imports it, so there is one reading of a date.
 """
 
-import os
 import re
 from collections.abc import Iterator
 from datetime import date
 from enum import StrEnum
+
+from app.core.config import get_settings
 
 
 class DateOrder(StrEnum):
@@ -39,7 +40,7 @@ _DAY_MONTH = re.compile(r"\b(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]{3,9})\.?(?:,?\
 
 def date_order() -> DateOrder:
     """From DATE_ORDER; anything unrecognised falls back to day first rather than failing."""
-    raw = os.getenv("DATE_ORDER", "").upper()
+    raw = get_settings().date_order.upper()
     return DateOrder(raw) if raw in DateOrder._value2member_map_ else DEFAULT_DATE_ORDER
 
 

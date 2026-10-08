@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.core.constants import EMBEDDING_TAG
 from app.core.ownership import LEGACY
+from app.core.providers import Provider
 from app.db.models import Chunk, Document, Embedding
 from app.db.session import get_sessionmaker
 from app.rag.embed import embed_documents
@@ -44,7 +45,8 @@ async def main() -> None:
         await session.flush()
         session.add(Embedding(chunk_id=chunk.id, embedding=vectors[0], model_name=EMBEDDING_TAG))
 
-    hits = await retrieve("How many days do I have to claim reimbursement?", k=1, scope=LEGACY)
+    hits = await retrieve("How many days do I have to claim reimbursement?", k=1, scope=LEGACY,
+                          provider=Provider.GEMINI)
     assert hits, "retrieve returned nothing"
     print(f"retrieve OK  score={hits[0]['similarity_score']:.4f}  title={hits[0]['source_title']}")
     assert hits[0]["similarity_score"] > 0.3, "semantically-related query scored too low"

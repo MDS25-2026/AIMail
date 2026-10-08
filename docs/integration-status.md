@@ -67,7 +67,7 @@ A real email flows Gmail -> mask -> shared Supabase -> retrieval -> draft -> das
 | 8 | Gmail watch renewal | A | The watch expires ~7 days and nothing renews it; restarting the listener re-arms it. |
 | 9 | PII masking refinement | A | **JiaJun is actively refining this — do not touch.** Regex tuning against Presidio, targeting the 80% floor. |
 | 10 | Drafts page | D | **Han is actively working on this — do not touch.** |
-| 11 | n8n | — | Not used — the backend sends via the Gmail API directly. The `n8n/` folder is scaffolding kept as evidence of the pivot. |
+| 11 | n8n | — | Not used — the backend sends via the Gmail API directly. Its scaffolding is archived in `legacy/n8n/` as evidence of the pivot. |
 
 ## What has been measured
 

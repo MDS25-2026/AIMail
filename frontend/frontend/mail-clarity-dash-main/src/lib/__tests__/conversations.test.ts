@@ -2,27 +2,10 @@ import { describe, expect, test } from "vitest";
 
 import { groupByThread, splitAround } from "../conversations";
 import type { Email, ThreadMessage } from "../../types/email";
+import { emailFixture } from "../../test/emailFixture";
 
 function email(id: string, threadId: string | null, isRead: boolean): Email {
-  return {
-    id,
-    threadId,
-    isRead,
-    sender: "a",
-    subject: "s",
-    preview: "p",
-    body: "b",
-    timestamp: "2026-10-05T00:00:00Z",
-    priority: "medium",
-    threadContext: [],
-    aiSummary: "",
-    actionItems: [],
-    draftReply: "",
-    tone: "professional",
-    sources: [],
-    piiMasked: false,
-    criticConfidence: 0,
-  };
+  return emailFixture({ id, threadId, isRead, timestamp: "2026-10-05T00:00:00Z" });
 }
 
 function message(timestamp: string | null, isOwnReply = false): ThreadMessage {

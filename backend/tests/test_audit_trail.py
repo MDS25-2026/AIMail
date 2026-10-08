@@ -66,9 +66,20 @@ def test_a_script_sees_every_row(api_client, audit_db):
     sql, _params = audit_db[-1]
     assert "WHERE a.user_id" not in sql
     body = response.json()
-    assert body["is_chain_intact"] is True and body["verified_records"] == 1 and body["head_hash"] == "a" * 64
+    assert body["isChainIntact"] is True and body["verifiedRecords"] == 1 and body["headHash"] == "a" * 64
 
 
 def test_the_chain_is_checked_for_gaps_and_links_not_only_each_rows_own_hash():
     sql = audit_routes._CHAIN
     assert "lag(current_hash)" in sql and "lag(chain_seq)" in sql and "audit_row_hash(" in sql
+
+
+@pytest.mark.parametrize(("is_valid", "verification"), [(True, "verified"), (False, "tampered"),
+                                                        (None, "unverifiable")])
+def test_a_row_that_could_not_be_checked_is_never_reported_as_verified(is_valid, verification):
+    assert audit_routes._verification(is_valid) == verification
+
+
+def test_structured_detail_is_returned_as_fields_and_old_prose_as_text():
+    assert audit_routes._fields('{"message":"m1","restored":2}') == {"message": "m1", "restored": 2}
+    assert audit_routes._fields("message=m1 restored=2") == {"text": "message=m1 restored=2"}

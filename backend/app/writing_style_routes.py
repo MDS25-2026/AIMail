@@ -1,17 +1,18 @@
 """The writing style card's routes (specs/features/writing-profile.md). Per signed-in user only."""
 
 from datetime import datetime
-from enum import StrEnum
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Request, Response, status
+from fastapi import APIRouter, Request, Response, status
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.sql.dml import ReturningDelete, ReturningUpdate
 
 from app.account_routes import account_user_id
-from app.audit import audit
+from app.audit import AuditAction, audit
+from app.core.errors import DomainError, ErrorCode
+from app.core.language import Language
 from app.db.models import Message, StyleExample, StyleHabit, WritingStyle
 from app.db.session import get_sessionmaker
 from app.past_replies import forget_replies
@@ -20,16 +21,12 @@ from app.writing_style import (
     MAX_EXAMPLE_CHARS,
     MAX_EXAMPLES,
     ExampleSource,
+    clip,
     mask_for_style,
 )
 
 router = APIRouter(prefix="/profile/writing")
 
-
-class StyleError(StrEnum):
-    TOO_MANY_EXAMPLES = "too_many_examples"
-    EMPTY = "empty"
-    NOT_FOUND = "not_found"
 
 
 class ExampleView(BaseModel):
@@ -45,6 +42,8 @@ class HabitView(BaseModel):
     value: str
     evidence: int
     outOf: int
+    # The language of the replies it was learned from; none for a habit learned before that was kept.
+    language: Language | None = None
 
 
 class WritingStyleView(BaseModel):
@@ -87,7 +86,8 @@ async def _view(user_id: UUID) -> WritingStyleView:
         description=style.description if style else "",
         learning=bool(style and style.learning_enabled),
         examples=[ExampleView(id=str(e.id), text=e.text, source=e.source, createdAt=e.created_at) for e in examples],
-        habits=[HabitView(id=str(h.id), kind=h.kind, value=h.value, evidence=h.evidence, outOf=h.out_of)
+        habits=[HabitView(id=str(h.id), kind=h.kind, value=h.value, evidence=h.evidence, outOf=h.out_of,
+                          language=h.language)
                 for h in habits],
     )
 
@@ -110,7 +110,7 @@ async def put_description(body: DescriptionBody, request: Request) -> WritingSty
     user_id = account_user_id(request)
     description = await mask_for_style(body.description) if body.description.strip() else ""
     await _save_style(user_id, description=description)
-    await audit("writing_style_description", f"user={user_id} chars={len(description)}", user_id=user_id)
+    await audit(AuditAction.WRITING_STYLE_DESCRIPTION, user_id=user_id, chars=len(description))
     return await _view(user_id)
 
 
@@ -118,7 +118,7 @@ async def put_description(body: DescriptionBody, request: Request) -> WritingSty
 async def put_learning(body: LearningBody, request: Request) -> WritingStyleView:
     user_id = account_user_id(request)
     await _save_style(user_id, learning_enabled=body.enabled)
-    await audit("writing_style_learning", f"user={user_id} enabled={body.enabled}", user_id=user_id)
+    await audit(AuditAction.WRITING_STYLE_LEARNING, user_id=user_id, enabled=body.enabled)
     return await _view(user_id)
 
 
@@ -127,7 +127,7 @@ async def _sent_text(user_id: UUID, email_id: UUID) -> str:
         text = await session.scalar(select(Message.draft_reply).where(
             Message.id == email_id, Message.user_id == user_id, Message.sent_at.is_not(None)))
     if not text:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, StyleError.NOT_FOUND)
+        raise DomainError(ErrorCode.NOT_FOUND)
     return text
 
 
@@ -137,24 +137,24 @@ async def add_example(body: ExampleBody, request: Request) -> WritingStyleView:
     source = ExampleSource.PASTED if body.text is not None else ExampleSource.SENT
     raw = body.text if body.emailId is None else await _sent_text(user_id, body.emailId)
     if not raw.strip():
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, StyleError.EMPTY)
-    text = (await mask_for_style(raw))[:MAX_EXAMPLE_CHARS]
+        raise DomainError(ErrorCode.EMPTY)
+    text = clip(await mask_for_style(raw), MAX_EXAMPLE_CHARS)
     async with get_sessionmaker()() as session, session.begin():
         count = await session.scalar(select(func.count(StyleExample.id)).where(StyleExample.user_id == user_id))
         if count >= MAX_EXAMPLES:
-            raise HTTPException(status.HTTP_409_CONFLICT, StyleError.TOO_MANY_EXAMPLES)
+            raise DomainError(ErrorCode.TOO_MANY_EXAMPLES)
         session.add(StyleExample(user_id=user_id, text=text, source=source))
-    await audit("writing_style_example_added", f"user={user_id} source={source}", user_id=user_id)
+    await audit(AuditAction.WRITING_STYLE_EXAMPLE_ADDED, user_id=user_id, source=source)
     return await _view(user_id)
 
 
-async def _delete_one(statement: ReturningDelete | ReturningUpdate, user_id: UUID, action: str,
+async def _delete_one(statement: ReturningDelete | ReturningUpdate, user_id: UUID, action: AuditAction,
                       item_id: UUID) -> Response:
     async with get_sessionmaker()() as session, session.begin():
         removed = await session.scalar(statement)
     if removed is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, StyleError.NOT_FOUND)
-    await audit(action, f"user={user_id} id={item_id}", user_id=user_id)
+        raise DomainError(ErrorCode.NOT_FOUND)
+    await audit(action, user_id=user_id, item=item_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -163,7 +163,7 @@ async def delete_example(example_id: UUID, request: Request) -> Response:
     user_id = account_user_id(request)
     statement = (delete(StyleExample).where(StyleExample.id == example_id, StyleExample.user_id == user_id)
                  .returning(StyleExample.id))
-    return await _delete_one(statement, user_id, "writing_style_deleted_example", example_id)
+    return await _delete_one(statement, user_id, AuditAction.WRITING_STYLE_EXAMPLE_DELETED, example_id)
 
 
 @router.delete("/habits/{habit_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -172,7 +172,7 @@ async def delete_habit(habit_id: UUID, request: Request) -> Response:
     user_id = account_user_id(request)
     statement = (update(StyleHabit).where(StyleHabit.id == habit_id, StyleHabit.user_id == user_id)
                  .values(suppressed=True).returning(StyleHabit.id))
-    return await _delete_one(statement, user_id, "writing_style_hid_habit", habit_id)
+    return await _delete_one(statement, user_id, AuditAction.WRITING_STYLE_HABIT_HIDDEN, habit_id)
 
 
 @router.delete("", status_code=status.HTTP_204_NO_CONTENT)
@@ -186,5 +186,5 @@ async def delete_everything(request: Request) -> Response:
         await session.execute(update(Message).where(Message.user_id == user_id, Message.edit_ratio.is_not(None))
                               .values(draft_shown=None, edit_ratio=None))
         await forget_replies(session, user_id)
-    await audit("writing_style_deleted", f"user={user_id}", user_id=user_id)
+    await audit(AuditAction.WRITING_STYLE_DELETED, user_id=user_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

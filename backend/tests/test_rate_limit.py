@@ -47,10 +47,8 @@ def test_the_quota_frees_up_once_the_window_passes(client, monkeypatch):
     assert client.post(UPLOAD_PATH, files=NOT_A_PDF, headers=AUTH).status_code == 429
 
     # Jump past the window instead of sleeping through it.
-    real_monotonic = ratelimit.time.monotonic
-    monkeypatch.setattr(
-        ratelimit.time, "monotonic", lambda: real_monotonic() + INGEST_RATE_WINDOW_SECONDS + 1
-    )
+    real_time = ratelimit.time.time
+    monkeypatch.setattr(ratelimit.time, "time", lambda: real_time() + INGEST_RATE_WINDOW_SECONDS + 1)
     assert client.post(UPLOAD_PATH, files=NOT_A_PDF, headers=AUTH).status_code == 400
 
 
@@ -59,3 +57,34 @@ def test_unauthenticated_callers_are_rejected_before_the_quota_is_spent(client):
     for _ in range(INGEST_RATE_LIMIT + 5):
         assert client.post(UPLOAD_PATH, files=NOT_A_PDF).status_code == 401
     assert client.post(UPLOAD_PATH, files=NOT_A_PDF, headers=AUTH).status_code == 400
+
+
+def _request(headers: dict[str, str], principal=None):
+
+    raw = [(name.lower().encode(), value.encode()) for name, value in headers.items()]
+    request = ratelimit.Request({"type": "http", "headers": raw, "client": ("10.0.0.9", 1234)})
+    request.state.principal = principal
+    return request
+
+
+def test_a_signed_in_user_is_limited_as_themselves_not_by_address():
+    from uuid import uuid4
+
+    from app.core.auth import Principal
+
+    user = uuid4()
+    assert ratelimit.caller_key(_request({}, Principal(email="a@b.c", user_id=user))) == f"user:{user}"
+
+
+def test_an_anonymous_caller_behind_a_trusted_proxy_is_limited_by_their_own_address(monkeypatch, test_settings):
+    monkeypatch.setenv("TRUSTED_PROXY_HOPS", "1")
+    request = _request({"X-Forwarded-For": "203.0.113.7, 198.51.100.2"})
+    assert ratelimit.caller_key(request) == "ip:198.51.100.2"
+
+
+def test_without_a_trusted_proxy_a_forged_forwarded_header_is_ignored(test_settings):
+    assert ratelimit.caller_key(_request({"X-Forwarded-For": "203.0.113.7"})) == "ip:10.0.0.9"
+
+
+def test_generation_has_a_budget_across_every_user():
+    assert ratelimit.rate_limit_generation.global_limit is not None

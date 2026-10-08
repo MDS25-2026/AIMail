@@ -17,10 +17,12 @@ from fastapi.testclient import TestClient
 from sqlalchemy.dialects import postgresql
 
 from app import dashboard, sign_in
+from app.contracts import EmailPage
 from app.core import ownership, supabase_auth
 from app.core.auth import SESSION_COOKIE
 from app.core.config import get_settings
 from app.core.ownership import EVERYTHING, LEGACY, Scope
+from app.core.providers import Provider
 from app.db.models import Message
 from app.main import app
 from app.rag import ingest, library, retrieve
@@ -72,9 +74,9 @@ def seen(monkeypatch, test_settings):
     async def record(*_args, scope, **_kwargs):
         scopes.append(scope)
 
-    async def listed(scope, policy_email):
+    async def listed(scope, policy_email, limit, after):
         scopes.append(scope)
-        return []
+        return EmailPage(emails=[])
 
     for name in ("email_detail", "regenerate_email", "refine_email", "translate_email", "approve_and_send"):
         monkeypatch.setattr(f"app.main.{name}", record)
@@ -114,7 +116,7 @@ def test_a_user_with_no_connected_mailbox_gets_404_and_nothing_runs(seen, method
 def test_the_inbox_lists_only_the_users_own_mail(seen):
     _as(ALICE, "alice@gmail.com").get("/emails")
     assert seen == [Scope(owner_id=ALICE)]
-    assert _as(BOB, "bob@gmail.com").get("/emails").json() == []
+    assert _as(BOB, "bob@gmail.com").get("/emails").json()["emails"] == []
 
 
 def test_the_original_mailbox_owner_keeps_the_unowned_rows_until_they_connect(seen):
@@ -200,7 +202,7 @@ def test_loading_an_email_by_id_is_filtered_by_owner(captured):
 
 
 def test_the_inbox_query_is_filtered_by_owner(captured):
-    asyncio.run(dashboard.list_dashboard_emails(Scope(owner_id=ALICE), "alice@gmail.com"))
+    asyncio.run(dashboard.list_dashboard_emails(Scope(owner_id=ALICE), "alice@gmail.com", 50, None))
     assert f"messages.user_id = '{ALICE}'" in _sql(captured[0])
 
 
@@ -216,11 +218,11 @@ def test_the_document_list_is_filtered_by_owner(captured):
 
 
 def test_retrieval_only_grounds_on_the_owners_documents(captured, monkeypatch):
-    async def vector(_text):
+    async def vector(_text, **_kwargs):
         return [0.0] * 3
 
-    monkeypatch.setattr(retrieve, "embed_query", vector)
-    asyncio.run(retrieve.retrieve("leave policy", 5, scope=Scope(owner_id=ALICE)))
+    monkeypatch.setattr(retrieve.model_gateway, "embed_query", vector)
+    asyncio.run(retrieve.retrieve("leave policy", 5, scope=Scope(owner_id=ALICE), provider=Provider.GEMINI))
     assert f"document.user_id = '{ALICE}'" in _sql(captured[0])
 
 

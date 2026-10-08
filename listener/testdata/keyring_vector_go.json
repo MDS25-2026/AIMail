@@ -1,0 +1,60 @@
+{
+  "_comment": "Test-only keys, sealed by the listener's Go; never used for real data.",
+  "ring": "k2:QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl8=,k1:ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8=",
+  "token_legacy": "RO9FaPLp52KvKCy729cqbuAEbl1G+XlhdNOPIg5xVDc=",
+  "vault_legacy": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+  "tokens": [
+    {
+      "kid": "legacy",
+      "format": 1,
+      "user_id": "11111111-2222-3333-4444-555555555555",
+      "plaintext": "1//test-refresh-token-not-real",
+      "sealed": "ATbra/nBF34TtCRx6/vbvsM8kNHmDwApPq7RfJTea6/p3VGngmBfApBJzJciFcSjfkG04pLmwMdSCxM="
+    },
+    {
+      "kid": "k2",
+      "format": 2,
+      "user_id": "aaaaaaaa-0000-4000-8000-000000000001",
+      "plaintext": "1//test-refresh-token-under-k2",
+      "sealed": "AgJrMlTXLXO2J03NbSUKA1He6fh0xkRSIIblgMQ3od0+ZarGfnXreEdUgoqlts2IMGrzNCPVwPetSe/Bx0Y="
+    },
+    {
+      "kid": "k1",
+      "format": 2,
+      "user_id": "aaaaaaaa-0000-4000-8000-000000000001",
+      "plaintext": "1//test-refresh-token-under-k1",
+      "sealed": "AgJrMVHyZHEX42B7bWOeBfOURJd6KPAoeYM+NUhq5ERSYDBM70tNf4LNfEt8KusuCkkPJEExBL4aW2S/GbY="
+    },
+    {
+      "kid": "legacy",
+      "format": 2,
+      "user_id": "aaaaaaaa-0000-4000-8000-000000000001",
+      "plaintext": "1//test-refresh-token-under-legacy",
+      "sealed": "AgZsZWdhY3kjJEIti0+pomCOw4N84CpT8LClu7wRxFVN9rSkuzfqZ2SJzhCTRr0BZfTriNJ+7l+Lru7irvK5T+VITaAycw=="
+    }
+  ],
+  "vaults": [
+    {
+      "kid": "legacy",
+      "format": 1,
+      "owner": "aaaaaaaa-0000-4000-8000-000000000001",
+      "gmail_message_id": "gm-vector",
+      "details": {
+        "[PERSON_1]": "Aisyah Rahman",
+        "[PHONE_1]": "012-345 6789"
+      },
+      "sealed": "ASg0nKj0LAJFw1P00fW5XZdTOn//SdZc0rhSBn4NdAx5iqysy745C8nznm/uE/tt7XDb1y0tuJVw8rklWa1gHiAHJomMvjHA+rLLstbsxnuvbEhD4oY="
+    },
+    {
+      "kid": "k1",
+      "format": 2,
+      "owner": "aaaaaaaa-0000-4000-8000-000000000001",
+      "gmail_message_id": "gm-keyring",
+      "details": {
+        "[PERSON_1]": "Aisyah Rahman",
+        "[PHONE_1]": "012-345 6789"
+      },
+      "sealed": "AgJrMRcijqmbdlRRpdlyrx340auMovsooLR1mXFVTyLTPow3kR9ejiEojiTfLUMqFXwKMxLYGb4apzUQxbsTl6YAGG/p68j32dwHHHfksgdWyUfPiDIxdb8="
+    }
+  ]
+}

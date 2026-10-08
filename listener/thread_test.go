@@ -34,7 +34,7 @@ func TestThreadIdentityOfAFirstMessageHasNoReferences(t *testing.T) {
 }
 
 func TestStoredMessageSendsThreadColumnsFlatAndOmitsEmptyOnes(t *testing.T) {
-	row := StoredMessage{ThreadIdentity: ThreadIdentity{ThreadID: "t-1"}}
+	row := StoredMessage{SenderFacts: SenderFacts{ThreadIdentity: ThreadIdentity{ThreadID: "t-1"}}}
 	encoded, err := json.Marshal(row)
 	if err != nil {
 		t.Fatal(err)

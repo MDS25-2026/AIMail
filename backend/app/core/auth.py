@@ -9,7 +9,6 @@ protected by default; exempting a path is a deliberate edit below.
 import logging
 import secrets
 from dataclasses import dataclass
-from enum import StrEnum
 from typing import Annotated
 from uuid import UUID
 
@@ -18,13 +17,15 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.core import ownership, supabase_auth
 from app.core.config import get_settings
+from app.core.errors import DomainError, ErrorCode
+from app.core.health import HEALTH_PATHS
 from app.core.ownership import Scope
 
 SESSION_COOKIE = "aimail_session"
 CLIENT_HEADER = "X-AIMail-Client"
 
-# The demo page doubles as the liveness check; the sign-in routes run before there is a session.
-_EXEMPT_PATHS = frozenset({"/"})
+# The demo page and the host's probes; the sign-in routes run before there is a session.
+_EXEMPT_PATHS = frozenset({"/"}) | HEALTH_PATHS
 _EXEMPT_PREFIXES = ("/auth/",)
 _STATE_CHANGING = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
@@ -32,14 +33,8 @@ _bearer = HTTPBearer(auto_error=False)
 logger = logging.getLogger(__name__)
 
 
-class AuthError(StrEnum):
-    SIGNED_OUT = "signed_out"
-    SESSION_INVALID = "session_invalid"
-    CLIENT_HEADER_MISSING = "client_header_missing"
-    SUPABASE_UNAVAILABLE = "supabase_unavailable"
 
-
-def _fail(status_code: int, code: AuthError) -> HTTPException:
+def _fail(status_code: int, code: ErrorCode) -> HTTPException:
     headers = {"WWW-Authenticate": "Bearer"} if status_code == status.HTTP_401_UNAUTHORIZED else None
     return HTTPException(status_code=status_code, detail=code, headers=headers)
 
@@ -76,11 +71,11 @@ async def _user(token: str) -> Principal:
     except supabase_auth.SupabaseNotConfiguredError as exc:
         # Without Supabase no session can be valid, so this credential is invalid, not an outage.
         logger.warning("a session was presented but Supabase sign-in is not configured: %s", exc)
-        raise _fail(status.HTTP_401_UNAUTHORIZED, AuthError.SESSION_INVALID) from exc
+        raise _fail(status.HTTP_401_UNAUTHORIZED, ErrorCode.SESSION_INVALID) from exc
     except supabase_auth.SupabaseUnavailableError as exc:
-        raise _fail(status.HTTP_503_SERVICE_UNAVAILABLE, AuthError.SUPABASE_UNAVAILABLE) from exc
+        raise _fail(status.HTTP_503_SERVICE_UNAVAILABLE, ErrorCode.SUPABASE_UNAVAILABLE) from exc
     except supabase_auth.InvalidTokenError as exc:
-        raise _fail(status.HTTP_401_UNAUTHORIZED, AuthError.SESSION_INVALID) from exc
+        raise _fail(status.HTTP_401_UNAUTHORIZED, ErrorCode.SESSION_INVALID) from exc
     return Principal(email=claims.get("email", ""), user_id=_user_id(claims))
 
 
@@ -97,11 +92,11 @@ async def current_principal(
         return await _user(credentials.credentials)
     token = request.cookies.get(SESSION_COOKIE)
     if not token:
-        raise _fail(status.HTTP_401_UNAUTHORIZED, AuthError.SIGNED_OUT)
+        raise _fail(status.HTTP_401_UNAUTHORIZED, ErrorCode.SIGNED_OUT)
     # A form cannot send a custom header, and another origin's script cannot without a preflight,
     # which only the dashboard origins pass (app/core/cors.py). SameSite alone is not enough.
     if request.method in _STATE_CHANGING and request.headers.get(CLIENT_HEADER) != "1":
-        raise _fail(status.HTTP_403_FORBIDDEN, AuthError.CLIENT_HEADER_MISSING)
+        raise _fail(status.HTTP_403_FORBIDDEN, ErrorCode.CLIENT_HEADER_MISSING)
     return await _user(token)
 
 
@@ -124,7 +119,7 @@ async def require_mailbox(request: Request) -> None:
     """404 rather than 403 for someone else's mail, so an id reveals nothing about what exists."""
     scope = await scope_of_principal(principal_of(request))
     if scope is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "not found")
+        raise DomainError(ErrorCode.NOT_FOUND)
     request.state.scope = scope
 
 

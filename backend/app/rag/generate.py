@@ -5,14 +5,12 @@ This closes the RAG loop (retrieve -> generate) for demonstration. Real reply ge
 demo of the loop, not that pipeline.
 """
 
-import asyncio
-
-import httpx
-from google.genai import errors
-
-from app.core.config import get_settings
-from app.rag.gemini import gemini_client
+import model_gateway
+from app.core.providers import Provider
 from app.rag.retrieve import ContextChunk
+
+ASK = "ask"  # the egress purpose
+ANSWER_MAX_TOKENS = 1024
 
 _PROMPT = """You are a company-policy assistant. Answer the question using ONLY the policy \
 excerpts below. If the answer is not in the excerpts, say the policy does not cover it. \
@@ -25,10 +23,6 @@ Question: {question}
 Answer:"""
 
 
-class GenerationError(RuntimeError):
-    """Raised when the answer model cannot be reached."""
-
-
 def _format_context(chunks: list[ContextChunk]) -> str:
     return "\n\n".join(
         f"[{i + 1}] (source: {chunk['source_title']}) {chunk['content']}"
@@ -36,18 +30,10 @@ def _format_context(chunks: list[ContextChunk]) -> str:
     )
 
 
-async def answer(question: str, chunks: list[ContextChunk]) -> str:
+async def answer(question: str, chunks: list[ContextChunk], *, provider: Provider) -> str:
+    """Raises ModelError when the model cannot answer; the API turns it into a 503."""
     if not chunks:
         return "The knowledge base has no policy to answer from yet."
-    settings = get_settings()
-    client = gemini_client()
     prompt = _PROMPT.format(context=_format_context(chunks), question=question)
-    try:
-        response = await asyncio.to_thread(
-            client.models.generate_content,
-            model=settings.gemini_chat_model,
-            contents=prompt,
-        )
-    except (httpx.HTTPError, errors.APIError) as exc:
-        raise GenerationError("could not reach the Gemini generation API") from exc
-    return response.text or ""
+    reply = await model_gateway.generate(prompt, provider=provider, purpose=ASK, max_output_tokens=ANSWER_MAX_TOKENS)
+    return reply if isinstance(reply, str) else ""

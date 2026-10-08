@@ -6,13 +6,12 @@ baseline by the eval harness (S4). Falls back to the raw question if the model c
 reformulation can never make retrieval worse than the baseline by erroring.
 """
 
-import asyncio
+import model_gateway
+from app.core.providers import Provider
+from model_runtime import ModelError
 
-import httpx
-from google.genai import errors
-
-from app.core.config import get_settings
-from app.rag.gemini import gemini_client
+REFORMULATE = "reformulate"  # the egress purpose
+REFORMULATE_MAX_TOKENS = 128
 
 _PROMPT = """Rewrite the user's question into a concise search query that matches formal
 company-policy wording. Expand it with likely synonyms and policy terms (e.g. "relatives" ->
@@ -22,15 +21,10 @@ Question: {question}
 Search query:"""
 
 
-async def reformulate(question: str) -> str:
-    settings = get_settings()
-    client = gemini_client()
+async def reformulate(question: str, *, provider: Provider) -> str:
     try:
-        response = await asyncio.to_thread(
-            client.models.generate_content,
-            model=settings.gemini_chat_model,
-            contents=_PROMPT.format(question=question),
-        )
-    except (httpx.HTTPError, errors.APIError):
+        reply = await model_gateway.generate(_PROMPT.format(question=question), provider=provider,
+                                             purpose=REFORMULATE, max_output_tokens=REFORMULATE_MAX_TOKENS)
+    except ModelError:
         return question
-    return (response.text or question).strip()
+    return reply.strip() if isinstance(reply, str) and reply.strip() else question

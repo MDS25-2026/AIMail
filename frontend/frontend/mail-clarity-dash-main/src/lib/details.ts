@@ -1,17 +1,11 @@
 import type { Detail } from "../types/email";
+import { placeholderPattern } from "./masking";
 
 /**
  * Restorable masking (specs/features/restorable-masking.md): stored text carries placeholders such
  * as [PERSON_1], and detail responses list the real values. These helpers show the owner the real
  * details; nothing here ever sends a value anywhere.
  */
-
-// The same kinds as backend/app/core/redaction.py DETAIL_KINDS.
-const PLACEHOLDER_SOURCE = String.raw`\[(?:PERSON|EMAIL|PHONE|IC|PASSPORT|ACCOUNT|CARD|LOCATION|ORG)_\d+\]`;
-
-export function placeholderPattern(): RegExp {
-  return new RegExp(PLACEHOLDER_SOURCE, "g");
-}
 
 export type DetailValues = ReadonlyMap<string, string>;
 

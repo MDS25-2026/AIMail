@@ -4,13 +4,14 @@ from datetime import datetime, timezone
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, Query, Request, Response, status
 from pydantic import BaseModel
 from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
 
 from app.account_routes import account_user_id
-from app.audit import audit
+from app.audit import AuditAction, audit
+from app.core.errors import DomainError, ErrorCode
 from app.db.models import HoldingReply, HoldingReplySettings, Message
 from app.db.session import get_sessionmaker
 from app.holding_reply import InvalidSettingsError, Refusal, SettingsBody, validate
@@ -53,7 +54,7 @@ async def put_settings_route(body: SettingsBody, request: Request) -> SettingsBo
     try:
         validate(body)
     except InvalidSettingsError as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, exc.code) from exc
+        raise DomainError(exc.code) from exc
     values = {
         "enabled": body.enabled, "active_when": body.activeWhen, "work_days": body.workDays,
         "work_start": body.workStart, "work_end": body.workEnd, "timezone": body.timezone,
@@ -70,7 +71,7 @@ async def put_settings_route(body: SettingsBody, request: Request) -> SettingsBo
         statement = insert(HoldingReplySettings).values(user_id=user_id, enabled_at=enabled_at, **values)
         await session.execute(statement.on_conflict_do_update(
             index_elements=["user_id"], set_={**values, "enabled_at": enabled_at, "updated_at": datetime.now(timezone.utc)}))
-    await audit("holding_reply_settings", f"user={user_id} enabled={body.enabled}", user_id=user_id)
+    await audit(AuditAction.HOLDING_REPLY_SETTINGS, user_id=user_id, enabled=body.enabled)
     return body
 
 
@@ -100,9 +101,9 @@ async def cancel_route(reply_id: UUID, request: Request) -> Response:
         exists = cancelled or await session.scalar(select(HoldingReply.id).where(
             HoldingReply.id == reply_id, HoldingReply.user_id == user_id))
     if not exists:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "not found")
+        raise DomainError(ErrorCode.NOT_FOUND)
     if not cancelled:
-        raise HTTPException(status.HTTP_409_CONFLICT, "already_sent_or_cancelled")
-    await audit("holding_reply_cancelled", f"reply={reply_id} reason={Refusal.CANCELLED_BY_USER}",
-                user_id=user_id)
+        raise DomainError(ErrorCode.ALREADY_SENT_OR_CANCELLED)
+    await audit(AuditAction.HOLDING_REPLY_CANCELLED, user_id=user_id, reply=reply_id,
+                reason=Refusal.CANCELLED_BY_USER)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

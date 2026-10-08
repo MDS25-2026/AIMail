@@ -3,21 +3,14 @@ import { useTranslation } from "react-i18next";
 import type { Tone } from "../types/email";
 
 type ToneToggleProps = {
-  emailId: string;
   tone: Tone;
-  onToneChange: (emailId: string, tone: Tone) => void;
-  /** A tone change regenerates the draft, so it is blocked whenever the draft may not change. */
+  onToneChange: (tone: Tone) => void;
   disabled?: boolean;
 };
 
 const TONES: Tone[] = ["professional", "casual"];
 
-export default function ToneToggle({
-  emailId,
-  tone,
-  onToneChange,
-  disabled = false,
-}: ToneToggleProps) {
+export default function ToneToggle({ tone, onToneChange, disabled = false }: ToneToggleProps) {
   const { t } = useTranslation();
   return (
     <div
@@ -31,12 +24,10 @@ export default function ToneToggle({
           type="button"
           aria-pressed={tone === option}
           disabled={disabled}
-          onClick={() => onToneChange(emailId, option)}
+          onClick={() => onToneChange(option)}
           className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
-            tone === option
-              ? "bg-surface text-fg shadow-sm"
-              : "text-fg-muted hover:text-fg-body disabled:hover:text-fg-muted"
-          } disabled:cursor-not-allowed`}
+            tone === option ? "bg-surface text-fg shadow-sm" : "text-fg-muted hover:text-fg-body"
+          }`}
         >
           {t(`tone.${option}`)}
         </button>

@@ -7,6 +7,7 @@ package main
 
 import (
 	"context"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -19,7 +20,17 @@ func requireLivePresidio(t *testing.T) {
 	// Both containers: with only the analyzer up, masking degrades and every assertion would fail
 	// for a reason that is the environment, not the code.
 	if !presidioHealthy(ctx) {
+		failIfPresidioRequired(t)
 		t.Skip("presidio analyzer or anonymizer unreachable — start them: docker compose up -d")
+	}
+}
+
+// failIfPresidioRequired stops a run that must score the NER layer (CI sets REQUIRE_PRESIDIO) from
+// passing by skipping it when the containers did not come up.
+func failIfPresidioRequired(t *testing.T) {
+	t.Helper()
+	if os.Getenv("REQUIRE_PRESIDIO") != "" {
+		t.Fatal("REQUIRE_PRESIDIO is set but the presidio analyzer or anonymizer is unreachable")
 	}
 }
 

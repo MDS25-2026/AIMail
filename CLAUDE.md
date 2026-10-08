@@ -16,7 +16,7 @@ Three services, split into four ownership lanes. `specs/architecture.md` is the 
 
 Flow: `Gmail → (Pub/Sub) → Go listener → mask → Supabase → backend → dashboard → human approves → backend → Gmail`.
 
-**n8n is retired.** The `n8n/` folder is unused scaffolding kept as evidence of the architecture pivot; nothing calls it. `backend/main.go` is a dead n8n-era webhook receiver, and `frontend/.next` + `frontend/README.md` are an abandoned Next.js scaffold. Do not extend any of them.
+**n8n is retired.** Its scaffolding, the n8n-era webhook receiver and the abandoned Next.js scaffold are archived under `legacy/` (`legacy/n8n/`, `legacy/n8n-webhook/main.go`, `legacy/placeholders/`) as evidence of the architecture pivot; nothing calls them. Do not extend them.
 
 Generation runs on **Google Gemini**, not Claude or Qwen.
 

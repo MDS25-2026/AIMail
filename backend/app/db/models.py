@@ -108,7 +108,8 @@ class AuditLog(Base):
     __tablename__ = "audit_log"
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    user_id: Mapped[UUID | None] = mapped_column(ForeignKey("user_profile.id", ondelete="SET NULL"))
+    # No foreign key (migration 0025): the hash covers it, so it must outlive the profile unchanged.
+    user_id: Mapped[UUID | None]
     action: Mapped[str | None] = mapped_column(Text)
     detail: Mapped[str | None] = mapped_column(Text)
     success: Mapped[bool | None]
@@ -124,6 +125,8 @@ class AuthStatus(StrEnum):
 
     PASS = "pass"
     SPOOF_DETECTED = "spoof_detected"
+    # No verdict from Google's own server (none, temperror, no header): drafted, never auto-answered.
+    UNVERIFIED = "unverified"
     # The owner looked at a flagged email and said the sender is real; drafting is allowed again.
     SENDER_CONFIRMED = "sender_confirmed"
 
@@ -173,6 +176,10 @@ class Message(Base):
     critic_checks: Mapped[dict | None] = mapped_column(JSONB)
     needs_human_review: Mapped[bool | None]
     generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The tone the stored draft was written in (migration 0031); NULL before it, shown as professional.
+    draft_tone: Mapped[str | None] = mapped_column(Text)
+    # When a person opened it with no draft yet (migration 0032); the worker drafts these first.
+    draft_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Thread identity (migration 0009): Lane A writes the first three at ingest, the backend
@@ -186,6 +193,10 @@ class Message(Base):
     masking_status: Mapped[str] = mapped_column(Text, server_default=MaskingStatus.COMPLETE)
     # Failed drafting attempts; the poller skips a message after MAX_GENERATION_ATTEMPTS (0014).
     generation_attempts: Mapped[int] = mapped_column(server_default="0")
+    # Set when Gmail's answer to a send was lost; only these are reconciled (migration 0028).
+    send_outcome_unknown_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # A worker drafting this message holds it until then (migration 0027, app/jobs.py).
+    generation_claimed_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Where an approved reply goes when the sender set Reply-To; shown to the approver (0014).
     reply_to: Mapped[str | None] = mapped_column(Text)
 
@@ -193,7 +204,7 @@ class Message(Base):
     def is_masked(self) -> bool:
         """Content exists and was masked with NER. Nothing reads or drafts from a row that is not."""
         return self.masking_status == MaskingStatus.COMPLETE
-    auth_status: Mapped[str | None] = mapped_column(Text, default=AuthStatus.PASS)
+    auth_status: Mapped[str] = mapped_column(Text, default=AuthStatus.UNVERIFIED)
 
     @property
     def is_spoofed(self) -> bool:
@@ -307,6 +318,7 @@ class HoldingReply(Base):
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     cancelled_reason: Mapped[str | None] = mapped_column(Text)
     sent_message_id: Mapped[str | None] = mapped_column(Text)
+    send_outcome_unknown_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -340,5 +352,34 @@ class StyleHabit(Base):
     value: Mapped[str] = mapped_column(Text)
     evidence: Mapped[int] = mapped_column(SmallInteger)
     out_of: Mapped[int] = mapped_column(SmallInteger)
+    # en, ms or zh (migration 0030); none for a habit learned before languages were recorded.
+    language: Mapped[str | None] = mapped_column(Text)
     suppressed: Mapped[bool] = mapped_column(default=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ModelEgress(Base):
+    """One prompt that left for a model (migration 0026). No text: what, where, how much, what was hidden."""
+
+    __tablename__ = "model_egress"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    user_id: Mapped[UUID | None] = mapped_column(ForeignKey("user_profile.id", ondelete="CASCADE"))
+    message_id: Mapped[UUID | None] = mapped_column(ForeignKey("messages.id", ondelete="CASCADE"))
+    purpose: Mapped[str] = mapped_column(Text)
+    provider: Mapped[str] = mapped_column(Text)
+    chars: Mapped[int]
+    sha256: Mapped[str] = mapped_column(Text)
+    hidden: Mapped[dict] = mapped_column(JSONB, default=dict)
+    caught: Mapped[int] = mapped_column(default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class RateLimitCounter(Base):
+    """One fixed rate-limit window per key, shared by every API instance (migration 0029)."""
+
+    __tablename__ = "rate_limit_counter"
+
+    key: Mapped[str] = mapped_column(Text, primary_key=True)
+    window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    hits: Mapped[int] = mapped_column(default=0)

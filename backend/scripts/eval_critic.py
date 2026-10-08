@@ -26,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.core.config import get_settings
 from app.core.ownership import LEGACY
+from app.core.providers import Provider
 from app.rag.retrieve import retrieve
 from app.rag.utils import format_rag_context
 
@@ -70,7 +71,7 @@ async def build_rag_context(body: str, with_rag: bool) -> str:
     """Empty by default; with --with-rag, the same retrieval the real pipeline uses."""
     if not with_rag:
         return ""
-    return format_rag_context(await retrieve(body, k=5, scope=LEGACY))
+    return format_rag_context(await retrieve(body, k=5, scope=LEGACY, provider=Provider.GEMINI))
 
 
 async def evaluate_one(client: httpx.AsyncClient, url: str, body: str, with_rag: bool) -> dict[str, object]:

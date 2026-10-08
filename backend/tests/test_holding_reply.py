@@ -8,13 +8,13 @@ from uuid import UUID, uuid4
 import pytest
 
 from app import holding_reply_scheduler as scheduler
+from app.core.errors import ErrorCode
 from app.core.language import Language, detect_language
 from app.db.models import HoldingReply, HoldingReplySettings, MaskingStatus, Message
 from app.holding_reply import (
     InvalidSettingsError,
     Refusal,
     SettingsBody,
-    SettingsError,
     choose_language,
     is_active,
     refusal_on_arrival,
@@ -49,15 +49,15 @@ def _message(**overrides) -> Message:
 # ---------- Settings ----------
 
 @pytest.mark.parametrize(("change", "code"), [
-    ({"templates": {"en": "Hi {nmae}"}}, SettingsError.UNKNOWN_PLACEHOLDER),
-    ({"templates": {"en": "Back on {return_date}"}}, SettingsError.RETURN_DATE_NEEDS_LEAVE),
-    ({"templates": {"en": "   "}}, SettingsError.EMPTY_TEMPLATE),
-    ({"enabled": True, "templates": {"ms": "Terima kasih"}}, SettingsError.NO_DEFAULT_TEMPLATE),
-    ({"timezone": "Mars/Olympus"}, SettingsError.UNKNOWN_TIMEZONE),
-    ({"activeWhen": "leave"}, SettingsError.LEAVE_NEEDS_DATES),
-    ({"workStart": time(18), "workEnd": time(9)}, SettingsError.WORKDAY_ENDS_BEFORE_IT_STARTS),
-    ({"leaveFrom": date(2026, 10, 9), "leaveUntil": date(2026, 10, 1)}, SettingsError.LEAVE_ENDS_BEFORE_IT_STARTS),
-    ({"workDays": [0, 8]}, SettingsError.BAD_WORK_DAYS),
+    ({"templates": {"en": "Hi {nmae}"}}, ErrorCode.UNKNOWN_PLACEHOLDER),
+    ({"templates": {"en": "Back on {return_date}"}}, ErrorCode.RETURN_DATE_NEEDS_LEAVE),
+    ({"templates": {"en": "   "}}, ErrorCode.EMPTY_TEMPLATE),
+    ({"enabled": True, "templates": {"ms": "Terima kasih"}}, ErrorCode.NO_DEFAULT_TEMPLATE),
+    ({"timezone": "Mars/Olympus"}, ErrorCode.UNKNOWN_TIMEZONE),
+    ({"activeWhen": "leave"}, ErrorCode.LEAVE_NEEDS_DATES),
+    ({"workStart": time(18), "workEnd": time(9)}, ErrorCode.WORKDAY_ENDS_BEFORE_IT_STARTS),
+    ({"leaveFrom": date(2026, 10, 9), "leaveUntil": date(2026, 10, 1)}, ErrorCode.LEAVE_ENDS_BEFORE_IT_STARTS),
+    ({"workDays": [0, 8]}, ErrorCode.BAD_WORK_DAYS),
 ])
 def test_settings_that_could_never_work_are_refused_with_a_reason(change, code):
     with pytest.raises(InvalidSettingsError) as caught:

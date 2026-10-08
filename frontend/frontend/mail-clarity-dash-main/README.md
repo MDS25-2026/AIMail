@@ -52,11 +52,11 @@ COMPONENTS
 
  - ToneToggle — Professional/Casual switch, controlled component
 
- - ApproveSendButton — takes an onApproveSend(emailId) callback prop (stub with 
+ - ApproveSendButton — takes an onApproveSend() callback from useDraftWorkflow — this
 
-   console.log for now) — this must be the only path that "sends," and should be 
+   must be the only path that "sends," and should be visually and functionally distinct
 
-   visually and functionally distinct from Regenerate/Refine actions
+   from Regenerate/Refine actions
 
  - ExtensionPanel — reuses the same child components in a condensed layout, doesn't 
 
@@ -147,9 +147,25 @@ once in the dashboard with the Google account used in Gmail, open Gmail, and cli
   WCAG 2.1 contrast for both sets in both themes, and that the friendly set stays distinguishable
   under protan, deutan and tritan colour blindness; `--write` regenerates `src/palette.css`. Never
   edit that file by hand, and do not run Prettier over it.
+- A test (`src/lib/__tests__/paletteClasses.test.ts`) fails on any raw Tailwind colour in `src`.
 - **Status never rests on colour alone** (WCAG 1.4.1): pair it with an icon and words.
 - **Every visible string comes from `src/locales/`** via `useTranslation()`. `en.ts` is the master;
   `ms.ts` and `zh.ts` are typed against it, so a missing key fails `tsc`. Malay and Chinese need a
   native reviewer before release.
+  ESLint (`i18next/no-literal-string`) fails on JSX text outside `src/components/ui`, and page
+  titles come from `meta.*` through `src/lib/pageMeta.ts`.
 - Theme, language and unit system are cookies (`src/lib/preferences.ts`), read on the server so the
   first paint is already right. The reader changes them in Settings.
+
+## Data and errors
+
+- **Fetchers** live in `src/lib/api/` by resource; `request<T>()` in `client.ts` is the only way to
+  call the backend and throws one `ApiError {status, code, endpoint}`.
+- **Hooks** live in `src/lib/queries/` with one key factory (`keys.ts`). Components, routes and the
+  extension use those hooks only; ESLint bans `@tanstack/react-query` and fetcher imports there.
+- **Errors** reach the reader through `errorMessage(error, t, fallback)`, which maps each
+  `ApiErrorCode` to `errors.*`; `error.message` is for logs and is never rendered.
+- **What an email may do** is `draftAvailability(email)` (`src/lib/draftAvailability.ts`), shared
+  by the inbox panel and the extension through `DraftGate`.
+- **Tests**: pure tests run on node; component tests opt into jsdom with
+  `// @vitest-environment jsdom` and use `src/test/render.tsx` and `src/test/fetchStub.ts`.

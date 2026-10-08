@@ -9,18 +9,14 @@ import WritingStyleCard from "../components/WritingStyleCard";
 import AppShell from "../components/AppShell";
 import Choice from "../components/Choice";
 import { PageError, PageLoading } from "../components/PageState";
+import { Page, pageMeta } from "../lib/pageMeta";
 import { usePreferences } from "../lib/usePreferences";
 import { Language, StatusColours, Theme, UnitSystem } from "../lib/preferences";
 import { useSystemInfo } from "../lib/queries";
 import { CRITIC_CONFIDENCE_THRESHOLD } from "../types/email";
 
 export const Route = createFileRoute("/settings")({
-  head: () => ({
-    meta: [
-      { title: "AIMail settings" },
-      { name: "description", content: "What this AImail instance is running." },
-    ],
-  }),
+  head: ({ match }) => ({ meta: pageMeta(match.context.preferences.language, Page.Settings) }),
   component: SettingsPage,
 });
 

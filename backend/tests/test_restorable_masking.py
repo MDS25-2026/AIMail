@@ -15,8 +15,8 @@ from app import dashboard
 from app.core import vault
 from app.core.config import get_settings
 from app.core.ownership import EVERYTHING
+from app.core.providers import Provider
 from app.db.models import MaskingStatus, Message
-from app.private_mode import DraftProvider
 
 OWNER = UUID("aaaaaaaa-0000-4000-8000-000000000001")
 KEY = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
@@ -46,8 +46,8 @@ def mailbox(monkeypatch, test_settings):
     async def owner_name(_owner_id):
         return "Elyesa Tee"
 
-    async def call_agent(path, payload):
-        state["payloads"].append(json.dumps(payload))
+    async def call_agent(path, request, _answer=None):
+        state["payloads"].append(json.dumps(request.model_dump(mode="json")))
         return {"draft": "Dear [PERSON_1], we will call [PHONE_1]. Regards, [PERSON_2]", "confidence": 0.9}
 
     async def claim(pk):
@@ -70,14 +70,18 @@ def mailbox(monkeypatch, test_settings):
     async def no_style(_user_id):
         return {}
 
+    async def no_egress(_message_id):
+        return []
+
     async def gemini(_user_id):
-        return DraftProvider.GEMINI
+        return Provider.GEMINI
 
     for name, value in (("_load", load), ("_load_with_thread", load_with_thread), ("_owner_name", owner_name),
                         ("retrieve", no_chunks), ("_mark_read", nothing),
                         ("_call_agent", call_agent), ("_claim_send", claim), ("send_reply", send_reply),
                         ("audit", nothing), ("_update_unsent", _true), ("_style_fields", no_style),
-                        ("is_learning", _false), ("provider_for", gemini)):
+                        ("is_learning", _false), ("provider_for", gemini), ("egress_for", no_egress),
+                        ("save_egress", nothing), ("request_draft", nothing), ("release_drafting", nothing)):
         monkeypatch.setattr(dashboard, name, value)
     monkeypatch.setattr(dashboard.connections, "can_send", can_send)
     return state
@@ -108,6 +112,9 @@ class _Session:
 
     async def get(self, _model, _pk):
         return self.message
+
+    def add(self, row):
+        self.added = [*getattr(self, "added", []), row]
 
     async def commit(self):
         return None
@@ -154,7 +161,7 @@ def test_an_approved_reply_goes_out_with_the_real_details_and_is_stored_with_pla
 def test_a_placeholder_nobody_can_fill_stops_the_send_before_anything_is_claimed(mailbox):
     with pytest.raises(dashboard.SendRejectedError) as caught:
         asyncio.run(dashboard.approve_and_send(str(mailbox["message"].id), "Dear [PERSON_7]", scope=EVERYTHING))
-    assert (caught.value.code, caught.value.status_code) == (dashboard.SendErrorCode.UNRESOLVED_PLACEHOLDERS, 422)
+    assert (caught.value.code, caught.value.status_code) == (dashboard.ErrorCode.UNRESOLVED_PLACEHOLDERS, 422)
     assert mailbox["claimed"] == 0 and mailbox["sent"] == []
 
 
@@ -174,7 +181,7 @@ def test_an_email_from_before_restorable_masking_behaves_as_it_always_did(mailbo
     monkeypatch.setattr(dashboard, "get_sessionmaker", lambda: lambda: _Session(old))
     with pytest.raises(dashboard.SendRejectedError) as caught:
         asyncio.run(dashboard.approve_and_send(str(old.id), "Hi [Redacted]", scope=EVERYTHING))
-    assert caught.value.code == dashboard.SendErrorCode.REDACTION_MARKERS
+    assert caught.value.code == dashboard.ErrorCode.REDACTION_MARKERS
     asyncio.run(dashboard.approve_and_send(str(old.id), "Hi Aisyah, thanks.", scope=EVERYTHING))
     assert mailbox["sent"] == ["Hi Aisyah, thanks."]
 

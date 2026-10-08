@@ -9,8 +9,10 @@ sign-ups are picked up every two minutes without a restart; each mailbox's histo
 saved on its connection row, so a restart resumes where it stopped.
 
 The original `token.json` mailbox still runs, storing rows with no owner, until its account signs
-in with Google; then its connection replaces it. Pub/Sub itself still authenticates as the
-`token.json` account for now (a service account replaces that before `token.json` retires).
+in with Google; then its connection replaces it. It is optional: without `credentials.json`, or
+without `token.json` and no terminal to sign in on, it is skipped and the service runs on connected
+mailboxes alone. Pub/Sub authenticates as the `token.json` account while there is one, otherwise
+with Application Default Credentials (a deployment's service account).
 
 Masking is split by PII nature. Format-clear PII (email, phone, Malaysian IC) is redacted by an
 ordered, offline regex floor — most-specific first, and a bare 12-digit run is only typed as an IC
@@ -29,7 +31,8 @@ anonymizer container is no longer used.
 ## Run locally
 
 Needs, in this folder, `credentials.json` and `token.json` (OAuth for the shared Gmail and
-Pub/Sub), and in the repo-root `.env`: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, and for connected
+Pub/Sub), and in the repo-root `.env`: `GCP_PROJECT_ID`, `PUBSUB_TOPIC`, `PUBSUB_SUBSCRIPTION`,
+`SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, and for connected
 users `TOKEN_ENCRYPTION_KEY`, `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` (the same values
 as the backend).
 
@@ -42,12 +45,25 @@ go run .        # first run opens a browser to log in as the shared Gmail, then 
 Expect `ingesting the mailbox of user ...` for each connected user, then `Listening for incoming
 emails on Pub/Sub...`. Send a mail to
 the watched inbox to see it masked and stored. Re-auth by deleting `token.json` and re-running.
+Ctrl+C or SIGTERM stops it cleanly.
+
+## Run as a service
+
+`docker build -t aimail-listener listener/` builds a static binary on a distroless, non-root image.
+Pass the settings below as environment variables and give the container a service account for
+Pub/Sub; no `credentials.json` or `token.json` goes into the image. Probe `GET :8095/healthz`
+(process up) and `GET :8095/readyz` (503 while Supabase or Presidio is unreachable; also reports
+`seconds_since_last_receive`, which is informational because a quiet inbox is normal).
 
 ## Config
 
-- `ProjectID`, `TopicName`, `SubscriptionID` — constants at the top of `main.go` (the GCP project +
-  Pub/Sub topic/subscription).
+- `GCP_PROJECT_ID`, `PUBSUB_TOPIC` (the short topic id), `PUBSUB_SUBSCRIPTION` — required, no
+  defaults; the listener exits at startup naming whichever is missing.
+- `LISTENER_HEALTH_ADDR` — where `/healthz` and `/readyz` are served; default `127.0.0.1:8095`.
 - `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` — read from the repo-root `.env` (loaded via godotenv).
+- `TOKEN_ENCRYPTION_KEYS` / `PII_VAULT_KEYS` — keyrings for rotation, `kid:base64key,kid2:base64key`
+  with the first entry primary; must match the backend's. New vaults are sealed in format 2 under the
+  primary key, and any listed key still opens what it sealed. The single keys below are kid `legacy`.
 - `TOKEN_ENCRYPTION_KEY` — unseals stored refresh tokens; must match the backend's.
 - `PII_VAULT_KEY` — seals each email's detail vault; must match the backend's. Without it, emails
   are still masked but their details cannot be shown or restored.
@@ -56,7 +72,7 @@ the watched inbox to see it masked and stored. Re-auth by deleting `token.json` 
 - `PRESIDIO_ANALYZER_URL`, `PRESIDIO_ANONYMIZER_URL` — Presidio endpoints; default to `localhost:5001/5002`
   (the `docker-compose.yml` services). Optional — unset/unreachable degrades to regex-only masking.
 - `credentials.json` — OAuth client downloaded from Google Cloud (gitignored).
-- `token.json` — OAuth token, written on consent and rewritten on refresh (gitignored).
+- `token.json` — OAuth token, written on consent (gitignored).
 
 ## Key dependencies
 
@@ -71,6 +87,13 @@ listener/
 ├── main.go                 # watch, Pub/Sub loop, layered PII masking, Supabase writes
 ├── mailboxes.go            # connected mailboxes: load, watch, route by address, per-mailbox baseline
 ├── tokencrypt.go           # AES-GCM shared with the backend: refresh tokens, detail vaults
+├── authresults.go          # sender verdict from Google's own Authentication-Results header
+├── sender.go               # sender facts computed once for every messages row
+├── audit.go                # audit rows: action constants, sorted-JSON detail, owner id
+├── privatemode.go          # the owner's Private mode choice, read before any image goes to OCR
+├── config.go, health.go    # Pub/Sub settings from the environment; /healthz and /readyz
+├── legacy_token.go         # the optional token.json mailbox
+├── Dockerfile              # distroless, non-root service image
 ├── details.go              # numbered placeholders and the sealed per-email detail vault
 ├── main_test.go            # offline regex-floor tests: typing, ordering, IC date gate, false-positive guards
 ├── presidio_live_test.go   # live NER tests against the containers; self-skip when Presidio is down

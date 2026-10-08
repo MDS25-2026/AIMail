@@ -31,6 +31,7 @@ from app.writing_style import (
     swaps_of,
 )
 from tests.conftest import AUTH_HEADERS
+from tests.drafting import context
 from tests.test_account import _signed_in, calls  # noqa: F401  (fixture)
 from tests.test_restorable_masking import _Session, mailbox  # noqa: F401  (fixture)
 
@@ -49,7 +50,7 @@ def test_every_placeholder_and_masking_mark_becomes_one_plain_word():
 
 
 def test_a_pasted_example_is_masked_then_neutralised(monkeypatch):
-    async def presidio(text):
+    async def presidio(text, **_kwargs):
         return text.replace("Aisyah", "[Redacted]")
 
     monkeypatch.setattr(writing_style, "mask_document", presidio)
@@ -140,8 +141,10 @@ def test_the_style_is_fenced_as_data_and_cannot_close_its_own_tag():
 
 
 def test_draft_and_refine_requests_accept_the_style_and_default_to_none():
-    assert email_agent.ProcessEmailRequest(thread_context="", email_body="", rag_context="").style_examples == []
-    refine = email_agent.RefineRequest(email_body="", draft="", instruction="", style_hint="Brief.")
+    assert email_agent.ProcessEmailRequest(thread_context="", email_body="", rag_context="",
+                                           provider="gemini").style_examples == []
+    refine = email_agent.RefineRequest(email_body="", draft="", instruction="", style_hint="Brief.",
+                                       provider="gemini")
     assert refine.style_hint == "Brief."
 
 
@@ -211,7 +214,7 @@ def test_a_send_made_while_learning_is_on_is_kept_as_a_past_reply(mailbox, monke
 def stored_items(monkeypatch):
     stored = []
 
-    async def as_is(text):
+    async def as_is(text, **_kwargs):
         return text
 
     async def store(source, title, chunks, *, scope, doc_type):
@@ -282,7 +285,7 @@ def test_a_script_has_no_writing_style(calls):  # noqa: F811
 def test_nothing_is_stored_when_the_masker_is_down(calls, monkeypatch):  # noqa: F811
     stored = []
 
-    async def down(_text):
+    async def down(_text, **_kwargs):
         raise DocumentMaskingError("presidio unreachable")
 
     async def save(user_id, **values):
@@ -292,7 +295,7 @@ def test_nothing_is_stored_when_the_masker_is_down(calls, monkeypatch):  # noqa:
     monkeypatch.setattr(writing_style_routes, "_save_style", save)
     response = _signed_in().put("/profile/writing/description", json={"description": "Warm, Aisyah"},
                                 headers=CLIENT)
-    assert response.status_code == 503 and response.json()["detail"] == "masking_unavailable"
+    assert response.status_code == 503 and response.json()["error"]["code"] == "masking_unavailable"
     assert stored == []
 
 
@@ -309,13 +312,13 @@ def test_no_admin_route_reads_a_writing_style():
 def test_every_drafting_prompt_asks_for_the_emails_own_language(monkeypatch):
     prompts = []
 
-    async def capture(system_prompt, user_prompt, max_tokens=0):
+    async def capture(system_prompt, user_prompt, max_tokens=0, **_kwargs):
         prompts.append(system_prompt)
         return "ok"
 
     monkeypatch.setattr(email_agent, "call_llm", capture)
-    asyncio.run(email_agent.generate_reply("STANDARD", "", "", "Salam", "warm"))
-    asyncio.run(email_agent.refine_reply("", "", "Salam", "draft", {}))
+    asyncio.run(email_agent.generate_reply(context(email_body="Salam", tone="warm")))
+    asyncio.run(email_agent.refine_reply(context(email_body="Salam", tone="warm"), "draft", []))
     assert all(email_agent._LANGUAGE_RULE in prompt for prompt in prompts) and len(prompts) == 2
 
 

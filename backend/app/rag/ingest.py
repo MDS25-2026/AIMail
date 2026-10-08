@@ -6,8 +6,10 @@ from pathlib import Path
 from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import model_gateway
 from app.core.constants import EMBEDDING_TAG
 from app.core.ownership import Scope
+from app.core.providers import Provider
 from app.db.models import (
     Chunk,
     DocType,
@@ -17,7 +19,6 @@ from app.db.models import (
     UserPreferences,
 )
 from app.db.session import get_sessionmaker
-from app.private_mode import DraftProvider
 from app.rag.chunk import (
     SECTION_KEY,
     Piece,
@@ -25,13 +26,14 @@ from app.rag.chunk import (
     estimate_tokens,
     extract_pdf_text,
 )
-from app.rag.embed import EmbeddingError, embed_documents
-from app.rag.local_embed import embed_documents_locally, local_model, local_tag
-from app.rag.mask import mask_document
+from app.rag.errors import EmbeddingError
+from app.rag.local_embed import local_model, local_tag
+from app.rag.mask import MaskProfile, mask_document
 
 logger = logging.getLogger(__name__)
 
 EMBED_BATCH = 100
+INDEX = "index"  # the egress purpose of embedding stored chunks
 
 
 async def ingest_pdf(
@@ -53,7 +55,7 @@ async def ingest_text(
     # Nothing to store: answered before masking, which needs Presidio and the settings.
     if not text.strip():
         return 0
-    pieces = chunk_sections(await mask_document(text))
+    pieces = chunk_sections(await mask_document(text, profile=MaskProfile.POLICY))
     if not pieces:
         return 0
     await store_chunks(source, title, pieces, scope=scope, doc_type=doc_type)
@@ -104,7 +106,8 @@ async def embed_pending(batch_size: int = EMBED_BATCH) -> int:
             chunks = (await session.scalars(_pending_for_gemini(batch_size))).all()
             if not chunks:
                 return embedded
-            vectors = await embed_documents([c.content for c in chunks])
+            vectors = await model_gateway.embed_documents([c.content for c in chunks], provider=Provider.GEMINI,
+                                                          purpose=INDEX)
             session.add_all(
                 Embedding(chunk_id=c.id, embedding=v, model_name=EMBEDDING_TAG)
                 for c, v in zip(chunks, vectors, strict=True)
@@ -123,7 +126,8 @@ async def embed_pending_locally(batch_size: int = EMBED_BATCH) -> int:
             chunks = (await session.scalars(_pending_for_local(batch_size))).all()
             if not chunks:
                 return embedded
-            vectors = await embed_documents_locally([c.content for c in chunks])
+            vectors = await model_gateway.embed_documents([c.content for c in chunks], provider=Provider.LOCAL,
+                                                          purpose=INDEX)
             session.add_all(
                 LocalEmbedding(chunk_id=c.id, embedding=v, model_name=local_tag())
                 for c, v in zip(chunks, vectors, strict=True)
@@ -148,7 +152,7 @@ def _pending(already_embedded: Select, limit: int) -> Select:
 def _pending_for_gemini(limit: int) -> Select:
     already_embedded = select(Embedding.chunk_id).where(Embedding.model_name == EMBEDDING_TAG)
     private_users = select(UserPreferences.user_id).where(
-        UserPreferences.draft_provider == DraftProvider.LOCAL)
+        UserPreferences.draft_provider == Provider.LOCAL)
     private_documents = select(Document.id).where(Document.user_id.in_(private_users))
     return _pending(already_embedded, limit).where(Chunk.document_id.not_in(private_documents))
 

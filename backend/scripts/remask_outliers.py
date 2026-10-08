@@ -25,27 +25,22 @@ Usage (from backend/):
 
 import argparse
 import asyncio
-import os
 import sys
 from collections import Counter
 from pathlib import Path
 
 import httpx
-from dotenv import load_dotenv
 from sqlalchemy import text
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from app.core.config import get_settings
 from app.db.session import get_sessionmaker
 from scripts.build_study_instrument import (
     load_drafts,
     masking_outliers,
     redaction_count,
 )
-
-load_dotenv()
-
-ANALYZER_URL = os.getenv("PRESIDIO_ANALYZER_URL", "http://localhost:5001/analyze")
 
 # What the regex floor cannot catch and therefore what a degraded row is missing. Emails, phones
 # and ICs are already covered by the regex layer that runs regardless of Presidio.
@@ -75,7 +70,7 @@ def repair_update(row: dict, remasked: dict[str, str]) -> dict:
 
 async def analyze(client: httpx.AsyncClient, body: str) -> list[dict]:
     response = await client.post(
-        ANALYZER_URL,
+        get_settings().presidio_analyzer_url,
         json={"text": body, "language": "en", "entities": _ENTITIES,
               "score_threshold": _SCORE_THRESHOLD},
         timeout=30.0,

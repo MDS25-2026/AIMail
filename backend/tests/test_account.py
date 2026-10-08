@@ -78,7 +78,7 @@ def test_deleting_the_account_signs_the_user_out(calls):
 
 def test_a_script_has_no_account_to_delete(calls):
     response = TestClient(app).delete("/account", headers=AUTH_HEADERS)
-    assert response.status_code == 403 and response.json()["detail"] == "account_only"
+    assert response.status_code == 403 and response.json()["error"]["code"] == "account_only"
     assert calls == []
 
 
@@ -88,7 +88,7 @@ def test_disconnecting_with_nothing_connected_says_so(calls, monkeypatch):
 
     monkeypatch.setattr(account, "disconnect_gmail", nothing)
     response = _signed_in().delete("/account/gmail", headers={"X-AIMail-Client": "1"})
-    assert response.status_code == 404 and response.json()["detail"] == "not_connected"
+    assert response.status_code == 404 and response.json()["error"]["code"] == "not_connected"
 
 
 def test_a_deletion_that_stops_part_way_says_to_try_again_and_keeps_the_session(calls, monkeypatch):
@@ -97,7 +97,7 @@ def test_a_deletion_that_stops_part_way_says_to_try_again_and_keeps_the_session(
 
     monkeypatch.setattr(account, "delete_account", partial)
     response = _signed_in().delete("/account", headers={"X-AIMail-Client": "1"})
-    assert response.status_code == 502 and response.json()["detail"] == "account_not_fully_deleted"
+    assert response.status_code == 502 and response.json()["error"]["code"] == "account_not_fully_deleted"
     assert SESSION_COOKIE not in response.headers.get("set-cookie", "")
 
 
@@ -110,4 +110,4 @@ def test_a_script_has_no_holding_reply_settings(calls):
 def test_settings_that_could_never_work_are_refused_with_their_code(calls):
     response = _signed_in().put("/settings/holding-reply", headers={"X-AIMail-Client": "1"},
                                 json={"enabled": True, "templates": {"en": "Back on {return_date}"}})
-    assert response.status_code == 422 and response.json()["detail"] == "return_date_needs_leave"
+    assert response.status_code == 422 and response.json()["error"]["code"] == "return_date_needs_leave"

@@ -1,52 +1,107 @@
-"""Run the retrieval eval set and report per-query + aggregate metrics (S4).
+"""Measure retrieval on a labelled set (eval/retrieval), and calibrate the cutoff from it.
 
-Usage (from backend/, needs a live DB + GOOGLE_API_KEY and an ingested corpus):
+Usage (from backend/, needs the database and, for Gemini, GOOGLE_API_KEY; the set's corpus must be
+ingested for the owner):
 
-    python scripts/eval_retrieval.py [scripts/eval_set.json]        # S3 baseline (raw query)
-    python scripts/eval_retrieval.py [scripts/eval_set.json] --reformulate   # S5 (reformulated)
+    python scripts/eval_retrieval.py --owner <uuid>                       # report at today's cutoff
+    python scripts/eval_retrieval.py --owner <uuid> --calibrate           # record scores, pick the cutoff
+    python scripts/eval_retrieval.py --owner <uuid> --provider local --calibrate
+    python scripts/eval_retrieval.py --set eval/retrieval/v0.json --reformulate   # S5 against S3
 
-Run both and compare: reformulation (S5) should beat the baseline's MRR / precision on the
-same eval set, especially on low-ranked queries.
+--calibrate writes eval/retrieval/<set>.<provider>.scores.json (scores and judgments, no text) and
+the chosen cutoff into app/rag/cutoffs.json. tests/test_retrieval_calibration.py replays the
+recorded scores offline, so a cutoff that the evidence does not support fails CI.
 """
 
+import argparse
 import asyncio
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
+from uuid import UUID
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.core.ownership import LEGACY
-from app.rag.eval import hit_rate, precision_at_k, reciprocal_rank, relevance_judgments
+from app.core.ownership import LEGACY, Scope
+from app.core.providers import Provider
+from app.rag import calibration
+from app.rag.calibration import Ranked
+from app.rag.eval import reciprocal_rank, relevance_judgments, section_judgments
 from app.rag.reformulate import reformulate
-from app.rag.retrieve import retrieve
+from app.rag.retrieve import CUTOFFS_FILE, cutoff_for, model_tag, search
 
-_DEFAULT = Path(__file__).resolve().parent / "eval_set.json"
+BACKEND = Path(__file__).resolve().parent.parent
+DEFAULT_SET = BACKEND / "eval" / "retrieval" / "v1.json"
 
 
-async def main(path: Path, use_reformulation: bool) -> None:
-    spec = json.loads(path.read_text())
-    k, cases = spec["k"], spec["queries"]
-    precisions, rrs, hits = [], [], 0
-    mode = "reformulated (S5)" if use_reformulation else "baseline (S3)"
-    print(f"queries={len(cases)} k={k}  mode={mode}\n")
-    print(f"  {'hit':<4}{'rank':<6}{'p@k':<6}query")
-    for case in cases:
-        query = await reformulate(case["query"]) if use_reformulation else case["query"]
-        judgments = relevance_judgments(await retrieve(query, k, scope=LEGACY), case["relevant"])
-        precisions.append(precision_at_k(judgments))
-        rrs.append(reciprocal_rank(judgments))
-        hits += int(hit_rate(judgments))
-        rank = next((i + 1 for i, judged in enumerate(judgments) if judged), None)
-        mark = "Y" if hit_rate(judgments) else "N"
-        print(f"  {mark:<4}{(str(rank) if rank else '-'):<6}{precisions[-1]:<6.2f}{case['query'][:58]}")
-    n = len(cases)
-    print(f"\nhit_rate     = {hits / n:.3f}   (R03.2 target >= 0.90)")
-    print(f"precision@{k}  = {sum(precisions) / n:.3f}")
-    print(f"MRR          = {sum(rrs) / n:.3f}")
+def scores_file(set_path: Path, provider: Provider) -> Path:
+    return set_path.with_name(f"{set_path.stem}.{provider}.scores.json")
+
+
+def _judge(chunks: list, case: dict) -> list[bool]:
+    if "sections" in case:
+        return section_judgments(chunks, case["sections"])
+    return relevance_judgments(chunks, case["markers"])
+
+
+async def run(spec: dict, scope: Scope, provider: Provider, is_reformulated: bool) -> list[Ranked]:
+    results = []
+    for case in spec["queries"]:
+        query = await reformulate(case["query"], provider=provider) if is_reformulated else case["query"]
+        chunks = await search(query, spec["k"], scope=scope, provider=provider)
+        results.append(Ranked(case["id"], case["language"], [c["similarity_score"] for c in chunks],
+                              _judge(chunks, case)))
+    return results
+
+
+def report(results: list[Ranked], cutoff: float) -> None:
+    print(f"cutoff {cutoff:.2f}\n  {'language':<10}{'n':<4}{'hit rate':<10}{'MRR':<8}F1")
+    languages = sorted({result.language for result in results})
+    for language in [*languages, "all"]:
+        group = [r for r in results if language in ("all", r.language)]
+        mrr = sum(reciprocal_rank(r.relevant) for r in group) / len(group)
+        print(f"  {language:<10}{len(group):<4}{calibration.hit_rate(group, cutoff):<10.3f}{mrr:<8.3f}"
+              f"{calibration.mean_f1(group, cutoff):.3f}")
+    for result in results:
+        if not any(result.relevant):
+            print(f"  miss: {result.query_id} (no answering section in the top {len(result.relevant)})")
+
+
+def record(results: list[Ranked], set_path: Path, spec: dict, provider: Provider) -> float:
+    cutoff = calibration.best_cutoff(results)
+    model = model_tag(provider)
+    scores_file(set_path, provider).write_text(json.dumps({
+        "eval_set": f"retrieval/v{spec['version']}", "model": model,
+        "results": [{"id": r.query_id, "language": r.language, "scores": r.scores, "relevant": r.relevant}
+                    for r in results],
+    }, indent=2) + "\n")
+    cutoffs = json.loads(CUTOFFS_FILE.read_text())
+    cutoffs[provider] = {"cutoff": cutoff, "model": model, "eval_set": f"retrieval/v{spec['version']}",
+                         "calibrated_on": datetime.now(timezone.utc).date().isoformat()}
+    CUTOFFS_FILE.write_text(json.dumps(cutoffs, indent=2) + "\n")
+    return cutoff
+
+
+async def main(args: argparse.Namespace) -> None:
+    spec = json.loads(args.set.read_text(encoding="utf-8"))
+    provider = Provider(args.provider)
+    scope = Scope(owner_id=args.owner) if args.owner else LEGACY
+    results = await run(spec, scope, provider, args.reformulate)
+    print(f"set=v{spec['version']} queries={len(results)} k={spec['k']} provider={provider} "
+          f"model={model_tag(provider)}{' reformulated' if args.reformulate else ''}\n")
+    if args.calibrate:
+        report(results, record(results, args.set, spec, provider))
+        print(f"\nwrote {scores_file(args.set, provider)} and {CUTOFFS_FILE}")
+        return
+    report(results, cutoff_for(provider, model_tag(provider)))
 
 
 if __name__ == "__main__":
-    positional = [a for a in sys.argv[1:] if not a.startswith("--")]
-    eval_path = Path(positional[0]) if positional else _DEFAULT
-    asyncio.run(main(eval_path, use_reformulation="--reformulate" in sys.argv))
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--set", type=Path, default=DEFAULT_SET)
+    parser.add_argument("--owner", type=UUID, help="the account whose documents are searched; omit for unowned")
+    parser.add_argument("--provider", choices=[p.value for p in Provider], default=Provider.GEMINI.value)
+    parser.add_argument("--calibrate", action="store_true")
+    parser.add_argument("--reformulate", action="store_true")
+    asyncio.run(main(parser.parse_args()))

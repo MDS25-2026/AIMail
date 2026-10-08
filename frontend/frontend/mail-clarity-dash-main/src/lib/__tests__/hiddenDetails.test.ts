@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { fillFirst, hiddenCounts, HiddenKind, kindOf, unfilledMarkers } from "../hiddenDetails";
+import { fillFirst, hiddenCounts, unfilledMarkers } from "../hiddenDetails";
+import { HiddenKind, kindOf } from "../masking";
 
 const KNOWN = new Map([["[PERSON_1]", "Aisyah"]]);
 

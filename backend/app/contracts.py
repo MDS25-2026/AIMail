@@ -11,6 +11,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.agent_contract import Tone
 from app.db.models import AuthStatus
 
 
@@ -83,6 +84,17 @@ class Detail(BaseModel):
     kind: str  # "PERSON", "PHONE", ...
 
 
+class EgressRecord(BaseModel):
+    """One prompt that left for a model, as kept by the backend (model_gateway). No text."""
+
+    purpose: str  # "draft", "critic", "search", "translate", ...
+    provider: Literal["gemini", "local"]
+    chars: int
+    hidden: dict[str, int]  # placeholders by kind: {"person": 2, "phone": 1}
+    caught: int  # details the gateway's last net masked; anything above 0 is a masking bug upstream
+    at: str  # ISO 8601
+
+
 class DashboardEmail(BaseModel):
     """The joined email view the Lane D dashboard renders (matches Han's `Email` type).
 
@@ -102,7 +114,9 @@ class DashboardEmail(BaseModel):
     aiSummary: str
     actionItems: list[str]
     draftReply: str
-    tone: Literal["professional", "casual"]
+    tone: Tone
+    # The worker is writing the first draft (opening an email asks for it); poll until false.
+    isDrafting: bool = False
     sources: list[Source]
     piiMasked: bool
     criticConfidence: float
@@ -119,6 +133,20 @@ class DashboardEmail(BaseModel):
     # The real details behind this email's, its thread's and its draft's placeholders. Detail
     # responses only; empty on the list and for emails stored before restorable masking.
     details: list[Detail] = Field(default_factory=list)
+    # What actually left for a model while working on this email, newest first. Detail responses only.
+    egress: list[EgressRecord] = Field(default_factory=list)
+
+
+# Newest first, at most this many per page unless the caller asks for fewer.
+EMAILS_PER_PAGE = 50
+MAX_EMAILS_PER_PAGE = 100
+
+
+class EmailPage(BaseModel):
+    """One page of the inbox. nextCursor goes back as ?cursor= for the next page; null on the last."""
+
+    emails: list[DashboardEmail]
+    nextCursor: str | None = None
 
 
 _PRIORITY_LABELS: dict[int, Literal["low", "medium", "high"]] = {0: "low", 1: "medium", 2: "high"}

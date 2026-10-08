@@ -12,7 +12,6 @@ Usage (from backend/, needs GOOGLE_API_KEY in ../.env):
 import argparse
 import csv
 import json
-import os
 import sys
 import time
 import zipfile
@@ -20,11 +19,11 @@ from email import message_from_string
 from pathlib import Path
 
 import httpx
-from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-_API_KEY = os.getenv("GOOGLE_API_KEY")
+from app.core.config import get_settings
+
 # gemini-3.5-flash is a step up from flash-lite with usable free quota (Pro is quota-locked on the
 # free tier). Override with --model. The label quality mostly comes from the rubric below anyway.
 _DEFAULT_MODEL = "gemini-3.5-flash"
@@ -111,7 +110,7 @@ def _label_batch(client: httpx.Client, emails: list[str], url: str) -> list[str]
     }
     for attempt in range(6):
         try:
-            resp = client.post(url, headers={"x-goog-api-key": _API_KEY}, json=payload)
+            resp = client.post(url, headers={"x-goog-api-key": get_settings().google_api_key}, json=payload)
         except httpx.TransportError:  # timeout / disconnect — retryable, don't kill the run
             time.sleep(5 * (attempt + 1))
             continue
@@ -134,7 +133,7 @@ def main() -> None:
     parser.add_argument("--model", default=_DEFAULT_MODEL, help="Gemini model for labeling")
     args = parser.parse_args()
 
-    if not _API_KEY:
+    if not get_settings().google_api_key:
         raise SystemExit("no GOOGLE_API_KEY in ../.env")
     url = _URL_TEMPLATE.format(model=args.model)
     print(f"labeling with {args.model}", flush=True)

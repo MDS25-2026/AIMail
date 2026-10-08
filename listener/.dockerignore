@@ -1,0 +1,7 @@
+credentials.json
+token.json
+.env
+.env.*
+attachment-reader/
+testdata/
+*_test.go

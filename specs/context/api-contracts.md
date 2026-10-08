@@ -2,6 +2,12 @@
 
 This file is the **contract between frontend and backend**. Every REST endpoint AImail exposes is documented here. Frontend and backend must both match this file.
 
+> **Errors (2026-10-08):** every error is `{"error": {"code": "<code>", "message": "<English, for logs>"}}`.
+> Codes and their statuses live in one registry, `backend/app/core/errors.py` (`ErrorCode`); the older
+> `{"detail": "<code>"}` responses are gone. Some codes were renamed in the move: `DATABASE_UNREACHABLE` ->
+> `database_unreachable`, `AI_SERVICE_UNREACHABLE` -> `ai_service_unreachable`, `email_too_long_to_translate` ->
+> `too_large`, `agent_unreachable` -> `agent_unavailable`, and PDF upload errors -> `not_pdf` / `unreadable_pdf`.
+
 ## Rules
 
 - Add an endpoint here **before** writing it.
@@ -20,7 +26,7 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   `403` `client_header_missing`. An unset `BACKEND_API_TOKEN` never matches. Implementation:
   `backend/app/core/auth.py`.
 - Mailbox scope: a signed-in user sees mail only for a mailbox they own (stage 1: the Gmail account
-  the backend is connected to, read at startup; `MAILBOX_OWNER_EMAIL` is a fallback). Anyone else gets `[]` from `GET /emails` and `GET /documents`, and `404` from every
+  the backend is connected to, read at startup; `MAILBOX_OWNER_EMAIL` is a fallback). Anyone else gets an empty page from `GET /emails` and `[]` from `GET /documents`, and `404` from every
   route about one email, `/search`, `/ask` and document ingestion.
 - **Holding reply (2026-10-06, `specs/features/holding-reply.md`):** `GET /settings/holding-reply`
   returns `{enabled, activeWhen, workDays, workStart, workEnd, timezone, leaveFrom, leaveUntil,
@@ -79,12 +85,24 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   `/refine` accept `sign_off` (the owner's name as a placeholder, never the name); payloads still
   never carry a real detail.
 - `GET /emails/by-thread/{thread_id}` (2026-10-05, the Chrome extension): the newest of the
-  signed-in user's messages in that Gmail thread, as `GET /emails/{id}` returns it (generating the
+  signed-in user's messages in that Gmail thread, as `GET /emails/{id}` returns it (asking for the
   draft if needed). `thread_id` must be 8 to 24 lowercase hex characters (`422` otherwise); `404`
   when the user has no message in that thread. Same scope rules as every email route.
+- `GET /emails?cursor=&limit=` (2026-10-08) answers one page, newest first:
+  `{ "emails": [DashboardEmail], "nextCursor": string | null }`. `limit` is 1 to 100 (default 50;
+  `422` outside). `nextCursor` goes back as `cursor` for the next, older page and is `null` on the
+  last; it is opaque, and one this API did not issue is `422 invalid_request`. Paging is by
+  `(created_at, id)`, so no email is skipped or shown twice when new ones arrive. Before this the
+  list was the newest 50 and older mail could not be reached.
+- `GET /emails/{id}` (2026-10-08) never writes the draft inside the request. An email with no draft
+  yet that may be drafted answers at once with `isDrafting: true` and is queued
+  (`messages.draft_requested_at`, migration 0032); the worker's "requested drafts" job, on every
+  3 s whatever `AUTO_GENERATE` says, writes it. The dashboard fetches the email again every 3 s while
+  `isDrafting` is true, for up to two minutes. Only the first attempt is queued this way; after a
+  failure `isDrafting` is false and Regenerate (or the regular pass) takes over.
 - **Per-user scope (per-user mailboxes, step 3):** every email and document route answers only for
   the signed-in user's own rows (`app/core/ownership.py`). Another user's email id answers `404`,
-  exactly like an unknown id; `GET /emails` and `GET /documents` return `[]` for a user with no
+  exactly like an unknown id; `GET /emails` returns an empty page and `GET /documents` `[]` for a user with no
   connected Gmail; `/search`, `/ask` and drafting ground only on the user's own documents;
   `GET /auth/session`'s `hasMailbox` is true when the user has connected Gmail (or owns the
   original single mailbox). The shared script token still sees everything.
@@ -159,13 +177,20 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   `email_body`, `draft` and `instruction`, and runs the same critic and gates as `/process-email`.
   It answers `{draft, confidence, issues, needs_human_review, grounding_ok, pii_clean, tone_match,
   completeness, pii_findings, unsupported_specifics, unaddressed_requests, review_reasons,
-  model_calls}`, and the backend stores that verdict with the refined draft. The backend masks
+  model_calls, egress, prompt_version}`, and the backend stores that verdict with the refined draft. The backend masks
   emails, ICs, passports, card and phone numbers in the typed draft and instruction first (names
   stay), and does the same for `/search` and `/ask` queries (`app/core/typed_text.py`). A refine
   the model refuses answers `422` `draft_refused` through the backend.
 - Lane C's `/process-email` and `/refine` answer `503` (or `504` when the draft's deadline ran
-  out) with `{"detail": "<gemini error code>"}` when Gemini fails. See
+  out) with `{"detail": "<gemini error code>"}` when Gemini fails before a draft exists. Once one
+  exists (2026-10-08), a failed critique or repair answers `200` with that draft, flagged for review
+  with `critic unavailable: <code>` or `repair stopped: <code>`. See
   [`../features/llm-resilience.md`](../features/llm-resilience.md).
+- Probes (2026-10-08, `app/core/health.py`): the backend and the agent answer `GET /healthz`
+  (`200 {"status": "ok"}` while the process serves) and `GET /readyz` (`200` once ready, else `503`
+  with `{"status": "failed", "checks": {"<name>": "failed"}}`; the backend checks its database, the
+  agent that a model is configured, without calling one). Neither needs a session or the agent token,
+  and neither is in the OpenAPI schema. The listener's own probes are on `:8095`.
 - The Lane C agent (`:8001`) carries no token of its own and is bound to `127.0.0.1`; it is
   reachable only by the backend on the same host.
 - Errors follow this shape:
@@ -205,8 +230,8 @@ See [`../features/rag-retrieval.md`](../features/rag-retrieval.md).
 **`POST /documents/upload`** — add a policy by uploading a PDF (multipart).
 - Request: `multipart/form-data` with `file` (PDF) · Response 200: `{ "chunks": int }` · 400 if not a readable PDF.
 
-> Drift note: these currently return FastAPI defaults (`{"detail": ...}` on error, bare JSON bodies),
-> not the `{ "error": {...} }` envelope above. Aligning them is a follow-up when the contract is finalised.
+> Errors from these use the `{ "error": {...} }` envelope like every other route (one registry,
+> `app/core/errors.py`, since 2026-10-08); success bodies are the bare JSON shown.
 
 ### Dashboard (email view)
 
@@ -254,3 +279,9 @@ import (never hand-copy). Provisional; adding a field is safe, changing/removing
 - [ ] `POST /drafts/{id}/approve` — approve draft, trigger send.
 - [ ] `POST /drafts/{id}/edit` — user edits before approval.
 - [ ] `POST /drafts/{id}/reject` — discard draft.
+
+> **Backend to agent (2026-10-08):** the request and response models live in one module both sides import,
+> `backend/app/agent_contract.py`; the backend validates every agent answer against them. `provider` is required.
+> `POST /emails/{id}/refine` takes an optional `tone` (`professional` | `casual`, default professional), which the
+> agent now keeps through the revision and its review; refine also reports the email's own review reasons
+> (possible phishing, no policy context), as drafting does.

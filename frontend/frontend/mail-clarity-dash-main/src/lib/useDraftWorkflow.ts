@@ -1,13 +1,6 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import {
-  DraftRefusedError,
-  GoogleAccessExpiredError,
-  SendNotGrantedError,
-  SendOutcomeUnknownError,
-  UnresolvedPlaceholdersError,
-} from "./api";
 import { detailValues, restoreDetails } from "./details";
 import { useDetailsHidden } from "./detailsVisibility";
 import { findRedactionMarkers, findTemplatePlaceholders, hasUnsavedEdits } from "./draftGuards";
@@ -20,32 +13,8 @@ export enum DraftAction {
   Send = "send",
 }
 
-/** Why the last action failed; each value is a `draftStatus.failed.*` message. */
-export enum DraftFailure {
-  Regenerate = "regenerate",
-  Refine = "refine",
-  Send = "send",
-  Refused = "refused",
-  SendUnknown = "sendUnknown",
-  SendNotGranted = "sendNotGranted",
-  AccessExpired = "accessExpired",
-  Unresolved = "unresolved",
-}
-
-const FAILURE_BY_ACTION: Record<DraftAction, DraftFailure> = {
-  [DraftAction.Regenerate]: DraftFailure.Regenerate,
-  [DraftAction.Refine]: DraftFailure.Refine,
-  [DraftAction.Send]: DraftFailure.Send,
-};
-
-function failureFor(error: unknown, action: DraftAction): DraftFailure {
-  if (error instanceof DraftRefusedError) return DraftFailure.Refused;
-  if (error instanceof SendOutcomeUnknownError) return DraftFailure.SendUnknown;
-  if (error instanceof SendNotGrantedError) return DraftFailure.SendNotGranted;
-  if (error instanceof GoogleAccessExpiredError) return DraftFailure.AccessExpired;
-  if (error instanceof UnresolvedPlaceholdersError) return DraftFailure.Unresolved;
-  return FAILURE_BY_ACTION[action];
-}
+/** The last action that failed, and why; DraftStatus turns it into words. */
+export type DraftFailure = { action: DraftAction; error: unknown };
 
 export enum ConfirmKind {
   ReplaceEdits = "replaceEdits",
@@ -65,7 +34,37 @@ export type DraftWorkflowStatus = {
   pendingConfirm: PendingConfirm | null;
   onConfirm: () => void;
   onCancel: () => void;
+  /** The first draft is still being written; acting now would act on the preview. */
+  isGenerating: boolean;
+  isLoadFailed: boolean;
+  onRetryLoad: () => void;
 };
+
+/** The detail query the email came from; any query result fits. Absent when there is none. */
+export type DetailLoad = { isLoading: boolean; isError: boolean; refetch: () => unknown };
+
+export type DraftWorkflow = {
+  draft: string;
+  tone: Tone;
+  setDraft: (text: string) => void;
+  /** A tone change regenerates the draft in that tone. */
+  setTone: (tone: Tone) => void;
+  regenerate: () => void;
+  /** Rejects on failure, so the caller can keep the instruction the reader typed. */
+  refine: (instruction: string) => Promise<void>;
+  send: () => void;
+  status: DraftWorkflowStatus;
+  announcement: string;
+  isRegenerating: boolean;
+  isRefining: boolean;
+  isSending: boolean;
+  /** Anything in flight; the draft must not change under a send, nor a send go out mid-change. */
+  isBusy: boolean;
+  /** Busy, or already sent: every control that changes the draft is disabled (#172). */
+  isDraftLocked: boolean;
+};
+
+const NO_DETAIL: DetailLoad = { isLoading: false, isError: false, refetch: () => undefined };
 
 // Every piece of local state remembers which email it belongs to, so a response that lands after
 // the reader moved on can neither clear the new email's edits nor show its error there.
@@ -83,13 +82,18 @@ const shownOnScreen = () => undefined;
  * Guards the two ways a reader lost work: a regenerate silently replacing their edits, and a
  * redaction marker going out to the recipient unnoticed. Failures stay on screen until the next try.
  */
-export function useDraftWorkflow(email: Email | null) {
+export function useDraftWorkflow(
+  email: Email | null,
+  detail: DetailLoad = NO_DETAIL,
+): DraftWorkflow {
   const { t } = useTranslation();
   const emailId = email?.id ?? null;
   const [isHidingDetails] = useDetailsHidden();
   // The stored draft holds placeholders; the reader edits it with the real details, and the
   // backend turns them back into placeholders before anything reaches the AI.
   const storedDraft = email?.draftReply ?? "";
+  // The detail call no longer drafts; the worker does, and the email says so until it is done.
+  const isWaitingForDraft = detail.isLoading || Boolean(email?.isDrafting);
   const serverDraft = isHidingDetails
     ? storedDraft
     : restoreDetails(storedDraft, detailValues(email?.details));
@@ -130,8 +134,7 @@ export function useDraftWorkflow(email: Email | null) {
     try {
       await run();
     } catch (error) {
-      const failure = failureFor(error, action);
-      if (seq === requestSeqRef.current) setFailed({ emailId: id, value: failure });
+      if (seq === requestSeqRef.current) setFailed({ emailId: id, value: { action, error } });
       throw error;
     }
     if (seq !== requestSeqRef.current) return;
@@ -152,13 +155,13 @@ export function useDraftWorkflow(email: Email | null) {
     runMutation(id, DraftAction.Send, request, t("announce.sent")).catch(shownOnScreen);
   };
 
+  const isRegenerating = regenerateMutation.isPending;
+  const isRefining = refineMutation.isPending;
+  const isSending = sendMutation.isPending;
+  const isBusy = isRegenerating || isRefining || isSending || isWaitingForDraft;
   // The panels disable every control that changes the draft; this backs them up. A sent reply is
   // final, and a change mid-send would leave the screen showing text other than what went out.
-  const isDraftLocked =
-    Boolean(email?.sentAt) ||
-    regenerateMutation.isPending ||
-    refineMutation.isPending ||
-    sendMutation.isPending;
+  const isDraftLocked = isBusy || Boolean(email?.sentAt);
 
   const regenerate = (nextTone: Tone = tone) => {
     if (emailId === null || isDraftLocked) return;
@@ -169,11 +172,11 @@ export function useDraftWorkflow(email: Email | null) {
     startRegenerate(emailId, nextTone);
   };
 
-  /** Rejects on failure, so the caller can keep the instruction the reader typed. */
   const refine = async (instruction: string) => {
     if (emailId === null || isDraftLocked) return;
     const id = emailId;
-    const request = () => refineMutation.mutateAsync({ emailId: id, instruction, draft });
+    // The chosen tone goes too, so the revision and its review keep it.
+    const request = () => refineMutation.mutateAsync({ emailId: id, instruction, draft, tone });
     await runMutation(id, DraftAction.Refine, request, t("announce.refined"));
   };
 
@@ -211,25 +214,33 @@ export function useDraftWorkflow(email: Email | null) {
     },
     onConfirm: confirm,
     onCancel: () => setPending(null),
+    isGenerating: isWaitingForDraft,
+    isLoadFailed: detail.isError,
+    onRetryLoad: () => void detail.refetch(),
+  };
+
+  const setDraft = (text: string) => {
+    if (emailId === null) return;
+    setTyped({ emailId, value: text });
+    // The warning is moot once every marker has been typed over.
+    const isMarkerWarning = pendingAction?.kind === ConfirmKind.SendMarkers;
+    if (isMarkerWarning && findRedactionMarkers(text).length === 0) setPending(null);
   };
 
   return {
     draft,
     tone,
-    setDraft: (text: string) => {
-      if (emailId === null) return;
-      setTyped({ emailId, value: text });
-      // The warning is moot once every marker has been typed over.
-      const isMarkerWarning = pendingAction?.kind === ConfirmKind.SendMarkers;
-      if (isMarkerWarning && findRedactionMarkers(text).length === 0) setPending(null);
-    },
-    regenerate,
+    setDraft,
+    setTone: regenerate,
+    regenerate: () => regenerate(),
     refine,
     send,
     status,
     announcement,
-    isRegenerating: regenerateMutation.isPending,
-    isRefining: refineMutation.isPending,
-    isSending: sendMutation.isPending,
+    isRegenerating,
+    isRefining,
+    isSending,
+    isBusy,
+    isDraftLocked,
   };
 }

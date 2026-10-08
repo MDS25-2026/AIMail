@@ -21,4 +21,5 @@ these are real listed-company documents rather than synthetic policy. Cite them 
 do not present the text as original.
 
 Both must be attributed. Adding more sources: pick documents that cover the topics
-`scripts/eval_set.json` asks about, and extend that eval set at the same time.
+`eval/retrieval/v0.json` asks about, and extend it with a new version file (`v2.json`), never by editing an
+old one, then run `make calibrate`.

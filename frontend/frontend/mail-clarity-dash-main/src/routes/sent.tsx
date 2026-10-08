@@ -3,14 +3,10 @@ import { useTranslation } from "react-i18next";
 
 import AppShell from "../components/AppShell";
 import FilteredEmailList from "../components/FilteredEmailList";
+import { Page, pageMeta } from "../lib/pageMeta";
 
 export const Route = createFileRoute("/sent")({
-  head: () => ({
-    meta: [
-      { title: "AIMail sent" },
-      { name: "description", content: "Replies a human approved and AImail sent." },
-    ],
-  }),
+  head: ({ match }) => ({ meta: pageMeta(match.context.preferences.language, Page.Sent) }),
   component: SentPage,
 });
 
