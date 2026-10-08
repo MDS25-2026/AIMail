@@ -12,22 +12,43 @@ export default function DraftActionsBar({ workflow, isSent }: DraftActionsBarPro
   const { t } = useTranslation();
   const isDraftChanging =
     workflow.isRegenerating || workflow.isRefining || workflow.status.isGenerating;
+  const isCountingDown = workflow.undoCountdown !== null && workflow.undoCountdown > 0;
+
   return (
-    <div className="flex items-center justify-end gap-2">
-      <button
-        type="button"
-        disabled={workflow.isDraftLocked}
-        onClick={workflow.regenerate}
-        className={button({ size: "md" })}
-      >
-        {workflow.isRegenerating ? t("draft.regenerating") : t("draft.regenerate")}
-      </button>
-      <ApproveSendButton
-        onApproveSend={workflow.send}
-        isSending={workflow.isSending}
-        isSent={isSent}
-        isDraftChanging={isDraftChanging}
-      />
+    <div className="flex flex-col gap-2">
+      {isCountingDown && (
+        <div
+          role="status"
+          className="flex items-center justify-between rounded-md border border-warning-line bg-warning-soft px-3 py-2 text-sm text-warning"
+        >
+          <span>
+            {t("draft.undoSendingIn", { count: workflow.undoCountdown })}
+          </span>
+          <button
+            type="button"
+            onClick={workflow.undoSend}
+            className="ml-4 rounded border border-warning bg-surface px-3 py-1 text-xs font-semibold text-warning hover:bg-warning-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+          >
+            {t("draft.undo")}
+          </button>
+        </div>
+      )}
+      <div className="flex items-center justify-end gap-2">
+        <button
+          type="button"
+          disabled={workflow.isDraftLocked}
+          onClick={workflow.regenerate}
+          className={button({ size: "md" })}
+        >
+          {workflow.isRegenerating ? t("draft.regenerating") : t("draft.regenerate")}
+        </button>
+        <ApproveSendButton
+          onApproveSend={workflow.send}
+          isSending={workflow.isSending}
+          isSent={isSent}
+          isDraftChanging={isDraftChanging || isCountingDown}
+        />
+      </div>
     </div>
   );
 }
