@@ -131,7 +131,8 @@ once in the dashboard with the Google account used in Gmail, open Gmail, and cli
   sets the extension's host permission), so rebuild after changing it.
 - The panel uses the dashboard's session cookie; nothing is stored in the extension.
 - A Gmail tab opened before installing needs one reload.
-- Icons: `extension-public/icons/`, drawn by `scripts/make-extension-icons.py`.
+- Icons: `extension-public/icons/` (16/48/128) and `public/favicon.ico` are the AIMail "AI" glyph;
+  the header wordmark is `src/assets/aimail-logo-{dark,light}.png` (dark text for light mode).
 
 ## Colours, themes and languages
 
