@@ -6,6 +6,7 @@ import { detailValues } from "../lib/details";
 import { isQuarantined } from "../lib/draftAvailability";
 import { DetailsContext } from "../lib/detailsContext";
 import { useFormat } from "../lib/useFormat";
+import CategoryBadge from "./CategoryBadge";
 import PriorityBadge from "./PriorityBadge";
 import WithDetails from "./WithDetails";
 
@@ -84,7 +85,10 @@ export default function EmailListItem({
             </p>
           )}
           <div className="mt-2 flex items-center justify-between gap-2">
-            <PriorityBadge priority={email.priority} />
+            <div className="flex flex-wrap items-center gap-1.5">
+              <PriorityBadge priority={email.priority} />
+              <CategoryBadge email={email} />
+            </div>
             {email.authStatus === AuthStatus.SpoofDetected ? (
               <span className="flex items-center gap-1 rounded bg-danger-soft px-1.5 py-0.5 text-[11px] font-semibold text-danger">
                 <ShieldAlert aria-hidden className="size-3" />
