@@ -9,6 +9,7 @@ import { useSession, useSignOut } from "../lib/queries";
 import SideNav from "./SideNav";
 import { button } from "./variants";
 
+
 /** App chrome shared by every dashboard route: brand header plus the nav rail. */
 export default function AppShell({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
@@ -37,6 +38,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         {children}
       </main>
     </div>
+
   );
 }
 

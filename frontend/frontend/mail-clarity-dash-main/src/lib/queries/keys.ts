@@ -6,6 +6,7 @@ export const queryKeys = {
   emailByThread: (threadId: string) => ["email-by-thread", threadId] as const,
   translation: (id: string, language: string) => ["translation", id, language] as const,
   documents: ["documents"] as const,
+  document: (id: string) => ["document", id] as const,
   systemInfo: ["system-info"] as const,
   holdingReplySettings: ["holding-reply-settings"] as const,
   holdingReplies: ["holding-replies"] as const,

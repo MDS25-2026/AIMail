@@ -20,7 +20,7 @@ from sqlalchemy import (
     Time,
     func,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.constants import EMBEDDING_DIM, LOCAL_EMBEDDING_DIM
@@ -201,8 +201,13 @@ class Message(Base):
     send_outcome_unknown_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # A worker drafting this message holds it until then (migration 0027, app/jobs.py).
     generation_claimed_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    # Where an approved reply goes when the sender set Reply-To; shown to the approver (0014).
     reply_to: Mapped[str | None] = mapped_column(Text)
+    # Hybrid search embedding (migration 0035, gemini-embedding-001 @ 1536 dims).
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM))
+    # Full-text search vector (migration 0035).
+    search_vector: Mapped[str | None] = mapped_column(TSVECTOR)
+
+
 
     @property
     def is_masked(self) -> bool:

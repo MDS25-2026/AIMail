@@ -237,6 +237,38 @@ See [`../features/rag-retrieval.md`](../features/rag-retrieval.md).
 > Errors from these use the `{ "error": {...} }` envelope like every other route (one registry,
 > `app/core/errors.py`, since 2026-10-08); success bodies are the bare JSON shown.
 
+### Inbox search & Q&A assistant (2026-10-09, `specs/features/inbox-search-qa.md`, Issue #144)
+
+**`POST /api/search/inbox`** — natural language conversational search across masked emails and knowledge base documents with grounded Gemini answer synthesis.
+- Request:
+  ```json
+  {
+    "query": string,
+    "history"?: [{ "role": "user" | "assistant", "content": string }],
+    "k_emails"?: int (1–20, default 5),
+    "k_docs"?: int (1–10, default 3)
+  }
+  ```
+- Response 200:
+  ```json
+  {
+    "answer": string,
+    "sources": [
+      {
+        "source_type": "email" | "document",
+        "id": string (uuid),
+        "title": string,
+        "subtitle": string,
+        "snippet": string,
+        "received_at": string | null
+      }
+    ]
+  }
+  ```
+- Auth required (cookie or bearer). Scoped strictly to the caller's mailbox and uploaded documents.
+- 401 `signed_out` / `session_invalid` · 404 `mailbox_not_connected` · 422 `invalid_request` · 503 `ai_service_unreachable`.
+
+
 ### Dashboard (email view)
 
 **`POST /emails/{id}/translate`** — the masked body in another language, for reading only.

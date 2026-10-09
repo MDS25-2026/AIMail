@@ -20,7 +20,7 @@ class MaskProfile(StrEnum):
 
 
 _ENTITIES = {
-    MaskProfile.POLICY: ["PERSON", "EMAIL_ADDRESS", "PHONE_NUMBER", "CREDIT_CARD", "IBAN_CODE"],
+    MaskProfile.POLICY: ["PERSON", "CREDIT_CARD", "IBAN_CODE", "PHONE_NUMBER"],
     # The listener's set (listener/main.go), so a reply is masked as strictly as the email it answers.
     MaskProfile.PERSONAL: ["PERSON", "LOCATION", "ORGANIZATION", "ACCOUNT_NUMBER", "CREDIT_CARD", "IBAN_CODE",
                            "PHONE_NUMBER", "EMAIL_ADDRESS"],
@@ -73,7 +73,7 @@ async def _mask_names(client: httpx.AsyncClient, url: str, text: str, profile: M
 
 async def mask_document(text: str, *, profile: MaskProfile) -> str:
     """The text with fixed formats and the profile's detected entities redacted."""
-    floor = mask_typed_text(text)
+    floor = mask_typed_text(text, preserve_business_emails=(profile == MaskProfile.POLICY))
     url = get_settings().presidio_analyzer_url
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS) as client:

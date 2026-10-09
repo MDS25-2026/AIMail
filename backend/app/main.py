@@ -94,9 +94,16 @@ from app.rag.embedding_models import REGISTRY, check_columns
 from app.rag.errors import EmbeddingError
 from app.rag.generate import answer
 from app.rag.ingest import ingest_text
-from app.rag.library import DocumentSummary, delete_document, list_documents
+from app.rag.library import (
+    DocumentDetail,
+    DocumentSummary,
+    delete_document,
+    get_document_detail,
+    list_documents,
+)
 from app.rag.mask import DocumentMaskingError
 from app.rag.retrieve import ContextChunk, retrieve
+from app.search_routes import router as search_router
 from app.sign_in import router as sign_in_router
 from app.writing_style_routes import router as writing_style_router
 from model_gateway import track_egress
@@ -124,6 +131,8 @@ app.include_router(holding_reply_router)
 app.include_router(private_mode_router)
 app.include_router(writing_style_router)
 app.include_router(audit_router)
+app.include_router(search_router)
+
 
 # Dev CORS so the dashboard can call this API cross-origin. The regex covers any
 # localhost/127.0.0.1 port (they are distinct origins to the browser); FRONTEND_ORIGINS lists
@@ -366,6 +375,17 @@ async def get_documents(request: Request) -> list[DocumentSummary]:
     if scope is None:
         return []
     return await list_documents(scope)
+
+
+@app.get("/documents/{document_id}")
+async def get_document(document_id: UUID, request: Request) -> DocumentDetail:
+    scope = await scope_of_principal(principal_of(request))
+    if scope is None:
+        raise DomainError(ErrorCode.NOT_FOUND)
+    doc = await get_document_detail(document_id, scope)
+    if not doc:
+        raise DomainError(ErrorCode.NOT_FOUND)
+    return doc
 
 
 @app.post("/documents", dependencies=[Depends(rate_limit_ingest), Depends(require_mailbox)])

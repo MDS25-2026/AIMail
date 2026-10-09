@@ -60,3 +60,63 @@ async def delete_document(document_id: UUID, scope: Scope) -> bool:
             .returning(Document.id)
         )
     return deleted is not None
+
+
+class ChunkDetail(TypedDict):
+    id: UUID
+    chunk_idx: int
+    section: str | None
+    content: str
+
+
+class DocumentDetail(TypedDict):
+    document_id: UUID
+    title: str
+    source: str
+    doc_type: str
+    chunk_count: int
+    content: str
+    chunks: list[ChunkDetail]
+
+
+async def get_document_detail(document_id: UUID, scope: Scope) -> DocumentDetail | None:
+    """Fetch a document by ID with all its chunks ordered by chunk_idx, reassembling the full text."""
+    async with get_sessionmaker()() as session:
+        doc = await session.scalar(
+            select(Document).where(
+                Document.id == document_id,
+                scope.where(Document.user_id),
+                Document.doc_type.is_distinct_from(DocType.SENT_REPLY),
+            )
+        )
+        if not doc:
+            return None
+
+        chunks = (
+            await session.scalars(
+                select(Chunk)
+                .where(Chunk.document_id == document_id)
+                .order_by(Chunk.chunk_idx.asc())
+            )
+        ).all()
+
+        chunk_details: list[ChunkDetail] = [
+            ChunkDetail(
+                id=c.id,
+                chunk_idx=c.chunk_idx,
+                section=(c.meta or {}).get("section") if c.meta else None,
+                content=c.content,
+            )
+            for c in chunks
+        ]
+        full_text = "\n\n".join(c.content for c in chunks)
+
+        return DocumentDetail(
+            document_id=doc.id,
+            title=doc.title or "",
+            source=doc.source,
+            doc_type=doc.doc_type or "",
+            chunk_count=len(chunks),
+            content=full_text,
+            chunks=chunk_details,
+        )

@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import InboxList from "../components/InboxList";
@@ -30,28 +30,47 @@ export const Route = createFileRoute("/")({
 
 function DashboardPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { email: requestedId } = Route.useSearch();
   const emails = useEmails();
   const session = useSession();
-  const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
+  const [selectedEmailId, setSelectedEmailId] = useState<string | null>(requestedId ?? null);
   const selected = useEmail(selectedEmailId);
 
+  // Sync selectedEmailId whenever requestedId in URL search params changes (e.g. from chatbot link)
+  useEffect(() => {
+    if (requestedId && requestedId !== selectedEmailId) {
+      setSelectedEmailId(requestedId);
+    }
+  }, [requestedId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Default auto-select to first email if no search param exists
+  useEffect(() => {
+    if (!requestedId && !selectedEmailId && emails.data && emails.data.length > 0) {
+      setSelectedEmailId(emails.data[0].id);
+    }
+  }, [emails.data, requestedId, selectedEmailId]);
+
+  const handleSelectEmail = (id: string) => {
+    setSelectedEmailId(id);
+    void navigate({
+      to: "/",
+      search: { email: id },
+      replace: true,
+    });
+  };
+
+  // If an email was opened directly via search/deep-link and is not in the loaded inbox page,
+  // include it in the display list so it is highlighted in the list
+  const displayEmails =
+    selected.data && !emails.data?.some((item) => item.id === selected.data?.id)
+      ? [selected.data, ...(emails.data ?? [])]
+      : (emails.data ?? []);
+
   // The detail call re-runs generation (~15s), so show the list row's copy until it lands.
-  const listEmail = (emails.data ?? []).find((item) => item.id === selectedEmailId) ?? null;
+  const listEmail = displayEmails.find((item) => item.id === selectedEmailId) ?? null;
   const email = selected.data ?? listEmail;
   const workflow = useDraftWorkflow(email, selected);
-
-  const didAutoSelectRef = useRef(false);
-  useEffect(() => {
-    // Auto-select once: the email the link asked for, else the first. StrictMode double-invokes
-    // effects in dev, hence the ref.
-    const requested = emails.data?.find((item) => item.id === requestedId);
-    const first = requested ?? emails.data?.[0];
-    if (first && !didAutoSelectRef.current) {
-      didAutoSelectRef.current = true;
-      setSelectedEmailId(first.id);
-    }
-  }, [emails.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <AppShell>
@@ -75,11 +94,11 @@ function DashboardPage() {
           {emails.data?.length === 0 && session.data?.hasMailbox !== false ? (
             <PageEmpty title={t("inbox.emptyTitle")} hint={t("inbox.emptyHint")} />
           ) : null}
-          {emails.data && emails.data.length > 0 ? (
+          {displayEmails.length > 0 ? (
             <InboxList
-              emails={emails.data}
+              emails={displayEmails}
               selectedEmailId={selectedEmailId}
-              onSelectEmail={setSelectedEmailId}
+              onSelectEmail={handleSelectEmail}
             />
           ) : null}
           <LoadOlderEmails
