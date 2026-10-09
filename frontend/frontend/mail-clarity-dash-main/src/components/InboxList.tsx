@@ -2,7 +2,14 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { groupByThread } from "../lib/conversations";
-import { filterByPriority, PRIORITIES, type PriorityFilter } from "../lib/inboxFilter";
+import {
+  CATEGORIES,
+  filterByCategory,
+  filterByPriority,
+  PRIORITIES,
+  type CategoryFilter,
+  type PriorityFilter,
+} from "../lib/inboxFilter";
 import { inboxKeyHandler } from "../lib/inboxKeys";
 import { cn } from "../lib/utils";
 import type { Email } from "../types/email";
@@ -19,23 +26,26 @@ export default function InboxList({ emails, selectedEmailId, onSelectEmail }: In
   const { t } = useTranslation();
   // Filtering never touches the selection: an email the filter hides stays open in the detail panel.
   const [priority, setPriority] = useState<PriorityFilter>("all");
-  const conversations = filterByPriority(groupByThread(emails), priority);
+  const [category, setCategory] = useState<CategoryFilter>("all");
+  const conversations = filterByCategory(
+    filterByPriority(groupByThread(emails), priority),
+    category,
+  );
+  const isFiltered = priority !== "all" || category !== "all";
   return (
     <div className="flex h-full flex-col">
       <div className="border-b border-line px-4 py-3">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <h2 className="text-sm font-semibold text-fg">{t("inbox.heading")}</h2>
-            <p className="text-xs text-fg-muted">
-              {t("inbox.conversations", { count: conversations.length })}
-            </p>
-          </div>
-          <label>
+        <h2 className="text-sm font-semibold text-fg">{t("inbox.heading")}</h2>
+        <p className="text-xs text-fg-muted">
+          {t("inbox.conversations", { count: conversations.length })}
+        </p>
+        <div className="mt-2 flex gap-2">
+          <label className="min-w-0 flex-1">
             <span className="sr-only">{t("inbox.filterLabel")}</span>
             <select
               value={priority}
               onChange={(event) => setPriority(event.target.value as PriorityFilter)}
-              className={cn(field({ size: "sm" }), "text-xs")}
+              className={cn(field({ size: "sm" }), "w-full text-xs")}
             >
               <option value="all">{t("inbox.filterAll")}</option>
               {PRIORITIES.map((option) => (
@@ -45,12 +55,29 @@ export default function InboxList({ emails, selectedEmailId, onSelectEmail }: In
               ))}
             </select>
           </label>
+          <label className="min-w-0 flex-1">
+            <span className="sr-only">{t("inbox.categoryFilterLabel")}</span>
+            <select
+              value={category}
+              onChange={(event) => setCategory(event.target.value as CategoryFilter)}
+              className={cn(field({ size: "sm" }), "w-full text-xs")}
+            >
+              <option value="all">{t("inbox.categoryFilterAll")}</option>
+              {CATEGORIES.map((option) => (
+                <option key={option} value={option}>
+                  {t(`category.${option}`)}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
-        <p className="mt-0.5 text-[11px] text-fg-subtle">{t("inbox.keyboardHint")}</p>
+        <p className="mt-2 text-[11px] text-fg-subtle">{t("inbox.keyboardHint")}</p>
       </div>
-      {conversations.length === 0 && priority !== "all" ? (
+      {conversations.length === 0 && isFiltered ? (
         <p className="p-6 text-center text-sm text-fg-subtle">
-          {t("inbox.filterEmpty", { priority: t(`priority.${priority}`) })}
+          {category === "all" && priority !== "all"
+            ? t("inbox.filterEmpty", { priority: t(`priority.${priority}`) })
+            : t("inbox.filterEmptyAny")}
         </p>
       ) : null}
       <ul
