@@ -9,6 +9,7 @@ import AppShell from "../components/AppShell";
 import { PageEmpty, PageError, PageLoading } from "../components/PageState";
 import { Page, pageMeta } from "../lib/pageMeta";
 import { useEmail, useEmails, useSession } from "../lib/queries";
+import { useDebouncedValue } from "../lib/useDebouncedValue";
 import { useDraftWorkflow } from "../lib/useDraftWorkflow";
 
 type InboxSearch = { email?: string };
@@ -28,17 +29,23 @@ export const Route = createFileRoute("/")({
   component: DashboardPage,
 });
 
+// Long enough to skip rows passed with J/K, short enough not to be felt on a click.
+const SELECTION_SETTLE_MS = 150;
+
 function DashboardPage() {
   const { t } = useTranslation();
   const { email: requestedId } = Route.useSearch();
   const emails = useEmails();
   const session = useSession();
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
-  const selected = useEmail(selectedEmailId);
+  // Opened once the selection settles, so stepping through with J/K doesn't fetch (and mark read) every row.
+  const openedEmailId = useDebouncedValue(selectedEmailId, SELECTION_SETTLE_MS);
+  const selected = useEmail(openedEmailId);
 
-  // The detail call re-runs generation (~15s), so show the list row's copy until it lands.
+  // Show the list row's copy until the detail lands; never a previous email's detail while settling.
   const listEmail = (emails.data ?? []).find((item) => item.id === selectedEmailId) ?? null;
-  const email = selected.data ?? listEmail;
+  const detail = selected.data?.id === selectedEmailId ? selected.data : undefined;
+  const email = detail ?? listEmail;
   const workflow = useDraftWorkflow(email, selected);
 
   const didAutoSelectRef = useRef(false);

@@ -9,7 +9,13 @@ export enum HttpMethod {
 }
 
 /** `json` is sent as a JSON body; `form` as multipart, whose boundary the browser sets itself. */
-export type RequestOptions = { method?: HttpMethod; json?: object; form?: FormData };
+export type RequestOptions = {
+  method?: HttpMethod;
+  json?: object;
+  form?: FormData;
+  /** Cancels the request when the caller no longer wants it (e.g. the reader opened another email). */
+  signal?: AbortSignal;
+};
 
 // The backend refuses a cookie request that changes state without it (CSRF, ADR 0005).
 const CLIENT_HEADER = { "X-AIMail-Client": "1" };
@@ -21,6 +27,7 @@ function send(path: string, options: RequestOptions): Promise<Response> {
   return fetch(`${BACKEND_URL}${path}`, {
     method: options.method ?? HttpMethod.Get,
     credentials: "include",
+    signal: options.signal,
     headers: options.json ? JSON_HEADERS : CLIENT_HEADER,
     body: options.json ? JSON.stringify(options.json) : options.form,
   });
@@ -34,6 +41,8 @@ async function sendOrThrow(
   try {
     return await send(path, options);
   } catch (cause) {
+    // A cancelled request is not a network failure: let the caller (the query library) see the abort.
+    if (options.signal?.aborted) throw cause;
     throw new ApiError(NO_RESPONSE, ApiErrorCode.Network, endpoint, { cause });
   }
 }

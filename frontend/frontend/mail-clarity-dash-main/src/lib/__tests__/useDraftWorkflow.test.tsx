@@ -180,3 +180,28 @@ describe("send anyway (#145)", () => {
     expect(result.current.undoCountdown).toBeNull();
   });
 });
+
+describe("each email keeps its own state (#138)", () => {
+  test("edits made on one email are still there after opening another and coming back", () => {
+    stubFetch({});
+    const { result, rerender } = renderWorkflow(first);
+    act(() => result.current.setDraft("My edit to A"));
+    rerender(second);
+    act(() => result.current.setDraft("My edit to B"));
+    rerender(first);
+    expect(result.current.draft).toBe("My edit to A");
+    rerender(second);
+    expect(result.current.draft).toBe("My edit to B");
+  });
+
+  test("a regenerate running on one email does not lock another", () => {
+    const answer = deferred<StubReply>();
+    stubFetch({ "POST /emails/a/regenerate": () => answer.promise });
+    const { result, rerender } = renderWorkflow(first);
+    act(() => result.current.regenerate());
+    expect(result.current.isDraftLocked).toBe(true);
+    rerender(second);
+    expect(result.current.isRegenerating).toBe(false);
+    expect(result.current.isDraftLocked).toBe(false);
+  });
+});

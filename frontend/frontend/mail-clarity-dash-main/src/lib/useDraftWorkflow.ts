@@ -80,6 +80,21 @@ function forEmail<T>(scoped: Scoped<T> | null, emailId: string | null): T | null
   return scoped !== null && scoped.emailId === emailId ? scoped.value : null;
 }
 
+function withoutKey<V>(map: ReadonlyMap<string, V>, key: string): ReadonlyMap<string, V> {
+  if (!map.has(key)) return map;
+  const next = new Map(map);
+  next.delete(key);
+  return next;
+}
+
+/** A mutation is pending for this email: the one in flight was started for it. */
+function isPendingFor(
+  mutation: { isPending: boolean; variables?: { emailId: string } },
+  emailId: string | null,
+): boolean {
+  return mutation.isPending && mutation.variables?.emailId === emailId;
+}
+
 // The failure is already on screen through `failure`; nothing is left to handle.
 const shownOnScreen = () => undefined;
 
@@ -107,7 +122,8 @@ export function useDraftWorkflow(
     ? storedDraft
     : restoreDetails(storedDraft, detailValues(email?.details));
 
-  const [typed, setTyped] = useState<Scoped<string> | null>(null);
+  // Each email keeps its own unsaved edits, so opening another email and coming back loses nothing.
+  const [typedByEmail, setTypedByEmail] = useState<ReadonlyMap<string, string>>(new Map());
   const [chosenTone, setChosenTone] = useState<Scoped<Tone> | null>(null);
   const [failed, setFailed] = useState<Scoped<DraftFailure> | null>(null);
   const [pending, setPending] = useState<Scoped<PendingAction> | null>(null);
@@ -124,7 +140,7 @@ export function useDraftWorkflow(
   const refineMutation = useRefineEmail();
   const sendMutation = useSendEmail();
 
-  const typedDraft = forEmail(typed, emailId);
+  const typedDraft = emailId === null ? null : (typedByEmail.get(emailId) ?? null);
   const draft = typedDraft ?? serverDraft;
   const tone = forEmail(chosenTone, emailId) ?? email?.tone ?? "professional";
   const pendingAction = forEmail(pending, emailId);
@@ -177,7 +193,7 @@ export function useDraftWorkflow(
       throw error;
     }
     if (seq !== requestSeqRef.current) return;
-    setTyped((current) => (current?.emailId === id ? null : current));
+    setTypedByEmail((current) => withoutKey(current, id));
     announce(done);
   };
 
@@ -194,9 +210,10 @@ export function useDraftWorkflow(
     runMutation(id, DraftAction.Send, request, t("announce.sent")).catch(shownOnScreen);
   };
 
-  const isRegenerating = regenerateMutation.isPending;
-  const isRefining = refineMutation.isPending;
-  const isSending = sendMutation.isPending;
+  // Busy only for the email the action belongs to: a send on one email doesn't lock another.
+  const isRegenerating = isPendingFor(regenerateMutation, emailId);
+  const isRefining = isPendingFor(refineMutation, emailId);
+  const isSending = isPendingFor(sendMutation, emailId);
   const isCountingDown = undoCountdown !== null && undoCountdown > 0;
   // Locking: during mutations, pregen, or active undo countdown, prevent editing/sending race conditions:
   const isBusy = isRegenerating || isRefining || isSending || isWaitingForDraft || isCountingDown;
@@ -305,7 +322,7 @@ export function useDraftWorkflow(
 
   const setDraft = (text: string) => {
     if (emailId === null) return;
-    setTyped({ emailId, value: text });
+    setTypedByEmail((current) => new Map(current).set(emailId, text));
     // The warning is moot once every marker has been typed over.
     const isMarkerWarning = pendingAction?.kind === ConfirmKind.SendMarkers;
     if (isMarkerWarning && findRedactionMarkers(text).length === 0) setPending(null);
