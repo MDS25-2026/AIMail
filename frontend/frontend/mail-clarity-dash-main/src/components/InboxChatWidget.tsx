@@ -7,6 +7,7 @@ import {
   MessageSquare,
   RotateCcw,
   Send,
+  ShieldCheck,
   Sparkles,
   X,
 } from "lucide-react";
@@ -108,6 +109,7 @@ export default function InboxChatWidget() {
         role: "assistant",
         content: restoredAnswer,
         sources: response.sources,
+        has_restored_pii: response.has_restored_pii,
       };
 
       setMessages([...updatedMessages, assistantMessage]);
@@ -131,9 +133,9 @@ export default function InboxChatWidget() {
   };
 
   const samplePrompts = [
-    "What discounts did we discuss with clients?",
-    "When is the next scheduled deployment deadline?",
-    "What is our standard SLA policy?",
+    "What are my recent emails?",
+    "What emails need my attention or follow-up?",
+    "What company policies can I ask about?",
   ];
 
   if (!session.data) return null;
@@ -198,6 +200,14 @@ export default function InboxChatWidget() {
             </div>
           </div>
 
+          {/* Privacy Assurance Banner */}
+          <div className="flex items-center gap-1.5 border-b border-line bg-surface-muted/60 px-3.5 py-1.5 text-[10px] text-fg-muted">
+            <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-brand" />
+            <span className="leading-tight">
+              [PRIVACY PRESERVED] Sensitive details are masked before AI processing and restored locally on your device.
+            </span>
+          </div>
+
           {/* Conversation Body */}
           <div className="flex-1 space-y-4 overflow-y-auto p-4 text-xs">
             {messages.length === 0 ? (
@@ -234,7 +244,7 @@ export default function InboxChatWidget() {
                   className={cn(
                     "max-w-[88%] rounded-lg px-3 py-2 text-xs leading-relaxed",
                     msg.role === "user"
-                      ? "bg-brand text-brand-fg font-medium"
+                      ? "bg-blue-600 dark:bg-blue-700 text-white font-medium shadow-xs"
                       : "bg-surface-elevated text-fg border border-line shadow-xs",
                   )}
                 >
@@ -244,6 +254,14 @@ export default function InboxChatWidget() {
                     <p className="whitespace-pre-wrap">{msg.content}</p>
                   )}
                 </div>
+
+                {/* Local PII Restored Indicator */}
+                {msg.role === "assistant" && msg.has_restored_pii ? (
+                  <div className="mt-1 flex items-center gap-1 text-[10px] text-brand">
+                    <ShieldCheck className="h-3 w-3 shrink-0" />
+                    <span>[Personal details restored locally]</span>
+                  </div>
+                ) : null}
 
                 {/* Sources Chip & Expandable Cards */}
                 {msg.role === "assistant" && msg.sources && msg.sources.length > 0 ? (

@@ -15,6 +15,7 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   sources?: SearchSource[];
+  has_restored_pii?: boolean;
 }
 
 export interface InboxSearchRequest {
@@ -28,6 +29,8 @@ export interface InboxSearchResponse {
   answer: string;
   sources: SearchSource[];
   sender_vault?: Record<string, string>;
+  has_restored_pii?: boolean;
+  intent?: string;
 }
 
 export async function searchInbox(req: InboxSearchRequest): Promise<InboxSearchResponse> {
