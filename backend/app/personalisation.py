@@ -83,6 +83,12 @@ def _profile_text(profile: UserProfile) -> str:
 
 def apply_policy(message: Message, policy: Policy) -> str:
     """Resolve the priority a given user should see for a message."""
+    # Deterministic SLA floor: CRITICAL overrides everything because 24h urgency / safety floor
+    # must not be suppressed.
+    sla = (getattr(message, "sla_priority", None) or "").strip().lower()
+    if sla == "critical":
+        return "critical"
+
     sender = (message.from_addr or "").lower()
     for addr, priority in policy.sender_rules.items():
         # Substring rather than equality: a From header is "Name <addr>", not a bare address.
@@ -93,6 +99,11 @@ def apply_policy(message: Message, policy: Policy) -> str:
     for keyword, priority in policy.keyword_rules.items():
         if keyword and keyword in haystack:
             return _LABELS[priority]
+
+    # Deterministic SLA rule (e.g. LOW for newsletters or HIGH/MEDIUM for explicit dates)
+    # when no explicit user-specific sender or keyword override exists.
+    if sla in ("high", "medium", "low"):
+        return sla
 
     if message.importance is None:
         return _LABELS[_MEDIUM]  # unscored: the placeholder, unchanged by bias

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { Priority } from "../types/email";
 
 const STYLES: Record<Priority, string> = {
+  critical: "border border-danger-line bg-danger-soft text-danger",
   high: "bg-fg text-surface",
   medium: "border border-line-strong text-fg-body",
   low: "border border-line text-fg-subtle",

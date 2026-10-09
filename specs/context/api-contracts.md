@@ -114,9 +114,10 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   `GET /auth/session` answers `{email, hasMailbox}`; `POST /auth/session/refresh` and
   `DELETE /auth/session` need `X-AIMail-Client: 1`.
 - `DashboardEmail` carries `isRead` (opened at least once; anything new is unread) and a
-  `priority` that is the classifier's prediction **after** the per-user policy layer has been
-  applied — see the Personalisation section of `db-schema.md`. Consumers should treat `priority`
-  as "what this user should see", not as the raw model output.
+  `priority` (`"critical"`, `"high"`, `"medium"`, `"low"`) that is the classifier's prediction **after**
+  the per-user policy layer and deterministic SLA floor (migration 0034) have been applied — see the
+  Personalisation section of `db-schema.md`. Consumers should treat `priority` as "what this user should see",
+  not as the raw model output.
 - `DashboardEmail.category` carries the 6-category B2B taxonomy prediction (`"client"`, `"vendor"`,
   `"internal"`, `"security"`, `"admin"`, `"personal"`), and `categoryConfidence` is the 0..1 calibrated
   confidence (Issue #141, migration 0033). Used by the dashboard for category badges and inbox filtering.

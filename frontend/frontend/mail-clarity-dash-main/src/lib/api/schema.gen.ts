@@ -719,7 +719,7 @@ export interface components {
              * Priority
              * @enum {string}
              */
-            priority: "high" | "medium" | "low";
+            priority: "critical" | "high" | "medium" | "low";
             /**
              * Quantities
              * @default []

@@ -160,6 +160,8 @@ class Message(Base):
     emails_masked: Mapped[int | None]
     phones_masked: Mapped[int | None]
     received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Lane A deterministic SLA floor (migration 0034); overrides or informs priority triage.
+    sla_priority: Mapped[str | None] = mapped_column(Text)
     importance: Mapped[int | None]
     importance_confidence: Mapped[float | None]
     deadline_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

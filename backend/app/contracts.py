@@ -109,7 +109,7 @@ class DashboardEmail(BaseModel):
     body: str  # full masked email body for the detail view
     timestamp: str  # ISO 8601
     authStatus: AuthStatus  # the sender's SPF/DKIM/DMARC check, or the owner's confirmation
-    priority: Literal["high", "medium", "low"]
+    priority: Literal["critical", "high", "medium", "low"]
     category: Literal["client", "vendor", "internal", "security", "admin", "personal"] = "internal"
     categoryConfidence: float | None = None
     threadContext: list[ThreadMessage]
