@@ -4,7 +4,8 @@
 # Configuration comes from the environment only (AIMAIL_ENV_FILE is empty, so no .env is read). Outside
 # dev, startup refuses a missing AGENT_TOKEN, so the agent cannot be reached without it once it leaves
 # loopback. Apply migrations from the same image: python scripts/migrate.py.
-# The priority model is not in the image (it is trained, not committed); mount it at /app/models.
+# The category model is committed and copied in; the priority model is not (trained, not committed), so mount
+# it at /app/models if it is needed.
 
 FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 AIMAIL_ENV_FILE="" LOG_FORMAT=json \
@@ -15,6 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt -c constraints.txt
 COPY app ./app
 COPY email_agent.py gemini_client.py local_client.py model_gateway.py model_runtime.py ./
 COPY scripts/migrate.py ./scripts/
+COPY models/category-classifier.joblib ./models/
 RUN useradd --uid 10001 --no-create-home aimail
 USER aimail
 EXPOSE 8000

@@ -250,30 +250,29 @@ export function useDraftWorkflow(
     await runMutation(id, DraftAction.Refine, request, t("announce.refined"));
   };
 
+  // Each warning in order; "send anyway" on one resumes after it, so every send still gets the later
+  // checks and the undo window.
+  const sendGuards: { kind: ConfirmKind; isTriggered: (text: string) => boolean }[] = [
+    { kind: ConfirmKind.SendMarkers, isTriggered: (text) => findRedactionMarkers(text).length > 0 },
+    {
+      kind: ConfirmKind.SendTemplates,
+      isTriggered: (text) => findTemplatePlaceholders(text).length > 0,
+    },
+    { kind: ConfirmKind.ToneWarning, isTriggered: (text) => checkTone(text).hasIssues },
+  ];
+
+  const continueSend = (id: string, fromGuard: number) => {
+    const triggered = sendGuards.slice(fromGuard).find((guard) => guard.isTriggered(draft));
+    if (triggered) {
+      setPending({ emailId: id, value: { kind: triggered.kind, tone } });
+      return;
+    }
+    beginUndoCountdown(id);
+  };
+
   const send = () => {
     if (emailId === null || isDraftLocked) return;
-
-    // Guard 1: redaction markers still in the draft.
-    if (findRedactionMarkers(draft).length > 0) {
-      setPending({ emailId, value: { kind: ConfirmKind.SendMarkers, tone } });
-      return;
-    }
-
-    // Guard 2: template placeholders still in the draft.
-    if (findTemplatePlaceholders(draft).length > 0) {
-      setPending({ emailId, value: { kind: ConfirmKind.SendTemplates, tone } });
-      return;
-    }
-
-    // Guard 3: tone check — warn if the draft reads as aggressive/unprofessional.
-    const { hasIssues } = checkTone(draft);
-    if (hasIssues) {
-      setPending({ emailId, value: { kind: ConfirmKind.ToneWarning, tone } });
-      return;
-    }
-
-    // All guards passed — start the undo countdown.
-    beginUndoCountdown(emailId);
+    continueSend(emailId, 0);
   };
 
   const confirm = () => {
@@ -283,13 +282,9 @@ export function useDraftWorkflow(
       startRegenerate(emailId, pendingAction.tone);
       return;
     }
-    if (pendingAction.kind === ConfirmKind.ToneWarning) {
-      // User chose to send anyway despite tone issues — proceed to undo countdown.
-      beginUndoCountdown(emailId);
-      return;
-    }
-    // SendMarkers confirmed: send immediately (user knowingly kept the markers).
-    startSend(emailId);
+    // "Send anyway": the checks after this one still run, then the undo countdown.
+    const confirmed = sendGuards.findIndex((guard) => guard.kind === pendingAction.kind);
+    continueSend(emailId, confirmed + 1);
   };
 
   const status: DraftWorkflowStatus = {
