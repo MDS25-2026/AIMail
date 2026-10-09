@@ -102,6 +102,8 @@ export const en = {
   emailBody: {
     imagesBlocked: "Remote images are blocked, so the sender cannot see when you opened this.",
     loadImages: "Load images",
+    showFull: "Show full email",
+    showLess: "Show less",
   },
   translate: {
     action: "Translate to {{language}}",

@@ -100,6 +100,8 @@ export const zh: Translations = {
   emailBody: {
     imagesBlocked: "已阻止远程图片，发件人无法得知您何时打开了这封邮件。",
     loadImages: "加载图片",
+    showFull: "显示完整邮件",
+    showLess: "收起",
   },
   translate: {
     action: "翻译成{{language}}",
