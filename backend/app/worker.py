@@ -18,6 +18,7 @@ from app.core.constants import EMBED_POLL_SECONDS, HOLDING_REPLY_POLL_SECONDS
 from app.core.logging_setup import configure_logging
 from app.dashboard import generate_pending, generate_requested
 from app.holding_reply_scheduler import schedule_new, send_due
+from app.ml.categorise import classify_pending
 from app.rag.embedding_models import check_columns
 from app.rag.ingest import embed_pending, embed_pending_locally
 from app.retention import apply_retention
@@ -35,6 +36,9 @@ DRAFTS_PER_PASS = 2
 REQUESTED_DRAFT_POLL_SECONDS = 3
 REQUESTED_DRAFTS_PER_PASS = 3
 RECONCILE_EVERY_SECONDS = 300
+# About a millisecond an email on CPU, so a pass can clear a backlog; new mail is classified within a minute.
+CATEGORY_POLL_SECONDS = 60
+CATEGORIES_PER_PASS = 200
 
 
 @dataclass(frozen=True)
@@ -61,6 +65,7 @@ def jobs() -> list[Job]:
         Job("requested drafts", lambda: REQUESTED_DRAFT_POLL_SECONDS,
             lambda: generate_requested(limit=REQUESTED_DRAFTS_PER_PASS)),
         Job("embeddings", lambda: EMBED_POLL_SECONDS, _embeddings),
+        Job("categories", lambda: CATEGORY_POLL_SECONDS, lambda: classify_pending(limit=CATEGORIES_PER_PASS)),
         Job("holding replies", lambda: HOLDING_REPLY_POLL_SECONDS, _holding_replies),
         Job("send reconciliation", lambda: RECONCILE_EVERY_SECONDS, reconcile_sends),
         Job("retention", lambda: RUN_EVERY.total_seconds(), apply_retention),

@@ -40,6 +40,10 @@ As a corporate knowledge worker and inbox operator, I want incoming emails autom
 - 300 DPI annotated Confusion Matrix heatmap export (`results/category_confusion_matrix.png`) for Poster Section 05.
 - Inference runtime surface: `predict_category(masked_email_text: str) -> tuple[EmailCategory, float]`.
 - Database persistence: `category` and `category_confidence` columns on `messages` table via migration `0033_email_category.sql`.
+- Classified once and stored (2026-10-09): the worker's `categories` job (`app/ml/categorise.py`) classifies
+  each email whose content is stored, as `Subject: ...` + blank line + body (the training shape), and backfills
+  older rows; the inbox reads the stored value and never runs the model. Nothing is stored while the model
+  file is missing (logged once), and the Docker image includes `models/category-classifier.joblib`.
 - REST API and dashboard contract integration in `DashboardEmail`.
 
 **Out of scope**
