@@ -60,6 +60,7 @@ from app.jobs import (
     release_drafting,
     request_draft,
 )
+from app.ml.category import predict_category
 from app.normalise.quantities import quantities_in
 from app.past_replies import remember_reply
 from app.personalisation import DEFAULT_POLICY, Policy, apply_policy, load_policy
@@ -174,6 +175,13 @@ def _to_email(
 ) -> DashboardEmail:
     details = details or ThreadMap()
     key = str(message.id)
+    category_val = message.category
+    category_conf = message.category_confidence
+    if category_val is None:
+        cat_enum, conf = predict_category(message.body_masked or message.snippet_masked or "")
+        category_val = cat_enum.value
+        category_conf = conf
+
     return DashboardEmail(
         id=key,
         sender=message.from_addr or "",
@@ -184,6 +192,8 @@ def _to_email(
         authStatus=AuthStatus(message.auth_status or AuthStatus.UNVERIFIED),
         # The classifier's prediction, then the user's policy on top of it.
         priority=apply_policy(message, policy),
+        category=category_val,
+        categoryConfidence=category_conf,
         threadContext=_thread_view(thread or [], details),
         aiSummary=message.ai_summary or "",
         actionItems=message.action_items or [],

@@ -56,6 +56,7 @@ export const mockEmails: Email[] = [
     criticConfidence: 0.92,
     isRead: false,
     isDrafting: false,
+    category: "internal",
     quantities: [],
   },
   {
@@ -100,6 +101,7 @@ export const mockEmails: Email[] = [
     criticConfidence: 0.83,
     isRead: false,
     isDrafting: false,
+    category: "internal",
     quantities: [],
   },
   {
@@ -126,6 +128,7 @@ export const mockEmails: Email[] = [
     criticConfidence: 0.71,
     isRead: false,
     isDrafting: false,
+    category: "internal",
     quantities: [],
   },
   {
@@ -157,6 +160,7 @@ export const mockEmails: Email[] = [
     criticConfidence: 0.64,
     isRead: false,
     isDrafting: false,
+    category: "internal",
     quantities: [],
   },
   {
@@ -197,6 +201,7 @@ export const mockEmails: Email[] = [
     criticConfidence: 0.88,
     isRead: false,
     isDrafting: false,
+    category: "internal",
     quantities: [],
   },
 ];

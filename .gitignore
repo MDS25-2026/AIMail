@@ -12,7 +12,9 @@ env/
 .ruff_cache/
 
 # generated metrics (train_baseline.py etc.)
-results/
+results/*
+backend/results/*
+!backend/results/category*
 .coverage
 htmlcov/
 *.egg-info/
@@ -80,7 +82,8 @@ listener.exe
 listener/listener
 
 # Trained ML artifacts (regenerate with make baseline)
-backend/models/
+backend/models/*
+!backend/models/category-classifier.joblib
 listener/bin/
 
 # ML datasets (raw + labeled) — regenerate, don't commit
@@ -89,6 +92,7 @@ backend/*.csv
 backend/actions_to_read*.md
 # Corpus data stays out (third-party copyright); the provenance note is tracked.
 backend/data/*
+!backend/data/category/
 !backend/data/policies/
 backend/data/policies/*
 !backend/data/policies/README.md

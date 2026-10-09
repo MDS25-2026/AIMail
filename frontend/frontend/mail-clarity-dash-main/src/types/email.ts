@@ -16,6 +16,8 @@ export type Quantity = Schemas["QuantityView"];
 export type Detail = Schemas["Detail"];
 export type EgressRecord = Schemas["EgressRecord"];
 export type Translation = { language: string; text: string };
+/** The classifier's six-category taxonomy (#141), as the backend sends it. */
+export type EmailCategory = Schemas["DashboardEmail"]["category"];
 
 /** The detail and list views of an email, with the finite sets as this app's enums. */
 export type Email = WithEnums<
