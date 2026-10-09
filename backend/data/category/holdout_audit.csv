@@ -1,5 +1,5 @@
 ﻿"id","assigned_reviewer","han_label","jj_label","hanif_label","consensus_category","notes","text"
-"1","ALL","","personal","","","","Subject: Let's celebrate [PERSON_1]'s birthday! 
+"1","ALL","personal","personal","","","","Subject: Let's celebrate [PERSON_1]'s birthday! 
 
 Hey team,
 
@@ -15,7 +15,7 @@ Thanks for helping make [PERSON_1]'s day special!
 
 Best regards,
 [PERSON_2]"
-"2","ALL","","admin","","","","Subject: Ticket #[PHONE_1] - AV Setup Request Completed: Executive Boardroom
+"2","ALL","admin","admin","","","","Subject: Ticket #[PHONE_1] - AV Setup Request Completed: Executive Boardroom
 
 Hello [PERSON_1],
 
@@ -34,7 +34,7 @@ Regards,
 [PERSON_2]
 AV Support Specialist
 [ORG_1] IT Services"
-"3","ALL","","client","","","","Subject: Notice of SLA Breach - Platform Downtime [DATE_1]
+"3","ALL","security","client","","","","Subject: Notice of SLA Breach - Platform Downtime [DATE_1]
 
 Hello [PERSON_1],
 
@@ -49,7 +49,7 @@ Kind regards,
 [PERSON_2]
 [ORG_2] Operations Team
 [PHONE_1]"
-"4","ALL","","admin","","","","Subject: Flight Booking Confirmed: [PERSON_1] - Q3 Leadership Offsite
+"4","ALL","admin","admin","","","","Subject: Flight Booking Confirmed: [PERSON_1] - Q3 Leadership Offsite
 
 Dear [PERSON_1],
 
@@ -64,7 +64,7 @@ Your seat selection is confirmed. If you need to make any changes to your itiner
 
 Safe travels,
 [ORG_1] Corporate Travel Team"
-"5","ALL","","internal","","","","Subject: PR #302: Schema migration safety check for [ORG_1] Core API v2
+"5","ALL","security","internal","","","Han: it can be internal, but not sure if handling codebase carefully and/or mentioned old_auth_token is considered security or not(it could result in data loss which leads to sue so i asuume it is security))","Subject: PR #302: Schema migration safety check for [ORG_1] Core API v2
 
 Hi [PERSON_1],
 
@@ -81,7 +81,7 @@ Let me know your thoughts.
 
 Best,
 [PERSON_2]"
-"6","ALL","","vendor","","","","Subject: Proposal: [ORG_1] & [ORG_2] API Integration Campaign & Co-Marketing Sync
+"6","ALL","vendor","vendor","","","Han: im assuming its an email from other organisation, if they're working things together, i think it would be vendor?","Subject: Proposal: [ORG_1] & [ORG_2] API Integration Campaign & Co-Marketing Sync
 
 Hello [PERSON_1],
 
@@ -98,7 +98,7 @@ Best,
 
 [PERSON_2]
 Head of Growth & Partnerships, [ORG_1]"
-"7","ALL","","client","","","","Subject: RE: Performance Issues and SLA Credit Review - [ORG_1]
+"7","ALL","internal","client","","","Han: the context not sure if its an email from another apartment or organisation","Subject: RE: Performance Issues and SLA Credit Review - [ORG_1]
 
 Hi [PERSON_1],
 
@@ -112,7 +112,7 @@ Best,
 
 [PERSON_2]
 Procurement Lead, [ORG_1]"
-"8","ALL","","personal","","","","Subject: Coffee run downstairs!
+"8","ALL","personal","personal","","","","Subject: Coffee run downstairs!
 
 Hi [PERSON_1],
 
@@ -125,7 +125,7 @@ Let me know if I should wait for you by the elevators!
 Best,
 
 [PERSON_2]"
-"9","ALL","","internal","","","","Subject: PR #712: Flyway migration V4.2.1__add_org_billing_limits
+"9","ALL","internal","internal","","","","Subject: PR #712: Flyway migration V4.2.1__add_org_billing_limits
 
 Hey [PERSON_1],
 
@@ -139,7 +139,7 @@ Also, just as a reminder, please run `./gradlew flywayValidate` locally to ensur
 
 Cheers,
 [PERSON_2]"
-"10","ALL","","security","","","","Subject: Security Advisory: Emergency Database Maintenance and Patching Schedule
+"10","ALL","security","security","","","","Subject: Security Advisory: Emergency Database Maintenance and Patching Schedule
 
 To All Staff,
 
@@ -160,7 +160,7 @@ Best,
 
 [PERSON_2]
 Infrastructure Operations Manager"
-"11","ALL","","vendor","","","","Subject: Urgent: Review Required - [ORG_1] Cloud Infrastructure Budget & Capacity Forecast
+"11","ALL","internal","vendor","","","Han: from security infra, but no immediate risk seen, its from vendor but it felt more like using info from vendor to settle things","Subject: Urgent: Review Required - [ORG_1] Cloud Infrastructure Budget & Capacity Forecast
 
 Hi [PERSON_1],
 
@@ -178,7 +178,7 @@ Regards,
 
 [PERSON_3]
 VP of Infrastructure & Security, [ORG_1]"
-"12","ALL","","security","","","","Subject: Launching [ORG_1]'s Q4 Security and Compliance Training Campaign
+"12","ALL","security","security","","","","Subject: Launching [ORG_1]'s Q4 Security and Compliance Training Campaign
 
 Team [ORG_1],
 
@@ -202,7 +202,7 @@ Sincerely,
 [PERSON_2]
 VP of Information Security
 [ORG_1]"
-"13","Han","","","","","","Subject: Onboarding Blocked: API Latency Issues on Dev Environment
+"13","Han","internal","","","","","Subject: Onboarding Blocked: API Latency Issues on Dev Environment
 
 Hi Team,
 
@@ -248,7 +248,7 @@ I have updated the Jira epic links to reflect these resource shifts. Let's discu
 
 Thanks,
 [PERSON_2]"
-"16","Han","","","","","","Subject: Internal Audit: Documentation of cross-border data transfers and DPA compliance
+"16","Han","internal","","","","","Subject: Internal Audit: Documentation of cross-border data transfers and DPA compliance
 
 Hello [PERSON_1],
 
@@ -291,7 +291,7 @@ Let's definitely plan another one before the weather gets too cold. Maybe next m
 
 Best,
 [PERSON_1]"
-"19","Han","","","","","","Subject: Request for Demo + Security Architecture Overview - [ORG_1]
+"19","Han","client","","","","","Subject: Request for Demo + Security Architecture Overview - [ORG_1]
 
 Hello Sales Team,
 
@@ -343,7 +343,7 @@ Let me know if this adjustment causes any conflicts for you.
 See you then,
 [PERSON_2]
 Staff Engineer"
-"22","Han","","","","","","Subject: FINAL NOTICE: Overdue Security Training - Impending Account Suspension
+"22","Han","security","","","","","Subject: FINAL NOTICE: Overdue Security Training - Impending Account Suspension
 
 Dear [PERSON_1],
 
@@ -390,7 +390,7 @@ Let's keep this a secret from [PERSON_1] until [DATE_2]! Feel free to reach out 
 Thanks,
 
 [PERSON_2]"
-"25","Han","","","","","","Subject: Renewal Quote Review - [ORG_1] & [ORG_2] Partnership
+"25","Han","client","","","","","Subject: Renewal Quote Review - [ORG_1] & [ORG_2] Partnership
 
 Dear [PERSON_1],
 
@@ -451,7 +451,7 @@ Cheers,
 
 [PERSON_2]
 Product Manager"
-"28","Han","","","","","","Subject: SOC 2 Evidence Request: Engineering Change Management & Code Reviews
+"28","Han","internal","","","","Han: from security analyst, but not security related risk","Subject: SOC 2 Evidence Request: Engineering Change Management & Code Reviews
 
 Hi [PERSON_1],
 
@@ -502,7 +502,7 @@ Hope everyone is having a smooth Thursday!
 
 Best,
 [PERSON_2]"
-"31","Han","","","","","","Subject: Milestone Approved: Phase 2 Sandbox Configuration Complete - [ORG_1]
+"31","Han","vendor","","","","Han: sounds like they're working for us, not sure tho","Subject: Milestone Approved: Phase 2 Sandbox Configuration Complete - [ORG_1]
 
 Hi [PERSON_1],
 
@@ -559,7 +559,7 @@ Best,
 
 [PERSON_2]
 Engineering Manager, [ORG_2]"
-"34","Han","","","","","","Subject: ACTION REQUIRED: Mandated Emergency OS Security Update for All Corporate Laptops
+"34","Han","security","","","","Han: internal but security risk confirmed","Subject: ACTION REQUIRED: Mandated Emergency OS Security Update for All Corporate Laptops
 
 All Employees,
 
@@ -608,7 +608,7 @@ Hope you have a fantastic day and get to celebrate a bit. Let's grab a coffee or
 Best,
 
 [PERSON_2]"
-"37","Han","","","","","","Subject: RE: [ORG_1] / [ORG_2] Renewal & Seat Expansion Proposal
+"37","Han","client","","","","","Subject: RE: [ORG_1] / [ORG_2] Renewal & Seat Expansion Proposal
 
 Hi [PERSON_1],
 
@@ -654,7 +654,7 @@ I left some suggestions on GitHub. Let me know when you've updated the migration
 
 Best,
 [PERSON_2]"
-"40","Han","","","","","","Subject: Status Update: Mutual NDA between [ORG_1] and [ORG_2]
+"40","Han","client","","","","Han: not sure the details too","Subject: Status Update: Mutual NDA between [ORG_1] and [ORG_2]
 
 Hello [PERSON_1],
 
@@ -699,7 +699,7 @@ Please sign the virtual card here before next Thursday: [EMAIL_2]. See you all t
 Cheers,
 
 [PERSON_3]"
-"43","Han","","","","","","Subject: Proposal Review: [ORG_1] Seat Expansion Amendment
+"43","Han","client","","","","Han: also not sure the context","Subject: Proposal Review: [ORG_1] Seat Expansion Amendment
 
 Hi [PERSON_1],
 
@@ -758,7 +758,7 @@ Regards,
 
 [PERSON_1]
 Engineering Manager, [ORG_1]"
-"46","Han","","","","","","Subject: RE: Redline Review: [ORG_1] Draft DPA - International Data Transfers
+"46","Han","client","","","","Han: still not sure the details","Subject: RE: Redline Review: [ORG_1] Draft DPA - International Data Transfers
 
 Hi [PERSON_1],
 
@@ -803,7 +803,7 @@ Let me know if you want to walk down, or if you're stuck finishing something up,
 Best,
 
 [PERSON_2]"
-"49","Han","","","","","","Subject: Urgent: Enterprise Seat Expansion Request - [ORG_1]
+"49","Han","admin","","","","","Subject: Urgent: Enterprise Seat Expansion Request - [ORG_1]
 
 Hello [PERSON_1],
 
@@ -846,7 +846,7 @@ The issue stems from a renamed CSS class selector in the payment form component,
 Thanks,
 [PERSON_3]
 QA Engineer"
-"52","Han","","","","","","Subject: CRITICAL: Emergency Out-of-Band Security Patching for [ORG_1] Production Environment
+"52","Han","security","","","","","Subject: CRITICAL: Emergency Out-of-Band Security Patching for [ORG_1] Production Environment
 
 Hi Team,
 
@@ -890,7 +890,7 @@ I have set up a virtual Kudoboard for us to sign. Please jump in and leave a nic
 Here is the link to the card: [URL_1]
 
 Let's keep this a secret so we can surprise them on Monday morning!"
-"55","Han","","","","","","Subject: FORMAL NOTICE: SLA Breach on [DATE_1] and Service Credit Request - [ORG_1]
+"55","Han","security","","","","","Subject: FORMAL NOTICE: SLA Breach on [DATE_1] and Service Credit Request - [ORG_1]
 
 Hi [PERSON_1],
 
@@ -931,7 +931,7 @@ Thanks,
 
 [PERSON_2]
 DevOps Engineer | [ORG_1]"
-"58","Han","","","","","","Subject: ACTION REQUIRED: Mutual NDA Countersignature Request - [ORG_1] Vendor Onboarding
+"58","Han","client","","","","","Subject: ACTION REQUIRED: Mutual NDA Countersignature Request - [ORG_1] Vendor Onboarding
 
 Hello [PERSON_1],
 
@@ -976,7 +976,7 @@ Let me know if that works, or if another time is better.
 Cheers,
 
 [PERSON_2]"
-"61","Han","","","","","","Subject: Renewal Agreement & Multi-Year Discount Request - [ORG_1]
+"61","Han","client","","","","","Subject: Renewal Agreement & Multi-Year Discount Request - [ORG_1]
 
 Dear [PERSON_1],
 
@@ -1023,7 +1023,7 @@ If 3:30 PM doesn't work, feel free to grab any open slot on my calendar for late
 Best regards,
 [PERSON_2]
 Engineering Director"
-"64","Han","","","","","","Subject: Request for Countersignature: MNDA - [ORG_1] (Prospect)
+"64","Han","vendor","","","","Han: not sure the context in details","Subject: Request for Countersignature: MNDA - [ORG_1] (Prospect)
 
 Hi [PERSON_1],
 
@@ -1061,7 +1061,7 @@ Hey folks,
 If you'd like to chip in for a digital Starbucks gift card to go along with it, I've set up a pool. It is totally optional, of course! You can Venmo me at [PHONE_1] or find me on the app using [EMAIL_1].
 
 Please sign the card and send any contributions by Wednesday evening. Let's show [PERSON_1] some love!"
-"67","Han","","","","","","Subject: Renewal Proposal - [ORG_1] Enterprise License
+"67","Han","client","","","","","Subject: Renewal Proposal - [ORG_1] Enterprise License
 
 Hi [PERSON_1],
 
@@ -1112,7 +1112,7 @@ Apologies for the last-minute shift, and appreciate your flexibility!
 
 Cheers,
 [PERSON_3]"
-"70","Han","","","","","","Subject: ACTION REQUIRED: Overdue Security Awareness Training - [DATE_1] Deadline
+"70","Han","security","","","","","Subject: ACTION REQUIRED: Overdue Security Awareness Training - [DATE_1] Deadline
 
 Hello [PERSON_1],
 
@@ -1155,7 +1155,7 @@ If you're stuck in that prep meeting, no worries—just text me your order and I
 
 Thanks,
 [PERSON_2]"
-"73","Han","","","","","","Subject: Demo Inquiry and Vendor Security Review - [ORG_1]
+"73","Han","client","","","","","Subject: Demo Inquiry and Vendor Security Review - [ORG_1]
 
 Dear [ORG_2] Team,
 
@@ -1204,7 +1204,7 @@ Cheers,
 [PERSON_1]
 Product Manager, Analytics & Reporting
 Cell: [PHONE_1]"
-"76","Han","","","","","","Subject: Inquiry from [ORG_1]: Request for completed TIA and DPA compliance verification
+"76","Han","client","","","","","Subject: Inquiry from [ORG_1]: Request for completed TIA and DPA compliance verification
 
 Hi [PERSON_1],
 
@@ -1248,7 +1248,7 @@ Let me know if you can slip away for 45 minutes!
 
 Thanks,
 [PERSON_2]"
-"79","Han","","","","","","Subject: Procurement Review: [ORG_1] - Additional License Allocation
+"79","Han","client","","","","","Subject: Procurement Review: [ORG_1] - Additional License Allocation
 
 Hi [PERSON_1],
 
@@ -1298,7 +1298,7 @@ Regards,
 
 [PERSON_2]
 Senior QA Automation Engineer"
-"82","Han","","","","","","Subject: Compliance Alert: International Data Transfer Verification - [ORG_1] integration
+"82","Han","security","","","","","Subject: Compliance Alert: International Data Transfer Verification - [ORG_1] integration
 
 Team,
 
@@ -1341,7 +1341,7 @@ Hope you have a fantastic day and get to celebrate a bit today. You deserve it!
 Best,
 
 [PERSON_2]"
-"85","Han","","","","","","Subject: Milestone 1 Sign-Off Request: Discovery & Requirements Gathering - [ORG_1]
+"85","Han","internal","","","","","Subject: Milestone 1 Sign-Off Request: Discovery & Requirements Gathering - [ORG_1]
 
 Hi [PERSON_1],
 
@@ -1392,7 +1392,7 @@ Best,
 
 [PERSON_1]
 Technical Product Manager, [ORG_1]"
-"88","Han","","","","","","Subject: Q3 Phishing Simulation Results & Key Takeaways
+"88","Han","security","","","","","Subject: Q3 Phishing Simulation Results & Key Takeaways
 
 Hi Team,
 
@@ -1440,7 +1440,7 @@ Let me know if you're free to escape the desk for a bit.
 
 Best,
 [PERSON_2]"
-"91","Han","","","","","","Subject: Contractual SLA Breach - Customer Support Response Times - [ORG_1]
+"91","Han","vendor","","","","","Subject: Contractual SLA Breach - Customer Support Response Times - [ORG_1]
 
 Dear [PERSON_1],
 
@@ -1491,7 +1491,7 @@ Regards,
 
 [PERSON_1]
 Senior PM, Integrations"
-"94","Han","","","","","","Subject: Oops! You clicked a simulated phishing link - [ORG_1] Security Team
+"94","Han","security","","","","","Subject: Oops! You clicked a simulated phishing link - [ORG_1] Security Team
 
 Hi [PERSON_1],
 
@@ -1542,7 +1542,7 @@ Let me know!
 
 Thanks,
 [PERSON_2]"
-"97","Han","","","","","","Subject: Renewal Proposal Discussion: [ORG_1] / [ORG_2]
+"97","Han","client","","","","","Subject: Renewal Proposal Discussion: [ORG_1] / [ORG_2]
 
 Hi [PERSON_1],
 
@@ -1594,7 +1594,7 @@ Let me know if that time works for you, or feel free to propose an alternative s
 Thanks,
 [PERSON_2]
 Lead Software Engineer"
-"100","Han","","","","","","Subject: Compliance Action Required: [ORG_1] DPA & EU-US Data Privacy Framework Verification
+"100","Han","internal","","","","Han: not sure what is the context here tbh, but i feel like its different team working with each other","Subject: Compliance Action Required: [ORG_1] DPA & EU-US Data Privacy Framework Verification
 
 Hi [PERSON_1],
 
@@ -1641,7 +1641,7 @@ It only takes 2 minutes and it really means a lot to have the whole team represe
 Thanks,
 
 [PERSON_2]"
-"103","Han","","","","","","Subject: Re: Renewal Quote for [ORG_1] - [DATE_1]
+"103","Han","client","","","","","Subject: Re: Renewal Quote for [ORG_1] - [DATE_1]
 
 Hello [PERSON_1],
 
@@ -1686,7 +1686,7 @@ Could we switch this to `FetchType.LAZY` and use an explicit join fetch in the r
 
 Cheers,
 [PERSON_2]"
-"106","Han","","","","","","Subject: Inquiry: [ORG_1] DPA and Schrems II Compliance Status
+"106","Han","security","","","","","Subject: Inquiry: [ORG_1] DPA and Schrems II Compliance Status
 
 Dear Support Team,
 
@@ -1737,7 +1737,7 @@ Thank you so much for organizing this, [PERSON_2]!
 Warmly,
 
 [PERSON_1]"
-"109","Han","","","","","","Subject: Request for Demo + Security Questionnaire ([ORG_1] Evaluation)
+"109","Han","client","","","","","Subject: Request for Demo + Security Questionnaire ([ORG_1] Evaluation)
 
 Hello,
 
@@ -1783,7 +1783,7 @@ Thanks,
 
 [PERSON_2]
 QA Engineer, [ORG_1]"
-"112","Han","","","","","","Subject: Recognizing the Phish: Monthly Simulation Recap
+"112","Han","security","","","","","Subject: Recognizing the Phish: Monthly Simulation Recap
 
 Hi Everyone,
 
@@ -1832,7 +1832,7 @@ Thanks to everyone who has already signed!
 
 Cheers,
 [PERSON_2]"
-"115","Han","","","","","","Subject: Urgent: Upgrading to Enterprise Tier - License Limit Reached
+"115","Han","client","","","","","Subject: Urgent: Upgrading to Enterprise Tier - License Limit Reached
 
 Hello [PERSON_1],
 
@@ -1876,7 +1876,7 @@ I have created ticket [ORG_1]-1104 to track this issue. [PERSON_1], do you have 
 Thanks,
 [PERSON_2]
 Senior Software Engineer in Test"
-"118","Han","","","","","","Subject: Compliance Update: Execution of New DPA and EU-US Data Privacy Framework Certification
+"118","Han","vendor","","","","","Subject: Compliance Update: Execution of New DPA and EU-US Data Privacy Framework Certification
 
 Dear [PERSON_1],
 
