@@ -35,6 +35,9 @@ export const ms: Translations = {
       "Log keluar, kemudian log masuk dengan Google semula dan benarkan AIMail membaca Gmail anda.",
     conversations_one: "{{count}} perbualan",
     conversations_other: "{{count}} perbualan",
+    filterLabel: "Tapis mengikut keutamaan",
+    filterAll: "Semua keutamaan",
+    filterEmpty: "Tiada e-mel bertanda {{priority}}.",
   },
   priority: { critical: "Kritikal", high: "Segera", medium: "Sederhana", low: "Rendah" },
   detail: {
