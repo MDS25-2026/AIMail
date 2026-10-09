@@ -184,9 +184,13 @@ export function useDraftWorkflow(
   const startRegenerate = (id: string, nextTone: Tone) => {
     setChosenTone({ emailId: id, value: nextTone });
     const request = () => regenerateMutation.mutateAsync({ emailId: id, tone: nextTone });
-    runMutation(id, DraftAction.Regenerate, request, t("announce.regenerated")).catch(
-      shownOnScreen,
-    );
+    runMutation(id, DraftAction.Regenerate, request, t("announce.regenerated")).catch(() => {
+      // The draft did not change, so the toggle goes back to the tone the stored draft is in, unless the
+      // reader has picked another tone since.
+      setChosenTone((current) =>
+        current?.emailId === id && current.value === nextTone ? null : current,
+      );
+    });
   };
 
   const startSend = (id: string) => {
