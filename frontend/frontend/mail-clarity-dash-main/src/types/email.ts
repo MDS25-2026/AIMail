@@ -4,7 +4,7 @@
  * for real — treat field names as fixed unless the team changes them together.
  */
 
-export type Priority = "high" | "medium" | "low";
+export type Priority = "critical" | "high" | "medium" | "low";
 export type Tone = "professional" | "casual";
 
 import { assertSameValues, type Schemas, type WithEnums } from "./schema";
@@ -47,4 +47,5 @@ export const CRITIC_CONFIDENCE_THRESHOLD = 0.8;
 
 assertSameValues<`${AuthStatus}`, Schemas["AuthStatus"]>(true);
 assertSameValues<`${MaskingStatus}`, Schemas["DashboardEmail"]["masking"]>(true);
+assertSameValues<Priority, Schemas["DashboardEmail"]["priority"]>(true);
 assertSameValues<Tone, Schemas["Tone"]>(true);

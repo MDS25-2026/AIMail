@@ -36,7 +36,7 @@ export const ms: Translations = {
     conversations_one: "{{count}} perbualan",
     conversations_other: "{{count}} perbualan",
   },
-  priority: { high: "Segera", medium: "Sederhana", low: "Rendah" },
+  priority: { critical: "Kritikal", high: "Segera", medium: "Sederhana", low: "Rendah" },
   detail: {
     fromAt: "{{sender}} · {{when}}",
     empty: "Pilih e-mel untuk melihat draf AI",

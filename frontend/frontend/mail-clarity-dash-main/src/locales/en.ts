@@ -31,7 +31,7 @@ export const en = {
     conversations_one: "{{count}} conversation",
     conversations_other: "{{count}} conversations",
   },
-  priority: { high: "Urgent", medium: "Medium", low: "Low" },
+  priority: { critical: "Critical", high: "Urgent", medium: "Medium", low: "Low" },
   detail: {
     fromAt: "{{sender}} · {{when}}",
     empty: "Select an email to see the AI draft",

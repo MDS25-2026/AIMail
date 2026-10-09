@@ -30,7 +30,7 @@ export const zh: Translations = {
     conversations_one: "{{count}} 个会话",
     conversations_other: "{{count}} 个会话",
   },
-  priority: { high: "紧急", medium: "中等", low: "低" },
+  priority: { critical: "特急", high: "紧急", medium: "中等", low: "低" },
   detail: {
     fromAt: "{{sender}} · {{when}}",
     empty: "选择一封邮件以查看 AI 草稿",
