@@ -94,6 +94,8 @@ export const ms: Translations = {
     imagesBlocked:
       "Imej jauh disekat, jadi pengirim tidak dapat melihat bila anda membuka e-mel ini.",
     loadImages: "Muatkan imej",
+    showFull: "Tunjuk e-mel penuh",
+    showLess: "Tunjuk kurang",
   },
   translate: {
     action: "Terjemah ke {{language}}",
