@@ -83,11 +83,17 @@ export function parseInlineTokens(text: string): ReactNode[] {
   return nodes;
 }
 
+export type ListItem = {
+  num?: string;
+  title: string;
+  detail?: string;
+};
+
 type Block =
   | { type: "heading"; level: number; content: string }
   | { type: "paragraph"; content: string }
-  | { type: "ul"; items: string[] }
-  | { type: "ol"; items: { num: string; content: string }[] }
+  | { type: "ul"; items: ListItem[] }
+  | { type: "ol"; items: ListItem[] }
   | { type: "quote"; content: string }
   | { type: "code"; code: string };
 
@@ -147,10 +153,43 @@ export default function FormattedChatMessage({ content, className }: FormattedCh
 
     // Unordered list: - or *
     if (/^[-*]\s+/.test(trimmed)) {
-      const items: string[] = [];
-      while (i < lines.length && /^[-*]\s+/.test(lines[i].trim())) {
-        items.push(lines[i].trim().replace(/^[-*]\s+/, ""));
-        i++;
+      const items: ListItem[] = [];
+      while (i < lines.length) {
+        const lineTrim = lines[i].trim();
+        if (/^[-*]\s+/.test(lineTrim)) {
+          const title = lineTrim.replace(/^[-*]\s+/, "");
+          i++;
+          const detailLines: string[] = [];
+          while (
+            i < lines.length &&
+            lines[i].trim() &&
+            !/^[-*]\s+/.test(lines[i].trim()) &&
+            !/^\d+\.\s+/.test(lines[i].trim()) &&
+            !lines[i].trim().startsWith("```") &&
+            !/^#{1,4}\s+/.test(lines[i].trim()) &&
+            !lines[i].trim().startsWith("> ")
+          ) {
+            detailLines.push(lines[i].trim());
+            i++;
+          }
+          items.push({
+            title,
+            detail: detailLines.length > 0 ? detailLines.join(" ") : undefined,
+          });
+        } else if (!lineTrim) {
+          // Check if after blank lines, another bullet continues this list
+          let peek = i + 1;
+          while (peek < lines.length && !lines[peek].trim()) {
+            peek++;
+          }
+          if (peek < lines.length && /^[-*]\s+/.test(lines[peek].trim())) {
+            i = peek;
+          } else {
+            break;
+          }
+        } else {
+          break;
+        }
       }
       blocks.push({ type: "ul", items });
       continue;
@@ -158,16 +197,45 @@ export default function FormattedChatMessage({ content, className }: FormattedCh
 
     // Ordered list: 1., 2.
     if (/^\d+\.\s+/.test(trimmed)) {
-      const items: { num: string; content: string }[] = [];
-      while (i < lines.length && /^\d+\.\s+/.test(lines[i].trim())) {
-        const itemTrim = lines[i].trim();
-        const numMatch = /^(\d+)\.\s+(.+)$/.exec(itemTrim);
+      const items: ListItem[] = [];
+      while (i < lines.length) {
+        const lineTrim = lines[i].trim();
+        const numMatch = /^(\d+)\.\s+(.+)$/.exec(lineTrim);
         if (numMatch) {
-          items.push({ num: numMatch[1], content: numMatch[2] });
+          const num = numMatch[1];
+          const title = numMatch[2];
+          i++;
+          const detailLines: string[] = [];
+          while (
+            i < lines.length &&
+            lines[i].trim() &&
+            !/^[-*]\s+/.test(lines[i].trim()) &&
+            !/^\d+\.\s+/.test(lines[i].trim()) &&
+            !lines[i].trim().startsWith("```") &&
+            !/^#{1,4}\s+/.test(lines[i].trim()) &&
+            !lines[i].trim().startsWith("> ")
+          ) {
+            detailLines.push(lines[i].trim());
+            i++;
+          }
+          items.push({
+            num,
+            title,
+            detail: detailLines.length > 0 ? detailLines.join(" ") : undefined,
+          });
+        } else if (!lineTrim) {
+          let peek = i + 1;
+          while (peek < lines.length && !lines[peek].trim()) {
+            peek++;
+          }
+          if (peek < lines.length && /^\d+\.\s+/.test(lines[peek].trim())) {
+            i = peek;
+          } else {
+            break;
+          }
         } else {
-          items.push({ num: "1", content: itemTrim });
+          break;
         }
-        i++;
       }
       blocks.push({ type: "ol", items });
       continue;
@@ -213,14 +281,21 @@ export default function FormattedChatMessage({ content, className }: FormattedCh
 
           case "ul":
             return (
-              <ul key={idx} className="my-1.5 space-y-1.5 pl-0.5">
+              <ul key={idx} className="my-2 space-y-2.5 pl-0.5">
                 {block.items.map((item, itemIdx) => (
                   <li key={itemIdx} className="flex items-start gap-2 leading-relaxed">
                     <span
                       aria-hidden="true"
                       className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand/80"
                     />
-                    <span className="flex-1 text-fg">{parseInlineTokens(item)}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-fg leading-snug">{parseInlineTokens(item.title)}</div>
+                      {item.detail ? (
+                        <div className="mt-1 pl-0.5 text-[11px] leading-relaxed text-fg-muted">
+                          {parseInlineTokens(item.detail)}
+                        </div>
+                      ) : null}
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -228,13 +303,20 @@ export default function FormattedChatMessage({ content, className }: FormattedCh
 
           case "ol":
             return (
-              <ol key={idx} className="my-1.5 space-y-1.5 pl-0.5">
+              <ol key={idx} className="my-2 space-y-2.5 pl-0.5">
                 {block.items.map((item, itemIdx) => (
                   <li key={itemIdx} className="flex items-start gap-2 leading-relaxed">
                     <span className="shrink-0 font-semibold text-brand text-[11px] min-w-[14px]">
-                      {item.num}.
+                      {item.num ?? itemIdx + 1}.
                     </span>
-                    <span className="flex-1 text-fg">{parseInlineTokens(item.content)}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-fg leading-snug">{parseInlineTokens(item.title)}</div>
+                      {item.detail ? (
+                        <div className="mt-1 pl-0.5 text-[11px] leading-relaxed text-fg-muted">
+                          {parseInlineTokens(item.detail)}
+                        </div>
+                      ) : null}
+                    </div>
                   </li>
                 ))}
               </ol>

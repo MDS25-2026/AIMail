@@ -575,13 +575,18 @@ async def execute_inbox_search(
     if intent == QueryIntent.INBOX_OVERVIEW:
         task_instruction = (
             "The user is asking for an overview or summary of their inbox/recent emails.\n"
-            "Synthesize a clear, structured executive overview of their recent incoming correspondence based on the retrieved emails.\n"
-            "Highlight each message with bullet points noting the sender, date, subject, and key takeaway.\n"
-            "Keep the summary concise and under 400 words."
+            "Synthesize a clear, executive overview of their recent incoming correspondence based on the retrieved emails.\n"
+            "Format each email as a single clean bullet item:\n"
+            "- **[Subject]** — *[Sender]* ([Date])\n"
+            "  [One concise sentence summarizing the core takeaway and any required action]. [Email X]\n"
+            "CRITICAL FORMAT RULE: Do NOT create separate bullet points for Sender, Date, Subject, or Takeaway. Consolidate each email into one entry.\n"
+            "Insert a blank line between each email entry for readability.\n"
+            "Keep the summary concise and under 350 words."
         )
     else:
         task_instruction = (
             "Answer the user's question clearly, professionally, and concisely based strictly on the provided retrieved emails and documents.\n"
+            "If summarizing multiple emails or documents, consolidate each item into a single entry with Subject, Sender, and Date on the title line, and the takeaway indented underneath.\n"
             "Keep the answer concise and direct (under 400 words)."
         )
 
@@ -594,7 +599,7 @@ Rules:
 3. If no retrieved sources contain relevant information to answer the question, clearly state that you could not find relevant correspondence or documents, and end your answer with:
 Citations: None
 4. Keep the tone enterprise-ready, polite, and helpful. Strictly do not use emojis.
-5. Structure your response clearly using bullet points and short paragraphs. Bold key entities, dates, or metrics (e.g. **October 8, 2026**).
+5. Structure your response cleanly. Use single consolidated bullets or numbered items per email with clear spacing between entries. Bold subjects and key dates/metrics. Never generate repetitive field-by-field bullet lists (e.g. do not output separate bullets for 'Sender:', 'Date:', 'Subject:', or 'Key Takeaway:').
 6. At the very end of your response, on a new line, explicitly list all tags of sources that were directly relevant and used to answer the question:
 Citations: [Email X], [Document Y] (or Citations: None)
 
@@ -621,22 +626,22 @@ Helpful Grounded Answer:"""
     except ModelError as exc:
         logger.error("Synthesis generation failed: %s", exc)
         if intent == QueryIntent.INBOX_OVERVIEW and matched_emails:
-            overview_lines = ["Here is a summary of your recent incoming emails:\n"]
+            overview_lines = ["Here is an executive overview of your recent incoming emails:\n"]
             for idx, msg in enumerate(matched_emails[:5], 1):
                 sender_val = sender_vault.get(f"[SENDER_{idx}]", msg.from_addr or "Unknown sender")
                 date_val = format_received_date(msg.received_at)
                 subj_val = msg.subject or "(No subject)"
                 snip_val = format_email_snippet(msg)
-                overview_lines.append(f"- **{subj_val}** from **{sender_val}** ({date_val})\n  {snip_val}")
+                overview_lines.append(f"- **{subj_val}** — *{sender_val}* ({date_val})\n  {snip_val} [Email {idx}]\n")
             citations_list = ", ".join(f"[Email {i}]" for i in range(1, len(matched_emails[:5]) + 1))
-            answer_text = "\n".join(overview_lines) + f"\n\nCitations: {citations_list}"
+            answer_text = "\n".join(overview_lines) + f"\nCitations: {citations_list}"
         elif matched_emails:
             fallback_lines = ["Here are the matching emails found in your inbox:\n"]
             for idx, msg in enumerate(matched_emails[:3], 1):
                 sender_val = sender_vault.get(f"[SENDER_{idx}]", msg.from_addr or "Unknown sender")
                 date_val = format_received_date(msg.received_at)
                 subj_val = msg.subject or "(No subject)"
-                fallback_lines.append(f"- **{subj_val}** from **{sender_val}** ({date_val})")
+                fallback_lines.append(f"- **{subj_val}** — *{sender_val}* ({date_val}) [Email {idx}]")
             citations_list = ", ".join(f"[Email {i}]" for i in range(1, len(matched_emails[:3]) + 1))
             answer_text = "\n".join(fallback_lines) + f"\n\nCitations: {citations_list}"
         else:
