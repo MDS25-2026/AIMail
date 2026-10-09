@@ -9,7 +9,8 @@ export const fetchEmailPage = (cursor?: string) =>
   request<EmailPage>(cursor ? `/emails?cursor=${encodeURIComponent(cursor)}` : "/emails");
 
 /** One email with the Lane C draft, summary and critic filled in. Marks it read. */
-export const fetchEmail = (id: string) => request<Email>(emailPath(id));
+export const fetchEmail = (id: string, signal?: AbortSignal) =>
+  request<Email>(emailPath(id), { signal });
 
 /** The newest of the reader's emails in a Gmail thread, or null when AIMail has none (extension). */
 export async function fetchEmailByThread(threadId: string): Promise<Email | null> {
