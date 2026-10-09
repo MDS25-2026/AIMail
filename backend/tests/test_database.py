@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.exc import DBAPIError
 
 from app import audit_routes
@@ -23,6 +23,7 @@ from app.db.migrate import apply_pending, pending
 from app.db.models import AuthStatus, MaskingStatus, Message, UserProfile
 from app.db.session import get_engine, get_sessionmaker
 from app.jobs import claim_requested, request_draft
+from app.ml.categorise import classify_pending
 from app.rag.embedding_models import check_columns
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "")
@@ -159,3 +160,22 @@ def test_paging_the_inbox_shows_every_email_once_even_with_equal_timestamps():
 
     seen = _run(scenario())
     assert len(seen) == 5 and len(set(seen)) == 5
+
+
+def test_the_worker_classifies_an_email_once_and_stores_it():
+    async def scenario():
+        pk = uuid4()
+        async with get_sessionmaker()() as session, session.begin():
+            session.add(Message(id=pk, gmail_message_id=f"cat-{pk}", masking_status=MaskingStatus.COMPLETE,
+                                subject="Licence renewal", body_masked="Please find the renewal invoice attached."))
+        await classify_pending(limit=500)
+        async with get_sessionmaker()() as session:
+            first = (await session.execute(select(Message.category, Message.category_confidence)
+                                           .where(Message.id == pk))).one()
+        await classify_pending(limit=500)  # a second pass leaves it alone
+        async with get_sessionmaker()() as session:
+            second = (await session.execute(select(Message.category).where(Message.id == pk))).scalar_one()
+        return first, second
+
+    (stored, confidence), again = _run(scenario())
+    assert stored is not None and 0.0 <= confidence <= 1.0 and again == stored
