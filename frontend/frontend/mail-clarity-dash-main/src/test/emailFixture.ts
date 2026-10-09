@@ -23,6 +23,7 @@ export function emailFixture(overrides: Partial<Email> = {}): Email {
     quantities: [],
     isRead: true,
     isDrafting: false,
+    category: "internal",
     details: [],
     egress: [],
     ...overrides,

@@ -145,6 +145,8 @@ listener — a migration must create `messages` + `audit_log` in Supabase before
 | `received_at` | `TIMESTAMPTZ` | Lane A | |
 | `importance` | `SMALLINT NULL` | Lane B | 0/1/2 = LOW/MEDIUM/HIGH |
 | `importance_confidence` | `REAL NULL` | Lane B | 0..1 |
+| `category` | `TEXT NULL` | Lane B | 6-category B2B taxonomy: client, vendor, internal, security, admin, personal (migration 0033) |
+| `category_confidence` | `REAL NULL` | Lane B | 0..1 calibrated confidence (migration 0033) |
 | `deadline_at` | `TIMESTAMPTZ NULL` | Lane B | extracted deadline |
 | `importance_model_version` | `TEXT NULL` | Lane B | clean re-score on retrain |
 | `ai_summary` | `TEXT NULL` | Lane C | cached generation (migration 0004) |

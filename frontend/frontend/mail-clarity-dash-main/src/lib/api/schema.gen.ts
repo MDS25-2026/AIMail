@@ -677,6 +677,14 @@ export interface components {
             authStatus: components["schemas"]["AuthStatus"];
             /** Body */
             body: string;
+            /**
+             * Category
+             * @default internal
+             * @enum {string}
+             */
+            category: "client" | "vendor" | "internal" | "security" | "admin" | "personal";
+            /** Categoryconfidence */
+            categoryConfidence?: number | null;
             /** Criticconfidence */
             criticConfidence: number;
             /** Details */

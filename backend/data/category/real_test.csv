@@ -1,0 +1,368 @@
+text,category
+"Subject: Request for Enterprise Proposal and Security Questionnaire - [ORG_1]
+
+Hi [PERSON_1],
+
+Our evaluation committee at [ORG_1] has reviewed your demo and we would like to proceed with an Enterprise proposal for 250 seats. 
+
+Could you please send over your standard Master Services Agreement (MSA) and complete the attached vendor security questionnaire by next Friday, October 16? Our procurement lead, [PERSON_2], would also like to schedule a 30-minute commercial review call next Tuesday at 2:00 PM.
+
+Best regards,
+[PERSON_3]
+Director of Operations, [ORG_1]
+[EMAIL_1]",client
+"Subject: Urgent: Production API Degradation and SLA Credit Request
+
+Hello Support Team,
+
+We experienced a severe degradation in your ingestion API yesterday between 9:00 AM and 1:30 PM UTC. Latency exceeded 4,500ms and approximately 12% of our customer transactions timed out during our peak flash sale.
+
+Per Section 8.2 of our SLA contract, our monthly uptime commitment is 99.9%. Because this outage exceeded four hours, we are requesting a 10% credit ($1,850) on our upcoming November invoice. Please provide the incident post-mortem report and confirm the credit note.
+
+Regards,
+[PERSON_1]
+Technical Account Lead, [ORG_1]
+[PHONE_1]",client
+"Subject: Scheduling Technical Onboarding Session for [ORG_1] Engineering
+
+Hi [PERSON_1],
+
+Thank you for sending the countersigned contract! Our team is eager to start implementation this week.
+
+Could we schedule a 45-minute technical onboarding walkthrough for our infrastructure squad on Thursday at 10:00 AM? We need guidance on configuring SAML 2.0 Single Sign-On via Okta and provisioning our initial developer sandbox API keys.
+
+Looking forward to working together.
+
+Cheers,
+[PERSON_2]
+Head of Engineering, [ORG_1]
+[EMAIL_1]",client
+"Subject: Prospective Enterprise Pilot - Feature Availability Questions
+
+Hello Sales Team,
+
+I am evaluating data integration solutions on behalf of [ORG_1]. We are interested in running a 30-day proof-of-concept pilot with your platform starting in November.
+
+Before we finalize our pilot scope, could you confirm whether your platform supports real-time Kafka streaming connectors and role-based access control (RBAC) at the workspace level? Also, do you offer dedicated VPC peering for enterprise accounts?
+
+Thanks,
+[PERSON_1]
+Solutions Architect, [ORG_1]",client
+"Subject: Enterprise Contract Renewal and Multi-Year Discount Discussion
+
+Dear [PERSON_1],
+
+Our annual subscription with [ORG_1] is coming up for renewal on December 1st. We have been pleased with the service and are planning to expand from 100 to 220 active licenses.
+
+However, the standard renewal quote of $28,000 is slightly over our Q4 software budget. If we commit to a 24-month agreement paid annually upfront, can your finance team authorize a 15% discount to bring the annual rate to $23,800?
+
+Please let me know if we can discuss this over a brief call tomorrow.
+
+Sincerely,
+[PERSON_2]
+VP of Finance, [ORG_1]",client
+"Subject: Invoice INV-88219 Overdue Notice - [ORG_1] Cloud Observability
+
+Dear Accounts Payable,
+
+This is a friendly reminder that invoice INV-88219 for the amount of $4,320.00, covering your [ORG_1] APM and Log Monitoring subscription for September, was due on October 5th.
+
+Please remit payment via wire transfer or ACH using the banking details listed on the invoice. If payment has already been sent, please forward the transaction confirmation receipt to [EMAIL_1] so we can update our records.
+
+Thank you for your prompt attention,
+[PERSON_1]
+Billing Operations, [ORG_1]",vendor
+"Subject: Revised Statement of Work (SOW): Front-End UI Design Phase 2
+
+Hi [PERSON_1],
+
+Attached is the revised Statement of Work for Phase 2 of our design engagement. Based on our sync yesterday, we have reduced the wireframing scope by 20 hours to fit within your remaining $14,000 project budget.
+
+Our principal designer, [PERSON_2], is available to begin work on Monday, October 19th, pending receipt of the signed SOW by end of day Friday. Please let me know if you would like me to route this via DocuSign.
+
+Best,
+[PERSON_3]
+Client Partner, [ORG_1]
+[PHONE_1]",vendor
+"Subject: Notice of Scheduled Maintenance Window - Payment Gateway Sandbox
+
+Dear [ORG_1] Partner,
+
+Please be advised that [ORG_1] will be performing infrastructure maintenance and database upgrades on our sandbox payment processing cluster this weekend.
+
+Maintenance Window:
+- Start: Saturday, October 17 at 11:00 PM EST
+- End: Sunday, October 18 at 03:00 AM EST
+
+During this window, test API requests will return HTTP 503 Service Unavailable. Live production traffic will not be impacted.
+
+For questions, please reach out to our partner support desk at [EMAIL_1].
+
+Warm regards,
+[ORG_1] Developer Support",vendor
+"Subject: Hardware Refresh: Expiring Laptop Lease Schedule
+
+Hi [PERSON_1],
+
+Our records show that the 3-year lease on your fleet of 45 Dell Latitude laptops expires on November 30th. 
+
+You have the option to either purchase the units at their fair market salvage value ($120 per unit), return the units for certified data sanitization, or roll the fleet into our new M3 MacBook Pro corporate leasing program. 
+
+Please review the attached options and let us know your decision by October 25th so we can prepare delivery logistics.
+
+Best regards,
+[PERSON_2]
+Corporate Accounts, [ORG_1] Leasing",vendor
+"Subject: Q3 Legal Retainer Invoice and Trademark Status Update
+
+Hi [PERSON_1],
+
+Please find attached invoice #4091 for our legal services rendered during the third quarter, totaling $3,500.00.
+
+Also, as a quick status update: the Malaysian Intellectual Property Corporation (MyIPO) has accepted your trademark application for examination with no objections noted. We anticipate publication in the official gazette within the next 60 days.
+
+Kind regards,
+[PERSON_2], Partner
+[ORG_1] Intellectual Property Law
+[EMAIL_1]",vendor
+"Subject: PR #412: Database migration and connection pooling refactor
+
+Hey [PERSON_1],
+
+Could you take a look at PR #412 when you have a moment? I've refactored our asyncpg connection pool configuration and added index hints for the messages lookup query.
+
+All unit tests are passing locally and memory usage in staging dropped by roughly 18%. Let me know if you see any concurrency edge cases before I merge this into main for the release candidate.
+
+Thanks,
+[PERSON_2]",internal
+"Subject: Sprint Retrospective Notes and Action Items - Sprint 14
+
+Hi team,
+
+Thanks for a productive retro session this morning. Here are our locked-in action items for the upcoming sprint:
+
+1. [PERSON_1] to finalize the Presidio PII fallback regex for Malaysian IC numbers by Wednesday.
+2. [PERSON_2] to add circuit breakers to the Gemini client to handle 429 rate limit errors gracefully.
+3. [PERSON_3] to audit our Supabase pgvector query latency and ensure HNSW index parameters are optimized.
+
+Please check Jira for your updated ticket assignments. Let's make sure our standup tomorrow starts promptly at 9:30 AM.
+
+Cheers,
+[PERSON_4]",internal
+"Subject: Rescheduling our 1-on-1 to Thursday afternoon
+
+Hey [PERSON_1],
+
+I have an unexpected conflict with the executive incident review meeting tomorrow morning, so I need to push our weekly 1-on-1 sync.
+
+Would Thursday at 3:30 PM work for you instead? If not, feel free to grab any open slot on my calendar for Friday morning. I want to make sure we have time to discuss your quarterly goals and the upcoming performance review cycle.
+
+See you soon,
+[PERSON_2]",internal
+"Subject: Staging Deployment Freeze - Release v1.6.0 Preparation
+
+Engineering Team,
+
+Please be aware that we are instituting a code freeze on the staging environment starting tomorrow at 5:00 PM in preparation for our v1.6.0 release candidate.
+
+Only critical hotfixes addressing blockers tagged with 'release-gate' will be permitted to merge. All new feature PRs will be held until the deployment verification is completed on Monday morning.
+
+If you have an urgent change that needs an exemption, please ping [PERSON_1] on Slack.
+
+Regards,
+[PERSON_2]
+Release Manager",internal
+"Subject: Cross-team dependency: Auth session tokens in listener
+
+Hi [PERSON_1],
+
+Quick sync regarding the auth refactor: the Lane A listener currently validates bearer tokens against the legacy static secret. Once your PR merges with per-user mailbox connections, we will need to update the listener keyring to support encrypted token rotation.
+
+Can we set up a quick 15-minute huddle tomorrow afternoon to align on the cryptographic key exchange format?
+
+Thanks,
+[PERSON_2]",internal
+"Subject: MANDATORY: Annual SOC 2 Compliance and Security Training
+
+All Employees,
+
+This is a mandatory reminder that all full-time staff and contractors must complete our annual SOC 2 Type II Security Awareness Training by Friday, October 23rd at 5:00 PM.
+
+The training consists of three modules in KnowBe4 covering phishing detection, data classification, and clean desk policies (approx. 25 minutes total). Failure to complete the training on time will result in temporary suspension of VPN and Single Sign-On credentials per corporate security policy.
+
+Link to portal: https://training.[ORG_1].com
+
+Thank you for keeping our systems secure,
+[PERSON_1]
+Chief Information Security Officer
+[ORG_1]",security
+"Subject: SOC 2 Type II Audit Evidence Request - Access Control Lists
+
+Hi [PERSON_1],
+
+Our external auditors from [ORG_1] have requested evidence for control CC6.3 (Quarterly User Access Review).
+
+Could you please generate and export the user access rosters for AWS production, GitHub organization owners, and Supabase database administrators for the period of July 1 to September 30? Please ensure the export includes timestamped manager sign-offs.
+
+Please upload the CSVs to the auditor share room by Wednesday at 12:00 PM.
+
+Thanks,
+[PERSON_2]
+IT Compliance Analyst",security
+"Subject: Urgent Security Advisory: Critical Zero-Day Patch for macOS Laptops
+
+Team [ORG_1],
+
+Apple has released an emergency security update (macOS 15.0.1) addressing an actively exploited zero-day vulnerability in WebKit (CVE-2026-41920). 
+
+IT has pushed the update package to all managed company laptops via Jamf. Please save your work and initiate the system restart when prompted by the notification dialog today before 6:00 PM. Devices that have not applied the patch by tomorrow morning will be quarantined from the corporate Wi-Fi.
+
+Contact the IT Helpdesk at [EMAIL_1] or extension 4410 if you encounter issues during reboot.
+
+Best,
+[PERSON_1]
+Infrastructure Security Lead",security
+"Subject: Mutual NDA and DPA Countersignature Required - [ORG_1]
+
+Hello [PERSON_1],
+
+I am following up on the Mutual Non-Disclosure Agreement (NDA) and Data Processing Addendum (DPA) sent via DocuSign on Monday regarding our potential data sharing integration.
+
+Our legal and compliance guidelines require fully executed agreements before our team can share sample anonymized data schemas or architectural whitepapers. Could you check with your legal counsel to confirm when we can expect the countersignature?
+
+Best regards,
+[PERSON_2]
+Risk & Compliance Manager, [ORG_1]
+[PHONE_1]",security
+"Subject: Q3 Phishing Simulation Campaign Results and Best Practices
+
+Hi Everyone,
+
+Last week the InfoSec team conducted our unannounced Q3 phishing simulation. We are pleased to report that 94% of employees either ignored or used the PhishAlarm button to report the simulated credential harvest email!
+
+However, 14 employees entered credentials on the mock landing page. Those individuals have been automatically assigned a 10-minute refresher module on identifying lookalike domains. Remember: always inspect sender header domains and never enter your corporate password on external domains.
+
+Stay vigilant!
+[PERSON_1]
+Security Awareness Team, [ORG_1]",security
+"Subject: Facilities Notice: 4th Floor HVAC Maintenance and Desk Reallocation
+
+Dear 4th Floor Residents,
+
+Please be advised that facilities contractors will be servicing the central HVAC air handling units on the 4th floor this Saturday, October 17th, between 8:00 AM and 4:00 PM. 
+
+Power to the desk risers and cooling systems will be temporarily shut off during this window. If you plan to work over the weekend, please work remotely or utilize the hot-desking spaces on the 2nd floor. Normal operations will resume Monday at 7:00 AM.
+
+Thank you for your cooperation,
+[PERSON_1]
+Facilities & Office Operations",admin
+"Subject: Reminder: Submit Outstanding September Travel Expense Reports
+
+Dear Staff,
+
+This is a reminder from the finance department that all travel, client entertainment, and incidental expense claims incurred during the month of September must be submitted via Concur by Friday, October 16th.
+
+Please remember to attach itemized tax receipts for all transactions exceeding $25.00. Expense reports submitted after the deadline will be held for processing in the following month's payroll cycle.
+
+If you have questions regarding eligible expense categories, please contact [PERSON_1] at [EMAIL_1].
+
+Warm regards,
+Finance Operations Team",admin
+"Subject: Room Booking Confirmation: Q4 Executive Town Hall in Auditorium
+
+Hi [PERSON_1],
+
+Your reservation for the Main Auditorium has been confirmed for the Q4 All-Hands Town Hall on Thursday, November 5th from 1:30 PM to 4:30 PM.
+
+The AV team has scheduled technician support to manage stage lighting, wireless lapel microphones, and the live Zoom broadcast. Coffee and light refreshments have been arranged with catering for 120 attendees and will be set up in the foyer at 1:15 PM.
+
+Please let us know if you require any special stage seating configurations.
+
+Best,
+[PERSON_2]
+Corporate Events Coordinator",admin
+"Subject: Offboarding Hardware Return: IT Assets for [PERSON_1]
+
+Dear [PERSON_1],
+
+As your final working day approaches on October 30th, please arrange to return all company-issued IT equipment to the IT Helpdesk on the 1st floor before 3:00 PM on your last day.
+
+Assets registered to your profile:
+- 1x MacBook Pro 14-inch (Serial: C02G914K)
+- 1x Dell 27-inch 4K Monitor
+- 1x Corporate Building Access Badge
+
+If you are a remote employee, please use the prepaid FedEx shipping label sent to your home address to return the hardware within 5 business days.
+
+Thank you for your service and we wish you the best in your future endeavors,
+IT Asset Management",admin
+"Subject: Office Closure Notice: Upcoming National Holiday
+
+Dear Team,
+
+Please note that our corporate offices in [LOCATION_1] will be closed on Monday, October 26th in observance of the public holiday. 
+
+Normal business hours will resume on Tuesday, October 27th at 8:30 AM. For employees supporting critical 24/7 on-call rotations, please coordinate your coverage schedule with your respective team managers.
+
+Enjoy the long weekend with your family and friends!
+
+Best regards,
+People & Culture Operations",admin
+"Subject: Quick coffee downstairs before the 3pm sync?
+
+Hey [PERSON_1],
+
+I'm hitting a wall with this presentation deck and need a quick break. Are you free to run downstairs to the cafe for an iced latte in ten minutes? 
+
+Let me know if you want to walk down, or I can grab you an oat milk flat white on my way back up!
+
+Cheers,
+[PERSON_2]",personal
+"Subject: Sign [PERSON_1]'s virtual birthday card! 
+
+Hi Team,
+
+[PERSON_1]'s birthday is coming up this Thursday, October 15th! 
+
+I've set up a virtual Kudoboard so we can all leave a nice message, funny photo, or GIF to celebrate their special day. Please take two minutes to sign the card before Wednesday at 5:00 PM:
+
+https://www.kudoboard.com/boards/[PERSON_1]-bday-2026
+
+Let's keep this a surprise until Thursday morning!
+
+Best,
+[PERSON_2]",personal
+"Subject: Anyone want to grab lunch at the food hall today?
+
+Hey folks,
+
+A few of us are heading over to the new food court across the street around 12:15 PM to try out the new ramen and banh mi stalls. 
+
+If anyone wants to join, meet by the lobby elevators at 12:10 PM! All are welcome.
+
+Best,
+[PERSON_1]",personal
+"Subject: Happy 3-Year Work Anniversary, [PERSON_1]! 
+
+Hi [PERSON_1],
+
+Can you believe it has already been three years since you joined the team? Time has flown by!
+
+I wanted to take a moment to say how much we appreciate your dedication, humor, and brilliant problem solving on our hardest projects. The team simply wouldn't be the same without you.
+
+Let's celebrate with team drinks this Friday after work! 
+
+Cheers,
+[PERSON_2]",personal
+"Subject: Photos from the weekend hike at [LOCATION_1]! 
+
+Hey team,
+
+Thanks so much to everyone who made it out to the trail on Saturday! The weather turned out perfect and the view from the peak was incredible.
+
+I've uploaded all the group photos and panoramic shots to our shared Google Drive folder here: https://drive.google.com/drive/folders/hiking-oct2026. Feel free to download your favorites.
+
+Let's plan another trip to the waterfalls next month!
+
+Warmly,
+[PERSON_1]",personal

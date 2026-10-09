@@ -118,6 +118,9 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   the per-user policy layer and deterministic SLA floor (migration 0034) have been applied — see the
   Personalisation section of `db-schema.md`. Consumers should treat `priority` as "what this user should see",
   not as the raw model output.
+- `DashboardEmail.category` carries the 6-category B2B taxonomy prediction (`"client"`, `"vendor"`,
+  `"internal"`, `"security"`, `"admin"`, `"personal"`), and `categoryConfidence` is the 0..1 calibrated
+  confidence (Issue #141, migration 0033). Used by the dashboard for category badges and inbox filtering.
 - `DashboardEmail.sources` lists the policy passages the cached draft was grounded on, as
   `{ label, chunkId, excerpt, score }` (`score` is cosine similarity, 0..1), captured when the
   draft was generated. Empty for a draft generated before migration 0011, or with no policy

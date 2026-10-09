@@ -19,7 +19,9 @@ start() {
   local service=$1 port=$2
   docker compose up -d "$service"
   for attempt in 1 2; do
-    for _ in $(seq 1 $((WAIT_SECONDS / POLL_SECONDS))); do
+    # Wall-clock deadline, not a count of tries: a try that times out takes PROBE_SECONDS longer.
+    local deadline=$((SECONDS + WAIT_SECONDS))
+    while [ "$SECONDS" -lt "$deadline" ]; do
       healthy "$port" && { echo "$service is healthy"; return 0; }
       sleep "$POLL_SECONDS"
     done
