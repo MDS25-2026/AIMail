@@ -709,6 +709,7 @@ export const zh: Translations = {
     sender_unverified: "此发件人未通过身份验证。起草或发送前请先核实发件人。",
     masking_pending: "这封邮件中的个人信息仍在隐藏中，暂时无法使用。",
     already_sent: "这封回复已经发送。",
+    send_in_progress: "这封回复正在发送中。请稍候，再查看是否已发送。",
     redaction_markers: "这封回复仍有隐藏信息，例如 [Redacted]。发送前请填入真实信息。",
     unresolved_placeholders:
       "这封回复中有 AIMail 无法填写的占位符，例如 [PERSON_3]。请在该处输入真实信息后再发送。",

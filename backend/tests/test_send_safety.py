@@ -11,8 +11,10 @@ from uuid import uuid4
 
 import httpx
 import pytest
+from sqlalchemy.exc import SQLAlchemyError
 
 from app import dashboard, gmail_send
+from app.core.errors import DomainError, ErrorCode
 from app.core.ownership import EVERYTHING
 from app.db.models import MaskingStatus, Message
 from tests.conftest import AUTH_HEADERS as AUTH
@@ -168,3 +170,31 @@ def test_the_route_reports_a_rejected_draft_with_its_code(api_client, monkeypatc
     monkeypatch.setattr("app.main.approve_and_send", rejected)
     response = api_client.post("/emails/x/send", json={"draft": "Hi [Redacted]"}, headers=AUTH)
     assert (response.status_code, response.json()["error"]["code"]) == (422, "redaction_markers")
+
+
+def test_the_loser_of_a_send_race_is_told_it_is_in_progress_not_that_it_was_sent(harness, monkeypatch):
+    async def taken(_pk):
+        return False
+
+    monkeypatch.setattr(dashboard, "_claim_send", taken)
+    with pytest.raises(DomainError) as refused:
+        _approve(harness)
+    assert refused.value.code == ErrorCode.SEND_IN_PROGRESS and harness["sent"] == 0
+
+
+def test_an_email_already_sent_is_returned_without_sending_again(harness):
+    harness["message"].sent_at = datetime(2026, 10, 9, tzinfo=timezone.utc)
+    email = _approve(harness)
+    assert email.sentAt is not None and harness["sent"] == 0 and harness["claimed"] == 0
+
+
+def test_a_send_whose_record_fails_to_save_still_shows_as_sent(harness, monkeypatch):
+    async def database_down(*_args, **_kwargs):
+        raise SQLAlchemyError("connection lost")
+
+    monkeypatch.setattr(dashboard, "_record_send", database_down)
+    email = _approve(harness)
+    assert email.sentAt is not None and email.draftReply == "Thanks, paid."
+    # Gmail sent it once; the claim stays and nothing invites a second copy.
+    assert harness["sent"] == 1 and harness["released"] == 0 and "marked_unknown" not in harness
+    assert ("approve_and_send", True) in harness["audits"]

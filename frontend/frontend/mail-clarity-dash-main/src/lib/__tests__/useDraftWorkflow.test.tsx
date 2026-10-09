@@ -205,3 +205,25 @@ describe("each email keeps its own state (#138)", () => {
     expect(result.current.isDraftLocked).toBe(false);
   });
 });
+
+describe("changing the tone", () => {
+  test("a failed regenerate puts the tone back to the one the draft is written in", async () => {
+    stubFetch({
+      "POST /emails/r/regenerate": { status: 502, body: { error: { code: "agent_unavailable" } } },
+    });
+    const { result } = renderWorkflow(emailFixture({ id: "r", tone: "professional" }));
+    act(() => result.current.setTone("casual"));
+    expect(result.current.tone).toBe("casual");
+    await waitFor(() => expect(result.current.status.failure).not.toBeNull());
+    expect(result.current.tone).toBe("professional");
+  });
+
+  test("a regenerate that works keeps the new tone", async () => {
+    const casual = emailFixture({ id: "s", tone: "casual", draftReply: "Hey, sounds good!" });
+    stubFetch({ "POST /emails/s/regenerate": { body: casual } });
+    const { result } = renderWorkflow(emailFixture({ id: "s", tone: "professional" }));
+    act(() => result.current.setTone("casual"));
+    await waitFor(() => expect(result.current.isRegenerating).toBe(false));
+    expect(result.current.tone).toBe("casual");
+  });
+});

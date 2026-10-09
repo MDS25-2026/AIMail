@@ -6,6 +6,7 @@ Serves the Lane B retrieval demo: search (POST /search), the knowledge-base inve
 that belongs in specs/context/api-contracts.md with Lane D.
 """
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -51,7 +52,9 @@ from app.core.constants import (
     ADMIN_PREFIX,
     EMBEDDING_MODEL,
     MAX_DRAFT_CHARS,
+    MAX_INSTRUCTION_CHARS,
     MAX_PASTE_CHARS,
+    MAX_QUERY_CHARS,
     MAX_UPLOAD_BYTES,
     PDF_MAGIC,
     UPLOAD_CHUNK_BYTES,
@@ -72,6 +75,8 @@ from app.core.ratelimit import (
     rate_limit_detail,
     rate_limit_generation,
     rate_limit_ingest,
+    rate_limit_list,
+    rate_limit_send,
 )
 from app.core.typed_text import mask_typed_text
 from app.dashboard import (
@@ -164,7 +169,7 @@ async def _masking_unavailable(request: Request, exc: DocumentMaskingError) -> J
 
 
 class SearchRequest(BaseModel):
-    query: str = Field(min_length=1)
+    query: str = Field(min_length=1, max_length=MAX_QUERY_CHARS)
     k: int = Field(default=5, ge=1, le=20)
 
 
@@ -175,7 +180,7 @@ class DocumentRequest(BaseModel):
 
 
 class AskRequest(BaseModel):
-    question: str = Field(min_length=1)
+    question: str = Field(min_length=1, max_length=MAX_QUERY_CHARS)
     k: int = Field(default=5, ge=1, le=20)
 
 
@@ -213,7 +218,7 @@ async def ask(request: AskRequest, http: Request) -> AskResponse:
     return AskResponse(answer=text, sources=chunks)
 
 
-@app.get("/emails")
+@app.get("/emails", dependencies=[Depends(rate_limit_list)])
 async def emails(request: Request, cursor: str | None = None,
                  limit: int = Query(EMAILS_PER_PAGE, ge=1, le=MAX_EMAILS_PER_PAGE)) -> EmailPage:
     # Fast list: Han's Email shape from ingested messages + Lane B priority (no generation).
@@ -274,8 +279,8 @@ async def regenerate_email_route(
 
 
 class RefineRequest(BaseModel):
-    instruction: str  # e.g. "make it shorter", "add a deadline"
-    draft: str  # the current draft to revise
+    instruction: str = Field(max_length=MAX_INSTRUCTION_CHARS)  # e.g. "make it shorter", "add a deadline"
+    draft: str = Field(max_length=MAX_DRAFT_CHARS)  # the current draft to revise
     # The tone the reader has chosen, so the revision and its review keep it.
     tone: Tone = Tone.PROFESSIONAL
 
@@ -311,7 +316,7 @@ class SendRequest(BaseModel):
     draft: str = Field(min_length=1, max_length=MAX_DRAFT_CHARS)  # the approved, possibly edited draft
 
 
-@app.post("/emails/{message_id}/send", dependencies=[Depends(require_mailbox)])
+@app.post("/emails/{message_id}/send", dependencies=[Depends(rate_limit_send), Depends(require_mailbox)])
 async def send_email_route(message_id: str, body: SendRequest, request: Request) -> DashboardEmail:
     # Human-approved send: reply to the original sender with the draft, then mark it sent.
     try:
@@ -359,7 +364,7 @@ async def system_info(request: Request) -> SystemInfo:
     )
 
 
-@app.get("/documents")
+@app.get("/documents", dependencies=[Depends(rate_limit_list)])
 async def get_documents(request: Request) -> list[DocumentSummary]:
     # The knowledge base belongs to the mailbox it grounds replies for.
     scope = await scope_of_principal(principal_of(request))
@@ -407,7 +412,8 @@ async def upload_document(file: UploadFile, request: Request) -> dict[str, int]:
     if not data.startswith(PDF_MAGIC):
         raise DomainError(ErrorCode.NOT_PDF, "the .pdf extension does not match the contents")
     try:
-        text = extract_pdf_bytes(data)
+        # CPU-bound: off the event loop, so one large PDF does not stall every other request.
+        text = await asyncio.to_thread(extract_pdf_bytes, data)
     except Exception as exc:
         raise DomainError(ErrorCode.UNREADABLE_PDF) from exc
     count = await ingest_text(f"upload://{filename}", filename, text,
