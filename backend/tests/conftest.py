@@ -14,13 +14,29 @@ os.environ["AIMAIL_ENV_FILE"] = ""  # before any app import reads settings
 import pytest
 from fastapi.testclient import TestClient
 
+from app import dashboard
 from app.core.config import get_settings
 from app.core.ratelimit import MemoryCounters, all_limiters
 from app.db.session import get_engine, get_sessionmaker
 from app.main import app
+from app.personalisation import DEFAULT_POLICY
 
 API_TOKEN = "test-token-not-a-real-secret"
 AUTH_HEADERS = {"Authorization": f"Bearer {API_TOKEN}"}
+
+
+REAL_POLICY_FOR = dashboard._policy_for
+
+
+@pytest.fixture(autouse=True)
+def default_priority_policy(monkeypatch):
+    """Detail views read the owner's priority rules from the database; unit tests have none, so they get the
+    neutral policy. tests/test_detail_priority.py checks the real lookup."""
+
+    async def neutral(_message):
+        return DEFAULT_POLICY
+
+    monkeypatch.setattr(dashboard, "_policy_for", neutral)
 
 
 @pytest.fixture(autouse=True)
