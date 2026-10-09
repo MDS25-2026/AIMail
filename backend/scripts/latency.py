@@ -26,9 +26,9 @@ from eval_critic import (
     read_rows,
 )
 
+from app.agent_client import agent_timeout_seconds
 from app.core.config import get_settings
 from app.core.percentile import percentile
-from app.dashboard import AGENT_TIMEOUT_SECONDS
 
 OK = "ok"
 
@@ -54,12 +54,13 @@ async def time_one(client: httpx.AsyncClient, url: str, body: str, with_rag: boo
 
 def summarise(results: list[dict]) -> str:
     seconds = [r["seconds"] for r in results]
-    overruns = sum(1 for s in seconds if s >= AGENT_TIMEOUT_SECONDS)
+    timeout = agent_timeout_seconds()
+    overruns = sum(1 for s in seconds if s >= timeout)
     return "\n".join([
         f"drafts            {len(results)}  (failed: {sum(1 for r in results if r['status'] != 200)})",
         (f"seconds p50/p95   {percentile(seconds, 0.5):.1f} / {percentile(seconds, 0.95):.1f}"
          f"  max {max(seconds):.1f}"),
-        f"over {AGENT_TIMEOUT_SECONDS}s timeout  {overruns}",
+        f"over {timeout:.0f}s timeout  {overruns}",
         f"gemini attempts   {sum(r['attempts'] for r in results) / len(results):.1f} per draft",
         f"retried attempts  {sum(r['retries'] for r in results)}",
         f"fallback answered {sum(1 for r in results if r['used_fallback'])} draft(s)",
