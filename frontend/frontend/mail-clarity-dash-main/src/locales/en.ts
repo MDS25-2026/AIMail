@@ -30,6 +30,9 @@ export const en = {
     noMailboxHint: "Sign out, then sign in with Google again and allow AIMail to read your Gmail.",
     conversations_one: "{{count}} conversation",
     conversations_other: "{{count}} conversations",
+    filterLabel: "Filter by priority",
+    filterAll: "All priorities",
+    filterEmpty: "No emails marked {{priority}}.",
   },
   priority: { critical: "Critical", high: "Urgent", medium: "Medium", low: "Low" },
   detail: {

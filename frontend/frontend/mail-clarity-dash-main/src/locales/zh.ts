@@ -29,6 +29,9 @@ export const zh: Translations = {
     noMailboxHint: "请退出，然后重新使用 Google 登录，并允许 AIMail 读取您的 Gmail。",
     conversations_one: "{{count}} 个会话",
     conversations_other: "{{count}} 个会话",
+    filterLabel: "按优先级筛选",
+    filterAll: "全部优先级",
+    filterEmpty: "没有标记为“{{priority}}”的邮件。",
   },
   priority: { critical: "特急", high: "紧急", medium: "中等", low: "低" },
   detail: {
