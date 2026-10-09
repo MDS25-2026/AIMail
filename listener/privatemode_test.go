@@ -130,7 +130,7 @@ func TestAPrivateModeOwnersAttachmentImagesStayLocal(t *testing.T) {
 	calls := recordOCRCalls(t)
 	fakeReader(t)
 	withPreferences(t, http.StatusOK, `[{"draft_provider":"local"}]`)
-	srv := fakeGmail(t, http.StatusOK, `{"data":"cG5n"}`)
+	srv := fakeGmail(t, http.StatusOK, `{"data":"iVBORw0KGgoAAAAAAAAAAA=="}`) // a real PNG signature: the bytes are sniffed
 	got := ocrAttachments(context.Background(), srv, messageRef{ownerID: "user-a", msgID: "m1"},
 		imagePart("image/png", "att-1", 100))
 	if *calls != 0 || got != "" {
@@ -142,7 +142,7 @@ func TestAGeminiOwnersAttachmentImagesAreTranscribed(t *testing.T) {
 	calls := recordOCRCalls(t)
 	fakeReader(t)
 	withPreferences(t, http.StatusOK, `[]`)
-	srv := fakeGmail(t, http.StatusOK, `{"data":"cG5n"}`)
+	srv := fakeGmail(t, http.StatusOK, `{"data":"iVBORw0KGgoAAAAAAAAAAA=="}`) // a real PNG signature: the bytes are sniffed
 	got := ocrAttachments(context.Background(), srv, messageRef{ownerID: "user-a", msgID: "m1"},
 		imagePart("image/png", "att-1", 100))
 	if *calls != 1 || !strings.Contains(got, "Invoice 42") {

@@ -297,11 +297,27 @@ _PARAGRAPH_END = re.compile(r"</w:p>|<w:br/>|<w:tab/>")
 _XLSX_TEXT = re.compile(r"<(?:t|v)(?:\s[^>]*)?>([^<]*)</(?:t|v)>")
 
 
+_DOCX_MAIN = "word/document.xml"
+# Letterheads, signatures blocks and "Account no." footers sit outside the main part; unread, they
+# were never masked or answered from.
+_DOCX_SIDE_PART = re.compile(r"word/(?:header\d*|footer\d*|footnotes|endnotes)\.xml")
+
+
+def _docx_text(xml: str) -> str:
+    return html.unescape(_XML_TAG.sub("", _PARAGRAPH_END.sub("\n", xml))).strip()
+
+
 def read_docx(data: bytes) -> Reading:
+    """The body, then headers, footers, footnotes and endnotes, each part once."""
     with _open_zip(data) as archive:
-        xml = _member(archive, "word/document.xml")
-    text = html.unescape(_XML_TAG.sub("", _PARAGRAPH_END.sub("\n", xml)))
-    return Reading(texts=[text], pages=1)
+        side = sorted(n for n in archive.namelist() if _DOCX_SIDE_PART.fullmatch(n))
+        declared = sum(archive.getinfo(n).file_size for n in [_DOCX_MAIN, *side] if n in archive.namelist())
+        if declared > MAX_TOTAL_INFLATED_BYTES:
+            raise ReaderError(f"document declares {declared} bytes across its parts")
+        parts = [_member(archive, name) for name in [_DOCX_MAIN, *side]]
+    # Headers and footers repeat on every section: the same text twice adds nothing.
+    texts = list(dict.fromkeys(t for t in map(_docx_text, parts) if t))
+    return Reading(texts=["\n\n".join(texts)], pages=1)
 
 
 def read_xlsx(data: bytes) -> Reading:

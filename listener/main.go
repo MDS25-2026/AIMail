@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -194,8 +193,30 @@ var localeRecognizers = []presidioRecognizer{
 		// From 4 digits: real emails cite a partial account ("the account ending 4471"). The
 		// 0.4 base still sits below the 0.6 threshold, so a bare 4-digit run like a year is only
 		// masked when a context word below sits near it.
-		Patterns: []presidioPattern{{Name: "arbitrary_digit_pattern", Regex: `\b\d{4,16}\b`, Score: 0.4}},
-		Context:  []string{"account", "acc", "bank", "maybank", "cimb", "rhb", "public bank", "transfer", "reference", "ref", "passport", "policy", "member", "employee", "emp", "staff", "badge", "payroll"},
+		// Grouped as banks print them ("5141 2345 6789", "1234-5678-90"); the IC and phone floor has
+		// already replaced its own shapes, and a span touching a placeholder is never re-masked.
+		Patterns: []presidioPattern{
+			{Name: "arbitrary_digit_pattern", Regex: `\b\d{4,16}\b`, Score: 0.4},
+			{Name: "grouped_digit_pattern", Regex: `\b\d{3,6}(?:[ -]\d{2,6}){1,3}\b`, Score: 0.4},
+		},
+		Context: []string{"account", "acc", "akaun", "bank", "maybank", "cimb", "rhb", "public bank", "transfer", "reference", "ref", "passport", "policy", "member", "employee", "emp", "staff", "badge", "payroll"},
+	},
+	{
+		Name:              "MY_POSTCODE_RECOGNIZER",
+		SupportedLanguage: "en",
+		SupportedEntity:   "MY_POSTCODE",
+		// Five digits are an amount or an order number as often as a postcode: only address words make it one.
+		Patterns: []presidioPattern{{Name: "my_postcode", Regex: `\b\d{5}\b`, Score: 0.4}},
+		Context:  []string{"jalan", "jln", "taman", "tmn", "lorong", "persiaran", "lebuh", "bandar", "kampung", "kg", "address", "alamat", "postcode", "poskod", "kuala", "petaling", "selangor", "johor", "penang", "pulau"},
+	},
+	{
+		Name:              "MY_VEHICLE_PLATE_RECOGNIZER",
+		SupportedLanguage: "en",
+		SupportedEntity:   "VEHICLE_PLATE",
+		// "WXY 1234", "VAB 123 A". Presidio matches case-blind and its context words as substrings, so the
+		// letters are forced uppercase, URL and word fragments are ruled out, and "car"/"plat" (card, platform) are not context.
+		Patterns: []presidioPattern{{Name: "my_plate", Regex: `(?<![\w/.:=-])(?-i:[A-Z]{1,3} ?\d{1,4}(?: ?[A-Z])?)(?![\w/-])`, Score: 0.4}},
+		Context:  []string{"plate", "kereta", "vehicle", "kenderaan", "jpj", "motorcycle", "motosikal", "lorry"},
 	},
 }
 
@@ -270,7 +291,7 @@ func maskWithPresidio(ctx context.Context, text string, v *detailVault) (string,
 		// CREDIT_CARD and IBAN_CODE are Presidio built-ins that validate their checksums, so they
 		// cannot fire on an invoice or order number that merely looks card- or IBAN-shaped. SWIFT/BIC
 		// is left out on purpose: it names a bank, which is public, not a person.
-		Entities:         []string{"PERSON", "LOCATION", "ORGANIZATION", "ACCOUNT_NUMBER", "CREDIT_CARD", "IBAN_CODE", "PHONE_NUMBER", "EMAIL_ADDRESS"},
+		Entities:         []string{"PERSON", "LOCATION", "ORGANIZATION", "ACCOUNT_NUMBER", "CREDIT_CARD", "IBAN_CODE", "PHONE_NUMBER", "EMAIL_ADDRESS", "MY_POSTCODE", "VEHICLE_PLATE"},
 		AdHocRecognizers: localeRecognizers,
 	})
 	if err != nil {
@@ -292,6 +313,8 @@ func maskWithPresidio(ctx context.Context, text string, v *detailVault) (string,
 var entityKinds = map[string]detailKind{
 	"PERSON": kindPerson, "LOCATION": kindLocation, "ORGANIZATION": kindOrg,
 	"ACCOUNT_NUMBER": kindAccount, "IBAN_CODE": kindAccount, "CREDIT_CARD": kindCard,
+	// A plate needs no kind of its own: it is an identifier like an account, and every service already knows ACCOUNT.
+	"MY_POSTCODE": kindLocation, "VEHICLE_PLATE": kindAccount,
 	"PHONE_NUMBER": kindPhone, "EMAIL_ADDRESS": kindEmail,
 }
 
@@ -572,6 +595,10 @@ func listenToPubSub(ctx context.Context, cfg pubsubConfig, opts []option.ClientO
 // missing row, not a duplicate one, which is invisible unless you go looking.
 const maxDeliveryAttempts = 5
 
+// catchUpMessageCount bounds the fallback catch-up: a mailbox's newest messages, enough to cover a
+// listener down for a long weekend without one notification fetching the whole inbox.
+const catchUpMessageCount = 50
+
 // Pub/Sub counts deliveries only when the subscription has a dead-letter policy; said once, not
 // on every failure.
 var warnNoDeadLetter sync.Once
@@ -580,12 +607,14 @@ var warnNoDeadLetter sync.Once
 // successfully processed: history.list needs a starting point, and the notification's own ID is
 // the *end* of the range, not the start.
 func ingestHistory(ctx context.Context, mb *mailbox, historyID uint64) error {
+	mb.ingesting.Lock()
+	defer mb.ingesting.Unlock()
 	start := atomic.LoadUint64(&mb.lastHistoryID)
 	if start == 0 {
-		// No baseline yet. Fall back to the newest INBOX message so nothing is dropped, then let
-		// the baseline advance from here.
+		// No baseline yet. Catch up on recent INBOX mail so nothing is dropped, then let the
+		// baseline advance from here.
 		advanceBaseline(mb, historyID)
-		return ingestNewestInbox(ctx, mb)
+		return ingestRecentInbox(ctx, mb)
 	}
 
 	call := mb.srv.Users.History.List("me").StartHistoryId(start).HistoryTypes("messageAdded").LabelId("INBOX")
@@ -603,13 +632,22 @@ func ingestHistory(ctx context.Context, mb *mailbox, historyID uint64) error {
 	if err != nil {
 		// An expired or pruned history ID is not retryable — Gmail drops history beyond a week.
 		// Fall back rather than fail the message forever.
-		log.Printf("history.list from %d failed (%v); falling back to newest INBOX message", start, err)
+		log.Printf("history.list from %d failed (%v); falling back to recent INBOX messages", start, err)
 		writeAuditLog(ctx, mb.ownerID, actionFetchHistory, auditFields{fieldHistoryID: start,
 			fieldReason: reasonHistoryUnusable, fieldErrorKind: errorKind(err)}, false)
 		advanceBaseline(mb, historyID)
-		return ingestNewestInbox(ctx, mb)
+		return ingestRecentInbox(ctx, mb)
 	}
+	if err := ingestEach(ctx, mb, ids); err != nil {
+		return err
+	}
+	advanceBaseline(mb, historyID)
+	return nil
+}
 
+// ingestEach stores each message in order. A permanent failure is recorded and skipped; any other
+// stops the run, so the caller's retry lists the range again (stored messages are skipped then).
+func ingestEach(ctx context.Context, mb *mailbox, ids []string) error {
 	for _, msgID := range ids {
 		err := ingestMessage(ctx, mb, msgID)
 		if isPermanentIngestFailure(err) {
@@ -625,7 +663,6 @@ func ingestHistory(ctx context.Context, mb *mailbox, historyID uint64) error {
 			return fmt.Errorf("message %s: %w", msgID, err)
 		}
 	}
-	advanceBaseline(mb, historyID)
 	return nil
 }
 
@@ -658,22 +695,24 @@ func raiseBaseline(mb *mailbox, historyID uint64) bool {
 	}
 }
 
-// ingestNewestInbox is the fallback for when history is unusable: the pre-#85 behaviour, kept
-// because dropping the notification entirely would be worse than occasionally re-fetching.
-func ingestNewestInbox(ctx context.Context, mb *mailbox) error {
+// ingestRecentInbox is the fallback for when history is unusable (a first start, or a listener
+// down longer than Gmail keeps history): the newest catchUpMessageCount INBOX messages, oldest
+// first. Ones already stored are skipped, so only the mail missed while down is fetched.
+func ingestRecentInbox(ctx context.Context, mb *mailbox) error {
 	// INBOX only, matching the label the watch is registered against (setupWatch). Without it
-	// this fetches the newest message anywhere in the mailbox — including a reply the system
-	// just sent, which Gmail files in the same mailbox. That made AImail ingest its own outgoing
-	// mail and generate replies to itself.
-	list, err := mb.srv.Users.Messages.List("me").LabelIds("INBOX").MaxResults(1).Do()
+	// this lists mail anywhere in the mailbox — including a reply the system just sent, which
+	// Gmail files in the same mailbox. That made AImail ingest its own outgoing mail and
+	// generate replies to itself.
+	list, err := mb.srv.Users.Messages.List("me").LabelIds("INBOX").MaxResults(catchUpMessageCount).Context(ctx).Do()
 	if err != nil {
 		writeAuditLog(ctx, mb.ownerID, actionFetchMessage, auditFields{fieldStage: stageList, fieldErrorKind: errorKind(err)}, false)
 		return fmt.Errorf("list messages: %w", err)
 	}
-	if len(list.Messages) == 0 {
-		return nil
+	ids := make([]string, len(list.Messages))
+	for i, m := range list.Messages {
+		ids[len(ids)-1-i] = m.Id // Gmail lists newest first
 	}
-	return ingestMessage(ctx, mb, list.Messages[0].Id)
+	return ingestEach(ctx, mb, ids)
 }
 
 // ingestMessage fetches one message by ID, masks its PII, and persists it plus an audit entry.
@@ -759,7 +798,8 @@ func maskMessage(ctx context.Context, srv *gmail.Service, msg *gmail.Message, ow
 	// One vault for every field, so a person named in the subject and the body is one placeholder.
 	v := newDetailVault()
 	maskedBody, bodyEmails, bodyPhones, degradedBody := maskText(ctx, getBody(msg.Payload), v)
-	maskedSnippet, snipEmails, snipPhones, degradedSnip := maskText(ctx, msg.Snippet, v)
+	// Gmail escapes the snippet as HTML (&#39;, &amp;): unescape first, or entities split names apart for NER.
+	maskedSnippet, snipEmails, snipPhones, degradedSnip := maskText(ctx, html.UnescapeString(msg.Snippet), v)
 	maskedSubject, subEmails, subPhones, degradedSubj := maskText(ctx, headerValue(msg.Payload.Headers, "Subject"), v)
 	if degradedBody || degradedSnip || degradedSubj {
 		return MaskedContent{}, false
@@ -787,10 +827,10 @@ func maskMessage(ctx context.Context, srv *gmail.Service, msg *gmail.Message, ow
 // below threshold and survives masking — the same name in prose is caught. Storing raw HTML
 // silently degraded name and location recall on every HTML email, which is nearly all of them.
 func getBody(part *gmail.MessagePart) string {
-	if plain := findPart(part, "text/plain"); plain != "" {
+	if plain := collectParts(part, "text/plain"); plain != "" {
 		return plain
 	}
-	if markup := findPart(part, "text/html"); markup != "" {
+	if markup := collectParts(part, "text/html"); markup != "" {
 		return htmlToText(markup)
 	}
 	return decodePart(part)
@@ -819,31 +859,6 @@ func htmlToText(markup string) string {
 	text = html.UnescapeString(text)
 	text = blankLineRegex.ReplaceAllString(text, "\n\n")
 	return strings.TrimSpace(text)
-}
-
-func findPart(part *gmail.MessagePart, mimeType string) string {
-	if part.MimeType == mimeType {
-		if body := decodePart(part); body != "" {
-			return body
-		}
-	}
-	for _, subPart := range part.Parts {
-		if body := findPart(subPart, mimeType); body != "" {
-			return body
-		}
-	}
-	return ""
-}
-
-func decodePart(part *gmail.MessagePart) string {
-	if part.Body == nil || part.Body.Data == "" {
-		return ""
-	}
-	data, err := base64.URLEncoding.DecodeString(part.Body.Data)
-	if err != nil {
-		return ""
-	}
-	return string(data)
 }
 
 func main() {

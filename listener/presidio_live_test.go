@@ -88,3 +88,35 @@ func TestMaskTextLiveMasksAnIBAN(t *testing.T) {
 		t.Fatalf("masking ate the sentence around the IBAN: %q", masked)
 	}
 }
+
+// Plates, postcodes and grouped bank numbers are gated on nearby words like accounts are: both sides
+// of each gate are tested, since the false positives (amounts, URLs, "Q3") are what the gate is for.
+func TestMaskTextLiveMasksPlatesPostcodesAndGroupedAccounts(t *testing.T) {
+	requireLivePresidio(t)
+	cases := []struct{ text, raw string }{
+		{"Please transfer to my Maybank account 5141 2345 6789 by Friday.", "5141 2345 6789"},
+		{"Deliver to No 12, Jalan Bukit 3, Taman Melawati, 53100 Kuala Lumpur.", "53100"},
+		{"My car plate is WXY 1234, parked at level 2.", "WXY 1234"},
+	}
+	for _, c := range cases {
+		masked, _, _, degraded := maskText(context.Background(), c.text, newDetailVault())
+		if degraded || strings.Contains(masked, c.raw) {
+			t.Errorf("%q leaked (degraded=%v): %q", c.raw, degraded, masked)
+		}
+	}
+}
+
+func TestMaskTextLiveLeavesLookalikesWithoutContext(t *testing.T) {
+	requireLivePresidio(t)
+	for _, text := range []string{
+		"See PR 196 and Q3 results; invoice 48213 attached.",
+		"Total due is 15000 for 30 units.",
+		"Read it at https://e.example.com/c3/869:6abd25 on our platform.",
+		"Our Customer Care Team at the R2 desk will call.",
+	} {
+		masked, _, _, _ := maskText(context.Background(), text, newDetailVault())
+		if masked != text {
+			t.Errorf("masked a lookalike: %q -> %q", text, masked)
+		}
+	}
+}

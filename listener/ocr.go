@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"mime/multipart"
 	"net/http"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -36,8 +37,11 @@ const (
 
 	ocrMarker = "\n\n--- text from attachments ---\n"
 
-	docxMime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-	xlsxMime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+	pdfMime         = "application/pdf"
+	zipMime         = "application/zip"
+	octetStreamMime = "application/octet-stream"
+	docxMime        = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+	xlsxMime        = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
 
 // Reading and OCR are both slow enough to need generous deadlines, and both are bounded so a
@@ -68,16 +72,69 @@ func ocrMaxBytes() int64 {
 
 func isReadableAttachment(mimeType string) bool {
 	switch mimeType {
-	case "application/pdf", docxMime, xlsxMime:
+	case pdfMime, docxMime, xlsxMime:
 		return true
 	}
 	return strings.HasPrefix(mimeType, "image/")
 }
 
+// isCandidateAttachment is worth downloading: a type the reader handles, or one the sender's mail client
+// left unlabelled, which sniffing may still identify.
+func isCandidateAttachment(mimeType string) bool {
+	return isReadableAttachment(mimeType) || mimeType == octetStreamMime
+}
+
+// unsupportedAttachments counts attachments that are never read because of their type, so the loss is
+// recorded instead of silent.
+func unsupportedAttachments(part *gmail.MessagePart) int {
+	count := 0
+	if part.Body != nil && part.Body.AttachmentId != "" && !isCandidateAttachment(part.MimeType) {
+		count++
+	}
+	for _, sub := range part.Parts {
+		count += unsupportedAttachments(sub)
+	}
+	return count
+}
+
+// effectiveType is the type the bytes really are, when the reader handles it. The declared type is the
+// sender's claim: a file labelled PDF that is not one is refused rather than handed to a parser, and an
+// unlabelled one is read when its bytes (or, for Office files, its extension) say what it is.
+func effectiveType(declared, filename string, raw []byte) (string, bool) {
+	sniffed, _, _ := strings.Cut(http.DetectContentType(raw), ";")
+	isImage := strings.HasPrefix(sniffed, "image/")
+	switch {
+	case declared == pdfMime:
+		return pdfMime, sniffed == pdfMime
+	case strings.HasPrefix(declared, "image/") && isImage:
+		return sniffed, true
+	case strings.HasPrefix(declared, "image/"):
+		// HEIC and TIFF are images Go cannot sniff: trust the label unless the bytes say otherwise.
+		return declared, sniffed == octetStreamMime
+	case declared == docxMime || declared == xlsxMime:
+		return declared, sniffed == zipMime
+	case declared == octetStreamMime && (sniffed == pdfMime || isImage):
+		return sniffed, true
+	case declared == octetStreamMime && sniffed == zipMime:
+		return officeTypeByExtension(filename)
+	}
+	return "", false
+}
+
+func officeTypeByExtension(filename string) (string, bool) {
+	switch strings.ToLower(path.Ext(filename)) {
+	case ".docx":
+		return docxMime, true
+	case ".xlsx":
+		return xlsxMime, true
+	}
+	return "", false
+}
+
 // oversizeAttachments counts readable attachments skipped for size, so the loss is recorded.
 func oversizeAttachments(part *gmail.MessagePart, max int64) int {
 	count := 0
-	if isReadableAttachment(part.MimeType) && part.Body != nil && part.Body.AttachmentId != "" &&
+	if isCandidateAttachment(part.MimeType) && part.Body != nil && part.Body.AttachmentId != "" &&
 		part.Body.Size > max {
 		count++
 	}
@@ -91,7 +148,7 @@ func oversizeAttachments(part *gmail.MessagePart, max int64) int {
 // attachment id and within the size cap.
 func readableAttachments(part *gmail.MessagePart, max int64) []*gmail.MessagePart {
 	var found []*gmail.MessagePart
-	if isReadableAttachment(part.MimeType) &&
+	if isCandidateAttachment(part.MimeType) &&
 		part.Body != nil && part.Body.AttachmentId != "" && part.Body.Size <= max {
 		found = append(found, part)
 	}
@@ -218,6 +275,9 @@ func ocrAttachments(ctx context.Context, srv *gmail.Service, ref messageRef, pay
 	if skipped := oversizeAttachments(payload, ocrMaxBytes()); skipped > 0 {
 		ref.audit(ctx, actionReadAttachment, auditFields{fieldReason: reasonOverSizeCap, fieldOversize: skipped}, false)
 	}
+	if unsupported := unsupportedAttachments(payload); unsupported > 0 {
+		ref.audit(ctx, actionReadAttachment, auditFields{fieldReason: reasonUnsupportedType, fieldUnsupported: unsupported}, false)
+	}
 	parts := readableAttachments(payload, ocrMaxBytes())
 	if len(parts) == 0 {
 		return ""
@@ -248,7 +308,12 @@ func readAttachment(ctx context.Context, srv *gmail.Service, ref messageRef, par
 		logOCRFailure(ctx, ref, stageDecode, err)
 		return ""
 	}
-	result, err := readLocally(ctx, raw, part.MimeType)
+	mimeType, isReadable := effectiveType(part.MimeType, part.Filename, raw)
+	if !isReadable {
+		ref.audit(ctx, actionReadAttachment, auditFields{fieldReason: reasonTypeMismatch, fieldMimeType: part.MimeType}, false)
+		return ""
+	}
+	result, err := readLocally(ctx, raw, mimeType)
 	if err != nil {
 		// Not falling through to OCR on purpose: see readLocally's comment.
 		logOCRFailure(ctx, ref, stageReadLocally, err)
@@ -258,7 +323,7 @@ func readAttachment(ctx context.Context, srv *gmail.Service, ref messageRef, par
 	imageTexts, sent := transcribeImages(ctx, ref, result.Images, cloudRefusal)
 	text := strings.TrimSpace(strings.Join(append([]string{result.Text}, imageTexts...), "\n\n"))
 	// The admin console counts withheld and unread pages from these keys.
-	ref.audit(ctx, actionReadAttachment, auditFields{fieldMimeType: part.MimeType, fieldPages: result.Pages,
+	ref.audit(ctx, actionReadAttachment, auditFields{fieldMimeType: mimeType, fieldPages: result.Pages,
 		fieldImagesSent: sent, fieldWithheld: result.SkippedPages, fieldUnread: result.UnreadPages,
 		fieldChars: len(text)}, true)
 	return text

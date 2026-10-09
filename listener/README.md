@@ -17,9 +17,16 @@ with Application Default Credentials (a deployment's service account).
 Masking is split by PII nature. Format-clear PII (email, phone, Malaysian IC) is redacted by an
 ordered, offline regex floor — most-specific first, and a bare 12-digit run is only typed as an IC
 when its `YYMMDD` prefix is a plausible date, so numbers aren't mis-typed by length. Context-dependent
-PII (names, locations, organizations, account numbers) is then found by Microsoft Presidio's analyzer
-(a local container). If Presidio is unreachable the message is quarantined with no content until it
-can be masked.
+PII (names, locations, organizations, account numbers, Malaysian postcodes and car plates) is then
+found by Microsoft Presidio's analyzer (a local container); account numbers, postcodes and plates only
+count when a nearby word (bank, jalan, plate...) says what they are. If Presidio is unreachable the
+message is quarantined with no content until it can be masked.
+
+Before masking, every text part of the body is read and converted from the sender's charset to UTF-8,
+HTML is reduced to prose, and Gmail's HTML-escaped snippet is unescaped. Attachments are read by the
+type their bytes show, not the type the sender declared; ones of a type the reader cannot handle are
+counted in the audit log. If Gmail no longer has the history since the last notification (a listener
+down for over a week), the 50 newest inbox messages are checked and the ones not yet stored are ingested.
 
 Every detail becomes a numbered placeholder (`[PERSON_1]`, `[PHONE_2]`), the same value always the
 same number within an email, and the placeholder-to-value map is sealed with `PII_VAULT_KEY` into
