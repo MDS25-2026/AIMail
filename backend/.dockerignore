@@ -9,4 +9,5 @@
 !model_gateway.py
 !model_runtime.py
 !scripts/migrate.py
+!models/category-classifier.joblib
 **/__pycache__
