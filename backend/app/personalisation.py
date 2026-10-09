@@ -20,6 +20,7 @@ profile text reaches the model, and only for drafting.
 """
 
 from dataclasses import dataclass, field
+from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -52,17 +53,27 @@ async def load_policy(session: AsyncSession, email: str) -> Policy:
     ).scalars().first()
     if profile is None:
         return DEFAULT_POLICY
+    return await _policy_of(session, profile)
 
+
+async def load_policy_for_user(session: AsyncSession, user_id: UUID) -> Policy:
+    """One user's policy by account id; the neutral default when they have configured nothing."""
+    profile = await session.get(UserProfile, user_id)
+    return await _policy_of(session, profile) if profile else DEFAULT_POLICY
+
+
+async def _policy_of(session: AsyncSession, profile: UserProfile) -> Policy:
+    user_id = profile.id
     prefs = (
         await session.execute(
-            select(UserPreferences).where(UserPreferences.user_id == profile.id)
+            select(UserPreferences).where(UserPreferences.user_id == user_id)
         )
     ).scalars().first()
     senders = (
-        await session.execute(select(SenderRule).where(SenderRule.user_id == profile.id))
+        await session.execute(select(SenderRule).where(SenderRule.user_id == user_id))
     ).scalars().all()
     keywords = (
-        await session.execute(select(KeywordRule).where(KeywordRule.user_id == profile.id))
+        await session.execute(select(KeywordRule).where(KeywordRule.user_id == user_id))
     ).scalars().all()
 
     return Policy(

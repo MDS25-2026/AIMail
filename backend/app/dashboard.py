@@ -43,6 +43,7 @@ from app.contracts import (
     Source,
     ThreadMessage,
 )
+from app.core import mailbox
 from app.core.cursor import Cursor
 from app.core.errors import DomainError, ErrorCode
 from app.core.language import detect_language
@@ -63,7 +64,13 @@ from app.jobs import (
 from app.ml.category import EmailCategory
 from app.normalise.quantities import quantities_in
 from app.past_replies import remember_reply
-from app.personalisation import DEFAULT_POLICY, Policy, apply_policy, load_policy
+from app.personalisation import (
+    DEFAULT_POLICY,
+    Policy,
+    apply_policy,
+    load_policy,
+    load_policy_for_user,
+)
 from app.plain_text import plain_text
 from app.private_mode import provider_for
 from app.rag.errors import EmbeddingError
@@ -164,6 +171,14 @@ def is_drafting(message: Message) -> bool:
     """A first draft is on its way: none yet, not sent, allowed, and not already tried and failed."""
     return (message.generated_at is None and message.sent_at is None and not refusal_for(message, Action.DRAFT)
             and not message.generation_attempts)
+
+
+async def _policy_for(message: Message) -> Policy:
+    """The owner's priority rules, as the inbox list applies them, so a priority never changes on opening."""
+    async with get_sessionmaker()() as session:
+        if message.user_id is None:
+            return await load_policy(session, mailbox.owner())  # the original mailbox, as the list does
+        return await load_policy_for_user(session, message.user_id)
 
 
 def _to_email(
@@ -522,7 +537,8 @@ async def email_detail(message_id: str, *, scope: Scope) -> DashboardEmail | Non
     # Opening the detail view is the moment a person actually reads it.
     await _mark_read(pk)
     message.read_at = message.read_at or datetime.now(timezone.utc)
-    return _to_email(message, thread=thread, details=details, egress=await egress_for(message.id))
+    return _to_email(message, await _policy_for(message), thread=thread, details=details,
+                     egress=await egress_for(message.id))
 
 
 async def email_for_thread(thread_id: str, *, scope: Scope) -> DashboardEmail | None:
@@ -561,7 +577,7 @@ async def confirm_sender(message_id: str, *, scope: Scope) -> DashboardEmail | N
             ).values(auth_status=AuthStatus.SENDER_CONFIRMED, generation_attempts=0))
             record(session, AuditAction.CONFIRM_SENDER, user_id=message.user_id, message=message_id)
         message.auth_status = AuthStatus.SENDER_CONFIRMED
-    return _to_email(message, thread=thread, details=await _details_for(message, thread))
+    return _to_email(message, await _policy_for(message), thread=thread, details=await _details_for(message, thread))
 
 
 async def regenerate_email(
@@ -584,7 +600,7 @@ async def regenerate_email(
     details = await _details_for(message, thread)
     outcome = await _generate_and_store(message, thread, tone, details)
     _raise_unless_updated(message, outcome)
-    return _to_email(message, thread=thread, details=details)
+    return _to_email(message, await _policy_for(message), thread=thread, details=details)
 
 
 def _raise_unless_updated(message: Message, outcome: GenerationOutcome) -> None:
@@ -650,7 +666,7 @@ async def approve_and_send(message_id: str, draft: str, *, scope: Scope) -> Dash
     if message.user_id is not None and not await connections.can_send(message.user_id):
         raise SendRejectedError(ErrorCode.SEND_NOT_GRANTED)
     if message.sent_at is not None:
-        return _to_email(message)  # sent before this request: answering with it is idempotent
+        return _to_email(message, await _policy_for(message))  # sent before this request: answering is idempotent
     if not await _claim_send(pk):
         # Another request claimed it a moment ago and may still fail; showing "sent" now could be untrue.
         raise DomainError(ErrorCode.SEND_IN_PROGRESS, f"message {message_id} is being sent by another request")
@@ -701,7 +717,7 @@ async def _record_send(pk: UUID, message: Message, reply: OutgoingReply,
         record(session, AuditAction.APPROVE_AND_SEND, user_id=message.user_id, message=str(pk),
                restored=reply.restored)
         await session.commit()
-        return _to_email(stored), stored, is_learning_style
+        return _to_email(stored, await _policy_for(stored)), stored, is_learning_style
 
 
 async def _sent_but_not_recorded(message: Message, reply: OutgoingReply, sent: SentReply) -> DashboardEmail:
@@ -714,6 +730,7 @@ async def _sent_but_not_recorded(message: Message, reply: OutgoingReply, sent: S
     message.draft_reply = reply.stored
     message.sent_message_id = sent.message_id
     message.sent_at = message.sent_at or datetime.now(timezone.utc)
+    # The policy read would hit the database that just failed; the list shows the owner's priority again.
     return _to_email(message)
 
 
@@ -870,4 +887,4 @@ async def refine_email(
         setattr(message, column, value)
     await audit(AuditAction.REFINE_DRAFT, user_id=message.user_id, message=message_id,
                 review=message.needs_human_review)
-    return _to_email(message, thread=thread, details=details)
+    return _to_email(message, await _policy_for(message), thread=thread, details=details)
