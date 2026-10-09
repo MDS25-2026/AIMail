@@ -51,7 +51,7 @@ export default function DocumentPreviewSheet({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden">
+    <div className="relative fixed inset-0 z-50 overflow-hidden">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-rail/60 backdrop-blur-xs transition-opacity"
@@ -152,7 +152,7 @@ export default function DocumentPreviewSheet({
         </div>
 
         {/* Content Body */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="relative flex-1 overflow-y-auto p-4">
           {isLoading ? (
             <div className="py-12">
               <PageLoading label={t("knowledge.label")} />

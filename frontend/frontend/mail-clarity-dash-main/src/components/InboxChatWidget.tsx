@@ -151,7 +151,7 @@ export default function InboxChatWidget() {
         <div
           role="dialog"
           aria-label={t("assistant.title")}
-          className="fixed inset-x-2 bottom-16 top-16 z-50 flex flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-2xl sm:inset-auto sm:bottom-16 sm:left-4 sm:h-[540px] sm:w-[380px]"
+          className="relative fixed inset-x-2 bottom-16 top-16 z-50 flex flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-2xl sm:inset-auto sm:bottom-16 sm:left-4 sm:h-[540px] sm:w-[380px]"
         >
           {/* Header */}
           <div className="flex items-center justify-between border-b border-line bg-surface-elevated px-4 py-3">
@@ -196,7 +196,7 @@ export default function InboxChatWidget() {
           </div>
 
           {/* Conversation Body */}
-          <div className="flex-1 space-y-4 overflow-y-auto p-4 text-xs">
+          <div className="relative flex-1 space-y-4 overflow-y-auto p-4 text-xs">
             {messages.length === 0 ? (
               <div className="flex h-full flex-col justify-center space-y-3 py-6 text-center">
                 <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-surface-muted text-brand">
@@ -229,7 +229,7 @@ export default function InboxChatWidget() {
                   className={cn(
                     "max-w-[88%] rounded-lg px-3 py-2 text-xs leading-relaxed",
                     msg.role === "user"
-                      ? "bg-blue-600 dark:bg-blue-700 text-white font-medium shadow-xs"
+                      ? "bg-brand text-brand-fg font-medium shadow-xs"
                       : "bg-surface-elevated text-fg border border-line shadow-xs",
                   )}
                 >

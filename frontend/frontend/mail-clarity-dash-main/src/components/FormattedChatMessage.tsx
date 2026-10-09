@@ -355,7 +355,7 @@ export default function FormattedChatMessage({ content, className }: FormattedCh
             return (
               <pre
                 key={idx}
-                className="my-1.5 overflow-x-auto rounded-md bg-surface-muted p-2 font-mono text-[11px] text-fg"
+                className="relative my-1.5 overflow-x-auto rounded-md bg-surface-muted p-2 font-mono text-[11px] text-fg"
               >
                 <code>{block.code}</code>
               </pre>
