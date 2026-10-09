@@ -5,6 +5,7 @@ export enum ApiErrorCode {
   SenderUnverified = "sender_unverified",
   MaskingPending = "masking_pending",
   AlreadySent = "already_sent",
+  SendInProgress = "send_in_progress",
   RedactionMarkers = "redaction_markers",
   UnresolvedPlaceholders = "unresolved_placeholders",
   SendNotGranted = "send_not_granted",

@@ -43,6 +43,7 @@ class ErrorCode(StrEnum):
     ADMIN_HEADER_MISSING = "admin_header_missing"
     # Drafting and sending
     ALREADY_SENT = "already_sent"
+    SEND_IN_PROGRESS = "send_in_progress"
     MASKING_PENDING = "masking_pending"
     SENDER_UNVERIFIED = "sender_unverified"
     DRAFT_REFUSED = "draft_refused"
@@ -104,6 +105,7 @@ _STATUS: dict[ErrorCode, int] = {
     ErrorCode.NOT_CONNECTED: status.HTTP_404_NOT_FOUND,
     ErrorCode.CONFLICT: status.HTTP_409_CONFLICT,
     ErrorCode.ALREADY_SENT: status.HTTP_409_CONFLICT,
+    ErrorCode.SEND_IN_PROGRESS: status.HTTP_409_CONFLICT,
     ErrorCode.MASKING_PENDING: status.HTTP_409_CONFLICT,
     ErrorCode.SENDER_UNVERIFIED: status.HTTP_409_CONFLICT,
     ErrorCode.GOOGLE_ACCESS_EXPIRED: status.HTTP_409_CONFLICT,

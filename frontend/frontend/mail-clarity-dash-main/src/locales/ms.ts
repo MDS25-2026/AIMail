@@ -754,6 +754,8 @@ export const ms: Translations = {
     masking_pending:
       "Butiran peribadi dalam e-mel ini masih sedang disembunyikan, jadi ia belum boleh digunakan.",
     already_sent: "Balasan ini telah pun dihantar.",
+    send_in_progress:
+      "Balasan ini sedang dihantar. Tunggu sebentar, kemudian semak sama ada ia sudah dihantar.",
     redaction_markers:
       "Balasan ini masih mengandungi butiran tersembunyi seperti [Redacted]. Taip butiran sebenar sebelum menghantar.",
     unresolved_placeholders:
