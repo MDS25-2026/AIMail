@@ -43,6 +43,7 @@ from app.contracts import (
     Source,
     ThreadMessage,
 )
+from app.core import mailbox
 from app.core.cursor import Cursor
 from app.core.errors import DomainError, ErrorCode
 from app.core.language import detect_language
@@ -53,7 +54,7 @@ from app.db.models import AuthStatus, MaskingStatus, Message, ModelEgress, UserP
 from app.db.session import get_sessionmaker
 from app.egress_log import egress_for, save_egress
 from app.email_policy import Action, refusal_for
-from app.gmail_send import SendError, SendOutcomeUnknownError, send_reply
+from app.gmail_send import SendError, SendOutcomeUnknownError, SentReply, send_reply
 from app.jobs import (
     claim_for_drafting,
     claim_requested,
@@ -63,7 +64,13 @@ from app.jobs import (
 from app.ml.category import EmailCategory
 from app.normalise.quantities import quantities_in
 from app.past_replies import remember_reply
-from app.personalisation import DEFAULT_POLICY, Policy, apply_policy, load_policy
+from app.personalisation import (
+    DEFAULT_POLICY,
+    Policy,
+    apply_policy,
+    load_policy,
+    load_policy_for_user,
+)
 from app.plain_text import plain_text
 from app.private_mode import provider_for
 from app.rag.errors import EmbeddingError
@@ -164,6 +171,14 @@ def is_drafting(message: Message) -> bool:
     """A first draft is on its way: none yet, not sent, allowed, and not already tried and failed."""
     return (message.generated_at is None and message.sent_at is None and not refusal_for(message, Action.DRAFT)
             and not message.generation_attempts)
+
+
+async def _policy_for(message: Message) -> Policy:
+    """The owner's priority rules, as the inbox list applies them, so a priority never changes on opening."""
+    async with get_sessionmaker()() as session:
+        if message.user_id is None:
+            return await load_policy(session, mailbox.owner())  # the original mailbox, as the list does
+        return await load_policy_for_user(session, message.user_id)
 
 
 def _to_email(
@@ -522,7 +537,8 @@ async def email_detail(message_id: str, *, scope: Scope) -> DashboardEmail | Non
     # Opening the detail view is the moment a person actually reads it.
     await _mark_read(pk)
     message.read_at = message.read_at or datetime.now(timezone.utc)
-    return _to_email(message, thread=thread, details=details, egress=await egress_for(message.id))
+    return _to_email(message, await _policy_for(message), thread=thread, details=details,
+                     egress=await egress_for(message.id))
 
 
 async def email_for_thread(thread_id: str, *, scope: Scope) -> DashboardEmail | None:
@@ -561,7 +577,7 @@ async def confirm_sender(message_id: str, *, scope: Scope) -> DashboardEmail | N
             ).values(auth_status=AuthStatus.SENDER_CONFIRMED, generation_attempts=0))
             record(session, AuditAction.CONFIRM_SENDER, user_id=message.user_id, message=message_id)
         message.auth_status = AuthStatus.SENDER_CONFIRMED
-    return _to_email(message, thread=thread, details=await _details_for(message, thread))
+    return _to_email(message, await _policy_for(message), thread=thread, details=await _details_for(message, thread))
 
 
 async def regenerate_email(
@@ -584,7 +600,7 @@ async def regenerate_email(
     details = await _details_for(message, thread)
     outcome = await _generate_and_store(message, thread, tone, details)
     _raise_unless_updated(message, outcome)
-    return _to_email(message, thread=thread, details=details)
+    return _to_email(message, await _policy_for(message), thread=thread, details=details)
 
 
 def _raise_unless_updated(message: Message, outcome: GenerationOutcome) -> None:
@@ -635,8 +651,8 @@ async def _load(pk: UUID, scope: Scope) -> Message | None:
 async def approve_and_send(message_id: str, draft: str, *, scope: Scope) -> DashboardEmail | None:
     """Send the approved (possibly edited) draft as a reply, then record what was sent.
 
-    Idempotent: a message already sent (or being sent by another request) is returned unchanged.
-    No database connection is held while Gmail is called. Raises SendError if the send fails.
+    A message already sent is returned unchanged; one another request is sending right now is refused with
+    SEND_IN_PROGRESS. No database connection is held while Gmail is called. Raises SendError if the send fails.
     """
     try:
         pk = UUID(message_id)
@@ -649,8 +665,11 @@ async def approve_and_send(message_id: str, draft: str, *, scope: Scope) -> Dash
     reply = _outgoing(draft, await _details_for(message, await _thread_for(message)))
     if message.user_id is not None and not await connections.can_send(message.user_id):
         raise SendRejectedError(ErrorCode.SEND_NOT_GRANTED)
-    if message.sent_at is not None or not await _claim_send(pk):
-        return _to_email(await _load(pk, scope) or message)
+    if message.sent_at is not None:
+        return _to_email(message, await _policy_for(message))  # sent before this request: answering is idempotent
+    if not await _claim_send(pk):
+        # Another request claimed it a moment ago and may still fail; showing "sent" now could be untrue.
+        raise DomainError(ErrorCode.SEND_IN_PROGRESS, f"message {message_id} is being sent by another request")
     try:
         sent = await send_reply(
             message.gmail_message_id, message.from_addr or "", message.subject or "", reply.sent,
@@ -669,6 +688,19 @@ async def approve_and_send(message_id: str, draft: str, *, scope: Scope) -> Dash
         await audit(AuditAction.APPROVE_AND_SEND, user_id=message.user_id, success=False,
                     message=message_id)
         raise
+    try:
+        email, stored, is_learning_style = await _record_send(pk, message, reply, sent)
+    except SQLAlchemyError:
+        return await _sent_but_not_recorded(message, reply, sent)
+    if is_learning_style:
+        await _relearn_after_send(stored.user_id)
+        await remember_reply(stored.user_id, pk, message.body_masked or "", reply.stored)
+    return email
+
+
+async def _record_send(pk: UUID, message: Message, reply: OutgoingReply,
+                       sent: SentReply) -> tuple[DashboardEmail, Message, bool]:
+    """What was sent, with its audit row in the same transaction; and whether style learning is on."""
     async with get_sessionmaker()() as session:
         stored = await session.get(Message, pk)
         is_learning_style = await is_learning(session, stored.user_id)
@@ -682,14 +714,24 @@ async def approve_and_send(message_id: str, draft: str, *, scope: Scope) -> Dash
         # Rows ingested before migration 0009 learn their thread from the send.
         stored.thread_id = stored.thread_id or sent.thread_id
         # In the same transaction: the trail records this send exactly when the record of it commits.
-        record(session, AuditAction.APPROVE_AND_SEND, user_id=message.user_id, message=message_id,
+        record(session, AuditAction.APPROVE_AND_SEND, user_id=message.user_id, message=str(pk),
                restored=reply.restored)
         await session.commit()
-        email = _to_email(stored)
-    if is_learning_style:
-        await _relearn_after_send(stored.user_id)
-        await remember_reply(stored.user_id, pk, message.body_masked or "", reply.stored)
-    return email
+        return _to_email(stored, await _policy_for(stored)), stored, is_learning_style
+
+
+async def _sent_but_not_recorded(message: Message, reply: OutgoingReply, sent: SentReply) -> DashboardEmail:
+    """Gmail sent it but saving the record failed. The reader is told the truth, that it was sent, rather than
+    shown an error they would answer by sending again; the claim already stored blocks a second copy. Not
+    handed to the reconciler, which releases a claim it cannot match in Gmail."""
+    logger.exception("reply %s was sent (Gmail id %s) but its record was not saved", message.id, sent.message_id)
+    await audit(AuditAction.APPROVE_AND_SEND, user_id=message.user_id, message=message.id,
+                gmail_message=sent.message_id, recorded=False)
+    message.draft_reply = reply.stored
+    message.sent_message_id = sent.message_id
+    message.sent_at = message.sent_at or datetime.now(timezone.utc)
+    # The policy read would hit the database that just failed; the list shows the owner's priority again.
+    return _to_email(message)
 
 
 async def _relearn_after_send(user_id: UUID) -> None:
@@ -845,4 +887,4 @@ async def refine_email(
         setattr(message, column, value)
     await audit(AuditAction.REFINE_DRAFT, user_id=message.user_id, message=message_id,
                 review=message.needs_human_review)
-    return _to_email(message, thread=thread, details=details)
+    return _to_email(message, await _policy_for(message), thread=thread, details=details)
