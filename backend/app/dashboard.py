@@ -53,7 +53,7 @@ from app.db.models import AuthStatus, MaskingStatus, Message, ModelEgress, UserP
 from app.db.session import get_sessionmaker
 from app.egress_log import egress_for, save_egress
 from app.email_policy import Action, refusal_for
-from app.gmail_send import SendError, SendOutcomeUnknownError, send_reply
+from app.gmail_send import SendError, SendOutcomeUnknownError, SentReply, send_reply
 from app.jobs import (
     claim_for_drafting,
     claim_requested,
@@ -635,8 +635,8 @@ async def _load(pk: UUID, scope: Scope) -> Message | None:
 async def approve_and_send(message_id: str, draft: str, *, scope: Scope) -> DashboardEmail | None:
     """Send the approved (possibly edited) draft as a reply, then record what was sent.
 
-    Idempotent: a message already sent (or being sent by another request) is returned unchanged.
-    No database connection is held while Gmail is called. Raises SendError if the send fails.
+    A message already sent is returned unchanged; one another request is sending right now is refused with
+    SEND_IN_PROGRESS. No database connection is held while Gmail is called. Raises SendError if the send fails.
     """
     try:
         pk = UUID(message_id)
@@ -649,8 +649,11 @@ async def approve_and_send(message_id: str, draft: str, *, scope: Scope) -> Dash
     reply = _outgoing(draft, await _details_for(message, await _thread_for(message)))
     if message.user_id is not None and not await connections.can_send(message.user_id):
         raise SendRejectedError(ErrorCode.SEND_NOT_GRANTED)
-    if message.sent_at is not None or not await _claim_send(pk):
-        return _to_email(await _load(pk, scope) or message)
+    if message.sent_at is not None:
+        return _to_email(message)  # sent before this request: answering with it is idempotent
+    if not await _claim_send(pk):
+        # Another request claimed it a moment ago and may still fail; showing "sent" now could be untrue.
+        raise DomainError(ErrorCode.SEND_IN_PROGRESS, f"message {message_id} is being sent by another request")
     try:
         sent = await send_reply(
             message.gmail_message_id, message.from_addr or "", message.subject or "", reply.sent,
@@ -669,6 +672,19 @@ async def approve_and_send(message_id: str, draft: str, *, scope: Scope) -> Dash
         await audit(AuditAction.APPROVE_AND_SEND, user_id=message.user_id, success=False,
                     message=message_id)
         raise
+    try:
+        email, stored, is_learning_style = await _record_send(pk, message, reply, sent)
+    except SQLAlchemyError:
+        return await _sent_but_not_recorded(message, reply, sent)
+    if is_learning_style:
+        await _relearn_after_send(stored.user_id)
+        await remember_reply(stored.user_id, pk, message.body_masked or "", reply.stored)
+    return email
+
+
+async def _record_send(pk: UUID, message: Message, reply: OutgoingReply,
+                       sent: SentReply) -> tuple[DashboardEmail, Message, bool]:
+    """What was sent, with its audit row in the same transaction; and whether style learning is on."""
     async with get_sessionmaker()() as session:
         stored = await session.get(Message, pk)
         is_learning_style = await is_learning(session, stored.user_id)
@@ -682,14 +698,23 @@ async def approve_and_send(message_id: str, draft: str, *, scope: Scope) -> Dash
         # Rows ingested before migration 0009 learn their thread from the send.
         stored.thread_id = stored.thread_id or sent.thread_id
         # In the same transaction: the trail records this send exactly when the record of it commits.
-        record(session, AuditAction.APPROVE_AND_SEND, user_id=message.user_id, message=message_id,
+        record(session, AuditAction.APPROVE_AND_SEND, user_id=message.user_id, message=str(pk),
                restored=reply.restored)
         await session.commit()
-        email = _to_email(stored)
-    if is_learning_style:
-        await _relearn_after_send(stored.user_id)
-        await remember_reply(stored.user_id, pk, message.body_masked or "", reply.stored)
-    return email
+        return _to_email(stored), stored, is_learning_style
+
+
+async def _sent_but_not_recorded(message: Message, reply: OutgoingReply, sent: SentReply) -> DashboardEmail:
+    """Gmail sent it but saving the record failed. The reader is told the truth, that it was sent, rather than
+    shown an error they would answer by sending again; the claim already stored blocks a second copy. Not
+    handed to the reconciler, which releases a claim it cannot match in Gmail."""
+    logger.exception("reply %s was sent (Gmail id %s) but its record was not saved", message.id, sent.message_id)
+    await audit(AuditAction.APPROVE_AND_SEND, user_id=message.user_id, message=message.id,
+                gmail_message=sent.message_id, recorded=False)
+    message.draft_reply = reply.stored
+    message.sent_message_id = sent.message_id
+    message.sent_at = message.sent_at or datetime.now(timezone.utc)
+    return _to_email(message)
 
 
 async def _relearn_after_send(user_id: UUID) -> None:

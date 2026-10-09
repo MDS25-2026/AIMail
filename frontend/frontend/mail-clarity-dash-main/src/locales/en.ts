@@ -735,6 +735,8 @@ export const en = {
     masking_pending:
       "Personal details are still being hidden in this email, so it can't be used yet.",
     already_sent: "This reply has already been sent.",
+    send_in_progress:
+      "This reply is already being sent. Wait a moment, then check whether it went.",
     redaction_markers:
       "This reply still has hidden details such as [Redacted]. Type the real details in before sending.",
     unresolved_placeholders:

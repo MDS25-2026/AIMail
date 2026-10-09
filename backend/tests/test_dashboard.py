@@ -190,9 +190,14 @@ def _send_harness(monkeypatch, claim: bool, send_error: bool = False):
 
 
 def test_a_second_approval_that_loses_the_claim_never_sends(monkeypatch):
+    import pytest
+
+    from app.core.errors import DomainError, ErrorCode
+
     asyncio, dashboard, calls, message = _send_harness(monkeypatch, claim=False)
-    asyncio.run(dashboard.approve_and_send(str(message.id), "Thanks", scope=EVERYTHING))
-    assert calls["sent"] == 0
+    with pytest.raises(DomainError) as refused:
+        asyncio.run(dashboard.approve_and_send(str(message.id), "Thanks", scope=EVERYTHING))
+    assert refused.value.code == ErrorCode.SEND_IN_PROGRESS and calls["sent"] == 0
 
 
 def test_a_failed_send_releases_its_claim_so_it_can_be_approved_again(monkeypatch):
