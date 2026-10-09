@@ -40,7 +40,12 @@ from app.admin.schemas import (
     SignInRequest,
 )
 from app.audit import AuditAction, audit
-from app.core.constants import ADMIN_SIGN_IN_LIMIT, ADMIN_SIGN_IN_WINDOW_SECONDS
+from app.core.constants import (
+    ADMIN_REFRESH_LIMIT,
+    ADMIN_REFRESH_WINDOW_SECONDS,
+    ADMIN_SIGN_IN_LIMIT,
+    ADMIN_SIGN_IN_WINDOW_SECONDS,
+)
 from app.core.errors import DomainError, ErrorCode, register_error_handlers
 from app.core.ratelimit import RateLimiter
 from app.db.session import get_sessionmaker
@@ -50,6 +55,7 @@ MAX_ROWS = 200
 
 admin_app = FastAPI(title="AImail admin", docs_url=None, redoc_url=None, openapi_url=None)
 rate_limit_sign_in = RateLimiter("admin sign-in", ADMIN_SIGN_IN_LIMIT, ADMIN_SIGN_IN_WINDOW_SECONDS)
+rate_limit_refresh = RateLimiter("admin refresh", ADMIN_REFRESH_LIMIT, ADMIN_REFRESH_WINDOW_SECONDS)
 
 AdminUser = Annotated[Admin, Depends(require_admin)]
 
@@ -82,7 +88,7 @@ async def _admin_or_revoke(session: Session) -> Admin:
         raise DomainError(ErrorCode.INVALID_CREDENTIALS) from exc
 
 
-@admin_app.post("/session/refresh", dependencies=[Depends(require_admin_header)])
+@admin_app.post("/session/refresh", dependencies=[Depends(rate_limit_refresh), Depends(require_admin_header)])
 async def refresh_session(
     response: Response,
     refresh_token: Annotated[str | None, Cookie(alias=REFRESH_COOKIE)] = None,

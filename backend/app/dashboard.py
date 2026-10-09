@@ -49,7 +49,7 @@ from app.core.errors import DomainError, ErrorCode
 from app.core.language import detect_language
 from app.core.ownership import EVERYTHING, Scope
 from app.core.redaction import PLACEHOLDER, has_redaction_marker
-from app.core.vault import ThreadMap, build_thread_map
+from app.core.vault import ThreadMap, VaultUnavailableError, build_thread_map
 from app.db.models import AuthStatus, MaskingStatus, Message, ModelEgress, UserProfile
 from app.db.session import get_sessionmaker
 from app.egress_log import egress_for, save_egress
@@ -353,6 +353,9 @@ async def _draft_claimed(claimed: list[UUID]) -> int:
             loaded = await _load_with_thread(pk, EVERYTHING)
             if loaded and await _generate_and_store(*loaded) is GenerationOutcome.STORED:
                 generated += 1
+        except (SQLAlchemyError, VaultUnavailableError):
+            # One email's failure is logged and the rest of the batch still drafts; this one is retried later.
+            logger.exception("drafting message %s failed; continuing with the batch", pk)
         finally:
             await release_drafting(pk)
     return generated

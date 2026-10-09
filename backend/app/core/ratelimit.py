@@ -26,6 +26,10 @@ from app.core.constants import (
     GLOBAL_GENERATION_RATE_LIMIT,
     INGEST_RATE_LIMIT,
     INGEST_RATE_WINDOW_SECONDS,
+    LIST_RATE_LIMIT,
+    LIST_RATE_WINDOW_SECONDS,
+    SEND_RATE_LIMIT,
+    SEND_RATE_WINDOW_SECONDS,
 )
 from app.db.models import RateLimitCounter
 from app.db.session import get_sessionmaker
@@ -120,3 +124,5 @@ rate_limit_generation = RateLimiter("generation", GENERATION_RATE_LIMIT, GENERAT
 # Opening an email drafts it the first time, so the detail view spends quota too; its limit sits
 # well above anyone reading their mail.
 rate_limit_detail = RateLimiter("email detail", DETAIL_RATE_LIMIT, DETAIL_RATE_WINDOW_SECONDS)
+rate_limit_send = RateLimiter("send", SEND_RATE_LIMIT, SEND_RATE_WINDOW_SECONDS)
+rate_limit_list = RateLimiter("list", LIST_RATE_LIMIT, LIST_RATE_WINDOW_SECONDS)

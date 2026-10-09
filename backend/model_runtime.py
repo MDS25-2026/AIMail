@@ -16,7 +16,7 @@ from enum import StrEnum
 
 from app.core.config import get_settings
 
-# Below the dashboard's AGENT_TIMEOUT_SECONDS (app/dashboard.py), with room for retrieval first.
+# The backend waits this plus AGENT_TIMEOUT_MARGIN_SECONDS for the agent (app/agent_client.py).
 DEFAULT_DEADLINE_SECONDS = 100.0
 
 OUTCOME_OK = "ok"
@@ -85,7 +85,7 @@ def record_call(model: str, outcome: str, started: float, provider: str = "gemin
 @contextmanager
 def deadline(seconds: float | None = None) -> Iterator[None]:
     """Every model call inside this block shares one time budget."""
-    budget = seconds if seconds is not None else _configured_deadline()
+    budget = seconds if seconds is not None else configured_deadline()
     token = _deadline.set(time.monotonic() + budget)
     try:
         yield
@@ -93,7 +93,7 @@ def deadline(seconds: float | None = None) -> Iterator[None]:
         _deadline.reset(token)
 
 
-def _configured_deadline() -> float:
+def configured_deadline() -> float:
     value = get_settings().agent_deadline_seconds
     return value if value > 0 else DEFAULT_DEADLINE_SECONDS
 

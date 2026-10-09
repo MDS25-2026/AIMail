@@ -16,9 +16,11 @@ from app.core.agent_auth import agent_headers
 from app.core.config import get_settings
 from app.core.logging_setup import request_id
 from app.core.middleware import REQUEST_ID_HEADER
+from model_runtime import configured_deadline
 
-# Lane C runs a multi-step pipeline under its own 100 s deadline; this sits just above it.
-AGENT_TIMEOUT_SECONDS = 120
+# The agent works under its own deadline (AGENT_DEADLINE_SECONDS); the backend waits that long plus this
+# margin for the answer, so a raised deadline cannot leave the backend giving up first.
+AGENT_TIMEOUT_MARGIN_SECONDS = 20
 CONNECT_RETRY_DELAY_SECONDS = 1.0
 
 Answer = TypeVar("Answer", bound=BaseModel)
@@ -26,10 +28,14 @@ Answer = TypeVar("Answer", bound=BaseModel)
 _client: httpx.AsyncClient | None = None
 
 
+def agent_timeout_seconds() -> float:
+    return configured_deadline() + AGENT_TIMEOUT_MARGIN_SECONDS
+
+
 def _shared_client() -> httpx.AsyncClient:
     global _client  # one pool for the process, created on first use
     if _client is None or _client.is_closed:
-        _client = httpx.AsyncClient(timeout=AGENT_TIMEOUT_SECONDS)
+        _client = httpx.AsyncClient(timeout=agent_timeout_seconds())
     return _client
 
 
