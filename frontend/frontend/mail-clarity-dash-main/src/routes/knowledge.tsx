@@ -29,16 +29,11 @@ function KnowledgePage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { doc: requestedDocId } = Route.useSearch();
-  const [selectedDocId, setSelectedDocId] = useState<string | null>(requestedDocId ?? null);
-
-  useEffect(() => {
-    if (requestedDocId && requestedDocId !== selectedDocId) {
-      setSelectedDocId(requestedDocId);
-    }
-  }, [requestedDocId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [userSelectedDocId, setUserSelectedDocId] = useState<string | null>(null);
+  const selectedDocId = requestedDocId ?? userSelectedDocId;
 
   const handleSelectDoc = (id: string) => {
-    setSelectedDocId(id);
+    setUserSelectedDocId(id);
     void navigate({
       to: "/knowledge",
       search: { doc: id },
@@ -47,7 +42,7 @@ function KnowledgePage() {
   };
 
   const handleClosePreview = () => {
-    setSelectedDocId(null);
+    setUserSelectedDocId(null);
     void navigate({
       to: "/knowledge",
       search: { doc: undefined },
@@ -129,9 +124,11 @@ function KnowledgePage() {
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-fg group-hover:text-brand">{doc.title}</span>
+                        <span className="font-medium text-fg group-hover:text-brand">
+                          {doc.title}
+                        </span>
                         <span className="text-[10px] text-brand opacity-0 transition-opacity group-hover:opacity-100">
-                          [View]
+                          {t("knowledge.view", "[View]")}
                         </span>
                       </div>
                       <div className="truncate text-xs text-fg-subtle">{doc.source}</div>
@@ -140,10 +137,7 @@ function KnowledgePage() {
                     <td className="px-4 py-3 text-right tabular-nums text-fg-body">
                       {doc.chunk_count}
                     </td>
-                    <td
-                      className="px-4 py-3 text-right"
-                      onClick={(e) => e.stopPropagation()}
-                    >
+                    <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <RemoveDocument documentId={doc.document_id} title={doc.title} />
                     </td>
                   </tr>

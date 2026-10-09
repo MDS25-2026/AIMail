@@ -14,11 +14,7 @@ import {
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 
-import {
-  searchInbox,
-  type ChatMessage,
-  type SearchSource,
-} from "../lib/api/search";
+import { searchInbox, type ChatMessage, type SearchSource } from "../lib/api/search";
 import { useSession } from "../lib/queries";
 import { cn } from "../lib/utils";
 import FormattedChatMessage from "./FormattedChatMessage";
@@ -116,8 +112,7 @@ export default function InboxChatWidget() {
     } catch {
       const errorMessage: ChatMessage = {
         role: "assistant",
-        content:
-          "Unable to complete the search query. Please verify that the backend services are running and try again.",
+        content: t("assistant.errorMessage"),
       };
       setMessages([...updatedMessages, errorMessage]);
     } finally {
@@ -132,11 +127,7 @@ export default function InboxChatWidget() {
     }
   };
 
-  const samplePrompts = [
-    "What are my recent emails?",
-    "What emails need my attention or follow-up?",
-    "What company policies can I ask about?",
-  ];
+  const samplePrompts = [t("assistant.prompt1"), t("assistant.prompt2"), t("assistant.prompt3")];
 
   if (!session.data) return null;
 
@@ -149,9 +140,7 @@ export default function InboxChatWidget() {
         aria-label={isOpen ? "Close inbox assistant" : "Open inbox assistant"}
         className={cn(
           "fixed bottom-4 left-4 z-50 flex h-11 w-11 items-center justify-center rounded-full shadow-lg transition-transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2",
-          isOpen
-            ? "bg-surface-elevated text-fg border border-line"
-            : "bg-brand text-brand-fg",
+          isOpen ? "bg-surface-elevated text-fg border border-line" : "bg-brand text-brand-fg",
         )}
       >
         {isOpen ? <X className="h-5 w-5" /> : <MessageSquare className="h-5 w-5" />}
@@ -161,7 +150,7 @@ export default function InboxChatWidget() {
       {isOpen && (
         <div
           role="dialog"
-          aria-label="Inbox Assistant Chat"
+          aria-label={t("assistant.title")}
           className="fixed inset-x-2 bottom-16 top-16 z-50 flex flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-2xl sm:inset-auto sm:bottom-16 sm:left-4 sm:h-[540px] sm:w-[380px]"
         >
           {/* Header */}
@@ -171,9 +160,9 @@ export default function InboxChatWidget() {
                 <Sparkles className="h-4 w-4" />
               </div>
               <div>
-                <h3 className="text-sm font-semibold text-fg">Inbox Assistant</h3>
+                <h3 className="text-sm font-semibold text-fg">{t("assistant.title")}</h3>
                 <span className="text-[10px] text-fg-muted uppercase tracking-wider">
-                  [Grounded Q&A]
+                  {t("assistant.groundedBadge")}
                 </span>
               </div>
             </div>
@@ -182,8 +171,8 @@ export default function InboxChatWidget() {
               <button
                 type="button"
                 onClick={handleResetChat}
-                title="New conversation"
-                aria-label="New conversation"
+                title={t("assistant.resetTitle")}
+                aria-label={t("assistant.resetTitle")}
                 className="rounded-md p-1.5 text-fg-muted hover:bg-surface-muted hover:text-fg"
               >
                 <RotateCcw className="h-4 w-4" />
@@ -191,8 +180,8 @@ export default function InboxChatWidget() {
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                title="Minimize chat"
-                aria-label="Minimize chat"
+                title={t("assistant.minimizeTitle")}
+                aria-label={t("assistant.minimizeTitle")}
                 className="rounded-md p-1.5 text-fg-muted hover:bg-surface-muted hover:text-fg"
               >
                 <X className="h-4 w-4" />
@@ -203,9 +192,7 @@ export default function InboxChatWidget() {
           {/* Privacy Assurance Banner */}
           <div className="flex items-center gap-1.5 border-b border-line bg-surface-muted/60 px-3.5 py-1.5 text-[10px] text-fg-muted">
             <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-brand" />
-            <span className="leading-tight">
-              [PRIVACY PRESERVED] Sensitive details are masked before AI processing and restored locally on your device.
-            </span>
+            <span className="leading-tight">{t("assistant.privacyNotice")}</span>
           </div>
 
           {/* Conversation Body */}
@@ -215,10 +202,8 @@ export default function InboxChatWidget() {
                 <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-surface-muted text-brand">
                   <Sparkles className="h-5 w-5" />
                 </div>
-                <h4 className="text-sm font-medium text-fg">Ask your inbox</h4>
-                <p className="px-4 text-xs text-fg-muted">
-                  Ask natural language questions about your email correspondence and company policies.
-                </p>
+                <h4 className="text-sm font-medium text-fg">{t("assistant.askInbox")}</h4>
+                <p className="px-4 text-xs text-fg-muted">{t("assistant.askInboxHint")}</p>
 
                 <div className="mt-2 flex flex-col gap-1.5 px-2 text-left">
                   {samplePrompts.map((prompt) => (
@@ -259,7 +244,7 @@ export default function InboxChatWidget() {
                 {msg.role === "assistant" && msg.has_restored_pii ? (
                   <div className="mt-1 flex items-center gap-1 text-[10px] text-brand">
                     <ShieldCheck className="h-3 w-3 shrink-0" />
-                    <span>[Personal details restored locally]</span>
+                    <span>{t("assistant.restoredNotice")}</span>
                   </div>
                 ) : null}
 
@@ -271,10 +256,14 @@ export default function InboxChatWidget() {
                       onClick={() => toggleSourceExpand(idx)}
                       className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface-muted px-2.5 py-1 text-[11px] font-medium text-fg hover:border-brand/50"
                     >
-                      <span className="text-brand font-semibold">{msg.sources.length} sources</span>
+                      <span className="text-brand font-semibold">
+                        {t("assistant.sources", { count: msg.sources.length })}
+                      </span>
                       <span className="text-fg-muted">
-                        ({msg.sources.filter((s) => s.source_type === "email").length} emails,{" "}
-                        {msg.sources.filter((s) => s.source_type === "document").length} docs)
+                        {t("assistant.sourcesBreakdown", {
+                          emails: msg.sources.filter((s) => s.source_type === "email").length,
+                          docs: msg.sources.filter((s) => s.source_type === "document").length,
+                        })}
                       </span>
                       {expandedSources[idx] ? (
                         <ChevronUp className="h-3 w-3 text-fg-muted" />
@@ -296,17 +285,19 @@ export default function InboxChatWidget() {
                                 {source.source_type === "email" ? (
                                   <>
                                     <Mail className="h-3 w-3" />
-                                    [Email]
+                                    {t("assistant.emailBadge")}
                                   </>
                                 ) : (
                                   <>
                                     <FileText className="h-3 w-3" />
-                                    [Policy Document]
+                                    {t("assistant.docBadge")}
                                   </>
                                 )}
                               </span>
                               <span className="text-[10px] text-fg-muted">
-                                {source.source_type === "email" ? "Click to view email" : "Click to preview document"}
+                                {source.source_type === "email"
+                                  ? t("assistant.viewEmail")
+                                  : t("assistant.viewDoc")}
                               </span>
                             </div>
                             <span className="mt-0.5 line-clamp-1 font-medium text-fg group-hover:text-brand">
@@ -328,7 +319,7 @@ export default function InboxChatWidget() {
             {isLoading && (
               <div className="flex items-center gap-2 text-fg-muted">
                 <div className="h-2 w-2 animate-ping rounded-full bg-brand" />
-                <span className="text-xs">Searching inbox & synthesizing answer...</span>
+                <span className="text-xs">{t("assistant.searching")}</span>
               </div>
             )}
             <div ref={messagesEndRef} />
@@ -343,7 +334,7 @@ export default function InboxChatWidget() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask about your emails..."
+                placeholder={t("assistant.inputPlaceholder")}
                 disabled={isLoading}
                 className="min-w-0 flex-1 bg-transparent text-xs text-fg placeholder:text-fg-subtle focus:outline-none disabled:opacity-50"
               />

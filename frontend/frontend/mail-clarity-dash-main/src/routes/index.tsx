@@ -34,25 +34,17 @@ function DashboardPage() {
   const { email: requestedId } = Route.useSearch();
   const emails = useEmails();
   const session = useSession();
-  const [selectedEmailId, setSelectedEmailId] = useState<string | null>(requestedId ?? null);
+  const [userSelectedId, setUserSelectedId] = useState<string | null>(null);
+
+  // Derive selected email from URL search params, explicit selection, or first inbox email
+  const selectedEmailId =
+    requestedId ??
+    userSelectedId ??
+    (emails.data && emails.data.length > 0 ? emails.data[0].id : null);
   const selected = useEmail(selectedEmailId);
 
-  // Sync selectedEmailId whenever requestedId in URL search params changes (e.g. from chatbot link)
-  useEffect(() => {
-    if (requestedId && requestedId !== selectedEmailId) {
-      setSelectedEmailId(requestedId);
-    }
-  }, [requestedId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Default auto-select to first email if no search param exists
-  useEffect(() => {
-    if (!requestedId && !selectedEmailId && emails.data && emails.data.length > 0) {
-      setSelectedEmailId(emails.data[0].id);
-    }
-  }, [emails.data, requestedId, selectedEmailId]);
-
   const handleSelectEmail = (id: string) => {
-    setSelectedEmailId(id);
+    setUserSelectedId(id);
     void navigate({
       to: "/",
       search: { email: id },

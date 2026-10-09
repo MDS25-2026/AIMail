@@ -11,6 +11,7 @@ from uuid import UUID, uuid4
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     BigInteger,
+    Computed,
     Date,
     DateTime,
     ForeignKey,
@@ -204,8 +205,11 @@ class Message(Base):
     reply_to: Mapped[str | None] = mapped_column(Text)
     # Hybrid search embedding (migration 0035, gemini-embedding-001 @ 1536 dims).
     embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM))
-    # Full-text search vector (migration 0035).
-    search_vector: Mapped[str | None] = mapped_column(TSVECTOR)
+    # Full-text search vector (migration 0035, generated always as stored).
+    search_vector: Mapped[str | None] = mapped_column(
+        TSVECTOR,
+        Computed("to_tsvector('english', coalesce(subject, '') || ' ' || coalesce(body_masked, ''))", persisted=True),
+    )
 
 
 

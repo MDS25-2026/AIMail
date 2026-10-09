@@ -55,6 +55,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/search/inbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Inbox Search Endpoint
+         * @description Natural language search and Q&A over masked emails and policy documents.
+         */
+        post: operations["inbox_search_endpoint_api_search_inbox_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ask": {
         parameters: {
             query?: never;
@@ -200,7 +220,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Get Document */
+        get: operations["get_document_documents__document_id__get"];
         put?: never;
         post?: never;
         /**
@@ -643,6 +664,30 @@ export interface components {
             /** File */
             file: string;
         };
+        /** ChatMessage */
+        ChatMessage: {
+            /** Content */
+            content: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "user" | "assistant";
+        };
+        /** ChunkDetail */
+        ChunkDetail: {
+            /** Chunk Idx */
+            chunk_idx: number;
+            /** Content */
+            content: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Section */
+            section: string | null;
+        };
         /**
          * ContextChunk
          * @description Seam 2 — Lane B retrieval -> Lane C generation (in-process).
@@ -759,6 +804,26 @@ export interface components {
             placeholder: string;
             /** Value */
             value: string;
+        };
+        /** DocumentDetail */
+        DocumentDetail: {
+            /** Chunk Count */
+            chunk_count: number;
+            /** Chunks */
+            chunks: components["schemas"]["ChunkDetail"][];
+            /** Content */
+            content: string;
+            /** Doc Type */
+            doc_type: string;
+            /**
+             * Document Id
+             * Format: uuid
+             */
+            document_id: string;
+            /** Source */
+            source: string;
+            /** Title */
+            title: string;
         };
         /** DocumentRequest */
         DocumentRequest: {
@@ -885,6 +950,41 @@ export interface components {
             /** Subject */
             subject: string;
         };
+        /** InboxSearchRequest */
+        InboxSearchRequest: {
+            /** History */
+            history?: components["schemas"]["ChatMessage"][];
+            /**
+             * K Docs
+             * @default 3
+             */
+            k_docs: number;
+            /**
+             * K Emails
+             * @default 5
+             */
+            k_emails: number;
+            /** Query */
+            query: string;
+        };
+        /** InboxSearchResponse */
+        InboxSearchResponse: {
+            /** Answer */
+            answer: string;
+            /**
+             * Has Restored Pii
+             * @default false
+             */
+            has_restored_pii: boolean;
+            /** Intent */
+            intent?: string | null;
+            /** Sender Vault */
+            sender_vault?: {
+                [key: string]: string;
+            };
+            /** Sources */
+            sources: components["schemas"]["SearchSource"][];
+        };
         /**
          * Language
          * @enum {string}
@@ -962,6 +1062,20 @@ export interface components {
             k: number;
             /** Query */
             query: string;
+        };
+        /** SearchSource */
+        SearchSource: {
+            /** Id */
+            id: string;
+            /** Received At */
+            received_at?: string | null;
+            /** Snippet */
+            snippet: string;
+            source_type: components["schemas"]["SourceType"];
+            /** Subtitle */
+            subtitle: string;
+            /** Title */
+            title: string;
         };
         /** SendRequest */
         SendRequest: {
@@ -1048,6 +1162,11 @@ export interface components {
             /** Score */
             score?: number | null;
         };
+        /**
+         * SourceType
+         * @enum {string}
+         */
+        SourceType: "email" | "document";
         /**
          * SystemInfo
          * @description Non-secret runtime configuration for the dashboard's Settings view.
@@ -1210,6 +1329,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    inbox_search_endpoint_api_search_inbox_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InboxSearchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboxSearchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };
@@ -1491,6 +1643,37 @@ export interface operations {
                     "application/json": {
                         [key: string]: number;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_document_documents__document_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentDetail"];
                 };
             };
             /** @description Validation Error */

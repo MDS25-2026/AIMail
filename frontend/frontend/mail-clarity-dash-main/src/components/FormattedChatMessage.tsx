@@ -5,6 +5,25 @@ type FormattedChatMessageProps = {
   className?: string;
 };
 
+function sanitizeLinkHref(rawUrl: string): string | null {
+  const trimmed = rawUrl.trim();
+  if (/^https?:\/\//i.test(trimmed) || /^mailto:/i.test(trimmed) || /^\/[^/\\]/.test(trimmed)) {
+    try {
+      if (/^https?:\/\//i.test(trimmed)) {
+        const parsed = new URL(trimmed);
+        if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+          return parsed.href;
+        }
+      } else {
+        return encodeURI(trimmed);
+      }
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 /**
  * Parses inline markdown tokens:
  * - **bold** or __bold__ -> <strong>
@@ -54,11 +73,12 @@ export function parseInlineTokens(text: string): ReactNode[] {
       );
     } else if (token.startsWith("[") && token.includes("](")) {
       const linkMatch = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(token);
-      if (linkMatch) {
+      const safeHref = linkMatch ? sanitizeLinkHref(linkMatch[2]) : null;
+      if (linkMatch && safeHref) {
         nodes.push(
           <a
             key={match.index}
-            href={linkMatch[2]}
+            href={safeHref}
             target="_blank"
             rel="noopener noreferrer"
             className="text-brand underline hover:text-brand-hover"
@@ -66,6 +86,8 @@ export function parseInlineTokens(text: string): ReactNode[] {
             {linkMatch[1]}
           </a>,
         );
+      } else if (linkMatch) {
+        nodes.push(linkMatch[1]);
       } else {
         nodes.push(token);
       }
@@ -264,10 +286,7 @@ export default function FormattedChatMessage({ content, className }: FormattedCh
         switch (block.type) {
           case "heading":
             return (
-              <h4
-                key={idx}
-                className="mt-2 text-xs font-semibold tracking-wide text-fg first:mt-0"
-              >
+              <h4 key={idx} className="mt-2 text-xs font-semibold tracking-wide text-fg first:mt-0">
                 {parseInlineTokens(block.content)}
               </h4>
             );

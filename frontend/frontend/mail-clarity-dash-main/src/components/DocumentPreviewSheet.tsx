@@ -71,20 +71,20 @@ export default function DocumentPreviewSheet({
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-1 text-xs font-semibold text-brand">
                 <FileText className="h-4 w-4" />
-                [POLICY DOCUMENT]
+                {t("docPreview.badge")}
               </span>
               {doc?.doc_type ? (
-                <span className="rounded-md bg-surface-muted px-2 py-0.5 text-[10px] font-medium text-fg-muted uppercase">
+                <span className="rounded-md bg-surface-muted px-2 py-0.5 text-[10px] font-medium uppercase text-fg-muted">
                   {doc.doc_type}
                 </span>
               ) : null}
             </div>
             <h2 className="mt-1 truncate text-base font-semibold text-fg">
-              {doc?.title || "Document Preview"}
+              {doc?.title || t("docPreview.previewTitle")}
             </h2>
             {doc?.source ? (
               <p className="mt-0.5 truncate text-xs text-fg-subtle" title={doc.source}>
-                Source: {doc.source}
+                {t("docPreview.sourcePrefix", { source: doc.source })}
               </p>
             ) : null}
           </div>
@@ -92,7 +92,7 @@ export default function DocumentPreviewSheet({
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close document preview"
+            aria-label={t("docPreview.closeAria")}
             className="rounded-md p-1.5 text-fg-muted hover:bg-surface-muted hover:text-fg focus:outline-none focus:ring-2 focus:ring-brand"
           >
             <X className="h-5 w-5" />
@@ -113,7 +113,7 @@ export default function DocumentPreviewSheet({
               )}
             >
               <FileText className="h-3.5 w-3.5" />
-              Reassembled Full Text
+              {t("docPreview.reassembled")}
             </button>
             <button
               type="button"
@@ -126,7 +126,7 @@ export default function DocumentPreviewSheet({
               )}
             >
               <Layers className="h-3.5 w-3.5" />
-              Chunks ({doc?.chunk_count ?? 0})
+              {t("docPreview.chunksWithCount", { count: doc?.chunk_count ?? 0 })}
             </button>
           </div>
 
@@ -139,12 +139,12 @@ export default function DocumentPreviewSheet({
               {copied ? (
                 <>
                   <Check className="h-3 w-3 text-brand" />
-                  [COPIED]
+                  {t("docPreview.copied")}
                 </>
               ) : (
                 <>
                   <Copy className="h-3 w-3" />
-                  Copy Text
+                  {t("docPreview.copyFullText")}
                 </>
               )}
             </button>
@@ -155,13 +155,13 @@ export default function DocumentPreviewSheet({
         <div className="flex-1 overflow-y-auto p-4">
           {isLoading ? (
             <div className="py-12">
-              <PageLoading label="document text" />
+              <PageLoading label={t("knowledge.label")} />
             </div>
           ) : null}
 
           {error ? (
             <InlineAlert size="sm" className="my-4">
-              Unable to load document preview. The document may have been deleted or the backend is unreachable.
+              {t("knowledge.uploadFailed")}
             </InlineAlert>
           ) : null}
 
@@ -171,15 +171,13 @@ export default function DocumentPreviewSheet({
                 <div className="space-y-4">
                   <div className="rounded-lg border border-line bg-surface-muted/30 p-4">
                     <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed text-fg-body">
-                      {doc.content || "Document contains no text content."}
+                      {doc.content || t("docPreview.empty")}
                     </pre>
                   </div>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <p className="text-xs text-fg-muted">
-                    Displaying {doc.chunks.length} reassembled indexing chunks in sequential order:
-                  </p>
+                  <p className="text-xs text-fg-muted">{t("docPreview.readingOrder")}</p>
                   {doc.chunks.map((chunk) => (
                     <div
                       key={chunk.id}
@@ -187,15 +185,13 @@ export default function DocumentPreviewSheet({
                     >
                       <div className="flex items-center justify-between border-b border-line pb-1.5 text-[11px]">
                         <span className="font-semibold text-brand">
-                          Chunk #{chunk.chunk_idx + 1}
+                          {t("docPreview.chunkBadge", { idx: chunk.chunk_idx + 1 })}
                         </span>
                         {chunk.section ? (
                           <span className="max-w-[70%] truncate font-medium text-fg-subtle">
-                            Section: {chunk.section}
+                            {t("docPreview.sectionPrefix", { section: chunk.section })}
                           </span>
-                        ) : (
-                          <span className="text-[10px] text-fg-subtle">[Default Section]</span>
-                        )}
+                        ) : null}
                       </div>
                       <p className="mt-2 whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-fg-body">
                         {chunk.content}
@@ -211,9 +207,12 @@ export default function DocumentPreviewSheet({
         {/* Footer info */}
         {doc ? (
           <footer className="flex items-center justify-between border-t border-line bg-surface-elevated px-4 py-2.5 text-[11px] text-fg-muted">
-            <span>Reassembled {doc.chunk_count} chunks from database</span>
-            <span className="font-mono text-[10px] text-fg-subtle truncate max-w-48" title={doc.document_id}>
-              ID: {doc.document_id}
+            <span>{t("docPreview.chunksWithCount", { count: doc.chunk_count })}</span>
+            <span
+              className="max-w-48 truncate font-mono text-[10px] text-fg-subtle"
+              title={doc.document_id}
+            >
+              {doc.document_id}
             </span>
           </footer>
         ) : null}

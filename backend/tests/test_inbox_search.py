@@ -1,6 +1,8 @@
 """Unit and integration tests for natural language inbox search & Q&A assistant (Issue #144)."""
 
 import asyncio
+from datetime import datetime, timezone
+from unittest.mock import MagicMock
 
 from app.core.providers import Provider
 from app.inbox_search import (
@@ -12,6 +14,8 @@ from app.inbox_search import (
     classify_intent_deterministic,
     contextualize_query,
     extract_sender_candidates,
+    format_email_snippet,
+    format_received_date,
     route_query_intent,
 )
 
@@ -127,10 +131,6 @@ def test_inbox_search_unauthenticated_returns_401(api_client) -> None:
 
 
 def test_format_helpers() -> None:
-    from datetime import datetime, timezone
-    from unittest.mock import MagicMock
-    from app.inbox_search import format_email_snippet, format_received_date
-
     dt = datetime(2026, 10, 8, 14, 30, tzinfo=timezone.utc)
     formatted = format_received_date(dt)
     assert "08 Oct 2026" in formatted

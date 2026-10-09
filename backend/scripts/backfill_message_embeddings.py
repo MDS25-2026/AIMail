@@ -53,7 +53,7 @@ async def main() -> None:
                 await session.commit()
                 filled += len(batch)
                 print(f"  embedded {filled}/{total} messages")
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 print(f"  batch {i}-{i+len(batch)} failed: {exc}")
                 await session.rollback()
 
