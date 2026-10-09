@@ -193,11 +193,11 @@ var localeRecognizers = []presidioRecognizer{
 		// From 4 digits: real emails cite a partial account ("the account ending 4471"). The
 		// 0.4 base still sits below the 0.6 threshold, so a bare 4-digit run like a year is only
 		// masked when a context word below sits near it.
-		// Grouped as banks print them ("5141 2345 6789", "1234-5678-90"); the IC and phone floor has
-		// already replaced its own shapes, and a span touching a placeholder is never re-masked.
+		// Grouped as banks print them ("5141 2345 6789", "1234-5678-90"): three groups at least, so an amount
+		// ("150 000") is not one, and never an ISO date. The IC and phone floor has already replaced its shapes.
 		Patterns: []presidioPattern{
 			{Name: "arbitrary_digit_pattern", Regex: `\b\d{4,16}\b`, Score: 0.4},
-			{Name: "grouped_digit_pattern", Regex: `\b\d{3,6}(?:[ -]\d{2,6}){1,3}\b`, Score: 0.4},
+			{Name: "grouped_digit_pattern", Regex: `\b(?!\d{4}-\d{2}-\d{2}\b)\d{3,6}(?:[ -]\d{2,6}){2,3}\b`, Score: 0.4},
 		},
 		Context: []string{"account", "acc", "akaun", "bank", "maybank", "cimb", "rhb", "public bank", "transfer", "reference", "ref", "passport", "policy", "member", "employee", "emp", "staff", "badge", "payroll"},
 	},
@@ -206,8 +206,9 @@ var localeRecognizers = []presidioRecognizer{
 		SupportedLanguage: "en",
 		SupportedEntity:   "MY_POSTCODE",
 		// Five digits are an amount or an order number as often as a postcode: only address words make it one.
+		// No state names: "our Selangor branch sold 12000 units" is business context (see allowedLocations).
 		Patterns: []presidioPattern{{Name: "my_postcode", Regex: `\b\d{5}\b`, Score: 0.4}},
-		Context:  []string{"jalan", "jln", "taman", "tmn", "lorong", "persiaran", "lebuh", "bandar", "kampung", "kg", "address", "alamat", "postcode", "poskod", "kuala", "petaling", "selangor", "johor", "penang", "pulau"},
+		Context:  []string{"jalan", "jln", "taman", "tmn", "lorong", "persiaran", "lebuh", "bandar", "kampung", "kg", "address", "alamat", "postcode", "poskod", "kuala", "petaling", "pulau"},
 	},
 	{
 		Name:              "MY_VEHICLE_PLATE_RECOGNIZER",

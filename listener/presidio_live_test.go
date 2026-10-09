@@ -113,10 +113,24 @@ func TestMaskTextLiveLeavesLookalikesWithoutContext(t *testing.T) {
 		"Total due is 15000 for 30 units.",
 		"Read it at https://e.example.com/c3/869:6abd25 on our platform.",
 		"Our Customer Care Team at the R2 desk will call.",
+		"Please transfer 150 000 to the vendor.",
+		"Our Selangor branch sold 12000 units.",
 	} {
 		masked, _, _, _ := maskText(context.Background(), text, newDetailVault())
 		if masked != text {
 			t.Errorf("masked a lookalike: %q -> %q", text, masked)
+		}
+	}
+}
+
+// The older digit-run rule still masks a year after "transfer" or "payroll"; the grouped rule must not
+// widen that to the whole date.
+func TestMaskTextLiveKeepsADatesMonthAndDayNearAccountWords(t *testing.T) {
+	requireLivePresidio(t)
+	for _, text := range []string{"Please transfer by 2026-10-15.", "Payroll for 2026-10-31 is ready."} {
+		masked, _, _, _ := maskText(context.Background(), text, newDetailVault())
+		if !strings.Contains(masked, "-10-") {
+			t.Errorf("the whole date was masked: %q -> %q", text, masked)
 		}
 	}
 }

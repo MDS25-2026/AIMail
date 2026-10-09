@@ -30,6 +30,7 @@ Usage (from backend/):
 
 import argparse
 import asyncio
+import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -71,6 +72,8 @@ _WITH_HTML = text(r"""
     select id, body_masked from messages
     where masking_status = 'complete' and body_masked ~* '<(div|p|br|span|table|html|body|td|tr|a)[\s>/]'
 """)
+# As the listener's htmlToText: a link keeps its target as text, which the phishing check reads.
+_LINK = re.compile(r"""<a\b[^>]*\bhref\s*=\s*["'](https?://[^"'\s]+)["'][^>]*>(.*?)</a>""", re.IGNORECASE | re.DOTALL)
 _ROW = text("select subject, snippet_masked, ai_summary, sent_at from messages where id = :id")
 
 
@@ -116,7 +119,7 @@ async def main() -> None:
             query = _WITH_HTML if args.html else _ALL_MASKED
             outliers = [dict(r) for r in (await session.execute(query)).mappings().all()]
         for row in outliers if args.html else []:
-            row["body_masked"] = strip_html(row["body_masked"]).strip()
+            row["body_masked"] = strip_html(_LINK.sub(r"\2 (\1)", row["body_masked"])).strip()
     else:
         outliers = masking_outliers(await load_drafts())
     if not outliers:
