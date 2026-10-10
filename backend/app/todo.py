@@ -1,7 +1,7 @@
 """To-do: what needs the reader (specs/features/todo-page.md).
 
-Four lists: emails asking something of them, drafts the AI is unsure of, replies of theirs still
-waiting for an answer, and drafts left unsent for over a day. Each shows the newest SECTION_LIMIT,
+Four lists: drafts the AI is unsure of, emails asking something of them, replies of theirs still
+waiting for an answer, and drafts left unsent for over a day. An email is in one list only. Each shows the newest SECTION_LIMIT,
 with its full count; "No reply needed" and "Not waiting" take an item out.
 """
 
@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from pydantic import BaseModel
-from sqlalchemy import ColumnElement, and_, case, func, or_, select, update
+from sqlalchemy import ColumnElement, and_, case, func, select, update
 from sqlalchemy.dialects.postgresql import distinct_on, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -75,10 +75,14 @@ def _has_draft() -> ColumnElement[bool]:
 
 
 def _sections() -> dict[str, list[ColumnElement[bool]]]:
+    """Each email in one list only, the most urgent: review, then action, then an unsent draft."""
+    is_review = and_(Message.needs_human_review.is_(True), _has_draft())
+    is_action = _action_count() > 0
+    is_stale_draft = and_(_has_draft(), Message.generated_at < func.now() - DRAFT_REMINDER_AFTER)
     return {
-        "needsAction": [_action_count() > 0],
-        "needsReview": [Message.needs_human_review.is_(True), _has_draft()],
-        "unsentDrafts": [_has_draft(), Message.generated_at < func.now() - DRAFT_REMINDER_AFTER],
+        "needsReview": [is_review],
+        "needsAction": [is_action, ~is_review],
+        "unsentDrafts": [is_stale_draft, ~is_review, ~is_action],
     }
 
 
@@ -88,12 +92,6 @@ async def _section(session: AsyncSession, scope: Scope, conditions: list, policy
                                   .limit(SECTION_LIMIT))).all()
     total = await session.scalar(select(func.count()).select_from(Message).where(*where))
     return TodoSection(emails=[inbox_row(message, policy) for message in rows], total=total or 0)
-
-
-async def _distinct_total(session: AsyncSession, scope: Scope) -> int:
-    """Emails in any of the three lists, each once: one can be in all three."""
-    in_any = or_(*(and_(*conditions) for conditions in _sections().values()))
-    return await session.scalar(select(func.count()).select_from(Message).where(*_open(scope), in_any)) or 0
 
 
 async def _latest_inbound(session: AsyncSession, scope: Scope, thread_ids: list[str]) -> dict[str, Message]:
@@ -145,7 +143,8 @@ async def todo_for(scope: Scope, policy_email: str) -> Todo:
                     for name, conditions in _sections().items()}
         waiting_days = await _waiting_days(session, scope.owner_id)
         waiting = await _waiting(session, scope, waiting_days, quiet, policy)
-        count = await _distinct_total(session, scope) + len(waiting)
+    # The lists never share an email, so their totals add up to distinct emails.
+    count = sum(section.total for section in sections.values()) + len(waiting)
     return Todo(**sections, waiting=waiting, waitingDays=waiting_days, count=count)
 
 

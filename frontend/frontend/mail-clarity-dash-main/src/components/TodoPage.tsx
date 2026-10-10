@@ -31,16 +31,16 @@ export default function TodoPage() {
       {todo.data ? (
         <>
           <EmailSection
-            title={t("todo.needsAction")}
-            hint={t("todo.needsActionHint")}
-            section={todo.data.needsAction}
-            detail={(email) => email.actionItems.join(" · ")}
-          />
-          <EmailSection
             title={t("todo.needsReview")}
             hint={t("todo.needsReviewHint")}
             section={todo.data.needsReview}
             detail={() => t("todo.flagged")}
+          />
+          <EmailSection
+            title={t("todo.needsAction")}
+            hint={t("todo.needsActionHint")}
+            section={todo.data.needsAction}
+            detail={(email) => email.actionItems.join(" · ")}
           />
           <WaitingSection waiting={todo.data.waiting} waitingDays={todo.data.waitingDays} />
           <EmailSection

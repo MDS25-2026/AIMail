@@ -128,8 +128,10 @@ Changes go into `specs/context/db-schema.md` in the same PR.
 - 2026-10-11: The follow-up is *Open in Gmail* for now, not drafted and sent from AIMail (owner).
   Rationale: AIMail sends only replies to received mail; a nudge on the user's own sent mail is a
   new send path with its own duplicate-send risk, so it gets its own PR.
-- 2026-10-11: The To-do count is distinct emails: one email can be in all three email lists (79
-  distinct on 2026-10-11, where the three totals summed to 151).
+- 2026-10-11: An email shows in one list only, the most urgent: review, then action, then an
+  unsent draft (owner). Rationale: one email fit all three, and the page should read as one list
+  of things to do. The count is then distinct emails (79 on 2026-10-11, where the three overlapping
+  totals summed to 151).
 - 2026-10-11: The *Remind me* box forces tracking; unticked, the rules decide. Rationale: one copy
   of the rules (Python), none in TypeScript.
 - 2026-10-11: The listener's Sent path is separate from the inbox path and never fails a

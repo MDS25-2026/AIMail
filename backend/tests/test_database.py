@@ -373,7 +373,7 @@ def test_the_todo_lists_what_needs_the_reader_and_what_is_still_waiting():
     assert after.needsAction.total == 0 and after.waiting == []
 
 
-def test_an_email_in_every_todo_list_counts_once():
+def test_an_email_that_fits_every_todo_list_shows_once_in_the_most_urgent():
     owner = uuid4()
     now = datetime.now(timezone.utc)
 
@@ -388,7 +388,8 @@ def test_an_email_in_every_todo_list_counts_once():
         return await todo.todo_for(Scope(owner_id=owner), f"{owner}@example.com")
 
     result = _run(scenario())
-    assert (result.needsAction.total, result.needsReview.total, result.unsentDrafts.total) == (1, 1, 1)
+    # Shown once, in the most urgent list: review comes before action and before an unsent draft.
+    assert (result.needsReview.total, result.needsAction.total, result.unsentDrafts.total) == (1, 0, 0)
     assert result.count == 1
 
 
