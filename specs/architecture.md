@@ -17,7 +17,7 @@ team decisions, not settled facts.
 
 ```mermaid
 flowchart LR
-    Gmail((Gmail)) -->|Pub/Sub push| listener[Go listener - Lane A]
+    Gmail((Gmail)) -->|Pub/Sub, pulled| listener[Go listener - Lane A]
     listener -->|mask PII, persist| db[(Supabase Postgres + pgvector)]
     backend[Python backend - Lanes B + C] <--> db
     backend -->|REST| frontend[Dashboard - Lane D]

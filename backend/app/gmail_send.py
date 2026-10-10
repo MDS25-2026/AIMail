@@ -22,6 +22,7 @@ from sqlalchemy import select, update
 
 from app.core import token_crypt
 from app.core.config import get_settings
+from app.core.draft_text import strip_subject_line
 from app.core.errors import DomainError, ErrorCode
 from app.db.models import MailboxConnection
 from app.db.session import get_sessionmaker
@@ -178,18 +179,6 @@ async def _access_token(client: httpx.AsyncClient, owner_id: UUID | None) -> str
     return access_token
 
 
-_SUBJECT_LINE = re.compile(r"^\s*subject\s*:.*(?:\r?\n)+", re.IGNORECASE)
-
-
-def _strip_subject_line(body: str) -> str:
-    """Drop a leading "Subject: ..." the generator wrote into the draft.
-
-    The subject is set as a header below, so leaving it in the body sends it twice — once
-    where it belongs and once as the first visible line of the reply.
-    """
-    return _SUBJECT_LINE.sub("", body, count=1).lstrip()
-
-
 def _html_body(body: str) -> str:
     """Render the draft as paragraphs so the reader's client reflows it.
 
@@ -216,7 +205,8 @@ def _reply_references(target: ReplyTarget) -> str:
 
 
 def _build_raw(target: ReplyTarget, body: str, extra_headers: dict[str, str] | None = None) -> str:
-    text = _strip_subject_line(body)
+    # The agent strips it now; drafts stored before that still carry it.
+    text = strip_subject_line(body)
     message = EmailMessage()
     for name, value in (extra_headers or {}).items():
         message[name] = value

@@ -1,5 +1,6 @@
 # Presidio PII-detection services for the listener (Lane A). The listener layers these
-# on top of its regex floor; if they are down it degrades to regex-only (see listener/main.go).
+# on top of its regex floor; if they are down it quarantines the message with no content until it
+# can be masked (see listener/main.go).
 # Bound to 127.0.0.1 so the analyzer/anonymizer are never exposed off the host.
 #
 #   docker compose up -d        # analyzer :5001, anonymizer :5002, attachment reader :5003

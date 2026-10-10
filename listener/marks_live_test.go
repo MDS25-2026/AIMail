@@ -19,6 +19,9 @@ import (
 const maxMarkedMissed = 2
 
 func TestLiveMarkCheckMissesNoMoreThanMeasured(t *testing.T) {
+	if testing.Short() {
+		t.Skip("about three minutes on a 4 GB GPU; not in -short (make check)")
+	}
 	_ = godotenv.Load("../.env")
 	model := os.Getenv("LOCAL_VISION_MODEL")
 	if model == "" {

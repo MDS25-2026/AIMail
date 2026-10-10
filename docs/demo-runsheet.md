@@ -5,7 +5,7 @@ already fired. Two tabs pre-loaded: Supabase row, dashboard (localhost:8090).
 
 | Beat | On screen | Say |
 |------|-----------|-----|
-| Ingest | Listener log line | "R01, captured via Pub/Sub push, no polling." |
+| Ingest | Listener log line | "R01, delivered through Pub/Sub, no polling of Gmail." |
 | Mask | Raw body beside stored `body_masked` | "R02. This is the privacy boundary. It runs before anything leaves our server." |
 | Triage | Priority, summary, action items | "R05.1, trained classifier scored against human labels, not a prompt." |
 | Ground | Draft with retrieved policy chunk visible | "R03.2, the draft is traceable to that retrieved chunk." |

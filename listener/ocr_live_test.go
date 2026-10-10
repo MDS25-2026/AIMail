@@ -75,6 +75,9 @@ func TestLiveReaderFailureDoesNotFallThroughToOCR(t *testing.T) {
 }
 
 func TestLiveOCRDoesNotNarrateABlankImage(t *testing.T) {
+	if testing.Short() {
+		t.Skip("calls Gemini; not in -short (make check)")
+	}
 	_ = godotenv.Load("../.env")
 	if getEnvOrDefault("OCR_MODEL", "") == "" || getEnvOrDefault("GOOGLE_API_KEY", "") == "" {
 		t.Skip("OCR_MODEL / GOOGLE_API_KEY not configured")
