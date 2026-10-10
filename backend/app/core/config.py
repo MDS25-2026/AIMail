@@ -95,6 +95,8 @@ class Settings(BaseSettings):
     # Private mode (specs/features/local-model.md): the company's local model; "" = not offered.
     local_llm_model: str = ""
     local_llm_url: str = "http://localhost:11434"
+    # How long Ollama keeps the model loaded after a request ("30m", "24h", "-1m" for always); "" = Ollama's 5m.
+    local_llm_keep_alive: str = ""
     # Private mode's search: a local embedding model on the same Ollama; "" = no search in Private mode.
     local_embedding_model: str = ""
     # Checks scans for signatures, faces and stamps before Gemini reads them; "" = checked scans not offered.

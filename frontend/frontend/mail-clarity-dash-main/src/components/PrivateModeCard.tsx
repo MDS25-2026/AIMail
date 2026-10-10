@@ -13,13 +13,13 @@ export default function PrivateModeCard() {
   // Still shown when it is on but no longer offered, so the user can always switch it off.
   if (!mode.data || !(mode.data.available || mode.data.enabled)) return null;
   const isStranded = mode.data.enabled && !mode.data.available;
-  const notes = [mode.data.search ? "search" : "noSearch", "n2", "n3"] as const;
+  const notes = [mode.data.search ? "search" : "noSearch", "n2"] as const;
   return (
     <section className="space-y-3 rounded-lg border border-line bg-surface p-4">
       <h2 className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">
         {t("privateMode.title")}
       </h2>
-      <label className="flex items-center gap-2 text-sm font-medium text-fg">
+      <label className="flex min-h-11 items-center gap-2 text-sm font-medium text-fg md:min-h-0">
         <input
           type="checkbox"
           checked={mode.data.enabled}

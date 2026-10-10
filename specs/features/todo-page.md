@@ -28,7 +28,10 @@ nothing falls through the cracks between opening emails.
   in the thread after `WAITING_DAYS` (default 3) working days. Clears itself when anything arrives
   in the thread. *Open in Gmail* opens the thread to write a nudge there (the Sent watch then sees it
   and the clock starts again); *Not waiting* removes one. Only the latest reply in each thread
-  counts. Drafting and sending a follow-up from AIMail is a later PR (owner, 2026-10-11).
+  counts. A reply sent through AIMail also gets *Draft follow-up*: the agent rewrites that reply
+  as a short nudge, the user edits it with the real names in it, and *Send follow-up* sends it in
+  the email's thread through the same checks as Send. A reply sent from Gmail keeps *Open in Gmail*
+  only.
 - **4. Drafts you haven't sent:** a reminder, not a second drafts list. Only drafts ready for
   more than 24 hours and not sent, with *Open*, *No reply needed*, and *See all drafts* linking to
   `/drafts` (#169, the full list). Emails with `authStatus = spoof_detected` are left out, as on
@@ -68,7 +71,11 @@ nothing falls through the cracks between opening emails.
       dismissed with *No reply needed*, or replaced by a newer message.
 - [ ] Given a sent email stored from the Sent label, then it never appears in the inbox and is
       never drafted for.
-- [ ] Drafting and sending a follow-up from AIMail: moved to a later PR (owner, 2026-10-11).
+- [x] Given a waiting reply sent through AIMail, when the user drafts a follow-up, then it opens
+      with the real names in it, and Send follow-up sends it once (two clicks at once send one),
+      in the email's thread, and it becomes the thread's latest send (#211).
+- [x] Given a waiting reply sent from Gmail, then only Open in Gmail is offered (its placeholders
+      were masked apart from the email's vault, so names could be restored wrongly).
 
 ## API surface
 
@@ -126,6 +133,11 @@ Changes go into `specs/context/db-schema.md` in the same PR.
   treat it as received mail.
 - 2026-10-10: Action types are left to the team (#142); the page groups by them when they exist.
 - 2026-10-11: The follow-up is *Open in Gmail* for now, not drafted and sent from AIMail (owner).
+- 2026-10-11: Follow-ups from AIMail, for replies sent through AIMail only (owner asked for the
+  remaining work in one PR). Rationale: those share the email's placeholder vault; a Gmail-sent
+  reply was masked on its own, so restoring its names could put the wrong name in a nudge. The
+  link to the email moves to the follow-up, so a follow-up can be followed up in turn. A send
+  whose outcome Gmail never confirmed keeps its claim; the Sent watch records it if it went.
   Rationale: AIMail sends only replies to received mail; a nudge on the user's own sent mail is a
   new send path with its own duplicate-send risk, so it gets its own PR.
 - 2026-10-11: An email shows in one list only, the most urgent: review, then action, then an

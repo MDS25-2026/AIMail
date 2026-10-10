@@ -604,6 +604,16 @@ const catchUpMessageCount = 50
 // on every failure.
 var warnNoDeadLetter sync.Once
 
+// catchUpThenAdvance moves the baseline only once the catch-up stored everything: a failure
+// leaves it in place, so the retried notification catches up over the same range again.
+func catchUpThenAdvance(ctx context.Context, mb *mailbox, historyID uint64) error {
+	if err := ingestRecentInbox(ctx, mb); err != nil {
+		return err
+	}
+	advanceBaseline(mb, historyID)
+	return nil
+}
+
 // ingestHistory stores what a notification announced. mb.lastHistoryID is the last history ID
 // successfully processed: history.list needs a starting point, and the notification's own ID is
 // the *end* of the range, not the start.
@@ -614,8 +624,7 @@ func ingestHistory(ctx context.Context, mb *mailbox, historyID uint64) error {
 	if start == 0 {
 		// No baseline yet. Catch up on recent INBOX mail so nothing is dropped, then let the
 		// baseline advance from here.
-		advanceBaseline(mb, historyID)
-		return ingestRecentInbox(ctx, mb)
+		return catchUpThenAdvance(ctx, mb, historyID)
 	}
 
 	call := mb.srv.Users.History.List("me").StartHistoryId(start).HistoryTypes("messageAdded").LabelId("INBOX")
@@ -630,14 +639,18 @@ func ingestHistory(ctx context.Context, mb *mailbox, historyID uint64) error {
 		}
 		return nil
 	})
+	if err != nil && isGmailTrouble(err) {
+		// A rate limit, a 5xx or no answer (a cancelled context too): fail the notification so it
+		// is retried from the same baseline, rather than skipping to a catch-up that may not cover it.
+		return fmt.Errorf("history.list from %d: %w", start, err)
+	}
 	if err != nil {
-		// An expired or pruned history ID is not retryable — Gmail drops history beyond a week.
-		// Fall back rather than fail the message forever.
+		// An expired or pruned history ID (404, or another refusal) is not retryable — Gmail drops
+		// history beyond a week. Fall back rather than fail the message forever.
 		log.Printf("history.list from %d failed (%v); falling back to recent INBOX messages", start, err)
 		writeAuditLog(ctx, mb.ownerID, actionFetchHistory, auditFields{fieldHistoryID: start,
 			fieldReason: reasonHistoryUnusable, fieldErrorKind: errorKind(err)}, false)
-		advanceBaseline(mb, historyID)
-		return ingestRecentInbox(ctx, mb)
+		return catchUpThenAdvance(ctx, mb, historyID)
 	}
 	if err := ingestEach(ctx, mb, ids); err != nil {
 		return err

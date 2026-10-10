@@ -185,7 +185,7 @@ function UploadCard({ onUpload, isPending, error, chunks }: UploadCardProps) {
         disabled={isPending}
         aria-label={t("knowledge.uploadTitle")}
         onChange={(e) => onUpload(e.target.files?.[0])}
-        className="mt-3 block w-full text-sm text-fg-body file:mr-3 file:rounded-md file:border-0 file:bg-brand file:px-3 file:py-2 file:text-sm file:font-semibold file:text-on-brand hover:file:bg-brand-strong"
+        className="mt-3 block min-h-11 w-full text-sm text-fg-body file:mr-3 file:min-h-11 md:min-h-0 md:file:min-h-0 file:rounded-md file:border-0 file:bg-brand file:px-3 file:py-2 file:text-sm file:font-semibold file:text-on-brand hover:file:bg-brand-strong"
       />
       <ResultLine
         isPending={isPending}

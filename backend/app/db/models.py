@@ -262,6 +262,8 @@ class UserPreferences(Base):
     scan_reading: Mapped[str] = mapped_column(Text, default="local")
     # Working days before a reply counts as waiting too long (migration 0040, todo-page.md).
     waiting_days: Mapped[int] = mapped_column(SmallInteger, default=3)
+    # The inbox's one-time Private mode offer: set when the user switches it or says "Not now".
+    private_mode_decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -390,6 +392,8 @@ class SentMessage(Base):
     body_masked: Mapped[str] = mapped_column(Text, default="")
     remind: Mapped[bool | None]
     dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The send claim for a follow-up to this reply (migration 0042).
+    followed_up_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

@@ -82,7 +82,7 @@ export default function InboxList({ emails, selectedEmailId, onSelectEmail }: In
             </select>
           </label>
         </div>
-        <p className="mt-2 text-[11px] text-fg-subtle">{t("inbox.keyboardHint")}</p>
+        <p className="mt-2 hidden text-[11px] text-fg-subtle md:block">{t("inbox.keyboardHint")}</p>
       </div>
       {conversations.length === 0 && isFiltered ? (
         <p className="p-6 text-center text-sm text-fg-subtle">

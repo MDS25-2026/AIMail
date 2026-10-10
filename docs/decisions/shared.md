@@ -6,6 +6,45 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-11 — Audit of everything since #168: what changed across lanes
+- Decision: fixes from a full audit of #177 to #210, in PR #211. Cross-lane ones:
+  - **Listener (Lane A):** the baseline moves only after a catch-up has stored its mail, and only an
+    expired history (404) falls back to one. The SLA floor reads only the sender's own text (the
+    quoted email and "not urgent" no longer make a reply CRITICAL). A released quarantined email
+    gets its SLA priority.
+  - **Inbox assistant (Lane C's #195):** the assistant's own answers are never sent back to the
+    model, since their details were filled back in; subjects and snippets share the bodies'
+    placeholder numbering; a search across every user on Gemini leaves out Private mode users; with
+    details hidden the answer keeps its placeholders.
+  - **Holding replies:** none goes out while the user's own reply is scheduled (`reply_scheduled`).
+  - **Dashboard (Lane D):** an approved reply is never dropped by leaving the email in the undo
+    window (it sends now); Send later runs Send's content checks.
+- Why: each could send the wrong thing, lose mail or a reply, or break a privacy promise.
+- Not fixed, written down in the PR instead: low-risk items (counts, cost, an SLA month name,
+  edge cases with a safe failure).
+
+### 2026-10-11 — Follow-ups from the To-do page, for replies sent through AIMail
+- Decision: a waiting reply sent through AIMail can be followed up from the To-do page: the agent
+  rewrites it as a nudge (`/refine` with a fixed instruction), the user edits and approves it, and
+  it is sent in the email's thread with Send's checks (masking, spoof, placeholders, Gmail grant),
+  a claim on `sent_message.followed_up_at`, and an audit row (`follow_up_sent`).
+- Why only those: a reply sent from Gmail was masked by the listener with its own numbering and no
+  vault, so its placeholders cannot be restored safely.
+- Affects: `backend/app` (dashboard, todo routes; migration 0042), Lane C's `/refine` (no change,
+  a new instruction), the To-do page (Lane D), `specs/features/todo-page.md`.
+
+### 2026-10-11 — Private mode makes one claim, and Private mode users get no Gemini email vectors
+- Decision: every Private mode string makes the agreed claim ("Drafted on AIMail's private model.
+  Never sent to Google or Anthropic, and only ever used for your own replies") and no claim about
+  where the model runs. The inbox offers Private mode once. The email-vector backfill
+  (`scripts/backfill_message_embeddings.py`, #195) skips Private mode users, switching Private mode
+  on clears that user's email vectors, and inbox search in Private mode matches on words only.
+- Why: the backfill sent every stored email to Gemini to embed it, Private mode users' included,
+  which broke Private mode's promise; and a local query vector against Gemini's column failed
+  quietly. "On your company's computer" is false once the model is hosted.
+- Affects: `backend/app` (inbox search, Private mode routes; migration 0041), the inbox search
+  backfill script (Lane C's #195), the dashboard (Lane D), `specs/features/local-model.md`.
+
 ### 2026-10-11 — To-do page; the listener also reads the mailbox's sent replies
 - Decision: a To-do page (needs action, needs review, waiting for their reply, unsent drafts). The
   listener's watch covers the Sent label; sent replies are masked and kept in `sent_message`, apart

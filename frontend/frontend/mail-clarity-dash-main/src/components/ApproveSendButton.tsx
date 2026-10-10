@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 
+import { cn } from "../lib/utils";
 import { button } from "./variants";
 
 type ApproveSendButtonProps = {
@@ -35,7 +36,7 @@ export default function ApproveSendButton({
       type="button"
       disabled={disabled}
       onClick={onApproveSend}
-      className={isSent ? SENT : button({ intent: "primary", size: "md" })}
+      className={isSent ? SENT : cn(button({ intent: "primary", size: "md" }), "whitespace-nowrap")}
     >
       {label}
     </button>

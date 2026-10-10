@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { nextHourHere, nextMondayHere } from "../lib/quietHours";
 import type { DraftWorkflow } from "../lib/useDraftWorkflow";
+import { cn } from "../lib/utils";
 import { button, field } from "./variants";
 
 // The morning a held reply goes out by default, on the reader's own clock.
@@ -35,7 +36,7 @@ export default function SendLaterMenu({ workflow, isBlocked }: SendLaterMenuProp
         aria-controls={panelId}
         disabled={isDisabled}
         onClick={() => setIsOpen((open) => !open)}
-        className={button({ size: "md" })}
+        className={cn(button({ size: "md" }), "whitespace-nowrap")}
       >
         {workflow.isScheduling ? t("schedule.scheduling") : t("schedule.sendLater")}
       </button>

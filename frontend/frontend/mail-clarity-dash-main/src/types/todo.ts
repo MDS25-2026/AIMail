@@ -15,3 +15,6 @@ export type Todo = WithEnums<
     waiting: WaitingReply[];
   }
 >;
+
+/** A follow-up draft in placeholder form, with the details of the thread it is numbered in. */
+export type FollowUpDraft = Schemas["FollowUpDraft"];

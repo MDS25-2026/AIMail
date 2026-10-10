@@ -35,6 +35,9 @@ export const fetchPrivateMode = () => request<PrivateMode>("/settings/private-mo
 export const savePrivateMode = (enabled: boolean) =>
   request<PrivateMode>("/settings/private-mode", { method: HttpMethod.Put, json: { enabled } });
 
+export const putOffPrivateMode = () =>
+  request<void>("/settings/private-mode/not-now", { method: HttpMethod.Post });
+
 export const fetchScanReading = () => request<ScanReading>("/settings/scan-reading");
 
 export const saveScanReading = (mode: ScanMode) =>

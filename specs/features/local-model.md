@@ -3,7 +3,7 @@
 - **Status:** Private mode built 2026-10-06 (Gemma 4 E2B; blind human rating running)
 - **Owner:** veyroxie (experiment); Lane C (Hanif) for any change to `email_agent.py` / `gemini_client.py`
 - **Related issue:** conversation of 2026-09-30; guide `local-llm-guide.pdf` (kept outside the repo)
-- **Last updated:** 2026-10-10
+- **Last updated:** 2026-10-11
 
 ## Goal
 
@@ -209,6 +209,24 @@ train the user's own model.
 
 **5. Keep the model loaded.** A setting for Ollama's `keep_alive`: on by default where a server
 hosts the model, the user's choice on a laptop (about 3.4 GB of a 4 GB card held permanently).
+
+**Built 2026-10-11 (PR #211):**
+- [x] Item 1, except the draft-card suggestion: the agreed claim replaces every location claim in
+      the Private mode card (all three languages), and the inbox offers Private mode once ("Turn
+      on" / "Not now", remembered in `user_preferences.private_mode_decided_at`).
+- [ ] Item 1's draft-card suggestion "when an email is only partly masked": nothing in the code
+      marks an email as partly masked (masking is complete, pending or abandoned), so this needs a
+      definition first.
+- [x] Item 3: Ask AIMail and the inbox assistant already ran on the user's provider (#195); now
+      tested, and the card's "Ask AIMail still uses Google" note is removed. Inbox search in Private
+      mode matches on words only, since email vectors are Gemini's; the email-vector backfill skips
+      Private mode users, and switching Private mode on clears that user's email vectors.
+- [x] Item 4's switch text: the learning hint says the replies may later train a model that writes
+      only for that user, never mixed with anyone else's.
+- [x] Item 5: `LOCAL_LLM_KEEP_ALIVE` (empty = Ollama's 5 minutes).
+- [ ] Item 2: needs the native-speaker raters and the candidate models pulled (several GB each).
+- Not built, on purpose: #153's "fall back to Gemini when Ollama is down". The protected decision
+  below forbids it, since it would override the user's choice.
 
 ## Future steps, if the project continues: hosting the model
 

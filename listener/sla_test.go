@@ -250,6 +250,37 @@ func TestClassifySLA(t *testing.T) {
 			body:    "Act now! To unsubscribe click here.",
 			want:    SLALow,
 		},
+		// ---- A reply's quoted email and negated urgency say nothing about this email ----
+		{
+			name:    "same-day quoted header in a reply is not a deadline",
+			subject: "Re: Delivery",
+			body:    "Thanks, received.\n\nOn Mon, Mar 11, 2024 at 8:12 AM Aisyah wrote:\n> Please confirm.",
+			want:    SLAUnset,
+		},
+		{
+			name:    "header wrapped over two lines is cut too",
+			subject: "Re: Delivery",
+			body:    "Noted.\n\nOn Mon, 11 March 2024, Aisyah <a@example.com>\nwrote:\n> Urgent: confirm today.",
+			want:    SLAUnset,
+		},
+		{
+			name:    "urgency in the quoted email does not count",
+			subject: "Re: Invoice",
+			body:    "Sent you the copy.\n\n-----Original Message-----\nPlease respond ASAP.",
+			want:    SLAUnset,
+		},
+		{
+			name:    "not urgent is not urgent",
+			subject: "Catch up",
+			body:    "This is not urgent, whenever you can.",
+			want:    SLAUnset,
+		},
+		{
+			name:    "urgency above the quote still counts",
+			subject: "Re: Server",
+			body:    "This is urgent, the server is down.\n\nOn Sun, Mar 10, 2024 at 9:00 AM Bryan wrote:\n> Any news?",
+			want:    SLACritical,
+		},
 	}
 
 	for _, tc := range tests {

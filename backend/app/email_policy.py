@@ -19,13 +19,14 @@ class Action(StrEnum):
     REFINE = "refine"
     SEND = "send"
     TRANSLATE = "translate"  # a reading aid: drafts nothing, sends nothing
+    FOLLOW_UP = "follow_up"  # a nudge after the user's reply went unanswered; the email is already answered
 
 
 # A sent email's draft is the record of what went out. Send is left out: a repeat send is answered
 # with the email as it is, by the send claim, not refused.
 _REPLACES_THE_DRAFT = frozenset({Action.DRAFT, Action.REDRAFT, Action.REFINE})
 # A spoofer gets nothing written for them; reading their email in another language is still allowed.
-_WRITES_TO_THE_SENDER = frozenset({Action.DRAFT, Action.REDRAFT, Action.REFINE, Action.SEND})
+_WRITES_TO_THE_SENDER = frozenset({Action.DRAFT, Action.REDRAFT, Action.REFINE, Action.SEND, Action.FOLLOW_UP})
 
 
 def refusal_for(message: Message, action: Action) -> ErrorCode | None:

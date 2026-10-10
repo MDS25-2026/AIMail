@@ -205,6 +205,11 @@ def test_a_reply_sent_through_aimail_meanwhile_cancels_it(world):
     assert _verdict(_due(sent_at=NOW)) == Refusal.USER_REPLIED
 
 
+def test_a_reply_the_user_scheduled_meanwhile_holds_the_away_reply_back(world):
+    world["counts"] = [0, 0, 1]  # none today, none to this sender, one reply of theirs waiting
+    assert _verdict(_due()) == Refusal.REPLY_SCHEDULED
+
+
 def test_a_sender_the_user_has_never_written_to_gets_nothing_by_default(world):
     world["written"] = False
     assert _verdict(_due()) == Refusal.NOT_CORRESPONDENT

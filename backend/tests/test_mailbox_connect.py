@@ -159,10 +159,11 @@ def _stored_statements(monkeypatch, email: str, owner: str) -> list[str]:
     return session.statements
 
 
-def test_the_original_mailbox_connecting_takes_over_its_unowned_mail_and_documents(client, monkeypatch):
+def test_the_original_mailbox_connecting_takes_over_its_unowned_mail_documents_and_sends(client, monkeypatch):
     statements = _stored_statements(monkeypatch, "Owner@Gmail.com", "owner@gmail.com")
-    handed_over = [s for s in statements if s.startswith("UPDATE") and "user_id IS NULL" in s]
-    assert len(handed_over) == 2
+    handed_over = {s.split()[1] for s in statements if s.startswith("UPDATE") and "user_id IS NULL" in s}
+    # Its waiting replies and held sends too; never quiet hours, whose unowned row is the company's.
+    assert handed_over == {"messages", "document", "sent_message", "scheduled_send"}
 
 
 def test_handed_over_mail_keeps_its_details_readable(client, monkeypatch):

@@ -23,6 +23,8 @@ export interface InboxSearchRequest {
   history?: Array<{ role: "user" | "assistant"; content: string }>;
   k_emails?: number;
   k_docs?: number;
+  /** False while details are hidden: the answer keeps its placeholders. */
+  restore?: boolean;
 }
 
 export interface InboxSearchResponse {

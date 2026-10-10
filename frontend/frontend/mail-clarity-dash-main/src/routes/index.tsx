@@ -1,5 +1,5 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, useCanGoBack, useNavigate, useRouter } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import InboxList from "../components/InboxList";
@@ -7,10 +7,12 @@ import LoadOlderEmails from "../components/LoadOlderEmails";
 import EmailDetailPanel from "../components/EmailDetailPanel";
 import AppShell from "../components/AppShell";
 import { PageEmpty, PageError, PageLoading } from "../components/PageState";
+import PrivateModeOffer from "../components/PrivateModeOffer";
 import { Page, pageMeta } from "../lib/pageMeta";
 import { useEmail, useEmails, useSession } from "../lib/queries";
 import { useDebouncedValue } from "../lib/useDebouncedValue";
 import { useDraftWorkflow } from "../lib/useDraftWorkflow";
+import { useIsDesktop } from "../lib/useIsDesktop";
 
 type InboxSearch = { email?: string };
 
@@ -41,22 +43,32 @@ function DashboardPage() {
   const [userSelectedId, setUserSelectedId] = useState<string | null>(null);
 
   // Derive selected email from URL search params, explicit selection, or first inbox email
-  const selectedEmailId =
-    requestedId ??
-    userSelectedId ??
-    (emails.data && emails.data.length > 0 ? emails.data[0].id : null);
+  const isDesktop = useIsDesktop();
+  // A desktop shows the newest email beside the list; a phone opens one only when it is tapped,
+  // since opening marks it read.
+  const firstEmailId =
+    isDesktop && emails.data && emails.data.length > 0 ? emails.data[0].id : null;
+  const selectedEmailId = requestedId ?? userSelectedId ?? firstEmailId;
   // Opened once the selection settles, so stepping through with J/K doesn't fetch (and mark read) every row.
   const openedEmailId = useDebouncedValue(selectedEmailId, SELECTION_SETTLE_MS);
   const selected = useEmail(openedEmailId);
   // Never a previous email's detail while the selection settles.
   const detail = selected.data?.id === selectedEmailId ? selected.data : undefined;
 
+  // Back when the app opened this email; to the inbox when it was opened from a link.
+  const router = useRouter();
+  const canGoBack = useCanGoBack();
+  const backToInbox = () =>
+    canGoBack ? router.history.back() : void navigate({ to: "/", search: {} });
+
   const handleSelectEmail = (id: string) => {
     setUserSelectedId(id);
     void navigate({
       to: "/",
       search: { email: id },
-      replace: true,
+      // On a phone opening an email is a step the back button undoes; on a desktop J/K would
+      // otherwise fill the history with every row passed.
+      replace: isDesktop,
     });
   };
 
@@ -71,6 +83,11 @@ function DashboardPage() {
   const listEmail = displayEmails.find((item) => item.id === selectedEmailId) ?? null;
   const email = detail ?? listEmail;
   const workflow = useDraftWorkflow(email, selected);
+  // A phone's back button keeps the email selected but hides it, Undo included: send it now.
+  const { sendNowIfCounting } = workflow;
+  useEffect(() => {
+    if (requestedId === undefined && !isDesktop) sendNowIfCounting();
+  }, [requestedId, isDesktop, sendNowIfCounting]);
 
   return (
     <AppShell>
@@ -79,7 +96,14 @@ function DashboardPage() {
         <p role="status" aria-live="polite" className="sr-only">
           {workflow.announcement}
         </p>
-        <aside className="min-h-0 w-80 shrink-0 border-r border-line bg-surface">
+        {/* A phone shows the list until an email is opened (?email=), then only the email. */}
+        {/* A column, so the list scrolls between the offer above and Load older below, both in view. */}
+        <aside
+          className={`min-h-0 w-full shrink-0 flex-col border-line bg-surface md:flex md:w-80 md:border-r ${
+            requestedId ? "hidden" : "flex"
+          }`}
+        >
+          <PrivateModeOffer />
           {emails.isPending ? <PageLoading label={t("inbox.heading")} /> : null}
           {emails.isError ? (
             <PageError
@@ -95,11 +119,13 @@ function DashboardPage() {
             <PageEmpty title={t("inbox.emptyTitle")} hint={t("inbox.emptyHint")} />
           ) : null}
           {displayEmails.length > 0 ? (
-            <InboxList
-              emails={displayEmails}
-              selectedEmailId={selectedEmailId}
-              onSelectEmail={handleSelectEmail}
-            />
+            <div className="min-h-0 flex-1">
+              <InboxList
+                emails={displayEmails}
+                selectedEmailId={selectedEmailId}
+                onSelectEmail={handleSelectEmail}
+              />
+            </div>
           ) : null}
           <LoadOlderEmails
             hasNextPage={emails.hasNextPage}
@@ -108,8 +134,10 @@ function DashboardPage() {
           />
         </aside>
 
-        <section className="min-h-0 min-w-0 flex-1 bg-surface-muted">
-          <EmailDetailPanel email={email} workflow={workflow} />
+        <section
+          className={`min-h-0 min-w-0 flex-1 bg-surface-muted md:block ${requestedId ? "block" : "hidden"}`}
+        >
+          <EmailDetailPanel email={email} workflow={workflow} onBack={backToInbox} />
         </section>
       </>
     </AppShell>

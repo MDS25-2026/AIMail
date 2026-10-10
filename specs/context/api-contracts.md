@@ -43,6 +43,9 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   caller's). `GET /audit?limit=` (1-100, default 50) returns `{is_chain_intact, total_records,
   verified_records, head_hash, events: [{id, created_at, action, detail, success, prev_hash,
   current_hash, user_id, is_verified}]}`: the caller's own rows, or every row for the script token.
+- **Reading a document (#195):** `GET /documents/{id}` returns `{document_id, title, source, doc_type,
+  chunk_count, content, chunks: [...]}` for a document in the caller's library (`404` otherwise, or
+  with no mailbox connected); rate limited like `GET /documents`.
 - **Removing a document (2026-10-07, `specs/features/rag-retrieval.md`):** `DELETE /documents/{id}`
   returns `204` and removes the document, its chunks and both kinds of vector; `404` when it is not
   in the caller's library (someone else's, a past reply, or unknown); `422` for a malformed id.
@@ -63,9 +66,11 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   also returns `needsReconnect` (bool). A send whose Google token was refused returns
   `409 google_access_expired`.
 - **Private mode (2026-10-06, `specs/features/local-model.md`):** `GET /settings/private-mode`
-  returns `{available, enabled, model, search}` (`search`: `LOCAL_EMBEDDING_MODEL` is set, so private
-  drafts search documents and past replies); `PUT` `{enabled}` saves it (`409 private_mode_unavailable`
-  when the company has not set `LOCAL_LLM_MODEL`). The agent's `/process-email`, `/refine` and
+  returns `{available, enabled, isDecided, model, search}` (`search`: `LOCAL_EMBEDDING_MODEL` is set, so
+  private drafts search documents and past replies; `isDecided`: the user has switched it either way or
+  answered the inbox offer, 2026-10-11); `PUT` `{enabled}` saves it (`409 private_mode_unavailable`
+  when the company has not set `LOCAL_LLM_MODEL`). `POST /settings/private-mode/not-now` (`204`) is
+  the inbox offer's "Not now": it stays off and the offer is not shown again. The agent's `/process-email`, `/refine` and
   `/translate` take `provider: "gemini" | "local"` (default `gemini`); a local call that cannot
   reach Ollama returns the same `503` as an unreachable Gemini.
 - **Scanned attachments (2026-10-10, `specs/features/signature-detection.md`):**
@@ -84,9 +89,16 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   (`422 time_out_of_range`); snooze does not hide an email with a waiting send.
 - **To-do (2026-10-11, `specs/features/todo-page.md`):** `GET /todo` returns `{needsAction,
   needsReview, unsentDrafts: {emails, total}, waiting: [{id, subject, sentAt, threadId, workingDays,
-  email}], waitingDays, count}` (each list the newest 50). `POST /emails/{id}/dismiss` (No reply
-  needed) and `DELETE` to undo; `POST /todo/waiting/{id}/dismiss` (Not waiting); `PUT
-  /settings/todo` `{waitingDays}`. `POST /emails/{id}/send` takes `remindIfNoReply` (default false).
+  email, canFollowUp}], waitingDays, count}` (each list the newest 50; an email is in one list only).
+  `POST /emails/{id}/dismiss` (No reply needed) and `DELETE` to undo; `POST /todo/waiting/{id}/dismiss`
+  (Not waiting); `PUT /settings/todo` `{waitingDays}`. `POST /emails/{id}/send` takes `remindIfNoReply`
+  (default false). Follow-ups (`canFollowUp`: the reply was sent through AIMail): `POST
+  /todo/waiting/{id}/follow-up` returns `{draft, details}` (the draft in placeholder form, not stored,
+  with the details of the thread it is numbered in); `POST /todo/waiting/{id}/follow-up/send`
+  `{draft}` (`204`) sends it in the email's thread with the same checks and errors as
+  `/emails/{id}/send`, plus `409 follow_up_unavailable` for a reply sent from Gmail, `409
+  follow_up_stale` when they replied, a newer reply went or it was set aside since, and `409
+  already_sent` once its follow-up has gone.
 - **Saved reply templates (2026-10-11, `specs/features/reply-templates.md`):** signed-in users only.
   `GET /templates` (most recently used first); `POST /templates` and `PUT /templates/{id}` take
   `{title, body, language: en|ms|zh, triggerKeywords: string[]}` and return it with `id` and
@@ -274,9 +286,11 @@ See [`../features/rag-retrieval.md`](../features/rag-retrieval.md).
   ```json
   {
     "query": string,
-    "history"?: [{ "role": "user" | "assistant", "content": string }],
+    "history"?: [{ "role": "user" | "assistant", "content": string (≤ 8000) }] (≤ 20 turns),
     "k_emails"?: int (1–20, default 5),
-    "k_docs"?: int (1–10, default 3)
+    "k_docs"?: int (1–10, default 3),
+    "restore"?: boolean (default true; false while the reader hides details: placeholders stay in the
+      answer and sources, sender addresses are left out, and `sender_vault` is empty)
   }
   ```
 - Response 200:
@@ -292,11 +306,18 @@ See [`../features/rag-retrieval.md`](../features/rag-retrieval.md).
         "snippet": string,
         "received_at": string | null
       }
-    ]
+    ],
+    "sender_vault": { [placeholder: string]: string },
+    "has_restored_pii": boolean,
+    "intent": string | null
   }
   ```
-- Auth required (cookie or bearer). Scoped strictly to the caller's mailbox and uploaded documents.
-- 401 `signed_out` / `session_invalid` · 404 `mailbox_not_connected` · 422 `invalid_request` · 503 `ai_service_unreachable`.
+- Only the user's last three questions from `history` reach the model; the assistant's turns never
+  do, since their details were filled back in after the model answered (2026-10-11). Subjects and
+  snippets use the same placeholder numbering as the bodies, so restored names match.
+- Auth required (cookie or bearer). Scoped to the caller's mailbox and uploaded documents; with the
+  bearer token (every user's scope) on Gemini, Private mode users' emails are left out.
+- 401 `signed_out` / `session_invalid` · 404 `not_found` (no mailbox connected) · 422 `invalid_request` · 429 `rate_limited` · 503 `ai_service_unreachable`.
 
 
 ### Dashboard (email view)

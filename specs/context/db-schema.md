@@ -164,7 +164,9 @@ listener — a migration must create `messages` + `audit_log` in Supabase before
 | `sent_message_id` | `TEXT NULL` | backend | the `Message-ID` Gmail assigned to the backend's outgoing reply, read back after `messages.send` rather than assumed. Without it the thread graph breaks at every AImail hop — an incoming reply's `In-Reply-To` points here and matches nothing (migration 0009) |
 | `masking_status` | `TEXT NOT NULL DEFAULT 'complete'` | Lane A | `complete`; `pending` for a quarantined row with no content because NER masking was unavailable (#109), completed by the listener when Presidio recovers; `abandoned` when it gave up. Nothing reads or drafts from a row that is not complete (migrations 0012, 0013) |
 | `masking_attempts` | `INT NOT NULL DEFAULT 0` | Lane A | failed re-mask attempts; the loop works fewest-first and abandons a row at 12 (migration 0013) |
-| `sla_priority` | `TEXT NULL` | Lane A | deterministic SLA urgency floor from `ClassifySLA`: `CRITICAL`/`HIGH`/`MEDIUM`/`LOW` or NULL (migration 0034) |
+| `sla_priority` | `TEXT NULL` | Lane A | deterministic SLA urgency floor from `ClassifySLA`: `CRITICAL`/`HIGH`/`MEDIUM`/`LOW` or NULL (migration 0034); also set when a quarantined email is released |
+| `search_vector` | `tsvector` generated | Lane B | full-text index over `subject` and `body_masked` for the inbox assistant (GIN index; migration 0035) |
+| `embedding` | `vector(1536) NULL` | Lane B | gemini-embedding-001 vector of the masked subject and body, filled by `scripts/backfill_message_embeddings.py` (HNSW cosine index; migration 0035). Never set for Private mode users, cleared when they switch it on and by the content limit |
 | `created_at` | `TIMESTAMPTZ DEFAULT now()` | default | |
 
 Index `thread_id` — every planned consumer (thread view, sent-mail indexing, the extension's
@@ -233,9 +235,11 @@ lowercased.
 - [ ] `draft_feedback` — user thumbs up/down + which version they picked + their final edited text. Drives model-selection learning. FK → `draft`.
 - [x] `mailbox_connection.needs_reconnect` — Google refused the stored token; signing in again clears it ([`../features/per-user-mailboxes.md`](../features/per-user-mailboxes.md), migration 0021).
 - [x] `user_preferences.draft_provider` — `gemini` or `local` (Private mode, [`../features/local-model.md`](../features/local-model.md), migration 0022).
+- [x] `user_preferences.private_mode_decided_at` — when the user switched Private mode or said "Not now" to the inbox offer, so the offer shows once ([`../features/local-model.md`](../features/local-model.md), migration 0041).
 - [x] `messages_created_idx` on `messages (created_at DESC, id DESC)`, matching the inbox cursor order, for lists without an owner filter (migration 0037).
 - [x] `messages.sender_utc_offset_minutes` (from the sender's Date header) and `messages.snoozed_until`; `quiet_hours` (the row with no user is the company default, one row per user overrides it; RLS on); `scheduled_send` (`message_id`, `user_id`, masked `draft`, `send_at`, `sent_at`, `cancelled_reason`; one waiting row per email; RLS on) ([`../features/quiet-hours-send-later.md`](../features/quiet-hours-send-later.md), migration 0039).
 - [x] `sent_message` (the user's sent replies, masked, no recipient address; unique `gmail_id` and `message_id`; RLS on; deleted after 90 days), `messages.dismissed_at`, `user_preferences.waiting_days` ([`../features/todo-page.md`](../features/todo-page.md), migration 0040).
+- [x] `sent_message.followed_up_at` — the send claim for a follow-up to that reply ([`../features/todo-page.md`](../features/todo-page.md), migration 0042).
 - [x] `reply_template` — `id`, `user_id` (FK, cascade), `title`, `body`, `language` (en/ms/zh), `trigger_keywords text[]`, `last_used_at`, `created_at`, `updated_at`; RLS on; erased with the account ([`../features/reply-templates.md`](../features/reply-templates.md), migration 0038).
 - [x] `user_preferences.scan_reading` — `local` (default) or `checked`: whether scanned attachment images may reach Gemini after the local vision check ([`../features/signature-detection.md`](../features/signature-detection.md), migration 0036).
 - [x] `messages.auth_status` (`pass` / `spoof_detected` / `sender_confirmed`), and on `audit_log`: `user_id` (FK, set null), `prev_hash`, `current_hash`, `chain_seq` (unique), filled by the `trg_compute_audit_hash` trigger with `audit_row_hash()` ([`../features/sender-verification-and-audit.md`](../features/sender-verification-and-audit.md), migration 0024, replacing PR #161's 0019/0020).

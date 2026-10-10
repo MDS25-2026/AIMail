@@ -8,6 +8,8 @@ import { describe, expect, test } from "vitest";
 // (4211px on a 900px viewport, measured). Every scroll or clip container must be a containing block.
 const SRC = join(__dirname, "..", "..");
 const SCROLLER = /overflow-(?:y-|x-)?(?:auto|hidden|scroll)/;
+// Any of these makes a containing block; "relative" beside "fixed" would undo the fixed one.
+const POSITIONED = /(?:^|\s)(?:relative|absolute|fixed|sticky)(?:\s|$)/;
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -19,11 +21,11 @@ function sourceFiles(dir: string): string[] {
 }
 
 describe("scroll containers", () => {
-  test("every scroll or clip container is relative, so sr-only text cannot stretch the page", () => {
+  test("every scroll or clip container is positioned, so sr-only text cannot stretch the page", () => {
     const offenders = sourceFiles(SRC).flatMap((file) =>
       [...readFileSync(file, "utf8").matchAll(/className="([^"]*)"/g)]
         .map((match) => match[1])
-        .filter((classes) => SCROLLER.test(classes) && !/\brelative\b/.test(classes))
+        .filter((classes) => SCROLLER.test(classes) && !POSITIONED.test(classes))
         .map((classes) => `${file.replace(SRC, "src")}: ${classes}`),
     );
     expect(offenders).toEqual([]);

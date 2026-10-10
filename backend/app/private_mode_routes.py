@@ -20,10 +20,11 @@ from app.rag.local_embed import local_model
 router = APIRouter()
 
 
-
 class PrivateModeView(BaseModel):
     available: bool
     enabled: bool
+    # Whether the user has answered the inbox's one-time offer (or switched it in Settings).
+    isDecided: bool
     model: str
     # Whether drafts search documents and past replies; that needs LOCAL_EMBEDDING_MODEL too.
     search: bool
@@ -34,16 +35,18 @@ class PrivateModeBody(BaseModel):
 
 
 async def _save_choice(user_id: UUID, provider: Provider) -> None:
-    statement = insert(UserPreferences).values(user_id=user_id, draft_provider=provider)
+    choice = {"draft_provider": provider, "private_mode_decided_at": func.now()}
+    statement = insert(UserPreferences).values(user_id=user_id, **choice)
     async with get_sessionmaker()() as session, session.begin():
         await session.execute(statement.on_conflict_do_update(
-            index_elements=["user_id"], set_={"draft_provider": provider, "updated_at": func.now()}))
+            index_elements=["user_id"], set_={**choice, "updated_at": func.now()}))
         # Emails whose drafting gave up (e.g. the local model was down) get drafted again
         # with the new choice, instead of staying undrafted for good.
         await session.execute(update(Message).where(Message.user_id == user_id, Message.generated_at.is_(None))
                               .values(generation_attempts=0))
         if provider == Provider.LOCAL:
             await session.execute(_forget_cloud_vectors(user_id))
+            await session.execute(update(Message).where(Message.user_id == user_id).values(embedding=None))
 
 
 def _forget_cloud_vectors(user_id: UUID) -> Delete:
@@ -55,9 +58,18 @@ def _forget_cloud_vectors(user_id: UUID) -> Delete:
     return delete(Embedding).where(Embedding.chunk_id.in_(owned_chunks))
 
 
+async def _is_decided(user_id: UUID) -> bool:
+    async with get_sessionmaker()() as session:
+        decided = await session.scalar(select(UserPreferences.private_mode_decided_at)
+                                       .where(UserPreferences.user_id == user_id))
+    return decided is not None
+
+
 async def _view(request: Request) -> PrivateModeView:
-    provider = await provider_for(account_user_id(request))
+    user_id = account_user_id(request)
+    provider = await provider_for(user_id)
     return PrivateModeView(available=is_offered(), enabled=provider == Provider.LOCAL,
+                           isDecided=await _is_decided(user_id),
                            model=get_settings().local_llm_model, search=bool(local_model()))
 
 
@@ -75,3 +87,16 @@ async def put_private_mode(body: PrivateModeBody, request: Request) -> PrivateMo
     await _save_choice(user_id, Provider.LOCAL if body.enabled else Provider.GEMINI)
     await audit(AuditAction.PRIVATE_MODE, user_id=user_id, enabled=body.enabled)
     return await _view(request)
+
+
+async def _put_off(user_id: UUID) -> None:
+    statement = insert(UserPreferences).values(user_id=user_id, private_mode_decided_at=func.now())
+    async with get_sessionmaker()() as session, session.begin():
+        await session.execute(statement.on_conflict_do_update(
+            index_elements=["user_id"], set_={"private_mode_decided_at": func.now(), "updated_at": func.now()}))
+
+
+@router.post("/settings/private-mode/not-now", status_code=204)
+async def private_mode_not_now(request: Request) -> None:
+    """The inbox offer's "Not now": stays off, and the offer is not shown again (Settings still has it)."""
+    await _put_off(account_user_id(request))

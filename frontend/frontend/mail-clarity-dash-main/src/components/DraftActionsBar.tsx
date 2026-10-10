@@ -1,6 +1,8 @@
+import { RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import type { DraftWorkflow } from "../lib/useDraftWorkflow";
+import { cn } from "../lib/utils";
 import ApproveSendButton from "./ApproveSendButton";
 import SendLaterMenu from "./SendLaterMenu";
 import { button } from "./variants";
@@ -37,7 +39,7 @@ export default function DraftActionsBar({ workflow, isSent }: DraftActionsBarPro
         </div>
       )}
       {isSent ? null : (
-        <label className="flex items-center justify-end gap-2 text-xs text-fg-muted">
+        <label className="flex min-h-11 items-center justify-end gap-2 text-xs text-fg-muted md:min-h-0">
           <input
             type="checkbox"
             checked={workflow.remindIfNoReply}
@@ -53,14 +55,18 @@ export default function DraftActionsBar({ workflow, isSent }: DraftActionsBarPro
           {t("templates.fillBlanks", { blanks: blanks.join(", "), count: blanks.length })}
         </p>
       ) : null}
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <button
           type="button"
           disabled={workflow.isDraftLocked}
           onClick={workflow.regenerate}
-          className={button({ size: "md" })}
+          className={cn(button({ size: "md" }), "min-w-11 gap-1.5 whitespace-nowrap")}
         >
-          {workflow.isRegenerating ? t("draft.regenerating") : t("draft.regenerate")}
+          <RefreshCw aria-hidden className="size-4" />
+          {/* Icon only on a phone, so the three actions fit one row; the name stays for screen readers. */}
+          <span className="sr-only md:not-sr-only">
+            {workflow.isRegenerating ? t("draft.regenerating") : t("draft.regenerate")}
+          </span>
         </button>
         <SendLaterMenu workflow={workflow} isBlocked={blanks.length > 0} />
         <ApproveSendButton

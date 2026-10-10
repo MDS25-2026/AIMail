@@ -10,11 +10,12 @@ from sqlalchemy.dialects import postgresql
 import gemini_client
 import model_gateway
 from app import dashboard, private_mode_routes
+from app.contracts import ContextChunk
 from app.core.config import get_settings
 from app.core.constants import LOCAL_EMBEDDING_DIM
 from app.core.ownership import EVERYTHING
 from app.core.providers import Provider
-from app.rag import ingest
+from app.rag import generate, ingest
 from app.rag import retrieve as retrieve_module
 from model_runtime import ModelError, ModelErrorCode
 from tests.conftest import agent_client
@@ -60,6 +61,13 @@ def test_a_private_draft_refine_and_translation_never_reach_gemini(local_only):
     assert (draft.status_code, refine.status_code) == (200, 200)
     assert translate.status_code in (200, 422)  # 422: the stub's text fails the faithfulness check
     assert len(local_only) >= 5  # router, summary, actions, draft, critic, refine, translation
+
+
+def test_ask_aimail_answers_on_the_local_model_in_private_mode(local_only):
+    chunk = ContextChunk(chunk_id=uuid4(), content="Claims are paid monthly.", similarity_score=0.9,
+                         source_title="Policy")
+    reply = asyncio.run(generate.answer("When are claims paid?", [chunk], provider=Provider.LOCAL))
+    assert reply and len(local_only) == 1
 
 
 def test_without_the_local_model_a_private_draft_fails_and_does_not_fall_back(monkeypatch):
@@ -134,13 +142,22 @@ def test_two_embedding_passes_never_take_the_same_chunk(test_settings):
         assert "FOR UPDATE OF chunk SKIP LOCKED" in sql
 
 
+@pytest.fixture
+def undecided(monkeypatch):
+    async def never(_user_id):
+        return False
+
+    monkeypatch.setattr(private_mode_routes, "_is_decided", never)
+
+
 def test_private_mode_cannot_be_switched_on_where_the_company_has_not_set_it_up(calls, monkeypatch):  # noqa: F811
     monkeypatch.setattr(private_mode_routes, "is_offered", lambda: False)
     response = _signed_in().put("/settings/private-mode", json={"enabled": True}, headers=CLIENT)
     assert response.status_code == 409 and response.json()["error"]["code"] == "private_mode_unavailable"
 
 
-def test_private_mode_can_always_be_switched_off_even_where_it_is_no_longer_set_up(calls, monkeypatch):  # noqa: F811
+def test_private_mode_can_always_be_switched_off_even_where_it_is_no_longer_set_up(calls, monkeypatch,  # noqa: F811
+                                                                                   undecided):
     saved = []
 
     async def save(user_id, provider):
@@ -158,11 +175,12 @@ def test_private_mode_can_always_be_switched_off_even_where_it_is_no_longer_set_
     monkeypatch.setattr(private_mode_routes, "provider_for", still_local)
     response = _signed_in().put("/settings/private-mode", json={"enabled": False}, headers=CLIENT)
     assert response.status_code == 200 and saved == [Provider.GEMINI]
-    assert response.json() == {"available": False, "enabled": False, "model": "", "search": False}
+    assert response.json() == {"available": False, "enabled": False, "isDecided": False, "model": "", "search": False}
 
 
 @pytest.mark.parametrize(("model", "is_searched"), [("embeddinggemma", True), ("", False)])
-def test_the_card_says_whether_private_drafts_search_documents(calls, monkeypatch, model, is_searched):  # noqa: F811
+def test_the_card_says_whether_private_drafts_search_documents(calls, monkeypatch, model, is_searched,  # noqa: F811
+                                                               undecided):
     async def local(_user_id):
         return Provider.LOCAL
 
@@ -175,3 +193,4 @@ def test_the_card_says_whether_private_drafts_search_documents(calls, monkeypatc
 def test_switching_private_mode_on_forgets_the_users_cloud_vectors():
     sql = str(private_mode_routes._forget_cloud_vectors(uuid4()).compile(dialect=postgresql.dialect()))
     assert sql.startswith("DELETE FROM embedding") and "document.user_id" in sql
+

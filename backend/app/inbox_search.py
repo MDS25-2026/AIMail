@@ -13,7 +13,7 @@ from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
-from sqlalchemy import func, or_, select
+from sqlalchemy import ColumnElement, and_, func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 
 import model_gateway
@@ -23,6 +23,7 @@ from app.core.typed_text import mask_typed_text
 from app.core.vault import ThreadMap, VaultUnavailableError, open_vault
 from app.db.models import Chunk, Document, Message
 from app.db.session import get_sessionmaker
+from app.private_mode import not_private
 from app.rag.retrieve import ContextChunk
 from app.rag.retrieve import search as search_policy_documents
 from model_runtime import ModelError
@@ -160,16 +161,22 @@ class SearchSource(BaseModel):
     received_at: str | None = None
 
 
+HISTORY_QUESTIONS = 3
+MAX_HISTORY_TURNS = 20
+
+
 class ChatMessage(BaseModel):
     role: Literal["user", "assistant"]
-    content: str
+    content: str = Field(max_length=8000)
 
 
 class InboxSearchRequest(BaseModel):
     query: str = Field(min_length=1, max_length=1000)
-    history: list[ChatMessage] = Field(default_factory=list)
+    history: list[ChatMessage] = Field(default_factory=list, max_length=MAX_HISTORY_TURNS)
     k_emails: int = Field(default=5, ge=1, le=20)
     k_docs: int = Field(default=3, ge=1, le=10)
+    # False while the reader hides details (say, sharing their screen): placeholders stay in the answer.
+    restore: bool = True
 
 
 class InboxSearchResponse(BaseModel):
@@ -180,13 +187,24 @@ class InboxSearchResponse(BaseModel):
     intent: str | None = None
 
 
+def _shown(text: str, thread_map: ThreadMap, restore: bool) -> str:
+    """Text for the reader: details filled in, unless they asked to keep them hidden."""
+    return thread_map.restore(text)[0] if restore else text
+
+
+def _questions(history: list[ChatMessage]) -> list[str]:
+    """The user's recent questions only. The assistant's answers carry real names filled back in
+    after the model answered, so sending them back would hand those names to the model."""
+    asked = [turn.content for turn in history if turn.role == "user"]
+    return [mask_typed_text(question) for question in asked[-HISTORY_QUESTIONS:]]
+
+
 async def contextualize_query(query: str, history: list[ChatMessage], provider: Provider) -> str:
     """Resolve pronouns and conversational context into a self-contained search query."""
     if not history:
         return query
 
-    recent_history = history[-6:]
-    formatted_turns = "\n".join(f"{m.role.capitalize()}: {m.content}" for m in recent_history)
+    formatted_turns = "\n".join(f"User: {content}" for content in _questions(history))
 
     prompt = f"""Given the following conversation history and a follow-up question, rewrite the follow-up question into a standalone search query.
 Resolve all pronouns (e.g. "it", "that", "she", "they", "the second one") using the conversation history.
@@ -213,6 +231,14 @@ Standalone query:"""
     return query
 
 
+def _visible(scope: Scope, provider: Provider) -> ColumnElement[bool]:
+    """The rows this search may read. A search across users on Gemini leaves out Private mode users,
+    whose emails never go to Gemini (a script with the backend token gets every user's scope)."""
+    if scope.is_everything and provider == Provider.GEMINI:
+        return and_(scope.where(Message.user_id), not_private(Message.user_id))
+    return scope.where(Message.user_id)
+
+
 async def search_messages_hybrid(
     search_query: str,
     k: int,
@@ -224,10 +250,11 @@ async def search_messages_hybrid(
 
     Returns a tuple of (matched_messages, sender_candidate_words).
     """
-    query_vector = await model_gateway.embed_query(
-        search_query,
-        provider=provider,
-        purpose=PURPOSE_SEARCH,
+    # Email vectors are Gemini's (migration 0035): Private mode has none, so it matches on words only.
+    query_vector = (
+        await model_gateway.embed_query(search_query, provider=Provider.GEMINI, purpose=PURPOSE_SEARCH)
+        if provider == Provider.GEMINI
+        else None
     )
 
     cleaned_words = extract_sender_candidates(search_query)
@@ -240,7 +267,7 @@ async def search_messages_hybrid(
                 select(Message)
                 .where(
                     Message.search_vector.op("@@")(func.websearch_to_tsquery("english", search_query)),
-                    scope.where(Message.user_id),
+                    _visible(scope, provider),
                 )
                 .order_by(
                     func.ts_rank_cd(
@@ -253,12 +280,14 @@ async def search_messages_hybrid(
             fts_rows = (await session.scalars(fts_stmt)).all()
         except SQLAlchemyError as exc:
             logger.debug("websearch_to_tsquery produced no result or error: %s, trying plainto_tsquery", exc)
+            # Postgres aborts the transaction on an error; without this every later query here fails too.
+            await session.rollback()
             try:
                 plain_stmt = (
                     select(Message)
                     .where(
                         Message.search_vector.op("@@")(func.plainto_tsquery("english", search_query)),
-                        scope.where(Message.user_id),
+                        _visible(scope, provider),
                     )
                     .order_by(
                         func.ts_rank_cd(
@@ -271,6 +300,7 @@ async def search_messages_hybrid(
                 fts_rows = (await session.scalars(plain_stmt)).all()
             except SQLAlchemyError as inner_exc:
                 logger.warning("FTS search fallback failed: %s", inner_exc)
+                await session.rollback()
 
         # Check if query matches a sender name locally in PostgreSQL (e.g. "Asad", "Bryan")
         sender_rows: list[Message] = []
@@ -281,7 +311,7 @@ async def search_messages_hybrid(
                     select(Message)
                     .where(
                         or_(*conditions),
-                        scope.where(Message.user_id),
+                        _visible(scope, provider),
                     )
                     .order_by(Message.received_at.desc())
                     .limit(10)
@@ -289,6 +319,7 @@ async def search_messages_hybrid(
                 sender_rows = (await session.scalars(sender_stmt)).all()
             except SQLAlchemyError as exc:
                 logger.debug("Sender search query failed: %s", exc)
+                await session.rollback()
 
         # 2. Vector Search with strict relevance threshold (distance <= 0.35 / similarity >= 65%)
         vec_rows: list[Message] = []
@@ -299,7 +330,7 @@ async def search_messages_hybrid(
                     select(Message)
                     .where(
                         Message.embedding.is_not(None),
-                        scope.where(Message.user_id),
+                        _visible(scope, provider),
                         distance <= 0.35,  # Stricter similarity floor (>= 65% similarity)
                     )
                     .order_by(distance)
@@ -375,7 +406,7 @@ async def execute_inbox_search(
 
     # 0. Route query intent via two-tier hybrid router
     intent = await route_query_intent(effective_query, provider)
-    logger.info("Resolved query intent: %s for query: '%s'", intent, effective_query)
+    logger.info("Resolved query intent: %s", intent)
 
     matched_emails: list[Message] = []
     sender_candidates: list[str] = []
@@ -387,7 +418,7 @@ async def execute_inbox_search(
             async with get_sessionmaker()() as session:
                 stmt = (
                     select(Message)
-                    .where(scope.where(Message.user_id))
+                    .where(_visible(scope, provider))
                     .order_by(Message.received_at.desc())
                     .limit(request.k_emails)
                 )
@@ -503,6 +534,10 @@ async def execute_inbox_search(
     email_blocks: list[str] = []
     sender_vault: dict[str, str] = {}
 
+    # Each email's own placeholder numbers, moved into the one numbering the answer is restored with.
+    shared_subjects = {msg.id: thread_map.renumber(str(msg.id), strip_emojis(msg.subject or "").strip() or "(No subject)")
+                       for msg in matched_emails}
+    shared_snippets = {msg.id: thread_map.renumber(str(msg.id), format_email_snippet(msg)) for msg in matched_emails}
     for idx, msg in enumerate(matched_emails, 1):
         tag = f"[Email {idx}]"
         sender_placeholder = f"[SENDER_{idx}]"
@@ -523,7 +558,7 @@ async def execute_inbox_search(
             (msg.body_masked or msg.snippet_masked or "").strip()[:1500],
         )
 
-        clean_subject = strip_emojis(msg.subject or "(No subject)").strip() or "(No subject)"
+        clean_subject = shared_subjects[msg.id]
 
         email_blocks.append(
             f"{tag}\n"
@@ -536,9 +571,10 @@ async def execute_inbox_search(
         candidate_sources_map[tag] = SearchSource(
             source_type=SourceType.EMAIL,
             id=str(msg.id),
-            title=clean_subject,
-            subtitle=f"{msg.from_addr or 'Unknown sender'} · {format_received_date(msg.received_at)}",
-            snippet=format_email_snippet(msg),
+            title=_shown(clean_subject, thread_map, request.restore),
+            subtitle=f"{(msg.from_addr if request.restore else sender_placeholder) or 'Unknown sender'} · "
+                     f"{format_received_date(msg.received_at)}",
+            snippet=_shown(shared_snippets[msg.id], thread_map, request.restore),
             received_at=msg.received_at.isoformat() if msg.received_at else None,
         )
 
@@ -567,10 +603,8 @@ async def execute_inbox_search(
     emails_section = "\n\n".join(email_blocks) if email_blocks else "None found."
     docs_section = "\n\n".join(doc_blocks) if doc_blocks else "None found."
 
-    history_text = ""
-    if request.history:
-        history_lines = [f"{m.role.capitalize()}: {m.content}" for m in request.history[-6:]]
-        history_text = "Prior conversation:\n" + "\n".join(history_lines) + "\n\n"
+    questions = _questions(request.history)
+    history_text = ("Earlier questions:\n" + "\n".join(f"User: {q}" for q in questions) + "\n\n") if questions else ""
 
     if intent == QueryIntent.INBOX_OVERVIEW:
         task_instruction = (
@@ -630,8 +664,8 @@ Helpful Grounded Answer:"""
             for idx, msg in enumerate(matched_emails[:5], 1):
                 sender_val = sender_vault.get(f"[SENDER_{idx}]", msg.from_addr or "Unknown sender")
                 date_val = format_received_date(msg.received_at)
-                subj_val = msg.subject or "(No subject)"
-                snip_val = format_email_snippet(msg)
+                subj_val = shared_subjects[msg.id]
+                snip_val = shared_snippets[msg.id]
                 overview_lines.append(f"- **{subj_val}** — *{sender_val}* ({date_val})\n  {snip_val} [Email {idx}]\n")
             citations_list = ", ".join(f"[Email {i}]" for i in range(1, len(matched_emails[:5]) + 1))
             answer_text = "\n".join(overview_lines) + f"\nCitations: {citations_list}"
@@ -640,7 +674,7 @@ Helpful Grounded Answer:"""
             for idx, msg in enumerate(matched_emails[:3], 1):
                 sender_val = sender_vault.get(f"[SENDER_{idx}]", msg.from_addr or "Unknown sender")
                 date_val = format_received_date(msg.received_at)
-                subj_val = msg.subject or "(No subject)"
+                subj_val = shared_subjects[msg.id]
                 fallback_lines.append(f"- **{subj_val}** — *{sender_val}* ({date_val}) [Email {idx}]")
             citations_list = ", ".join(f"[Email {i}]" for i in range(1, len(matched_emails[:3]) + 1))
             answer_text = "\n".join(fallback_lines) + f"\n\nCitations: {citations_list}"
@@ -689,6 +723,10 @@ Helpful Grounded Answer:"""
         if source and source.id not in seen_ids:
             seen_ids.add(source.id)
             final_sources.append(source)
+
+    if not request.restore:
+        return InboxSearchResponse(answer=clean_answer, sources=final_sources, sender_vault={},
+                                   has_restored_pii=False, intent=intent.value)
 
     # 6. Local AES-GCM Vault PII Restoration
     restored_text, _ = thread_map.restore(clean_answer)

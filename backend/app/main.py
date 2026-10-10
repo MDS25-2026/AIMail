@@ -427,7 +427,7 @@ async def get_documents(request: Request) -> list[DocumentSummary]:
     return await list_documents(scope)
 
 
-@app.get("/documents/{document_id}")
+@app.get("/documents/{document_id}", dependencies=[Depends(rate_limit_list)])
 async def get_document(document_id: UUID, request: Request) -> DocumentDetail:
     scope = await scope_of_principal(principal_of(request))
     if scope is None:

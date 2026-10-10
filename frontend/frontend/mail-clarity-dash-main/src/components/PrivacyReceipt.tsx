@@ -26,7 +26,7 @@ export default function PrivacyReceipt({ email }: { email: Email }) {
       <DialogTrigger asChild>
         <button
           type="button"
-          className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-fg-muted hover:bg-surface-muted hover:text-fg-body"
+          className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-fg-muted hover:bg-surface-muted hover:text-fg-body md:min-h-0"
         >
           <ReceiptText aria-hidden className="size-4" />
           {t("receipt.open")}

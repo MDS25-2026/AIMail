@@ -15,7 +15,9 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import { searchInbox, type ChatMessage, type SearchSource } from "../lib/api/search";
+import { useDetailsHidden } from "../lib/detailsVisibility";
 import { useSession } from "../lib/queries";
+import { useIsReadingEmail } from "../lib/useIsReadingEmail";
 import { cn } from "../lib/utils";
 import FormattedChatMessage from "./FormattedChatMessage";
 
@@ -24,6 +26,8 @@ export default function InboxChatWidget() {
   const navigate = useNavigate();
   const session = useSession();
   const [isOpen, setIsOpen] = useState(false);
+  const isReadingEmail = useIsReadingEmail();
+  const [isHidingDetails] = useDetailsHidden();
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -80,17 +84,19 @@ export default function InboxChatWidget() {
     setIsLoading(true);
 
     try {
-      // Pass recent history to resolve multi-turn conversational context
-      const historyForApi = messages.slice(-6).map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
+      // Your recent questions only: the answers carry real names filled back in, and never go back.
+      const historyForApi = messages
+        .filter((m) => m.role === "user")
+        .slice(-3)
+        .map((m) => ({ role: m.role, content: m.content }));
 
       const response = await searchInbox({
         query: textToSend,
         history: historyForApi,
         k_emails: 5,
         k_docs: 3,
+        // With details hidden the server keeps placeholders in, and sends no sender addresses.
+        restore: !isHidingDetails,
       });
 
       // Restore zero-knowledge sender tokens locally from client-side vault
@@ -137,9 +143,11 @@ export default function InboxChatWidget() {
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        aria-label={isOpen ? "Close inbox assistant" : "Open inbox assistant"}
+        aria-label={isOpen ? t("assistant.close") : t("assistant.open")}
         className={cn(
-          "fixed bottom-4 left-4 z-50 flex h-11 w-11 items-center justify-center rounded-full shadow-lg transition-transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2",
+          "fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-4 z-50 flex h-11 w-11 md:bottom-4 items-center justify-center rounded-full shadow-lg transition-transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2",
+          // On a phone an open email's send bar owns the bottom; the assistant is a back-tap away.
+          isReadingEmail && !isOpen && "hidden md:flex",
           isOpen ? "bg-surface-elevated text-fg border border-line" : "bg-brand text-brand-fg",
         )}
       >
@@ -151,7 +159,7 @@ export default function InboxChatWidget() {
         <div
           role="dialog"
           aria-label={t("assistant.title")}
-          className="relative fixed inset-x-2 bottom-16 top-16 z-50 flex flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-2xl sm:inset-auto sm:bottom-16 sm:left-4 sm:h-[540px] sm:w-[380px]"
+          className="fixed inset-x-2 bottom-32 top-16 z-50 md:bottom-16 flex flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-2xl sm:inset-auto sm:bottom-16 sm:left-4 sm:h-[540px] sm:w-[380px]"
         >
           {/* Header */}
           <div className="flex items-center justify-between border-b border-line bg-surface-elevated px-4 py-3">
@@ -277,7 +285,14 @@ export default function InboxChatWidget() {
                         {msg.sources.map((source, sIdx) => (
                           <div
                             key={sIdx}
+                            role="button"
+                            tabIndex={0}
                             onClick={() => handleSourceClick(source)}
+                            onKeyDown={(event) => {
+                              if (event.key !== "Enter" && event.key !== " ") return;
+                              event.preventDefault();
+                              handleSourceClick(source);
+                            }}
                             className="group flex cursor-pointer flex-col rounded-md border border-line bg-surface p-2 transition-colors hover:border-brand/60 hover:bg-surface-elevated"
                           >
                             <div className="flex items-center justify-between gap-1">
@@ -342,7 +357,7 @@ export default function InboxChatWidget() {
                 type="button"
                 onClick={() => void handleSend()}
                 disabled={!input.trim() || isLoading}
-                aria-label="Send query"
+                aria-label={t("assistant.send")}
                 className="flex h-7 w-7 items-center justify-center rounded-md bg-brand text-brand-fg transition-opacity hover:opacity-90 disabled:opacity-30"
               >
                 <Send className="h-3.5 w-3.5" />
