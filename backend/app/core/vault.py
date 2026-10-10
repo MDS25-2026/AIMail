@@ -26,6 +26,13 @@ _AAD_PREFIX = "aimail-pii-vault:v1:"
 SETTINGS = sealed_box.KeySettings(ring="PII_VAULT_KEYS", legacy="PII_VAULT_KEY")
 
 
+# The owner's and the sender's names get these fixed numbers, far past any thread's own, and never
+# take part in matching: a newer message naming someone new cannot move them, and they cannot move
+# the message placeholders already stored in drafts and summaries.
+OWNER_PLACEHOLDER = "[PERSON_900]"
+SENDER_PLACEHOLDER = "[PERSON_901]"
+
+
 class DetailKind(StrEnum):
     PERSON = "PERSON"
     EMAIL = "EMAIL"
@@ -128,15 +135,26 @@ class ThreadMap:
         """The mailbox owner's own name as a placeholder, so the AI can sign off without seeing it."""
         if not name.strip():
             return None
-        self.owner = self._allocate(DetailKind.PERSON, _normalise(DetailKind.PERSON, name), name.strip())
+        self.values[OWNER_PLACEHOLDER] = name.strip()
+        self.owner = OWNER_PLACEHOLDER
         return self.owner
 
     def add_sender(self, name: str) -> str | None:
         """The sender's display name (messages.from_addr keeps it on purpose) as a placeholder."""
         if not name.strip():
             return None
-        self.sender = self._allocate(DetailKind.PERSON, _normalise(DetailKind.PERSON, name), name.strip())
+        self.values[SENDER_PLACEHOLDER] = name.strip()
+        self.sender = SENDER_PLACEHOLDER
         return self.sender
+
+    def legacy_name_placeholder(self, name: str) -> tuple[str, bool]:
+        """The number the scheme before 2026-10-11 gave this name, and whether it was a new one.
+
+        Only for scripts/renumber_sign_offs.py, which moves old drafts onto the fixed numbers.
+        """
+        before = self._counts.get(DetailKind.PERSON, 0)
+        placeholder = self._allocate(DetailKind.PERSON, _normalise(DetailKind.PERSON, name), name.strip())
+        return placeholder, self._counts.get(DetailKind.PERSON, 0) > before
 
     def details(self) -> list[dict[str, str]]:
         return [{"placeholder": placeholder, "value": value, "kind": PLACEHOLDER.fullmatch(placeholder).group(1)}
@@ -178,6 +196,5 @@ def build_thread_map(
                 logger.warning("vault for message %s did not open: %s", key, exc)
         thread.add_message(key, details, text)
     thread.add_owner(owner_name)
-    # After the owner: stored drafts sign off with the owner's number, which must not move.
     thread.add_sender(sender_name)
     return thread

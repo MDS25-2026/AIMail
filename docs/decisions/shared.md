@@ -6,6 +6,19 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-11 — Fixed placeholder numbers for the owner and the sender
+- Decision: the owner's sign-off name is always `[PERSON_900]` and the sender's `[PERSON_901]`,
+  never matched against the thread's own placeholders. Stored drafts are moved over by
+  `scripts/renumber_sign_offs.py`, from the thread as each draft saw it, run once as it goes live.
+- Why: both used to be numbered after every person in the thread, so a newer message naming someone
+  new shifted them, and an older email's stored draft would show and send that person's name.
+  Found while building templates; on 2026-10-11 none of the 28 affected drafts was wrong yet.
+- Why not number the owner first: every message placeholder after it would move, breaking every
+  stored draft and summary instead of only sign-offs.
+- Affects: `backend/app/core/vault.py` (Lane B), drafts' sign-off placeholder seen by the agent
+  (Lane C, unchanged contract), `specs/features/restorable-masking.md`.
+- Status: accepted (owner, 2026-10-11)
+
 ### 2026-10-11 — Saved reply templates; the sender's name joins the thread map
 - Decision: personal templates (`reply_template`, migration 0038) with `{{variables}}`. `{{name}}`
   is the sender's display name as a placeholder (`ThreadMap.add_sender`, numbered after the owner),

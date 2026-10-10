@@ -67,14 +67,22 @@ def test_translation_keeps_every_variable_or_is_refused():
     assert restore_variables("Hai [VAR_1], pautan: tiada", variables) is None
 
 
-def test_adding_the_sender_never_moves_the_owners_number():
-    """Stored drafts sign off with the owner's placeholder; the sender is numbered after it."""
-    thread = ThreadMap()
-    thread.add_message("m1", {"[PERSON_1]": "Aisyah"}, "Hi I'm [PERSON_1]")
-    owner = thread.add_owner("Ely Tan")
-    sender = thread.add_sender("Aisyah Rahman")
-    assert (owner, sender) == ("[PERSON_2]", "[PERSON_3]")
-    assert thread.restore("Hi [PERSON_3], regards [PERSON_2]")[0] == "Hi Aisyah Rahman, regards Ely Tan"
+def test_a_newer_message_naming_someone_new_never_moves_the_owner_or_the_sender():
+    """A stored draft signed [PERSON_900] still reads the owner's name after the thread grows."""
+    def thread(*messages: tuple[str, dict[str, str], str]) -> ThreadMap:
+        built = ThreadMap()
+        for key, values, text in messages:
+            built.add_message(key, values, text)
+        built.add_owner("Ely Tan")
+        built.add_sender("Aisyah Rahman")
+        return built
+
+    first = ("m1", {"[PERSON_1]": "Aisyah"}, "Hi I'm [PERSON_1]")
+    later = ("m2", {"[PERSON_1]": "Ben Lim"}, "Hello, [PERSON_1] here")
+    draft = "Hi [PERSON_901], about [PERSON_1]. Regards, [PERSON_900]"
+    expected = "Hi Aisyah Rahman, about Aisyah. Regards, Ely Tan"
+    assert thread(first).restore(draft)[0] == expected
+    assert thread(first, later).restore(draft)[0] == expected
 
 
 def test_a_draft_with_a_template_blank_cannot_be_sent():

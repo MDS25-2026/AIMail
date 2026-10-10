@@ -49,7 +49,7 @@ def mailbox(monkeypatch, test_settings):
 
     async def call_agent(path, request, _answer=None):
         state["payloads"].append(json.dumps(request.model_dump(mode="json")))
-        return {"draft": "Dear [PERSON_1], we will call [PHONE_1]. Regards, [PERSON_2]", "confidence": 0.9}
+        return {"draft": "Dear [PERSON_1], we will call [PHONE_1]. Regards, [PERSON_900]", "confidence": 0.9}
 
     async def claim(pk):
         state["claimed"] += 1
@@ -141,14 +141,14 @@ def test_a_refine_with_real_names_typed_in_sends_the_agent_placeholders_only(mai
     payload = json.loads(mailbox["payloads"][0])
     assert "[PERSON_1]" in payload["draft"] and "[PHONE_1]" in payload["instruction"]
     # The owner's own name is a placeholder too, used for the sign-off.
-    assert payload["sign_off"] == "[PERSON_2]" and "[PERSON_2]" in payload["draft"]
+    assert payload["sign_off"] == "[PERSON_900]" and "[PERSON_900]" in payload["draft"]
     _no_secret_in(mailbox["payloads"])
 
 
 def test_a_regenerated_draft_is_asked_for_with_placeholders_only(mailbox):
     asyncio.run(dashboard.regenerate_email(str(mailbox["message"].id), scope=EVERYTHING))
     _no_secret_in(mailbox["payloads"])
-    assert json.loads(mailbox["payloads"][0])["sign_off"] == "[PERSON_2]"
+    assert json.loads(mailbox["payloads"][0])["sign_off"] == "[PERSON_900]"
 
 
 def test_an_approved_reply_goes_out_with_the_real_details_and_is_stored_with_placeholders(mailbox, monkeypatch):
@@ -203,8 +203,8 @@ def test_a_template_fills_the_sender_and_owner_as_placeholders(mailbox):
     filled = asyncio.run(dashboard.fill_template(
         str(mailbox["message"].id), _template("Hi {{name}}, regards {{my name}}. {{meeting link}}"),
         scope=EVERYTHING))
-    # The sender's display name is the same person as the body's [PERSON_1], so it gets that number.
-    assert filled == "Hi [PERSON_1], regards [PERSON_2]. {{meeting link}}"
+    # The sender and the owner have fixed numbers, whoever else the thread names.
+    assert filled == "Hi [PERSON_901], regards [PERSON_900]. {{meeting link}}"
     assert mailbox["payloads"] == []  # filling asks no model
 
 
@@ -213,7 +213,7 @@ def test_a_template_adapted_by_the_agent_reaches_it_with_placeholders_only(mailb
     body = "Hi {{name}}, I'll ring Aisyah Rahman on 012-345 6789. {{my name}}"
     asyncio.run(dashboard.adapt_template(str(mailbox["message"].id), _template(body), scope=EVERYTHING))
     payload = json.loads(mailbox["payloads"][0])
-    assert payload["draft"].startswith("Hi [PERSON_1]") and "[PHONE_1]" in payload["draft"]
+    assert payload["draft"].startswith("Hi [PERSON_901]") and "[PHONE_1]" in payload["draft"]
     _no_secret_in(mailbox["payloads"])
 
 

@@ -109,9 +109,15 @@ retyping anything, knowing the AI only ever saw `[PERSON_1]`.
    as the sign-off name.
 11. **The sender's name (2026-10-11).** The sender's display name from `messages.from_addr` (kept
    unmasked on purpose, decision of 2026-10-04) joins the thread map as a placeholder too
-   (`ThreadMap.add_sender`), numbered after the owner so stored sign-offs keep their number. A
-   saved template's `{{name}}` becomes it (`reply-templates.md`), and a typed full name is turned
-   back into it before reaching the AI.
+   (`ThreadMap.add_sender`). A saved template's `{{name}}` becomes it (`reply-templates.md`).
+12. **Fixed numbers for the owner and the sender (2026-10-11).** The owner's sign-off name is always
+   `[PERSON_900]` and the sender's name `[PERSON_901]`, outside the thread's own numbering and
+   never matched against it. Before, both were numbered after every person in the thread, so a newer
+   message naming someone new shifted them and an older email's stored draft restored the wrong
+   name. `scripts/renumber_sign_offs.py` moves the stored drafts over, run once as the change goes
+   live (dry run 2026-10-11: 28 unsent and 1 sent, every change in the sign-off, none showing a
+   wrong name yet). A name that also appears in the thread has
+   both its thread placeholder and the fixed one, each restoring to it.
 
 ## Seeing the original
 
