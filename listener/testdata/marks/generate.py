@@ -1,5 +1,8 @@
 """Regenerates the synthetic scans for marks_live_test.go. Every name and figure is made up.
 
+marked/ and clear/ are the pages the prompt was chosen on; fresh/ was made afterwards, with other
+positions, stamp words and black ink, to check the choice was not fitted to the first set.
+
 Run from this folder: python3 generate.py
 """
 
@@ -46,17 +49,17 @@ def logo(draw: ImageDraw.ImageDraw) -> None:
     draw.text((615, 78), "CONTOH", fill="white", font=ImageFont.truetype(BOLD, 24))
 
 
-def signature(draw: ImageDraw.ImageDraw, x: int, y: int, seed: int) -> None:
+def signature(draw: ImageDraw.ImageDraw, x: int, y: int, seed: int, ink: tuple[int, int, int] = INK) -> None:
     rng = random.Random(seed)
     a, b, c = rng.uniform(4, 8), rng.uniform(1.8, 3.2), rng.uniform(15, 30)
     points = [(x + t * 2.2, y + c * math.sin(t / a) + 9 * math.sin(t / b) - 0.15 * t) for t in range(110)]
-    draw.line(points, fill=INK, width=3, joint="curve")
-    draw.line([(x + 20, y + 30), (x + 230, y + 22)], fill=INK, width=2)
+    draw.line(points, fill=ink, width=3, joint="curve")
+    draw.line([(x + 20, y + 30), (x + 230, y + 22)], fill=ink, width=2)
 
 
-def initials(draw: ImageDraw.ImageDraw, x: int, y: int) -> None:
-    draw.line([(x, y + 40), (x + 15, y), (x + 30, y + 40), (x + 45, y + 5)], fill=INK, width=3)
-    draw.arc((x + 50, y, x + 90, y + 40), 30, 330, fill=INK, width=3)
+def initials(draw: ImageDraw.ImageDraw, x: int, y: int, ink: tuple[int, int, int] = INK) -> None:
+    draw.line([(x, y + 40), (x + 15, y), (x + 30, y + 40), (x + 45, y + 5)], fill=ink, width=3)
+    draw.arc((x + 50, y, x + 90, y + 40), 30, 330, fill=ink, width=3)
 
 
 def round_stamp(draw: ImageDraw.ImageDraw, x: int, y: int, colour: tuple[int, int, int]) -> None:
@@ -86,9 +89,14 @@ def face(draw: ImageDraw.ImageDraw, x: int, y: int) -> None:
     draw.arc((x + 70, y + 105, x + 112, y + 128), 20, 160, fill=(150, 60, 60), width=3)
 
 
+QUOTE = ["QUOTATION Q-2026-118", "To: Syarikat Contoh Bhd", "Printing services, 500 units",
+         "Total: RM 3,480.00", "Valid for 30 days"]
+MEMO = ["MEMO", "To: All staff", "Office closed on 31 October 2026.", "Please plan leave early."]
+
+
 def save(image: Image.Image, folder: str, name: str) -> None:
     out = HERE / folder
-    out.mkdir(exist_ok=True)
+    out.mkdir(parents=True, exist_ok=True)
     image.save(out / f"{name}.png", optimize=True)
 
 
@@ -126,6 +134,36 @@ def marked_pages() -> None:
         save(image, "marked", name)
 
 
+def fresh_pages() -> None:
+    black = (0, 0, 0)
+    marked = [
+        ("black-signature", QUOTE, lambda d: signature(d, 400, 700, 11, black)),
+        ("small-signature-bottom", MEMO, lambda d: signature(d, 560, 1050, 12, black)),
+        ("approved-stamp", QUOTE, lambda d: box_stamp(d, 100, 600, "APPROVED")),
+        ("copy-stamp", MEMO, lambda d: box_stamp(d, 500, 900, "COPY")),
+        ("green-seal", QUOTE, lambda d: round_stamp(d, 600, 800, (20, 120, 50))),
+        ("photo-top-left", MEMO, lambda d: face(d, 80, 400)),
+        ("initials-margin", QUOTE, lambda d: initials(d, 700, 1000, black)),
+        ("sig-over-text", MEMO, lambda d: signature(d, 90, 150, 13, black)),
+    ]
+    clear = [
+        ("quote", QUOTE, None), ("memo", MEMO, None), ("quote-logo", QUOTE, logo),
+        ("memo-table", MEMO, table), ("quote-form", FORM, None),
+        ("quote-table-logo", QUOTE, lambda d: (table(d), logo(d))), ("memo-logo", MEMO, logo),
+        ("price-table", ["PRICES"], table),
+    ]
+    for name, lines, mark in marked:
+        image, draw = page(lines)
+        mark(draw)
+        save(image, "fresh/marked", name)
+    for name, lines, extra in clear:
+        image, draw = page(lines)
+        if extra:
+            extra(draw)
+        save(image, "fresh/clear", name)
+
+
 if __name__ == "__main__":
     clear_pages()
     marked_pages()
+    fresh_pages()

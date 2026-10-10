@@ -14,9 +14,9 @@ import (
 )
 
 // Checked scans accept a measured miss rate (signature-detection.md): on the synthetic scans in
-// testdata/marks, Gemma-SEA-LION-v4 4B missed 1 of 12 marked pages. More than that is a regression.
+// testdata/marks, Gemma-SEA-LION-v4 4B missed 2 of 20 marked pages. More than that is a regression.
 // Clear pages held back are only reported: they lose a cloud transcription, not their text.
-const maxMarkedMissed = 1
+const maxMarkedMissed = 2
 
 func TestLiveMarkCheckMissesNoMoreThanMeasured(t *testing.T) {
 	_ = godotenv.Load("../.env")
@@ -30,8 +30,8 @@ func TestLiveMarkCheckMissesNoMoreThanMeasured(t *testing.T) {
 	} else {
 		resp.Body.Close()
 	}
-	missed := askAll(t, model, "marked", true)
-	held := askAll(t, model, "clear", false)
+	missed := askAll(t, model, "marked", true) + askAll(t, model, filepath.Join("fresh", "marked"), true)
+	held := askAll(t, model, "clear", false) + askAll(t, model, filepath.Join("fresh", "clear"), false)
 	t.Logf("clear pages held back: %d", held)
 	t.Logf("marked pages missed: %d", missed)
 	if missed > maxMarkedMissed {

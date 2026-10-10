@@ -28,7 +28,7 @@ const (
 	reasonNoMarkCheck = "no_mark_check"
 )
 
-// A cold start (the model unloaded after idling) measured 44.5 s; warm answers take 1 to 7 s.
+// Gemma-SEA-LION-v4 4B measured 12.8 s from a cold start (model unloaded after idling) and under 7 s warm.
 var markClient = &http.Client{Timeout: 60 * time.Second}
 
 // clearOfMarks says, per image, whether the local model found it free of signatures, faces and

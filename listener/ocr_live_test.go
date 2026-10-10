@@ -14,6 +14,8 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -88,5 +90,28 @@ func TestLiveOCRDoesNotNarrateABlankImage(t *testing.T) {
 	// mode worth catching is a model that narrates an empty page.
 	if len(strings.Fields(text)) > 12 {
 		t.Fatalf("blank image produced %d words; the model is inventing text: %q", len(strings.Fields(text)), text)
+	}
+}
+
+// The default for every owner: a scan's image stays here, and the text the local reader read from
+// it is what the email keeps.
+func TestLiveAScanReadLocallyKeepsItsText(t *testing.T) {
+	requireLiveReader(t)
+	raw, err := os.ReadFile(filepath.Join("testdata", "marks", "clear", "invoice.png"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := readLocally(context.Background(), raw, "image/png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Images) != 1 || !strings.Contains(result.Images[0].Text, "Amount due") {
+		t.Fatalf("want one image with its local text, got %+v", result)
+	}
+	ocrCalls := recordOCRCalls(t)
+	recordAuditRows(t)
+	texts, sent := transcribeImages(context.Background(), messageRef{msgID: "m1"}, result.Images, reasonScansLocal)
+	if sent != 0 || *ocrCalls != 0 || len(texts) != 1 || !strings.Contains(texts[0], "RM 1,250.00") {
+		t.Fatalf("want the local text and nothing sent, got %d sent, %q", sent, texts)
 	}
 }
