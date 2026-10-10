@@ -6,20 +6,20 @@ Skipped unless TEST_DATABASE_URL names a throwaway database with every migration
 
 import asyncio
 import os
-from datetime import datetime, timezone
+from datetime import datetime, time, timedelta, timezone
 from uuid import uuid4
 
 import pytest
 from sqlalchemy import select, text
 from sqlalchemy.exc import DBAPIError
 
-from app import audit_routes, template_store
+from app import audit_routes, quiet_hours, scheduled_sends, template_store
 from app.audit import AuditAction, audit_row
 from app.core.constants import EMBEDDING_DIM
 from app.core.cursor import decode_cursor
 from app.core.ownership import Scope
 from app.core.ratelimit import PostgresCounters
-from app.dashboard import list_dashboard_emails
+from app.dashboard import list_dashboard_emails, snooze_email
 from app.db.migrate import apply_pending, pending
 from app.db.models import (
     AuthStatus,
@@ -34,6 +34,7 @@ from app.db.models import (
 from app.db.session import get_engine, get_sessionmaker
 from app.jobs import claim_requested, request_draft
 from app.ml.categorise import classify_pending
+from app.quiet_hours import QuietHoursView
 from app.rag.chunk import Piece
 from app.rag.embedding_models import check_columns
 from app.rag.ingest import store_chunks
@@ -235,3 +236,84 @@ def test_templates_save_list_by_use_update_and_delete_for_their_owner():
     created_at, order, title, someone_else, deleted, left = _run(scenario())
     assert created_at is not None and order == ["B", "A"] and title == "A2"
     assert someone_else is None and deleted and left == ["B"]
+
+
+def test_quiet_hours_keep_one_company_row_and_one_per_user():
+    owner = uuid4()
+    view = QuietHoursView(start=time(22), end=time(7), weekendDays=[5, 6], timezone="Asia/Kuala_Lumpur")
+
+    async def scenario():
+        async with get_sessionmaker()() as session, session.begin():
+            session.add(UserProfile(id=owner, email=f"{owner}@example.com"))
+        await quiet_hours.save(None, view)
+        await quiet_hours.save(None, view)  # the company row is updated, not duplicated
+        await quiet_hours.save(owner, view.model_copy(update={"weekendDays": [6, 7]}))
+        mine = await quiet_hours.settings_for(owner)
+        await quiet_hours.follow_company(owner)
+        back = await quiet_hours.settings_for(owner)
+        companies = await _scalar("SELECT count(*) FROM quiet_hours WHERE user_id IS NULL")
+        return mine, back, companies
+
+    mine, back, companies = _run(scenario())
+    assert companies == 1 and mine.effective.weekendDays == [6, 7] and mine.company.weekendDays == [5, 6]
+    assert back.personal is None and back.effective == back.company
+
+
+def test_a_reschedule_replaces_the_waiting_send_and_a_cancel_shows_its_reason():
+    async def scenario():
+        async with get_sessionmaker()() as session, session.begin():
+            message = Message(id=uuid4(), gmail_message_id=f"sched-{uuid4()}", masking_status=MaskingStatus.COMPLETE)
+            session.add(message)
+        first = datetime(2030, 1, 1, 1, tzinfo=timezone.utc)
+        await scheduled_sends.hold(message.id, None, "one", first)
+        await scheduled_sends.hold(message.id, None, "two", first + timedelta(hours=1))
+        rows = await _scalar(f"SELECT count(*) FROM scheduled_send WHERE message_id = '{message.id}'")
+        waiting = (await scheduled_sends.states_for([message.id]))[message.id]
+        await scheduled_sends.cancel_pending(message.id, scheduled_sends.CancelReason.THEY_REPLIED)
+        after = (await scheduled_sends.states_for([message.id]))[message.id]
+        return rows, waiting, after
+
+    rows, waiting, after = _run(scenario())
+    assert rows == 1 and waiting.send_at == datetime(2030, 1, 1, 2, tzinfo=timezone.utc)
+    assert after.send_at is None and after.cancelled == scheduled_sends.CancelReason.THEY_REPLIED
+
+
+def test_a_snoozed_email_leaves_the_inbox_until_it_is_due_and_comes_back_unread():
+    owner = uuid4()
+
+    async def scenario():
+        async with get_sessionmaker()() as session, session.begin():
+            session.add(UserProfile(id=owner, email=f"{owner}@example.com"))
+        async with get_sessionmaker()() as session, session.begin():
+            message = Message(id=uuid4(), user_id=owner, gmail_message_id=f"snz-{uuid4()}", subject="s",
+                              masking_status=MaskingStatus.COMPLETE, read_at=datetime.now(timezone.utc))
+            session.add(message)
+        scope = Scope(owner_id=owner)
+        snoozed = await snooze_email(str(message.id), datetime.now(timezone.utc) + timedelta(hours=3), scope=scope)
+        hidden = [e.id for e in (await list_dashboard_emails(scope, "", 10, None)).emails]
+        await snooze_email(str(message.id), None, scope=scope)
+        shown = (await list_dashboard_emails(scope, "", 10, None)).emails
+        return str(message.id), snoozed, hidden, shown
+
+    pk, snoozed, hidden, shown = _run(scenario())
+    assert snoozed.snoozedUntil is not None and not snoozed.isRead and pk not in hidden
+    assert [e.id for e in shown] == [pk] and not shown[0].isRead
+
+
+def test_a_snoozed_email_with_a_reply_waiting_stays_reachable_to_cancel_it():
+    owner = uuid4()
+
+    async def scenario():
+        async with get_sessionmaker()() as session, session.begin():
+            session.add(UserProfile(id=owner, email=f"{owner}@example.com"))
+        async with get_sessionmaker()() as session, session.begin():
+            message = Message(id=uuid4(), user_id=owner, gmail_message_id=f"sw-{uuid4()}", subject="s",
+                              masking_status=MaskingStatus.COMPLETE,
+                              snoozed_until=datetime.now(timezone.utc) + timedelta(days=2))
+            session.add(message)
+        await scheduled_sends.hold(message.id, owner, "Thanks.", datetime.now(timezone.utc) + timedelta(days=1))
+        listed = (await list_dashboard_emails(Scope(owner_id=owner), "", 10, None)).emails
+        return str(message.id), listed
+
+    pk, listed = _run(scenario())
+    assert [e.id for e in listed] == [pk] and listed[0].scheduledFor is not None

@@ -77,13 +77,17 @@ def mailbox(monkeypatch, test_settings):
     async def gemini(_user_id):
         return Provider.GEMINI
 
+    async def no_schedules(_message_ids):
+        return {}
+
     for name, value in (("_load", load), ("_load_with_thread", load_with_thread), ("_owner_name", owner_name),
                         ("retrieve", no_chunks), ("_mark_read", nothing),
                         ("_call_agent", call_agent), ("_claim_send", claim), ("send_reply", send_reply),
                         ("audit", nothing), ("_update_unsent", _true), ("_style_fields", no_style),
                         ("is_learning", _false), ("provider_for", gemini), ("egress_for", no_egress),
                         ("save_egress", nothing), ("request_draft", nothing), ("release_drafting", nothing),
-                        ("suggested_template_id", nothing)):
+                        ("suggested_template_id", nothing), ("states_for", no_schedules),
+                        ("cancel_pending", _false)):
         monkeypatch.setattr(dashboard, name, value)
     monkeypatch.setattr(dashboard.connections, "can_send", can_send)
     return state

@@ -5,6 +5,7 @@ const NAV_ITEMS = [
   { label: "nav.inbox", to: "/" },
   { label: "nav.drafts", to: "/drafts" },
   { label: "nav.sent", to: "/sent" },
+  { label: "nav.scheduled", to: "/scheduled" },
   { label: "nav.knowledge", to: "/knowledge" },
   { label: "nav.audit", to: "/audit" },
   { label: "nav.settings", to: "/settings" },

@@ -3,9 +3,21 @@ import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 
 import { errorMessage } from "../lib/api/errors";
+import type { QuietSuggestion } from "../lib/quietHours";
+import { useFormat } from "../lib/useFormat";
 import { ConfirmKind, DraftAction, type DraftWorkflowStatus } from "../lib/useDraftWorkflow";
 
 type DraftStatusProps = DraftWorkflowStatus;
+
+function quietMessage(quiet: QuietSuggestion, t: TFunction, clock: Clock): string {
+  const whose = quiet.isTheirTime ? "them" : "you";
+  return t(`draftStatus.quietHours.${whose}`, {
+    now: clock(quiet.theirNow, quiet.offsetMinutes),
+    sendAt: clock(quiet.sendAt, quiet.offsetMinutes),
+  });
+}
+
+type Clock = (at: Date, offsetMinutes: number) => string;
 
 function confirmMessage(kind: ConfirmKind, count: number, t: TFunction): string {
   if (kind === ConfirmKind.ReplaceEdits) return t("draftStatus.replaceEdits");
@@ -19,6 +31,8 @@ const FALLBACK_BY_ACTION = {
   [DraftAction.Regenerate]: "draftStatus.failed.regenerate",
   [DraftAction.Refine]: "draftStatus.failed.refine",
   [DraftAction.Template]: "draftStatus.failed.template",
+  [DraftAction.Schedule]: "draftStatus.failed.schedule",
+  [DraftAction.CancelSchedule]: "draftStatus.failed.cancelSchedule",
   [DraftAction.Send]: "draftStatus.failed.send",
 } as const;
 
@@ -31,11 +45,14 @@ export default function DraftStatus({
   pendingConfirm,
   onConfirm,
   onCancel,
+  onSendAtSuggestion,
   isGenerating,
   isLoadFailed,
   onRetryLoad,
 }: DraftStatusProps) {
   const { t } = useTranslation();
+  const format = useFormat();
+  const quiet = pendingConfirm?.quiet;
 
   const confirmLabel =
     pendingConfirm?.kind === ConfirmKind.ReplaceEdits
@@ -51,7 +68,9 @@ export default function DraftStatus({
         >
           <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-warning" />
           <p className="min-w-0 flex-1 text-sm text-warning">
-            {confirmMessage(pendingConfirm.kind, pendingConfirm.markerCount, t)}
+            {quiet
+              ? quietMessage(quiet, t, format.clock)
+              : confirmMessage(pendingConfirm.kind, pendingConfirm.markerCount, t)}
           </p>
           <div className="flex gap-2">
             {/* The safe choice takes focus, so Enter never confirms by accident. */}
@@ -63,12 +82,23 @@ export default function DraftStatus({
             >
               {t("draftStatus.keepEditing")}
             </button>
+            {quiet ? (
+              <button
+                type="button"
+                onClick={onSendAtSuggestion}
+                className={`${BUTTON} border-warning bg-surface text-warning`}
+              >
+                {t("draftStatus.quietHours.sendLater", {
+                  time: format.clock(quiet.sendAt, quiet.offsetMinutes),
+                })}
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={onConfirm}
               className={`${BUTTON} border-warning bg-warning text-surface`}
             >
-              {confirmLabel}
+              {quiet ? t("draftStatus.quietHours.sendNow") : confirmLabel}
             </button>
           </div>
         </div>

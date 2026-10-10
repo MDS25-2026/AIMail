@@ -10,6 +10,7 @@ from app.main import _lifespan
 
 def test_the_worker_runs_every_job_and_drafting_only_when_switched_on(test_settings, monkeypatch):
     assert {job.name for job in worker.jobs()} == {"requested drafts", "embeddings", "categories", "holding replies",
+                                                   "scheduled sends",
                                                    "send reconciliation", "retention", "drafting"}
     monkeypatch.setenv("AUTO_GENERATE", "false")
     from app.core.config import get_settings

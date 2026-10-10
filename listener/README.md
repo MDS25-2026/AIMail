@@ -28,6 +28,10 @@ type their bytes show, not the type the sender declared; ones of a type the read
 counted in the audit log. If Gmail no longer has the history since the last notification (a listener
 down for over a week), the 50 newest inbox messages are checked and the ones not yet stored are ingested.
 
+The sender's UTC offset is read from the `Date` header and stored as
+`sender_utc_offset_minutes`, so the dashboard can say "it's 11:40pm for them" before a late reply
+(`specs/features/quiet-hours-send-later.md`); an unreadable header stores null.
+
 Scanned pages and images are read by the local attachment reader, which returns each page's text and
 a redacted copy. By default only the text is used, masked with the rest of the email, and no scan
 image reaches Gemini. An owner who chooses checked scans (Settings, `user_preferences.scan_reading`)

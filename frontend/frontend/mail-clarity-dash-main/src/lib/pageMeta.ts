@@ -9,6 +9,7 @@ export enum Page {
   Inbox = "inbox",
   Drafts = "drafts",
   Sent = "sent",
+  Scheduled = "scheduled",
   Knowledge = "knowledge",
   Audit = "audit",
   Settings = "settings",

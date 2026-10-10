@@ -139,6 +139,13 @@ class DashboardEmail(BaseModel):
     egress: list[EgressRecord] = Field(default_factory=list)
     # The reader's saved template whose trigger words and language match this email. Detail only.
     suggestedTemplateId: str | None = None
+    # Quiet hours, send later and snooze (specs/features/quiet-hours-send-later.md): the sender's
+    # offset from UTC in minutes, when a held reply goes out, why the last one was called off
+    # (until the reader schedules or sends again), and when a snoozed email comes back.
+    senderUtcOffsetMinutes: int | None = None
+    scheduledFor: str | None = None
+    scheduleCancelled: Literal["they_replied", "you_replied", "too_late", "refused"] | None = None
+    snoozedUntil: str | None = None
 
 
 # Newest first, at most this many per page unless the caller asks for fewer.

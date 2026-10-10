@@ -13,6 +13,7 @@ export const queryKeys = {
   privateMode: ["private-mode"] as const,
   scanReading: ["scan-reading"] as const,
   templates: ["templates"] as const,
+  quietHours: ["quiet-hours"] as const,
   writingStyle: ["writing-style"] as const,
   auditTrail: ["audit-trail"] as const,
   admin: {
@@ -20,6 +21,7 @@ export const queryKeys = {
     session: ["admin", "session"] as const,
     overview: (days: number) => ["admin", "overview", days] as const,
     flagged: ["admin", "flagged"] as const,
+    quietHours: ["admin", "quiet-hours"] as const,
     audit: (failuresOnly: boolean) => ["admin", "audit", failuresOnly] as const,
   },
 };

@@ -47,3 +47,31 @@ export const sendEmail = (id: string, draft: string) =>
 /** The owner checked a sender that failed SPF/DKIM/DMARC and says they are real; drafting resumes. */
 export const confirmSender = (id: string) =>
   request<Email>(emailPath(id, "/confirm-sender"), { method: HttpMethod.Post });
+
+/** Send later: the draft is checked now as a send is, then held until sendAt. */
+export const scheduleEmail = ({
+  emailId,
+  draft,
+  sendAt,
+}: {
+  emailId: string;
+  draft: string;
+  sendAt: Date;
+}) =>
+  request<Email>(emailPath(emailId, "/schedule"), {
+    method: HttpMethod.Post,
+    json: { draft, sendAt: sendAt.toISOString() },
+  });
+
+export const cancelSchedule = ({ emailId }: { emailId: string }) =>
+  request<Email>(emailPath(emailId, "/schedule"), { method: HttpMethod.Delete });
+
+/** Out of the inbox until then, and unread when it comes back. */
+export const snoozeEmail = ({ emailId, until }: { emailId: string; until: Date }) =>
+  request<Email>(emailPath(emailId, "/snooze"), {
+    method: HttpMethod.Post,
+    json: { until: until.toISOString() },
+  });
+
+export const unsnoozeEmail = ({ emailId }: { emailId: string }) =>
+  request<Email>(emailPath(emailId, "/snooze"), { method: HttpMethod.Delete });

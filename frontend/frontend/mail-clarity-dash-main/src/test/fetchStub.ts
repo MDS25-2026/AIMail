@@ -46,3 +46,8 @@ export function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => voi
   });
   return { promise, resolve };
 }
+
+/** The calls that change something: "nothing was sent" means none of these, whatever was read. */
+export function writes(calls: StubCall[]): StubCall[] {
+  return calls.filter((call) => call.method !== "GET");
+}

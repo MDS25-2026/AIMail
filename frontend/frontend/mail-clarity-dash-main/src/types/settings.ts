@@ -73,3 +73,9 @@ assertSameValues<`${ActiveWhen}`, Schemas["ActiveWhen"]>(true);
 assertSameValues<`${ScanMode}`, Schemas["ScanReading"]>(true);
 assertSameValues<`${Audience}`, Schemas["Audience"]>(true);
 assertSameValues<`${ReplyScope}`, Schemas["ReplyScope"]>(true);
+
+/** Quiet hours (specs/features/quiet-hours-send-later.md): a window and whole weekend days. */
+export type QuietHours = Schemas["QuietHoursView"];
+
+/** `personal` is null while the reader follows the company default. */
+export type QuietHoursSettings = Schemas["QuietHoursSettings"];

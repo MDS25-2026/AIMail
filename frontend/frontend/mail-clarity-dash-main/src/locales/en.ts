@@ -14,6 +14,7 @@ export const en = {
     audit: "Audit Trail",
     settings: "Settings",
     admin: "Admin",
+    scheduled: "Scheduled",
   },
   languages: { en: "English", ms: "Bahasa Melayu", zh: "中文" },
   inbox: {
@@ -509,6 +510,60 @@ export const en = {
     fillBlanks_one: "Fill in {{blanks}} before sending.",
     fillBlanks_other: "Fill in {{blanks}} before sending.",
   },
+  schedule: {
+    sendLater: "Send later",
+    scheduling: "Scheduling…",
+    tomorrow: "Tomorrow, 9am",
+    monday: "Monday, 9am",
+    pickTime: "Pick a time",
+    scheduleAt: "Schedule",
+    scheduledFor: "Scheduled for {{when}}. It won't go out if they reply first.",
+    cancel: "Cancel",
+    cancelled: {
+      you_replied: "You already replied in this thread, so the scheduled reply wasn't sent.",
+      they_replied:
+        "They replied before your scheduled send, so it wasn't sent. Review before sending.",
+      too_late:
+        "Your scheduled reply couldn't go out on time, so it wasn't sent. Review before sending.",
+      refused: "Your scheduled reply couldn't be sent when it was due. Review it before sending.",
+    },
+  },
+  snooze: {
+    snooze: "Snooze",
+    snoozing: "Snoozing…",
+    until: "Snoozed until {{when}}",
+    wake: "Bring back now",
+    laterToday: "Later today",
+    tomorrow: "Tomorrow, 9am",
+    nextWeek: "Next week",
+    quietEnd: "When quiet hours end",
+    failed: "Couldn't snooze it. Try again in a moment.",
+  },
+  quietHours: {
+    title: "Quiet hours",
+    intro:
+      "When you reply late, AIMail suggests sending at the start of the recipient's day instead. It never stops a send.",
+    useMine: "Use my own quiet hours",
+    following: "Following your company's quiet hours: {{from}} to {{to}}.",
+    from: "From",
+    to: "To",
+    timezone: "Time zone",
+    weekend: "Quiet all day",
+    weekendHint:
+      "Kelantan, Terengganu and Kedah rest Friday and Saturday; most states Saturday and Sunday.",
+    sameTimes: "Start and end need to be different times.",
+    save: "Save",
+    saving: "Saving…",
+    saved: "Saved.",
+    failed: "Couldn't save quiet hours. Try again in a moment.",
+  },
+  scheduled: {
+    heading: "Scheduled",
+    description: "Replies held to go out later. Open one to cancel it.",
+    label: "scheduled replies",
+    emptyTitle: "Nothing scheduled",
+    emptyHint: "Choose Send later on a draft and it will wait here.",
+  },
   account: {
     title: "Account",
     signedInAs: "Signed in as {{email}}.",
@@ -642,6 +697,9 @@ export const en = {
     unknown: "Unknown",
     needsAttention: "needs attention",
     loading: "admin data",
+    quietHours: "Company quiet hours",
+    quietHoursHint:
+      "When people are told it is late for the recipient. Each person can set their own in Settings.",
   },
   audit: {
     shortHash: "{{head}}…{{tail}}",
@@ -736,6 +794,8 @@ export const en = {
       send: "The reply was not sent. Your draft is unchanged, so try again in a moment.",
       template:
         "Couldn't draft from the template. Your text is unchanged, so try again in a moment.",
+      schedule: "Couldn't schedule the reply. Your draft is unchanged, so try again in a moment.",
+      cancelSchedule: "Couldn't cancel it. It is still scheduled, so try again in a moment.",
     },
     replaceEdits: "A new draft will replace the changes you typed.",
     replaceConfirm: "Replace my changes",
@@ -750,6 +810,12 @@ export const en = {
     sendTemplates_other:
       "This reply still has {{count}} bracketed gaps, such as [Your Name]. The recipient will see them exactly like that.",
     toneWarning: "Your draft may have an unprofessional tone. Send anyway?",
+    quietHours: {
+      them: "It's {{now}} for them. Send at {{sendAt}} their time instead?",
+      you: "It's {{now}} your time. Send at {{sendAt}} instead?",
+      sendLater: "Send at {{time}}",
+      sendNow: "Send now",
+    },
   },
   signIn: {
     google: "Sign in with Google",
@@ -840,6 +906,7 @@ export const en = {
     masking_unavailable:
       "Couldn't hide personal details right now, so nothing was saved. Try again in a moment.",
     too_many_templates: "You already have 50 saved replies. Delete one first.",
+    time_out_of_range: "Pick a time in the future, within the next 60 days.",
     too_many_examples: "You already have 3 examples. Remove one first.",
     empty: "There's nothing to save.",
     too_long: "That text is too long.",
@@ -895,6 +962,7 @@ export const en = {
       description:
         "AIMail drafts replies to your work email, hides personal details before any AI sees them, and sends nothing without your approval.",
     },
+    scheduled: { title: "AIMail scheduled", description: "Replies held to go out later." },
   },
   assistant: {
     title: "Inbox Assistant",
@@ -943,6 +1011,8 @@ export const en = {
     refined: "Draft refined",
     sent: "Reply sent",
     translated: "Translation ready",
+    scheduled: "Reply scheduled",
+    scheduleCancelled: "Scheduled reply cancelled",
   },
 } as const;
 

@@ -5,10 +5,13 @@ import {
   fetchHoldingReplies,
   fetchHoldingReplySettings,
   fetchPrivateMode,
+  fetchQuietHours,
+  followCompanyQuietHours,
   fetchScanReading,
   fetchSystemInfo,
   saveHoldingReplySettings,
   savePrivateMode,
+  saveQuietHours,
   saveScanReading,
 } from "../api/settings";
 import { queryKeys } from "./keys";
@@ -75,3 +78,21 @@ export function useSaveScanReading() {
     onSuccess: (saved) => queryClient.setQueryData(queryKeys.scanReading, saved),
   });
 }
+
+export function useQuietHours() {
+  return useQuery({ queryKey: queryKeys.quietHours, queryFn: fetchQuietHours });
+}
+
+function useQuietHoursMutation<TVariables>(
+  mutationFn: (variables: TVariables) => ReturnType<typeof fetchQuietHours>,
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn,
+    onSuccess: (saved) => queryClient.setQueryData(queryKeys.quietHours, saved),
+  });
+}
+
+export const useSaveQuietHours = () => useQuietHoursMutation(saveQuietHours);
+export const useFollowCompanyQuietHours = () =>
+  useQuietHoursMutation((_unused: void) => followCompanyQuietHours());

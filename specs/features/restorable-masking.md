@@ -115,8 +115,8 @@ retyping anything, knowing the AI only ever saw `[PERSON_1]`.
    never matched against it. Before, both were numbered after every person in the thread, so a newer
    message naming someone new shifted them and an older email's stored draft restored the wrong
    name. `scripts/renumber_sign_offs.py` moves the stored drafts over, run once as the change goes
-   live (dry run 2026-10-11: 28 unsent and 1 sent, every change in the sign-off, none showing a
-   wrong name yet). A name that also appears in the thread has
+   live (applied 2026-10-11: 27 unsent drafts and 1 sent one, every change in the sign-off, none
+   showing a wrong name yet). A name that also appears in the thread has
    both its thread placeholder and the fixed one, each restoring to it.
 
 ## Seeing the original

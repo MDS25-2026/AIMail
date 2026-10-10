@@ -10,6 +10,7 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Literal
 from uuid import UUID
@@ -81,12 +82,15 @@ from app.core.ratelimit import (
 from app.core.typed_text import mask_typed_text
 from app.dashboard import (
     approve_and_send,
+    cancel_schedule,
     confirm_sender,
     email_detail,
     email_for_thread,
     list_dashboard_emails,
     refine_email,
     regenerate_email,
+    schedule_email,
+    snooze_email,
     translate_email,
 )
 from app.egress_log import save_egress
@@ -94,6 +98,7 @@ from app.gmail_send import SendError, SendOutcomeUnknownError
 from app.holding_reply_routes import router as holding_reply_router
 from app.private_mode import provider_for
 from app.private_mode_routes import router as private_mode_router
+from app.quiet_hours_routes import router as quiet_hours_router
 from app.rag.chunk import extract_pdf_bytes
 from app.rag.embedding_models import REGISTRY, check_columns
 from app.rag.errors import EmbeddingError
@@ -138,6 +143,7 @@ app.include_router(holding_reply_router)
 app.include_router(private_mode_router)
 app.include_router(scan_reading_router)
 app.include_router(template_router)
+app.include_router(quiet_hours_router)
 app.include_router(writing_style_router)
 app.include_router(audit_router)
 app.include_router(search_router)
@@ -339,6 +345,36 @@ async def send_email_route(message_id: str, body: SendRequest, request: Request)
         logger.warning("send failed for %s: %s", message_id, exc)
         raise
     return _found(email)
+
+
+class ScheduleRequest(BaseModel):
+    draft: str = Field(min_length=1, max_length=MAX_DRAFT_CHARS)
+    sendAt: datetime  # with its offset; refused if not ahead or too far ahead
+
+
+@app.post("/emails/{message_id}/schedule", dependencies=[Depends(rate_limit_send), Depends(require_mailbox)])
+async def schedule_email_route(message_id: str, body: ScheduleRequest, request: Request) -> DashboardEmail:
+    # Send later: checked now as a send is, held, and sent when due unless the other side writes first.
+    return _found(await schedule_email(message_id, body.draft, body.sendAt, scope=scope_of(request)))
+
+
+@app.delete("/emails/{message_id}/schedule", dependencies=[Depends(require_mailbox)])
+async def cancel_schedule_route(message_id: str, request: Request) -> DashboardEmail:
+    return _found(await cancel_schedule(message_id, scope=scope_of(request)))
+
+
+class SnoozeRequest(BaseModel):
+    until: datetime
+
+
+@app.post("/emails/{message_id}/snooze", dependencies=[Depends(require_mailbox)])
+async def snooze_email_route(message_id: str, body: SnoozeRequest, request: Request) -> DashboardEmail:
+    return _found(await snooze_email(message_id, body.until, scope=scope_of(request)))
+
+
+@app.delete("/emails/{message_id}/snooze", dependencies=[Depends(require_mailbox)])
+async def unsnooze_email_route(message_id: str, request: Request) -> DashboardEmail:
+    return _found(await snooze_email(message_id, None, scope=scope_of(request)))
 
 
 class SystemInfo(BaseModel):

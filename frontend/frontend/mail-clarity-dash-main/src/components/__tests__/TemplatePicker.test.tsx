@@ -72,6 +72,6 @@ test("inserting over typed changes asks first and keeps them until the reader ag
 test("nothing shows until the reader has saved a template", async () => {
   const calls = stubFetch({ "GET /templates": { body: [] } });
   renderWithProviders(<Harness email={EMAIL} />);
-  await vi.waitFor(() => expect(calls).toHaveLength(1));
+  await vi.waitFor(() => expect(calls.some((call) => call.path === "/templates")).toBe(true));
   expect(screen.queryByRole("button", { name: t("templates.insert") })).toBeNull();
 });

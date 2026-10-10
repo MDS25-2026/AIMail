@@ -92,3 +92,24 @@ func TestAStoredSpoofKeepsItsVerdict(t *testing.T) {
 	}
 	requireVerdict(t, (*writes)[0])
 }
+
+func TestTheSendersOffsetIsReadFromTheirDateHeader(t *testing.T) {
+	cases := []struct {
+		date string
+		want *int
+	}{
+		{"Tue, 7 Oct 2026 23:40:00 +0800", intPointer(480)},
+		{"Tue, 7 Oct 2026 10:40:00 -0530", intPointer(-330)},
+		{"7 Oct 2026 15:40:00 GMT", intPointer(0)},
+		{"", nil},
+		{"next Tuesday", nil},
+	}
+	for _, tc := range cases {
+		got := utcOffsetMinutes(tc.date)
+		if (got == nil) != (tc.want == nil) || (got != nil && *got != *tc.want) {
+			t.Errorf("%q: got %v, want %v", tc.date, got, tc.want)
+		}
+	}
+}
+
+func intPointer(n int) *int { return &n }

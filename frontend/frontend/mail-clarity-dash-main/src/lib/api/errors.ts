@@ -19,6 +19,7 @@ export enum ApiErrorCode {
   MaskingUnavailable = "masking_unavailable",
   TooManyExamples = "too_many_examples",
   TooManyTemplates = "too_many_templates",
+  TimeOutOfRange = "time_out_of_range",
   Empty = "empty",
   TooLong = "too_long",
   NotFound = "not_found",
