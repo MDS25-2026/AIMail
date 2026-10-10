@@ -1,5 +1,5 @@
 import { createFileRoute, useCanGoBack, useNavigate, useRouter } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import InboxList from "../components/InboxList";
@@ -83,6 +83,11 @@ function DashboardPage() {
   const listEmail = displayEmails.find((item) => item.id === selectedEmailId) ?? null;
   const email = detail ?? listEmail;
   const workflow = useDraftWorkflow(email, selected);
+  // A phone's back button keeps the email selected but hides it, Undo included: send it now.
+  const { sendNowIfCounting } = workflow;
+  useEffect(() => {
+    if (requestedId === undefined && !isDesktop) sendNowIfCounting();
+  }, [requestedId, isDesktop, sendNowIfCounting]);
 
   return (
     <AppShell>

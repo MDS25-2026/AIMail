@@ -151,6 +151,39 @@ describe("the undo window", () => {
     expect(result.current.undoCountdown).toBeNull();
     expect(writes(calls)).toEqual([]);
   });
+
+  test("opening another email during the countdown sends the approved reply now, not never", async () => {
+    vi.useFakeTimers();
+    const calls = stubFetch({
+      "POST /emails/a/send": { body: { ...first, sentAt: "2026-10-08T00:00:00Z" } },
+    });
+    const { result, rerender } = renderWorkflow(first);
+    act(() => result.current.send());
+    rerender(second);
+    expect(result.current.undoCountdown).toBeNull();
+    await vi.waitFor(() =>
+      expect(writes(calls)).toEqual([
+        {
+          method: "POST",
+          path: "/emails/a/send",
+          body: { draft: "Draft for A", remindIfNoReply: false },
+        },
+      ]),
+    );
+  });
+
+  test("a question left open cannot act once the draft is counting down", () => {
+    vi.useFakeTimers();
+    const calls = stubFetch({});
+    const { result } = renderWorkflow(first);
+    act(() => result.current.setDraft("My edit"));
+    act(() => result.current.regenerate());
+    expect(result.current.status.pendingConfirm?.kind).toBe(ConfirmKind.ReplaceEdits);
+    act(() => result.current.send());
+    expect(result.current.status.pendingConfirm).toBeNull();
+    act(() => result.current.status.onConfirm());
+    expect(writes(calls)).toEqual([]);
+  });
 });
 
 describe("send anyway (#145)", () => {
@@ -425,6 +458,23 @@ describe("quiet hours and send later", () => {
     act(() => result.current.status.onConfirm());
     expect(result.current.undoCountdown).toBe(5);
     expect(writes(calls)).toEqual([]);
+  });
+
+  test("Send later runs the same content checks as Send before holding the reply", async () => {
+    const placeholder = emailFixture({ id: "p", draftReply: "Regards, [Your Name]" });
+    const calls = stubFetch({
+      "POST /emails/p/schedule": { body: { ...placeholder, scheduledFor: "2026-10-09T01:00:00Z" } },
+    });
+    const { result } = renderWorkflow(placeholder);
+    act(() => result.current.schedule(new Date("2026-10-09T01:00:00Z")));
+    expect(result.current.status.pendingConfirm?.kind).toBe(ConfirmKind.SendTemplates);
+    expect(writes(calls)).toEqual([]);
+    act(() => result.current.status.onConfirm());
+    await waitFor(() => expect(writes(calls)).toHaveLength(1));
+    expect(writes(calls)[0].body).toEqual({
+      draft: "Regards, [Your Name]",
+      sendAt: "2026-10-09T01:00:00.000Z",
+    });
   });
 
   test("a scheduled reply is locked until it is cancelled", async () => {
