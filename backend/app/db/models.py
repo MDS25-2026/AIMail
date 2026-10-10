@@ -241,7 +241,7 @@ class UserProfile(Base):
 
 
 class UserPreferences(Base):
-    """Defaults reproduce today's behaviour, so an unconfigured user sees no change."""
+    """Defaults reproduce today's behaviour, so an unconfigured user sees no change; scan_reading excepted."""
 
     __tablename__ = "user_preferences"
 
@@ -251,6 +251,9 @@ class UserPreferences(Base):
     default_tone: Mapped[str] = mapped_column(Text)
     # Private mode (migration 0022): "gemini" or "local".
     draft_provider: Mapped[str] = mapped_column(Text, default="gemini")
+    # Scanned attachments (migration 0036): "local" or "checked". Defaults to local, not to the old
+    # behaviour of sending scans to Gemini: the check misses about 1 in 10 signatures and stamps.
+    scan_reading: Mapped[str] = mapped_column(Text, default="local")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

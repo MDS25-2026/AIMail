@@ -85,6 +85,7 @@ const (
 	stageReadLocally    = "read_locally"
 	stageDecodeRedacted = "decode_redacted_image"
 	stageOCR            = "ocr"
+	stageMarkCheck      = "mark_check"
 	stageStore          = "store"
 	stageProfile        = "profile"
 	stageWatch          = "watch"

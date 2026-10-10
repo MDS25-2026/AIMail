@@ -108,6 +108,7 @@ from app.rag.library import (
 )
 from app.rag.mask import DocumentMaskingError
 from app.rag.retrieve import ContextChunk, retrieve
+from app.scan_reading_routes import router as scan_reading_router
 from app.search_routes import router as search_router
 from app.sign_in import router as sign_in_router
 from app.writing_style_routes import router as writing_style_router
@@ -134,6 +135,7 @@ app.include_router(sign_in_router)
 app.include_router(account_router)
 app.include_router(holding_reply_router)
 app.include_router(private_mode_router)
+app.include_router(scan_reading_router)
 app.include_router(writing_style_router)
 app.include_router(audit_router)
 app.include_router(search_router)

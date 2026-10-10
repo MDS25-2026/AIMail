@@ -11,6 +11,7 @@ export const queryKeys = {
   holdingReplySettings: ["holding-reply-settings"] as const,
   holdingReplies: ["holding-replies"] as const,
   privateMode: ["private-mode"] as const,
+  scanReading: ["scan-reading"] as const,
   writingStyle: ["writing-style"] as const,
   auditTrail: ["audit-trail"] as const,
   admin: {

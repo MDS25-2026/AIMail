@@ -10,7 +10,7 @@ Final-year project (Monash University Malaysia, FIT3163) — Group MDS25, superv
 
 ```mermaid
 flowchart LR
-    Gmail((Gmail)) -->|Pub/Sub push| listener[Lane A · Go listener<br/>mask PII, persist]
+    Gmail((Gmail)) -->|Pub/Sub, pulled| listener[Lane A · Go listener<br/>mask PII, persist]
     listener --> db[(Supabase Postgres + pgvector)]
     backend[Lanes B+C · Python/FastAPI<br/>retrieval, classifier, generation] <--> db
     backend -->|REST| frontend[Lane D · dashboard]

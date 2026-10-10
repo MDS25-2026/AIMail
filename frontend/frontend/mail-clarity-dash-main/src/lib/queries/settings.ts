@@ -5,9 +5,11 @@ import {
   fetchHoldingReplies,
   fetchHoldingReplySettings,
   fetchPrivateMode,
+  fetchScanReading,
   fetchSystemInfo,
   saveHoldingReplySettings,
   savePrivateMode,
+  saveScanReading,
 } from "../api/settings";
 import { queryKeys } from "./keys";
 
@@ -59,5 +61,17 @@ export function useSavePrivateMode() {
   return useMutation({
     mutationFn: savePrivateMode,
     onSuccess: (saved) => queryClient.setQueryData(queryKeys.privateMode, saved),
+  });
+}
+
+export function useScanReading() {
+  return useQuery({ queryKey: queryKeys.scanReading, queryFn: fetchScanReading });
+}
+
+export function useSaveScanReading() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: saveScanReading,
+    onSuccess: (saved) => queryClient.setQueryData(queryKeys.scanReading, saved),
   });
 }

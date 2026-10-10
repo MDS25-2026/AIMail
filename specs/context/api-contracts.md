@@ -68,6 +68,10 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   when the company has not set `LOCAL_LLM_MODEL`). The agent's `/process-email`, `/refine` and
   `/translate` take `provider: "gemini" | "local"` (default `gemini`); a local call that cannot
   reach Ollama returns the same `503` as an unreachable Gemini.
+- **Scanned attachments (2026-10-10, `specs/features/signature-detection.md`):**
+  `GET /settings/scan-reading` returns `{available, mode}` (`mode`: `local` | `checked`;
+  `available`: the company set `LOCAL_VISION_MODEL`); `PUT` `{mode}` saves it (`409
+  scan_check_unavailable` for `checked` where it is not set up; `local` is always accepted).
 - **Account (2026-10-05, `specs/features/per-user-mailboxes.md` "Disconnect and delete account"):**
   `DELETE /account/gmail` revokes the Google token, deletes the user's stored emails and their
   connection (`204`; `404 not_connected`). `DELETE /account` also deletes their documents, profile

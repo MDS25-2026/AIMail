@@ -45,7 +45,7 @@ the environment only (`AIMAIL_ENV_FILE` is empty in them), log JSON (`LOG_FORMAT
 
 ## Gmail notifications
 
-Pub/Sub delivers Gmail's push notifications to the listener. Set up the dead-letter policy with
+Pub/Sub holds Gmail's notifications on a pull subscription the listener reads. Set up the dead-letter policy with
 [`pubsub-dead-letter.md`](pubsub-dead-letter.md).
 
 ## Not here yet

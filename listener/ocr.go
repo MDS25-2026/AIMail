@@ -11,6 +11,7 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -161,6 +162,9 @@ func readableAttachments(part *gmail.MessagePart, max int64) []*gmail.MessagePar
 type redactedImage struct {
 	MimeType string `json:"mime_type"`
 	Data     string `json:"data"`
+	// The page as the local OCR read it, unmasked: it stands in for the image wherever the image is
+	// not sent, and is masked with the rest of the message.
+	Text string `json:"text"`
 }
 
 // readLocally sends an attachment to the local reader. An error here must fail the attachment
@@ -329,22 +333,44 @@ func readAttachment(ctx context.Context, srv *gmail.Service, ref messageRef, par
 	return text
 }
 
-// transcribeImages sends the redacted images to Gemini unless the owner's choice refuses it. A
-// refused image is not read at all, like attachment text without NER: its text is unavailable.
+// transcribeImages returns a text for every image and how many were sent to Gemini. An image goes
+// only when the owner chose checked scans and the local check finds no signature, face or stamp;
+// every other image is represented by the text the local reader read from it.
 func transcribeImages(ctx context.Context, ref messageRef, images []redactedImage, cloudRefusal string) ([]string, int) {
 	if len(images) == 0 {
 		return nil, 0
 	}
 	if cloudRefusal != "" {
 		ref.audit(ctx, actionSkipCloudOCR, auditFields{fieldReason: cloudRefusal, fieldImagesSkipped: len(images)},
-			cloudRefusal == reasonPrivateMode)
-		return nil, 0
+			isOwnersChoice(cloudRefusal))
+		return localTexts(images), 0
 	}
-	texts := make([]string, 0, len(images))
+	var texts []string
+	sent := 0
+	for i, isClear := range clearOfMarks(ctx, ref, images) {
+		text := images[i].Text
+		if isClear {
+			sent++
+			text = cmp.Or(transcribe(ctx, ref, images[i].Data, images[i].MimeType), text)
+		}
+		texts = appendText(texts, text)
+	}
+	return texts, sent
+}
+
+func localTexts(images []redactedImage) []string {
+	var texts []string
 	for _, img := range images {
-		texts = append(texts, transcribe(ctx, ref, img.Data, img.MimeType))
+		texts = appendText(texts, img.Text)
 	}
-	return texts, len(images)
+	return texts
+}
+
+func appendText(texts []string, text string) []string {
+	if strings.TrimSpace(text) == "" {
+		return texts
+	}
+	return append(texts, text)
 }
 
 // transcribe OCRs one image the reader has already redacted and cleared.

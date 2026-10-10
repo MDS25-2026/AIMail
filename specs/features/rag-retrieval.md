@@ -1,9 +1,10 @@
 # RAG retrieval (policy grounding)
 
-- **Status:** draft
+- **Status:** shipped (drafts are grounded with it; the eval's hit rate is 1.00, see the
+  calibration notes below). The acceptance boxes were not re-audited when the status changed.
 - **Owner:** @veyroxie
 - **Related issue:** #
-- **Last updated:** 2026-07-07
+- **Last updated:** 2026-10-10
 
 ## Goal
 

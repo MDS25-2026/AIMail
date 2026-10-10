@@ -39,6 +39,7 @@ class AuditAction(StrEnum):
     DISCONNECT_GMAIL = "disconnect_gmail"
     DELETE_ACCOUNT = "delete_account"
     PRIVATE_MODE = "private_mode"
+    SCAN_READING = "scan_reading"
     HOLDING_REPLY_SETTINGS = "holding_reply_settings"
     HOLDING_REPLY_SCHEDULED = "holding_reply_scheduled"
     HOLDING_REPLY_CANCELLED = "holding_reply_cancelled"
