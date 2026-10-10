@@ -280,6 +280,8 @@ async def search_messages_hybrid(
             fts_rows = (await session.scalars(fts_stmt)).all()
         except SQLAlchemyError as exc:
             logger.debug("websearch_to_tsquery produced no result or error: %s, trying plainto_tsquery", exc)
+            # Postgres aborts the transaction on an error; without this every later query here fails too.
+            await session.rollback()
             try:
                 plain_stmt = (
                     select(Message)
@@ -298,6 +300,7 @@ async def search_messages_hybrid(
                 fts_rows = (await session.scalars(plain_stmt)).all()
             except SQLAlchemyError as inner_exc:
                 logger.warning("FTS search fallback failed: %s", inner_exc)
+                await session.rollback()
 
         # Check if query matches a sender name locally in PostgreSQL (e.g. "Asad", "Bryan")
         sender_rows: list[Message] = []
@@ -316,6 +319,7 @@ async def search_messages_hybrid(
                 sender_rows = (await session.scalars(sender_stmt)).all()
             except SQLAlchemyError as exc:
                 logger.debug("Sender search query failed: %s", exc)
+                await session.rollback()
 
         # 2. Vector Search with strict relevance threshold (distance <= 0.35 / similarity >= 65%)
         vec_rows: list[Message] = []

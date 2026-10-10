@@ -281,15 +281,18 @@ def test_a_reschedule_replaces_the_waiting_send_and_a_cancel_shows_its_reason():
             session.add(message)
         first = datetime(2030, 1, 1, 1, tzinfo=timezone.utc)
         await scheduled_sends.hold(message.id, None, "one", first)
+        held_at = await _scalar(f"SELECT created_at FROM scheduled_send WHERE message_id = '{message.id}'")
         await scheduled_sends.hold(message.id, None, "two", first + timedelta(hours=1))
+        rescheduled_at = await _scalar(f"SELECT created_at FROM scheduled_send WHERE message_id = '{message.id}'")
         rows = await _scalar(f"SELECT count(*) FROM scheduled_send WHERE message_id = '{message.id}'")
         waiting = (await scheduled_sends.states_for([message.id]))[message.id]
         await scheduled_sends.cancel_pending(message.id, scheduled_sends.CancelReason.THEY_REPLIED)
         after = (await scheduled_sends.states_for([message.id]))[message.id]
-        return rows, waiting, after
+        return rows, waiting, after, rescheduled_at > held_at
 
-    rows, waiting, after = _run(scenario())
+    rows, waiting, after, is_restarted = _run(scenario())
     assert rows == 1 and waiting.send_at == datetime(2030, 1, 1, 2, tzinfo=timezone.utc)
+    assert is_restarted  # "they replied since" counts from the reschedule
     assert after.send_at is None and after.cancelled == scheduled_sends.CancelReason.THEY_REPLIED
 
 

@@ -361,6 +361,7 @@ export const en = {
       no_template: "Not sent: no message written",
       stale: "Not sent: couldn't go out in time",
       user_replied: "Not sent: you replied first",
+      reply_scheduled: "Not sent: your own reply is scheduled",
       cooldown: "Not sent: they had one recently",
       daily_cap: "Not sent: daily limit reached",
       no_reply_needed: "Not sent: email didn't need a reply",

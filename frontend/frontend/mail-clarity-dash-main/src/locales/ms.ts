@@ -372,6 +372,7 @@ export const ms: Translations = {
       no_template: "Tidak dihantar: tiada mesej ditulis",
       stale: "Tidak dihantar: tidak sempat dihantar",
       user_replied: "Tidak dihantar: anda membalas dahulu",
+      reply_scheduled: "Tidak dihantar: balasan anda sendiri telah dijadualkan",
       cooldown: "Tidak dihantar: mereka baru menerimanya",
       daily_cap: "Tidak dihantar: had harian dicapai",
       no_reply_needed: "Tidak dihantar: e-mel tidak perlu dibalas",

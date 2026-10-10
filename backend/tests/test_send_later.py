@@ -9,6 +9,7 @@ import pytest
 from pydantic import ValidationError
 
 from app import dashboard, quiet_hours_routes, scheduled_send_worker
+from app.core.config import get_settings
 from app.core.errors import DomainError, ErrorCode
 from app.core.ownership import EVERYTHING
 from app.db.models import MaskingStatus, Message
@@ -122,6 +123,13 @@ def test_a_send_the_checks_refuse_is_called_off_and_shown(worker):
     assert _run() == 0 and worker["claimed_cancel"] == [CancelReason.REFUSED]
 
 
+def test_an_unexpected_failure_releases_the_claim_and_is_raised_not_lost(worker):
+    worker["due"], worker["send_error"] = [_held()], RuntimeError("database went away")
+    with pytest.raises(RuntimeError):
+        _run()
+    assert len(worker["released"]) == 1 and worker["claimed_cancel"] == []
+
+
 def test_another_worker_holding_the_claim_means_no_second_send(worker):
     worker["due"], worker["claimable"] = [_held()], False
     assert _run() == 0 and worker["sent"] == []
@@ -223,3 +231,20 @@ def test_personal_quiet_hours_replace_the_company_default(calls, monkeypatch):  
         "start": "22:00:00", "end": "07:00:00", "weekendDays": [5, 6], "timezone": "Asia/Kuala_Lumpur"})
     assert response.status_code == 200 and response.json()["effective"]["weekendDays"] == [5, 6]
     assert response.json()["company"]["weekendDays"] == [6, 7]
+
+
+def test_an_email_already_sent_cannot_be_scheduled_again(mailbox, test_settings):
+    mailbox["message"].sent_at = datetime.now(timezone.utc) - timedelta(hours=1)
+    with pytest.raises(dashboard.AlreadySentError):
+        asyncio.run(dashboard.schedule_email(str(mailbox["message"].id), "Thanks.",
+                                             datetime.now(timezone.utc) + timedelta(hours=1), scope=EVERYTHING))
+    assert mailbox["held"] == []
+
+
+def test_details_kept_forever_put_no_deadline_on_a_schedule(mailbox, test_settings, monkeypatch):
+    monkeypatch.setenv("VAULT_RETENTION_DAYS", "0")  # 0 is "keep forever", as retention reads it
+    get_settings.cache_clear()
+    mailbox["message"].created_at = datetime.now(timezone.utc) - timedelta(days=25)
+    later = datetime.now(timezone.utc) + timedelta(days=10)
+    asyncio.run(dashboard.schedule_email(str(mailbox["message"].id), "Thanks.", later, scope=EVERYTHING))
+    assert mailbox["held"] == [("Thanks.", later)]

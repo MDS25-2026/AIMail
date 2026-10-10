@@ -351,6 +351,7 @@ export const zh: Translations = {
       no_template: "未发送：尚未撰写消息",
       stale: "未发送：未能及时发出",
       user_replied: "未发送：您已先回复",
+      reply_scheduled: "未发送：您自己的回复已安排发送",
       cooldown: "未发送：对方最近已收到过",
       daily_cap: "未发送：已达每日上限",
       no_reply_needed: "未发送：邮件无需回复",

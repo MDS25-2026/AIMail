@@ -35,6 +35,7 @@ from app.holding_reply import (
     refusal_on_arrival,
     render,
 )
+from app.scheduled_sends import waiting_send_exists
 from app.send_reconciler import mark_outcome_unknown
 
 logger = logging.getLogger(__name__)
@@ -109,8 +110,10 @@ async def _store_refusal(due: Due, now: datetime) -> Refusal | None:
     recent_to_sender = await _count(select(func.count()).select_from(HoldingReply).where(
         HoldingReply.user_id == user_id, HoldingReply.recipient_addr == recipient,
         HoldingReply.sent_at >= now - timedelta(days=due.settings.cooldown_days)))
+    reply_waiting = await _count(select(func.count()).where(waiting_send_exists(due.message.id)))
     checks = (
         (due.message.sent_at is not None, Refusal.USER_REPLIED),
+        (reply_waiting > 0, Refusal.REPLY_SCHEDULED),
         (sent_today >= HOLDING_REPLY_DAILY_CAP, Refusal.DAILY_CAP),
         (recent_to_sender > 0, Refusal.COOLDOWN),
         (due.settings.scope == ReplyScope.NEEDS_REPLY and due.message.generated_at is not None

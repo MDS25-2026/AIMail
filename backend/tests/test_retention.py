@@ -24,7 +24,16 @@ def test_message_content_is_kept_until_a_limit_is_configured(test_settings):
 def test_clearing_message_content_keeps_the_record_but_not_the_words():
     sql = _sql(retention._message_content(180))
     assert sql.startswith("UPDATE messages") and "body_masked" in sql and "ai_summary" in sql
+    assert "embedding=" in sql.replace(" ", "")  # the Gemini vector of the body goes with the words
     assert "DELETE" not in sql
+
+
+def test_finished_send_later_rows_expire_and_waiting_ones_stay():
+    sql = _sql(retention._finished_schedules(30))
+    assert sql.startswith("DELETE FROM scheduled_send")
+    assert "scheduled_send.sent_at IS NOT NULL" in sql and "cancelled_reason IS NOT NULL" in sql
+    named = {policy.name: policy for policy in retention.POLICIES}
+    assert named["finished_scheduled_sends"].days() == retention.FINISHED_SCHEDULE_DAYS
 
 
 def test_a_policy_switched_off_is_never_run(test_settings, monkeypatch):

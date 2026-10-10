@@ -90,6 +90,7 @@ from app.private_mode import provider_for
 from app.rag.errors import EmbeddingError
 from app.rag.retrieve import retrieve
 from app.rag.utils import format_rag_context
+from app.retention import KEEP_FOREVER
 from app.scheduled_sends import (
     CancelReason,
     ScheduleState,
@@ -671,6 +672,16 @@ def _raise_unless_updated(message: Message, outcome: GenerationOutcome) -> None:
     raise AlreadySentError(str(message.id))  # SKIPPED with nothing refused: it was sent while generating
 
 
+# Longer than a Gmail send can take (its timeout is 30 s): a claim this new with no Gmail id is still going.
+SEND_IN_FLIGHT = timedelta(minutes=2)
+
+
+def _is_mid_send(message: Message) -> bool:
+    """Claimed by another request that has not heard back from Gmail yet; "sent" could be untrue."""
+    is_recent_claim = message.sent_at is not None and message.sent_at > datetime.now(timezone.utc) - SEND_IN_FLIGHT
+    return is_recent_claim and message.sent_message_id is None and message.send_outcome_unknown_at is None
+
+
 async def _claim_send(pk: UUID) -> bool:
     """Mark the message sent before sending, atomically. False if another request already has.
 
@@ -724,6 +735,8 @@ async def approve_and_send(
     reply = _outgoing(draft, await _details_for(message, await _thread_for(message)))
     if message.user_id is not None and not await connections.can_send(message.user_id):
         raise SendRejectedError(ErrorCode.SEND_NOT_GRANTED)
+    if _is_mid_send(message):
+        raise DomainError(ErrorCode.SEND_IN_PROGRESS, f"message {message_id} is being sent by another request")
     if message.sent_at is not None:
         return _to_email(message, await _policy_for(message))  # sent before this request: answering is idempotent
     if not await _claim_send(pk):
@@ -1045,9 +1058,14 @@ async def schedule_email(message_id: str, draft: str, send_at: datetime, *, scop
     if message is None:
         return None
     _require(message, Action.SEND)
+    if message.sent_at is not None:
+        # Send refuses nothing for a sent email (a repeat is answered as sent); a schedule would say
+        # "Scheduled" for something that will never go.
+        raise AlreadySentError(message_id)
     when = _check_ahead(send_at)
     # The real details behind the draft's placeholders are deleted then; it could not be sent.
-    if when > message.created_at + timedelta(days=get_settings().vault_retention_days):
+    vault_days = get_settings().vault_retention_days
+    if vault_days != KEEP_FOREVER and when > message.created_at + timedelta(days=vault_days):
         raise DomainError(ErrorCode.TIME_OUT_OF_RANGE, "after this email's details are deleted")
     reply = _outgoing(draft, await _details_for(message, await _thread_for(message)))
     await hold(pk, message.user_id, reply.stored, when)
