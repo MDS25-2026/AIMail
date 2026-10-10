@@ -73,6 +73,20 @@ export const ms: Translations = {
     sent: "Dihantar",
   },
   tone: { label: "Nada", professional: "Profesional", casual: "Santai" },
+  draftDiff: {
+    view: "Paparan draf",
+    draft: "Draf",
+    changes: "Perubahan",
+    source: { edits: "Suntingan anda pada draf AI", refine: "Perubahan oleh Perhalus" },
+    none: {
+      edits: "Belum ada perubahan daripada draf AI.",
+      refine: "Perhalus tidak mengubah draf.",
+    },
+    added: "Ditambah",
+    removed: "Dibuang",
+    addedLabel: "ditambah: ",
+    removedLabel: "dibuang: ",
+  },
   refine: {
     placeholder: "Minta AI memperhalus balasan…",
     submit: "Perhalus",
