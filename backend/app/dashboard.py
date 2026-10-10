@@ -784,7 +784,9 @@ async def _record_send(pk: UUID, message: Message, reply: OutgoingReply, sent: S
         await session.execute(insert(SentMessage).values(
             user_id=stored.user_id, gmail_id=sent.gmail_id, message_id=pk, thread_id=stored.thread_id,
             sent_at=func.now(), subject=stored.subject or "", body_masked=reply.stored, remind=remind,
-        ).on_conflict_do_update(index_elements=["gmail_id"], set_={"remind": remind, "message_id": pk}))
+        ).on_conflict_do_update(index_elements=["gmail_id"], set_={
+            # The listener's copy was masked apart, with other placeholder numbers: ours shares the vault.
+            "remind": remind, "message_id": pk, "body_masked": reply.stored, "subject": stored.subject or ""}))
         await session.commit()
         return _to_email(stored, await _policy_for(stored)), stored, is_learning_style
 
@@ -1186,6 +1188,7 @@ async def _record_follow_up(sent: SentMessage, answered: Message, reply: Outgoin
             user_id=sent.user_id, gmail_id=gmail.gmail_id, message_id=answered.id,
             thread_id=answered.thread_id or sent.thread_id, sent_at=func.now(), subject=sent.subject,
             body_masked=reply.stored, remind=True,
-        ).on_conflict_do_update(index_elements=["gmail_id"], set_={"message_id": answered.id, "remind": True}))
+        ).on_conflict_do_update(index_elements=["gmail_id"], set_={
+            "message_id": answered.id, "remind": True, "body_masked": reply.stored, "subject": sent.subject}))
         record(session, AuditAction.FOLLOW_UP_SENT, user_id=answered.user_id, message=str(answered.id),
                restored=reply.restored)

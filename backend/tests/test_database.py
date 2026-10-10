@@ -406,15 +406,17 @@ def test_remind_me_survives_the_listener_storing_the_send_first():
                               thread_id="t-race", subject="Invoice")
             session.add(message)
         async with get_sessionmaker()() as session, session.begin():
-            session.add(SentMessage(gmail_id="g-race", thread_id="t-race", sent_at=datetime.now(timezone.utc)))
+            session.add(SentMessage(gmail_id="g-race", thread_id="t-race", sent_at=datetime.now(timezone.utc),
+                                    body_masked="Could you confirm, [PERSON_3]?"))
         reply = dashboard.OutgoingReply(stored="Could you confirm?", sent="Could you confirm?", restored=0)
         sent = SentReply(gmail_id="g-race", thread_id="t-race", message_id="<m>")
         await dashboard._record_send(message.id, message, reply, sent, remind=True)
-        return message.id, await _scalar("SELECT remind::text || ' ' || message_id::text FROM sent_message "
-                                         "WHERE gmail_id = 'g-race'")
+        return message.id, await _scalar("SELECT remind::text || ' ' || message_id::text || ' ' || body_masked "
+                                         "FROM sent_message WHERE gmail_id = 'g-race'")
 
     pk, row = _run(scenario())
-    assert row == f"true {pk}"
+    # The listener's masking (its own [PERSON_3]) gives way to AIMail's copy, which shares the vault.
+    assert row == f"true {pk} Could you confirm?"
 
 
 def _private_and_cloud_users() -> tuple[object, object]:
