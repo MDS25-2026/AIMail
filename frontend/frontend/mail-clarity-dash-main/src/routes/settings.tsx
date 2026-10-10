@@ -6,6 +6,7 @@ import AccountCard from "../components/AccountCard";
 import HoldingReplyCard from "../components/HoldingReplyCard";
 import PrivateModeCard from "../components/PrivateModeCard";
 import ScanReadingCard from "../components/ScanReadingCard";
+import TemplatesCard from "../components/TemplatesCard";
 import WritingStyleCard from "../components/WritingStyleCard";
 import AppShell from "../components/AppShell";
 import Choice from "../components/Choice";
@@ -54,6 +55,10 @@ function SettingsPage() {
 
         <div className="mb-4">
           <WritingStyleCard />
+        </div>
+
+        <div className="mb-4">
+          <TemplatesCard />
         </div>
 
         <div className="mb-4">

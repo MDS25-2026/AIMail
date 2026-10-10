@@ -11,8 +11,12 @@ export default function DraftActionsBar({ workflow, isSent }: DraftActionsBarPro
   // not go out mid-change. Sending is the irreversible one, so it is the one guarded hardest.
   const { t } = useTranslation();
   const isDraftChanging =
-    workflow.isRegenerating || workflow.isRefining || workflow.status.isGenerating;
+    workflow.isRegenerating ||
+    workflow.isRefining ||
+    workflow.isTemplating ||
+    workflow.status.isGenerating;
   const isCountingDown = workflow.undoCountdown !== null && workflow.undoCountdown > 0;
+  const blanks = workflow.unfilledBlanks;
 
   return (
     <div className="flex flex-col gap-2">
@@ -31,6 +35,11 @@ export default function DraftActionsBar({ workflow, isSent }: DraftActionsBarPro
           </button>
         </div>
       )}
+      {blanks.length > 0 ? (
+        <p role="status" className="text-right text-xs text-warning">
+          {t("templates.fillBlanks", { blanks: blanks.join(", "), count: blanks.length })}
+        </p>
+      ) : null}
       <div className="flex items-center justify-end gap-2">
         <button
           type="button"
@@ -45,6 +54,7 @@ export default function DraftActionsBar({ workflow, isSent }: DraftActionsBarPro
           isSending={workflow.isSending}
           isSent={isSent}
           isDraftChanging={isDraftChanging || isCountingDown}
+          isBlocked={blanks.length > 0}
         />
       </div>
     </div>

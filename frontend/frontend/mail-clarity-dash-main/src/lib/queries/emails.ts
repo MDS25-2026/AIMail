@@ -17,6 +17,7 @@ import {
   sendEmail,
   translateEmail,
 } from "../api/emails";
+import { adaptTemplate } from "../api/templates";
 import { queryKeys } from "./keys";
 
 // While the worker writes the first draft (email.isDrafting), the email is fetched again on this
@@ -150,6 +151,11 @@ export function useSendEmail() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.emails });
     },
   });
+}
+
+/** Draft from template: the agent rewrites a saved template for the email, stored like a refine. */
+export function useAdaptTemplate() {
+  return useDraftMutation(adaptTemplate);
 }
 
 export function useConfirmSender() {

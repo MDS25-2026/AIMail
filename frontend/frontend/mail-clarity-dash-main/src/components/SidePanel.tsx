@@ -20,6 +20,7 @@ import PanelSummary from "./PanelSummary";
 import PrivacyReceipt from "./PrivacyReceipt";
 import RefineInput from "./RefineInput";
 import SourcesChips from "./SourcesChips";
+import TemplatePicker from "./TemplatePicker";
 import WithDetails from "./WithDetails";
 
 export type SidePanelProps = { email: Email; workflow: DraftWorkflow; account?: string };
@@ -87,6 +88,7 @@ function PanelDraft({ email, workflow }: { email: Email; workflow: DraftWorkflow
       className="space-y-3 rounded-lg border border-line bg-surface p-3"
     >
       <DraftReplyEditor email={email} workflow={workflow} rows={9} />
+      <TemplatePicker key={`templates-${email.id}`} email={email} workflow={workflow} />
       <HiddenDetailChips
         key={`hidden-${email.id}`}
         draft={workflow.draft}

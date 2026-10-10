@@ -19,6 +19,14 @@ export function findTemplatePlaceholders(draft: string): string[] {
   );
 }
 
+// A saved template's {{blank}}, matched as the backend matches it (app/templates.py).
+const TEMPLATE_BLANK = /\{\{[^{}]*\}\}/g;
+
+/** Template blanks still in the draft. The backend refuses to send one, so the reader fills it first. */
+export function findUnfilledBlanks(draft: string): string[] {
+  return draft.match(TEMPLATE_BLANK) ?? [];
+}
+
 /** Whether replacing the draft would throw away text the reader typed. */
 export function hasUnsavedEdits(typed: string | null, serverDraft: string): boolean {
   return typed !== null && typed !== serverDraft;

@@ -69,7 +69,7 @@ def client(monkeypatch, test_settings):
     async def emails(scope, policy_email, limit, after):
         return EmailPage(emails=[EMAIL])
 
-    async def detail(message_id, *, scope):
+    async def detail(message_id, *, scope, viewer_id=None):
         return EMAIL
 
     monkeypatch.setattr("app.main.list_dashboard_emails", emails)

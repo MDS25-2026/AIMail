@@ -6,6 +6,18 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-11 — Saved reply templates; the sender's name joins the thread map
+- Decision: personal templates (`reply_template`, migration 0038) with `{{variables}}`. `{{name}}`
+  is the sender's display name as a placeholder (`ThreadMap.add_sender`, numbered after the owner),
+  so the AI never sees it and the send fills it in. *Insert* fills the editor and stores nothing;
+  *Draft from template* goes through the existing refine path; a `{{...}}` left in a draft refuses
+  the send.
+- Why: the user fills only what the email does not say, and no unmasked name is stored or sent.
+- Why not store inserted templates: they would carry a critic score they never had.
+- Affects: `backend/app` (Lane B), the draft card and Settings (Lane D), the refine call to the
+  agent (Lane C, unchanged), `specs/features/reply-templates.md`, `restorable-masking.md`.
+- Status: accepted (owner, 2026-10-10 spec; built 2026-10-11)
+
 ### 2026-10-10 — Scanned attachments: local by default, a local vision check by choice
 - Decision: scan images no longer reach Gemini by default; the reader returns each page's local text
   and the listener masks and uses it. A user may choose checked scans (`user_preferences.scan_reading`,

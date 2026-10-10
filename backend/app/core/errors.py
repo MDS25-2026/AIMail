@@ -59,6 +59,7 @@ class ErrorCode(StrEnum):
     PRIVATE_MODE_UNAVAILABLE = "private_mode_unavailable"
     SCAN_CHECK_UNAVAILABLE = "scan_check_unavailable"
     TOO_MANY_EXAMPLES = "too_many_examples"
+    TOO_MANY_TEMPLATES = "too_many_templates"
     ALREADY_SENT_OR_CANCELLED = "already_sent_or_cancelled"
     INVALID_SETTINGS = "invalid_settings"
     # Holding-reply settings that could never work (app/holding_reply.py validates them)
@@ -113,6 +114,7 @@ _STATUS: dict[ErrorCode, int] = {
     ErrorCode.PRIVATE_MODE_UNAVAILABLE: status.HTTP_409_CONFLICT,
     ErrorCode.SCAN_CHECK_UNAVAILABLE: status.HTTP_409_CONFLICT,
     ErrorCode.TOO_MANY_EXAMPLES: status.HTTP_409_CONFLICT,
+    ErrorCode.TOO_MANY_TEMPLATES: status.HTTP_409_CONFLICT,
     ErrorCode.ALREADY_SENT_OR_CANCELLED: status.HTTP_409_CONFLICT,
     ErrorCode.FORBIDDEN: status.HTTP_403_FORBIDDEN,
     ErrorCode.ACCOUNT_ONLY: status.HTTP_403_FORBIDDEN,

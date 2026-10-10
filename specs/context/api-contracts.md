@@ -72,6 +72,17 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   `GET /settings/scan-reading` returns `{available, mode}` (`mode`: `local` | `checked`;
   `available`: the company set `LOCAL_VISION_MODEL`); `PUT` `{mode}` saves it (`409
   scan_check_unavailable` for `checked` where it is not set up; `local` is always accepted).
+- **Saved reply templates (2026-10-11, `specs/features/reply-templates.md`):** signed-in users only.
+  `GET /templates` (most recently used first); `POST /templates` and `PUT /templates/{id}` take
+  `{title, body, language: en|ms|zh, triggerKeywords: string[]}` and return it with `id` and
+  `lastUsedAt` (`409 too_many_templates` past 50; `422` past the length limits); `DELETE
+  /templates/{id}` (204). `POST /templates/{id}/fill` `{emailId}` returns `{text}`: the template
+  filled for that email (`{{name}}` as the sender's placeholder, `{{my name}}` the owner's, `{{today}}`
+  the date), nothing stored. `POST /templates/{id}/adapt` `{emailId, tone}` returns the email with
+  the agent's rewrite stored, as a refine does. `POST /templates/{id}/translate` `{language}`
+  returns an unsaved copy (`422 translation_unfaithful` if a `{{variable}}` was lost). Someone
+  else's template answers 404. The email detail gains `suggestedTemplateId`. A send whose draft
+  still holds a `{{...}}` is refused with `422 unresolved_placeholders`.
 - **Account (2026-10-05, `specs/features/per-user-mailboxes.md` "Disconnect and delete account"):**
   `DELETE /account/gmail` revokes the Google token, deletes the user's stored emails and their
   connection (`204`; `404 not_connected`). `DELETE /account` also deletes their documents, profile

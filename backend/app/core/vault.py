@@ -94,6 +94,8 @@ class ThreadMap:
     _counts: dict[DetailKind, int] = field(default_factory=dict)
     # The mailbox owner's name as a placeholder, for the reply's sign-off; None when unknown.
     owner: str | None = None
+    # The sender's display name as a placeholder, for a template's {{name}}; None when unknown.
+    sender: str | None = None
 
     def _allocate(self, kind: DetailKind, identity: str, value: str | None) -> str:
         known = self._by_value.get((kind, identity))
@@ -129,6 +131,13 @@ class ThreadMap:
         self.owner = self._allocate(DetailKind.PERSON, _normalise(DetailKind.PERSON, name), name.strip())
         return self.owner
 
+    def add_sender(self, name: str) -> str | None:
+        """The sender's display name (messages.from_addr keeps it on purpose) as a placeholder."""
+        if not name.strip():
+            return None
+        self.sender = self._allocate(DetailKind.PERSON, _normalise(DetailKind.PERSON, name), name.strip())
+        return self.sender
+
     def details(self) -> list[dict[str, str]]:
         return [{"placeholder": placeholder, "value": value, "kind": PLACEHOLDER.fullmatch(placeholder).group(1)}
                 for placeholder, value in self.values.items() if value]
@@ -154,7 +163,9 @@ class ThreadMap:
         return PLACEHOLDER.sub(lambda m: self.values.get(m.group(0)) or m.group(0), text), unresolved
 
 
-def build_thread_map(messages: list[tuple[str, bytes | None, UUID | None, str, str]], owner_name: str) -> ThreadMap:
+def build_thread_map(
+    messages: list[tuple[str, bytes | None, UUID | None, str, str]], owner_name: str, sender_name: str = ""
+) -> ThreadMap:
     """One numbering for a conversation. Each message is (key, sealed vault, owner, Gmail id, text),
     oldest first; a vault that does not open leaves that message's placeholders without values."""
     thread = ThreadMap()
@@ -167,4 +178,6 @@ def build_thread_map(messages: list[tuple[str, bytes | None, UUID | None, str, s
                 logger.warning("vault for message %s did not open: %s", key, exc)
         thread.add_message(key, details, text)
     thread.add_owner(owner_name)
+    # After the owner: stored drafts sign off with the owner's number, which must not move.
+    thread.add_sender(sender_name)
     return thread

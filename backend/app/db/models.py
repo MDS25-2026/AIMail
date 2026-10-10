@@ -338,6 +338,22 @@ class HoldingReply(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class ReplyTemplate(Base):
+    """One saved reply (migration 0038, specs/features/reply-templates.md), stored as typed."""
+
+    __tablename__ = "reply_template"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("user_profile.id"))
+    title: Mapped[str] = mapped_column(Text)
+    body: Mapped[str] = mapped_column(Text)
+    language: Mapped[str] = mapped_column(Text)
+    trigger_keywords: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class WritingStyle(Base):
     """One user's writing style (migration 0020, specs/features/writing-profile.md). Masked text only."""
 
