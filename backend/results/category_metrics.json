@@ -1,40 +1,40 @@
 {
-  "evaluation_timestamp": "2026-10-08T14:55:24.275562+00:00",
+  "evaluation_timestamp": "2026-10-10T08:34:25.631101+00:00",
   "holdout_samples": 120,
-  "macro_f1": 0.9917,
-  "average_cpu_latency_ms": 0.55,
+  "macro_f1": 0.8435,
+  "average_cpu_latency_ms": 0.53,
   "latency_gate_passed": true,
-  "f1_gate_passed": true,
+  "f1_gate_passed": false,
   "per_class_report": {
     "client": {
-      "precision": 0.9523809523809523,
-      "recall": 1.0,
-      "f1-score": 0.975609756097561,
-      "support": 20.0
+      "precision": 0.6666666666666666,
+      "recall": 0.7777777777777778,
+      "f1-score": 0.717948717948718,
+      "support": 18.0
     },
     "vendor": {
-      "precision": 1.0,
-      "recall": 0.95,
-      "f1-score": 0.9743589743589743,
-      "support": 20.0
+      "precision": 0.8947368421052632,
+      "recall": 0.8095238095238095,
+      "f1-score": 0.85,
+      "support": 21.0
     },
     "internal": {
       "precision": 1.0,
-      "recall": 1.0,
-      "f1-score": 1.0,
-      "support": 20.0
+      "recall": 0.8,
+      "f1-score": 0.8888888888888888,
+      "support": 25.0
     },
     "security": {
-      "precision": 1.0,
-      "recall": 1.0,
-      "f1-score": 1.0,
-      "support": 20.0
+      "precision": 0.55,
+      "recall": 0.7333333333333333,
+      "f1-score": 0.6285714285714286,
+      "support": 15.0
     },
     "admin": {
       "precision": 1.0,
-      "recall": 1.0,
-      "f1-score": 1.0,
-      "support": 20.0
+      "recall": 0.9523809523809523,
+      "f1-score": 0.975609756097561,
+      "support": 21.0
     },
     "personal": {
       "precision": 1.0,
@@ -45,39 +45,39 @@
   },
   "confusion_matrix": [
     [
+      14,
+      0,
+      0,
+      4,
+      0,
+      0
+    ],
+    [
+      2,
+      17,
+      0,
+      2,
+      0,
+      0
+    ],
+    [
+      2,
+      0,
       20,
+      3,
       0,
+      0
+    ],
+    [
+      2,
+      2,
       0,
-      0,
+      11,
       0,
       0
     ],
     [
       1,
-      19,
-      0,
-      0,
-      0,
-      0
-    ],
-    [
-      0,
-      0,
-      20,
-      0,
-      0,
-      0
-    ],
-    [
-      0,
-      0,
-      0,
-      20,
-      0,
-      0
-    ],
-    [
-      0,
       0,
       0,
       0,
