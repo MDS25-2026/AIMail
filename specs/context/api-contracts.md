@@ -285,7 +285,9 @@ See [`../features/rag-retrieval.md`](../features/rag-retrieval.md).
     "query": string,
     "history"?: [{ "role": "user" | "assistant", "content": string (≤ 8000) }] (≤ 20 turns),
     "k_emails"?: int (1–20, default 5),
-    "k_docs"?: int (1–10, default 3)
+    "k_docs"?: int (1–10, default 3),
+    "restore"?: boolean (default true; false while the reader hides details: placeholders stay in the
+      answer and sources, sender addresses are left out, and `sender_vault` is empty)
   }
   ```
 - Response 200:

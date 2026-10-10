@@ -1016,6 +1016,9 @@ export const en = {
     },
   },
   assistant: {
+    open: "Open inbox assistant",
+    close: "Close inbox assistant",
+    send: "Ask",
     title: "Inbox Assistant",
     groundedBadge: "[Grounded Q&A]",
     privacyNotice:

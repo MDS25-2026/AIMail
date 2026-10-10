@@ -191,3 +191,26 @@ def test_a_quoted_subject_restores_its_own_emails_person_not_the_first_emails(mo
         InboxSearchRequest(query="refunds?"), scope=EVERYTHING, provider=Provider.GEMINI))
     assert response.answer.startswith("Refund for Siti")
     assert response.sources[0].title == "Refund for Siti"
+
+
+def test_with_details_hidden_the_answer_and_sources_keep_their_placeholders(monkeypatch) -> None:
+    email = Message(id=uuid4(), user_id=None, gmail_message_id="g1", subject="Refund for [PERSON_1]",
+                    body_masked="[PERSON_1] wants a refund.", pii_vault=b"v1", from_addr="siti@example.com")
+
+    async def found(*_args, **_kwargs):
+        return [email], []
+
+    async def email_search(*_args, **_kwargs):
+        return inbox_search.QueryIntent.EMAIL_SEARCH
+
+    async def answer(*_args, **_kwargs):
+        return "[PERSON_1] from [SENDER_1] asked for a refund. [Email 1]\nCitations: [Email 1]"
+
+    monkeypatch.setattr(inbox_search, "route_query_intent", email_search)
+    monkeypatch.setattr(inbox_search, "search_messages_hybrid", found)
+    monkeypatch.setattr(inbox_search, "open_vault", lambda *_args: {"[PERSON_1]": "Siti"})
+    monkeypatch.setattr(inbox_search.model_gateway, "generate", answer)
+    hidden = asyncio.run(inbox_search.execute_inbox_search(
+        InboxSearchRequest(query="refunds?", restore=False), scope=EVERYTHING, provider=Provider.GEMINI))
+    assert "Siti" not in hidden.answer and "siti@" not in hidden.answer and hidden.sender_vault == {}
+    assert hidden.sources[0].title == "Refund for [PERSON_1]" and "siti@" not in hidden.sources[0].subtitle

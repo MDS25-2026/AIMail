@@ -1309,6 +1309,11 @@ export interface components {
             k_emails: number;
             /** Query */
             query: string;
+            /**
+             * Restore
+             * @default true
+             */
+            restore: boolean;
         };
         /** InboxSearchResponse */
         InboxSearchResponse: {

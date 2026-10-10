@@ -1057,6 +1057,9 @@ export const ms: Translations = {
     },
   },
   assistant: {
+    open: "Buka pembantu peti masuk",
+    close: "Tutup pembantu peti masuk",
+    send: "Tanya",
     title: "Pembantu Peti Masuk",
     groundedBadge: "[Soal Jawab Berasas]",
     privacyNotice:

@@ -175,6 +175,8 @@ class InboxSearchRequest(BaseModel):
     history: list[ChatMessage] = Field(default_factory=list, max_length=MAX_HISTORY_TURNS)
     k_emails: int = Field(default=5, ge=1, le=20)
     k_docs: int = Field(default=3, ge=1, le=10)
+    # False while the reader hides details (say, sharing their screen): placeholders stay in the answer.
+    restore: bool = True
 
 
 class InboxSearchResponse(BaseModel):
@@ -183,6 +185,11 @@ class InboxSearchResponse(BaseModel):
     sender_vault: dict[str, str] = Field(default_factory=dict)
     has_restored_pii: bool = False
     intent: str | None = None
+
+
+def _shown(text: str, thread_map: ThreadMap, restore: bool) -> str:
+    """Text for the reader: details filled in, unless they asked to keep them hidden."""
+    return thread_map.restore(text)[0] if restore else text
 
 
 def _questions(history: list[ChatMessage]) -> list[str]:
@@ -560,9 +567,10 @@ async def execute_inbox_search(
         candidate_sources_map[tag] = SearchSource(
             source_type=SourceType.EMAIL,
             id=str(msg.id),
-            title=thread_map.restore(clean_subject)[0],
-            subtitle=f"{msg.from_addr or 'Unknown sender'} · {format_received_date(msg.received_at)}",
-            snippet=thread_map.restore(shared_snippets[msg.id])[0],
+            title=_shown(clean_subject, thread_map, request.restore),
+            subtitle=f"{(msg.from_addr if request.restore else sender_placeholder) or 'Unknown sender'} · "
+                     f"{format_received_date(msg.received_at)}",
+            snippet=_shown(shared_snippets[msg.id], thread_map, request.restore),
             received_at=msg.received_at.isoformat() if msg.received_at else None,
         )
 
@@ -711,6 +719,10 @@ Helpful Grounded Answer:"""
         if source and source.id not in seen_ids:
             seen_ids.add(source.id)
             final_sources.append(source)
+
+    if not request.restore:
+        return InboxSearchResponse(answer=clean_answer, sources=final_sources, sender_vault={},
+                                   has_restored_pii=False, intent=intent.value)
 
     # 6. Local AES-GCM Vault PII Restoration
     restored_text, _ = thread_map.restore(clean_answer)

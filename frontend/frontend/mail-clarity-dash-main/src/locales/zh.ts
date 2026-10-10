@@ -970,6 +970,9 @@ export const zh: Translations = {
     },
   },
   assistant: {
+    open: "打开收件箱助手",
+    close: "关闭收件箱助手",
+    send: "提问",
     title: "收件箱助手",
     groundedBadge: "[基于事实问答]",
     privacyNotice:
