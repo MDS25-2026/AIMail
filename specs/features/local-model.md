@@ -3,7 +3,7 @@
 - **Status:** Private mode built 2026-10-06 (Gemma 4 E2B; blind human rating running)
 - **Owner:** veyroxie (experiment); Lane C (Hanif) for any change to `email_agent.py` / `gemini_client.py`
 - **Related issue:** conversation of 2026-09-30; guide `local-llm-guide.pdf` (kept outside the repo)
-- **Last updated:** 2026-09-30
+- **Last updated:** 2026-10-10
 
 ## Goal
 
@@ -170,6 +170,68 @@ scale well"; the proof of concept waits for the testing data.
 - Which model? Qwen 2.5 3B is the measured candidate. Southeast Asian models (SEA-LION, MaLLaM)
   should join the baseline if a build fits in 4 GB.
 - Does Ollama keep prompts in its logs? Check `journalctl -u ollama` before using real masked emails.
+
+## Next phase (#153, agreed 2026-10-10)
+
+**1. Offer Private mode as a full option.** A Settings card and a step at first sign-in, plus a
+suggestion on the draft card when an email is only partly masked. One claim, true wherever the
+model runs (the user's machine, the company's server, or ours):
+
+> Drafted on AIMail's private model. Never sent to Google or Anthropic, and only ever used for
+> your own replies.
+
+Do not claim "never leaves your device" or "never sent to us": a hosted model makes both false.
+
+**2. Malay and Chinese quality.**
+- **Primary score:** blind human rating by native readers on the existing page (send as is / small
+  edits / unusable), with a reason for anything below "send as is": wrong language, wrong register
+  (tuan/puan vs awak; 您 vs 你), meaning, or tone. Pairwise choice ("which reply is better")
+  alongside, since human and model judges agree best on pairs.
+- **Raters:** teammates who read Chinese and Malay; about 30 drafts each, model names hidden.
+- **Automatic checks on every draft** (free, reported beside the rating): reply language matches
+  the email, script kept (simplified vs traditional), placeholders kept, length.
+- **Gemini's critic** is a cross-check only: multilingual LLM judges agree with people noticeably
+  less when scoring one reply than when comparing two (arXiv 2505.12201), and Gemini favours
+  Gemini.
+- **Candidates to add**, if they fit in 4 GB: Sailor2 1B (Qwen 2.5 continued on SEA languages,
+  on Ollama), Gemma-SEA-LION-v4 4B (vision too, so it could also run the signature check),
+  MaLLaM 1.1B (Malay first). SEA-HELM, the main SEA benchmark, does not cover Malay or Chinese,
+  so there is no ready-made score to borrow.
+
+**3. `/ask` in Private mode** searches `local_embedding` and answers with the local model, so a
+Private-mode user sends nothing to Gemini at all.
+
+**4. Per-user training, own data only.** Each user's adapter is trained only on that user's
+masked draft/sent pairs and serves only that user; pairs are never pooled across users. Until a
+user has a few hundred pairs, the writing style (habits, examples, past replies) is their
+personalisation. The "Learn from what I send" switch text adds one line saying the pairs may
+train the user's own model.
+
+**5. Keep the model loaded.** A setting for Ollama's `keep_alive`: on by default where a server
+hosts the model, the user's choice on a laptop (about 3.4 GB of a 4 GB card held permanently).
+
+## Future steps, if the project continues: hosting the model
+
+Today the model runs where AIMail runs (Ollama on `localhost`), so a machine without Ollama has no
+Private mode and, with `signature-detection.md`, sends no scanned image to Gemini. The planned
+hosting (#150: Render, Vercel) has no GPU, so a hosted deployment needs a separate GPU host.
+
+| Option | Behaviour | Rough cost (estimate, to be checked) |
+|---|---|---|
+| Cloud Run with a GPU | Starts on a request, scales to zero when idle; IAM in front | about USD 0.7 per hour in use |
+| Serverless GPU (RunPod, Modal) | Pay per second of use | a similar hourly range |
+| Always-on GPU server | No cold start | about USD 150 to 300 a month |
+
+- The cost is per server, not per user. One GPU serves everyone; how many users it carries depends
+  on mail volume, and the per-user adapter plan above aims at hundreds of users per GPU.
+- Privacy: the email goes to a server the company controls, still masked, never to a model
+  provider. The claim becomes "never sent to an AI company", not "never leaves your device".
+- Ollama has no authentication, so it must sit on a private network or behind an auth proxy, never
+  on a public port.
+- A host that scales to zero pays a cold start (about 45 to 65 s measured on 4 GB) on the first
+  request. Drafting and the signature check run in the background, so they tolerate it.
+- Recommended when it happens: Cloud Run with a GPU, on the same Google account as the Gemini
+  billing (#150), scaling to zero.
 
 ## Protected decisions
 
