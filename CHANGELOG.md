@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.7.0](https://github.com/MDS25-2026/AIMail/compare/v1.6.0...v1.7.0) (2026-10-10)
+
+
+### Features
+
+* **dashboard:** show what changed in the draft, word by word ([#206](https://github.com/MDS25-2026/AIMail/issues/206)) ([4329f36](https://github.com/MDS25-2026/AIMail/commit/4329f36808c8a6757e86c147da8bdb95dc1b823b))
+* **quiet-hours:** send later, snooze, and a nudge when it is late for the recipient ([#209](https://github.com/MDS25-2026/AIMail/issues/209)) ([e5a52ab](https://github.com/MDS25-2026/AIMail/commit/e5a52ab5f6b7642bbd6de6bbbaaf7b583bc003bb))
+* **scans:** scans read locally by default; a local vision check for signatures, faces and stamps by choice ([#204](https://github.com/MDS25-2026/AIMail/issues/204)) ([aa35512](https://github.com/MDS25-2026/AIMail/commit/aa35512870b9f85927f5cbe50f183acfc5200582))
+* **search:** natural language inbox search and thread Q&A assistant ([#195](https://github.com/MDS25-2026/AIMail/issues/195)) ([5d57bc5](https://github.com/MDS25-2026/AIMail/commit/5d57bc5053599735dfb081d375cc29acd92640a2))
+* **templates:** saved replies, filled from what AIMail knows and adapted by the agent ([#207](https://github.com/MDS25-2026/AIMail/issues/207)) ([2085dff](https://github.com/MDS25-2026/AIMail/commit/2085dff56eb205b68a17eb28c19f3b12931cc5dd))
+* **todo:** a To-do page for what needs you, including replies still waiting for an answer ([#210](https://github.com/MDS25-2026/AIMail/issues/210)) ([a8076e0](https://github.com/MDS25-2026/AIMail/commit/a8076e0f0f0d0124a1c41b75985f12ed3c3b7285))
+
+
+### Bug Fixes
+
+* **api:** limits on the routes that had none, and a batch that survives one bad email ([#199](https://github.com/MDS25-2026/AIMail/issues/199)) ([46a63f7](https://github.com/MDS25-2026/AIMail/commit/46a63f78314bc3b701fe0072b5cd786db0f7f3c3))
+* **dashboard:** a failed regenerate puts the tone toggle back ([#198](https://github.com/MDS25-2026/AIMail/issues/198)) ([ebfb7ce](https://github.com/MDS25-2026/AIMail/commit/ebfb7ce94a5039b439058204e021c5b67b3ad3cf))
+* **dashboard:** edits and busy state per email; stale loads cancelled, fast selection debounced ([#200](https://github.com/MDS25-2026/AIMail/issues/200)) ([ac742c4](https://github.com/MDS25-2026/AIMail/commit/ac742c4ee13d35bc2e0661bf0cb3f188bebb14b2))
+* **dashboard:** opening an email shows the same priority as its inbox row ([#197](https://github.com/MDS25-2026/AIMail/issues/197)) ([7d14628](https://github.com/MDS25-2026/AIMail/commit/7d14628c3fb9b0cd3f8b2b29cca6a22d10393bf4))
+* **ingest:** masking, decoding and catch-up gaps from the epic's listener items ([#202](https://github.com/MDS25-2026/AIMail/issues/202)) ([63300cc](https://github.com/MDS25-2026/AIMail/commit/63300cc09f0895df6e7adf3fca7e11545550b6ae))
+* **masking:** fixed placeholder numbers for the owner and the sender ([#208](https://github.com/MDS25-2026/AIMail/issues/208)) ([d771fa3](https://github.com/MDS25-2026/AIMail/commit/d771fa38d68887badd569af019bb048dbd75b850))
+* **send:** a reply that went out always shows as sent; a send race is reported, not hidden ([#196](https://github.com/MDS25-2026/AIMail/issues/196)) ([e3b6a2b](https://github.com/MDS25-2026/AIMail/commit/e3b6a2bce1023ae5b8e95ca42b6876819a4069bd))
+
+
+### Documentation
+
+* **specs:** signature check, quiet hours and send later, to-do page, templates, phone layout ([#203](https://github.com/MDS25-2026/AIMail/issues/203)) ([14012ef](https://github.com/MDS25-2026/AIMail/commit/14012ef89af6e172caf95b4cc2d53d5ad5b0a05d))
+
 ## [1.6.0](https://github.com/MDS25-2026/AIMail/compare/v1.5.1...v1.6.0) (2026-10-09)
 
 
