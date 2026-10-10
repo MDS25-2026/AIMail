@@ -144,7 +144,7 @@ class DashboardEmail(BaseModel):
     # (until the reader schedules or sends again), and when a snoozed email comes back.
     senderUtcOffsetMinutes: int | None = None
     scheduledFor: str | None = None
-    scheduleCancelled: Literal["they_replied", "too_late", "refused"] | None = None
+    scheduleCancelled: Literal["they_replied", "you_replied", "too_late", "refused"] | None = None
     snoozedUntil: str | None = None
 
 

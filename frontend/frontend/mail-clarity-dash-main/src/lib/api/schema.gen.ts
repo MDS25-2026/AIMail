@@ -955,7 +955,7 @@ export interface components {
             /** Replyto */
             replyTo?: string | null;
             /** Schedulecancelled */
-            scheduleCancelled?: ("they_replied" | "too_late" | "refused") | null;
+            scheduleCancelled?: ("they_replied" | "you_replied" | "too_late" | "refused") | null;
             /** Scheduledfor */
             scheduledFor?: string | null;
             /** Sender */

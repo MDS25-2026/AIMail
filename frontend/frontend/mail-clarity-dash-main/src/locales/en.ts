@@ -520,6 +520,7 @@ export const en = {
     scheduledFor: "Scheduled for {{when}}. It won't go out if they reply first.",
     cancel: "Cancel",
     cancelled: {
+      you_replied: "You already replied in this thread, so the scheduled reply wasn't sent.",
       they_replied:
         "They replied before your scheduled send, so it wasn't sent. Review before sending.",
       too_late:

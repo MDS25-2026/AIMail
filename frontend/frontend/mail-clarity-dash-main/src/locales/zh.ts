@@ -505,6 +505,7 @@ export const zh: Translations = {
     scheduledFor: "将于 {{when}} 发送。如果对方先回复，就不会发送。",
     cancel: "取消",
     cancelled: {
+      you_replied: "您已在这个对话中回复，所以定时回复没有发送。",
       they_replied: "对方在定时发送前已回复，所以没有发送。发送前请先查看。",
       too_late: "定时回复未能按时发出，所以没有发送。发送前请先查看。",
       refused: "定时回复到时未能发送。发送前请先查看。",

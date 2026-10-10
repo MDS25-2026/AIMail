@@ -46,6 +46,7 @@ from app.contracts import (
     ThreadMessage,
 )
 from app.core import mailbox
+from app.core.config import get_settings
 from app.core.constants import MAX_SCHEDULE_AHEAD_DAYS, TEMPLATE_TIMEZONE
 from app.core.cursor import Cursor
 from app.core.errors import DomainError, ErrorCode
@@ -93,6 +94,7 @@ from app.scheduled_sends import (
     cancel_pending,
     hold,
     states_for,
+    waiting_send_exists,
 )
 from app.send_reconciler import mark_outcome_unknown
 from app.template_store import suggested_template_id
@@ -288,9 +290,10 @@ async def _thread_for(message: Message) -> list[Message]:
 
 async def list_dashboard_emails(scope: Scope, policy_email: str, limit: int, after: Cursor | None) -> EmailPage:
     """Newest first, one page; id breaks ties, so two emails stored in the same instant both appear."""
-    # A snoozed email stays out of the inbox until it is due.
-    statement = select(Message).where(scope.where(Message.user_id),
-                                      or_(Message.snoozed_until.is_(None), Message.snoozed_until <= func.now()))
+    # A snoozed email stays out of the inbox until it is due, unless a reply to it is waiting to go
+    # out: the Scheduled page reads this list, and it must always reach the Cancel button.
+    statement = select(Message).where(scope.where(Message.user_id), or_(
+        Message.snoozed_until.is_(None), Message.snoozed_until <= func.now(), waiting_send_exists(Message.id)))
     if after:
         statement = statement.where(tuple_(Message.created_at, Message.id) < (after.created_at, after.row_id))
     # One extra row says whether another page exists without a count query.
@@ -1027,6 +1030,9 @@ async def schedule_email(message_id: str, draft: str, send_at: datetime, *, scop
         return None
     _require(message, Action.SEND)
     when = _check_ahead(send_at)
+    # The real details behind the draft's placeholders are deleted then; it could not be sent.
+    if when > message.created_at + timedelta(days=get_settings().vault_retention_days):
+        raise DomainError(ErrorCode.TIME_OUT_OF_RANGE, "after this email's details are deleted")
     reply = _outgoing(draft, await _details_for(message, await _thread_for(message)))
     await hold(pk, message.user_id, reply.stored, when)
     await audit(AuditAction.SEND_SCHEDULED, user_id=message.user_id, message=message_id)

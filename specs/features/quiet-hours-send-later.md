@@ -123,8 +123,9 @@ Changes go into `specs/context/db-schema.md` in the same PR.
 
 ## Open questions
 
-- The "they replied" check reads AIMail's own copy of the thread (the listener ingests replies
-  within seconds); it does not ask Gmail again, as holding replies do.
+- None open. The other side's reply is read from AIMail's own copy of the thread (the listener
+  ingests it within seconds); the owner's own reply, which the listener never stores, is asked of
+  Gmail when the send falls due, as holding replies do.
 
 ## Out-of-scope future extensions
 
@@ -152,6 +153,14 @@ Changes go into `specs/context/db-schema.md` in the same PR.
   `GET /scheduled`. A snoozed email returns in its place by date: moving it to the top would change
   the inbox's cursor order.
 - 2026-10-11: A scheduled draft is locked until cancelled, so what goes out is what was approved.
+- 2026-10-11: The owner answering the thread themselves (from Gmail or anywhere) cancels a waiting
+  send (`you_replied`); when Gmail cannot be asked, the send waits for the next pass, bounded by the
+  one-hour limit. Rationale: two answers to the same customer.
+- 2026-10-11: A reply cannot be scheduled past the day its email's details are deleted
+  (`VAULT_RETENTION_DAYS`, 30 days after arrival): its placeholders could not be filled when due.
+  Snooze shares the 60-day limit; past that day a snoozed email shows placeholders, not names.
+- 2026-10-11: Snooze never hides an email with a reply waiting to go out, so its Cancel stays
+  reachable from the Scheduled page.
 - 2026-10-11: A scheduled reply goes out through `approve_and_send`, with every check an approved
   reply gets; a check that refuses it when due cancels it with the reason `refused`. A manual send
   cancels any waiting one, so there is never a second copy.

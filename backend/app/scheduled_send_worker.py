@@ -1,15 +1,18 @@
 """Sends held replies when due (specs/features/quiet-hours-send-later.md).
 
-Each one is checked again first: a new message in the thread cancels it, so nobody answers a
-question that was already moved on from, and one missed by more than an hour (the worker was down)
-is cancelled rather than sent late into the quiet hours it was meant to avoid. The send itself is
+Each one is checked again first: a new message in the thread, or the owner's own answer from Gmail,
+cancels it, so nobody answers twice or answers a question that was already moved on from; and one
+missed by more than an hour (the worker was down) is cancelled rather than sent late into the quiet
+hours it was meant to avoid. The send itself is
 approve_and_send, with every check an approved reply gets.
 """
 
 import logging
 from datetime import datetime, timedelta, timezone
+from enum import StrEnum
 from uuid import UUID
 
+import httpx
 from sqlalchemy import exists, select
 
 from app.audit import AuditAction, audit
@@ -19,7 +22,12 @@ from app.core.ownership import Scope
 from app.dashboard import approve_and_send
 from app.db.models import Message, ScheduledSend
 from app.db.session import get_sessionmaker
-from app.gmail_send import SendError, SendOutcomeUnknownError
+from app.gmail_send import (
+    GmailAccessError,
+    SendError,
+    SendOutcomeUnknownError,
+    sent_message_in_thread_since,
+)
 from app.scheduled_sends import (
     CancelReason,
     cancel,
@@ -34,27 +42,56 @@ logger = logging.getLogger(__name__)
 LATE_LIMIT = timedelta(minutes=SCHEDULED_SEND_LATE_MINUTES)
 
 
-async def _they_replied(held: ScheduledSend) -> bool:
-    """A message arrived in the thread after the reply was scheduled."""
+class Verdict(StrEnum):
+    SEND = "send"
+    WAIT = "wait"
+
+
+async def _message(held: ScheduledSend) -> Message | None:
     async with get_sessionmaker()() as session:
-        message = await session.get(Message, held.message_id)
-        if message is None or not message.thread_id:
-            return False
-        newer = select(Message.id).where(
-            Message.thread_id == message.thread_id,
-            Scope(owner_id=message.user_id).where(Message.user_id),
-            Message.id != message.id,
-            Message.created_at > held.created_at,
-        )
+        return await session.get(Message, held.message_id)
+
+
+async def _they_replied(held: ScheduledSend, message: Message) -> bool:
+    """A message arrived in the thread after the reply was scheduled."""
+    if not message.thread_id:
+        return False
+    newer = select(Message.id).where(
+        Message.thread_id == message.thread_id,
+        Scope(owner_id=message.user_id).where(Message.user_id),
+        Message.id != message.id,
+        Message.created_at > held.created_at,
+    )
+    async with get_sessionmaker()() as session:
         return bool(await session.scalar(select(exists(newer))))
 
 
-async def _reason_to_cancel(held: ScheduledSend, now: datetime) -> CancelReason | None:
+async def _you_replied(held: ScheduledSend, message: Message) -> bool | None:
+    """The owner answered the thread after scheduling, from Gmail or anywhere: the listener never
+    sees their own sent mail, so Gmail is asked. None when Gmail could not be reached."""
+    if not message.thread_id:
+        return False
+    try:
+        return await sent_message_in_thread_since(message.thread_id, held.created_at,
+                                                  owner_id=message.user_id) is not None
+    except (httpx.HTTPError, GmailAccessError, KeyError, ValueError) as exc:
+        logger.warning("scheduled send %s: Gmail check failed, retrying next pass: %s", held.id, exc)
+        return None
+
+
+async def _verdict(held: ScheduledSend, now: datetime) -> CancelReason | Verdict:
+    """Call it off with a reason, send it, or wait for the next pass (Gmail unreachable)."""
     if now > held.send_at + LATE_LIMIT:
         return CancelReason.TOO_LATE
-    if await _they_replied(held):
+    message = await _message(held)
+    if message is None:
+        return CancelReason.REFUSED
+    if await _they_replied(held, message):
         return CancelReason.THEY_REPLIED
-    return None
+    you_replied = await _you_replied(held, message)
+    if you_replied is None:
+        return Verdict.WAIT
+    return CancelReason.YOU_REPLIED if you_replied else Verdict.SEND
 
 
 async def _call_off(schedule_id: UUID, user_id: UUID | None, message_id: UUID, reason: CancelReason) -> None:
@@ -89,10 +126,12 @@ async def send_due() -> int:
     now = datetime.now(timezone.utc)
     sent = 0
     for held in await due(now):
-        reason = await _reason_to_cancel(held, now)
-        if reason:
-            await cancel(held.id, reason)
-            await _call_off(held.id, held.user_id, held.message_id, reason)
+        verdict = await _verdict(held, now)
+        if verdict == Verdict.WAIT:
+            continue
+        if verdict != Verdict.SEND:
+            await cancel(held.id, verdict)
+            await _call_off(held.id, held.user_id, held.message_id, verdict)
             continue
         if await claim(held.id):
             sent += await _send(held)

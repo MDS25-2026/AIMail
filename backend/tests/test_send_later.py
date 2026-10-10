@@ -30,14 +30,20 @@ def _held(**fields) -> SimpleNamespace:
 @pytest.fixture
 def worker(monkeypatch):
     """The worker's database and send calls replaced by recorders."""
-    state = {"due": [], "replied": False, "send_error": None, "claimable": True,
+    state = {"due": [], "replied": False, "you_replied": False, "send_error": None, "claimable": True,
              "sent": [], "cancelled": [], "released": [], "claimed_cancel": []}
 
     async def due(_now):
         return state["due"]
 
-    async def they_replied(_held):
+    async def message(held):
+        return SimpleNamespace(id=held.message_id, thread_id="t1", user_id=held.user_id)
+
+    async def they_replied(_held, _message):
         return state["replied"]
+
+    async def you_replied(_held, _message):
+        return state["you_replied"]
 
     async def claim(_schedule_id):
         return state["claimable"]
@@ -60,7 +66,8 @@ def worker(monkeypatch):
     async def nothing(*_args, **_kwargs):
         return None
 
-    for name, value in (("due", due), ("_they_replied", they_replied), ("claim", claim),
+    for name, value in (("due", due), ("_message", message), ("_they_replied", they_replied),
+                        ("_you_replied", you_replied), ("claim", claim),
                         ("approve_and_send", send), ("cancel", cancel), ("release", release),
                         ("cancel_claimed", cancel_claimed), ("audit", nothing)):
         monkeypatch.setattr(scheduled_send_worker, name, value)
@@ -82,6 +89,16 @@ def test_a_due_reply_goes_out_once_through_the_normal_send_path(worker):
 def test_a_reply_from_the_other_side_first_calls_the_send_off(worker):
     worker["due"], worker["replied"] = [_held()], True
     assert _run() == 0 and worker["sent"] == [] and worker["cancelled"] == [CancelReason.THEY_REPLIED]
+
+
+def test_your_own_reply_from_gmail_calls_the_send_off_so_they_never_get_two(worker):
+    worker["due"], worker["you_replied"] = [_held()], True
+    assert _run() == 0 and worker["sent"] == [] and worker["cancelled"] == [CancelReason.YOU_REPLIED]
+
+
+def test_when_gmail_cannot_be_asked_the_send_waits_for_the_next_pass(worker):
+    worker["due"], worker["you_replied"] = [_held()], None
+    assert _run() == 0 and worker["sent"] == [] and worker["cancelled"] == []
 
 
 def test_a_send_missed_by_over_an_hour_is_called_off_not_sent_late(worker):
@@ -147,22 +164,30 @@ def mailbox(monkeypatch):
     return state
 
 
-def test_a_reply_is_held_with_its_send_time_in_utc(mailbox):
+def test_a_reply_is_held_with_its_send_time_in_utc(mailbox, test_settings):
     later = datetime.now(timezone(timedelta(hours=8))) + timedelta(hours=10)
     email = asyncio.run(dashboard.schedule_email(str(mailbox["message"].id), "Thanks.", later, scope=EVERYTHING))
     assert mailbox["held"] == [("Thanks.", later.astimezone(timezone.utc))]
     assert email is not None
 
 
+def test_a_reply_cannot_be_held_past_the_day_its_details_are_deleted(mailbox, test_settings):
+    mailbox["message"].created_at = datetime.now(timezone.utc) - timedelta(days=25)
+    with pytest.raises(DomainError) as refused:
+        asyncio.run(dashboard.schedule_email(str(mailbox["message"].id), "Thanks.",
+                                             datetime.now(timezone.utc) + timedelta(days=10), scope=EVERYTHING))
+    assert refused.value.code == ErrorCode.TIME_OUT_OF_RANGE and mailbox["held"] == []
+
+
 @pytest.mark.parametrize("when", [timedelta(minutes=-5), timedelta(days=61)])
-def test_a_send_time_in_the_past_or_too_far_ahead_is_refused(mailbox, when):
+def test_a_send_time_in_the_past_or_too_far_ahead_is_refused(mailbox, when, test_settings):
     with pytest.raises(DomainError) as refused:
         asyncio.run(dashboard.schedule_email(str(mailbox["message"].id), "Thanks.",
                                              datetime.now(timezone.utc) + when, scope=EVERYTHING))
     assert refused.value.code == ErrorCode.TIME_OUT_OF_RANGE and mailbox["held"] == []
 
 
-def test_a_draft_that_could_not_be_sent_is_refused_when_scheduled_not_when_due(mailbox):
+def test_a_draft_that_could_not_be_sent_is_refused_when_scheduled_not_when_due(mailbox, test_settings):
     with pytest.raises(dashboard.SendRejectedError) as refused:
         asyncio.run(dashboard.schedule_email(str(mailbox["message"].id), "Hi {{name}}",
                                              datetime.now(timezone.utc) + timedelta(hours=1), scope=EVERYTHING))

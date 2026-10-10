@@ -7,7 +7,7 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
-from sqlalchemy import and_, select, update
+from sqlalchemy import ColumnElement, and_, exists, select, update
 from sqlalchemy.dialects.postgresql import distinct_on, insert
 
 from app.db.models import ScheduledSend
@@ -17,13 +17,14 @@ from app.db.session import get_sessionmaker
 class CancelReason(StrEnum):
     CANCELLED = "cancelled"  # the user cancelled it
     THEY_REPLIED = "they_replied"  # a new message arrived in the thread first
+    YOU_REPLIED = "you_replied"  # the owner answered the thread themselves, from Gmail or anywhere
     TOO_LATE = "too_late"  # due too long ago (the worker was down); sending now could land in quiet hours
     SENT_MANUALLY = "sent_manually"
     REFUSED = "refused"  # the send checks refused it when it fell due
 
 
 # The ones the reader is told about, until they schedule or send again.
-NOTICE_REASONS = (CancelReason.THEY_REPLIED, CancelReason.TOO_LATE, CancelReason.REFUSED)
+NOTICE_REASONS = (CancelReason.THEY_REPLIED, CancelReason.YOU_REPLIED, CancelReason.TOO_LATE, CancelReason.REFUSED)
 
 _PENDING = and_(ScheduledSend.sent_at.is_(None), ScheduledSend.cancelled_reason.is_(None))
 
@@ -97,3 +98,8 @@ async def cancel_claimed(schedule_id: UUID, reason: CancelReason) -> None:
     async with get_sessionmaker()() as session, session.begin():
         await session.execute(update(ScheduledSend).where(ScheduledSend.id == schedule_id)
                               .values(sent_at=None, cancelled_reason=reason))
+
+
+def waiting_send_exists(message_id: ColumnElement[UUID]) -> ColumnElement[bool]:
+    """SQL: a reply to this message is waiting to go out."""
+    return exists(select(ScheduledSend.id).where(ScheduledSend.message_id == message_id, _PENDING))

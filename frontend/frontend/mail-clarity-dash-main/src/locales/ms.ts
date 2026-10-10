@@ -540,6 +540,7 @@ export const ms: Translations = {
     scheduledFor: "Dijadualkan pada {{when}}. Ia tidak akan dihantar jika mereka membalas dahulu.",
     cancel: "Batal",
     cancelled: {
+      you_replied: "Anda sudah membalas dalam bebenang ini, jadi balasan berjadual tidak dihantar.",
       they_replied:
         "Mereka membalas sebelum balasan berjadual anda, jadi ia tidak dihantar. Semak sebelum menghantar.",
       too_late:

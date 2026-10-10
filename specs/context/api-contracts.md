@@ -79,7 +79,9 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   time in the past or over 60 days ahead (`422 time_out_of_range`). `GET/PUT/DELETE
   /settings/quiet-hours` (personal; DELETE follows the company default) returns `{company,
   personal, effective}`; `GET/PUT /admin/quiet-hours` edits the company default. The email gains
-  `senderUtcOffsetMinutes`, `scheduledFor`, `scheduleCancelled`, `snoozedUntil`.
+  `senderUtcOffsetMinutes`, `scheduledFor`, `scheduleCancelled` (`they_replied` | `you_replied` |
+  `too_late` | `refused`), `snoozedUntil`. A send time past the email's vault retention is refused
+  (`422 time_out_of_range`); snooze does not hide an email with a waiting send.
 - **Saved reply templates (2026-10-11, `specs/features/reply-templates.md`):** signed-in users only.
   `GET /templates` (most recently used first); `POST /templates` and `PUT /templates/{id}` take
   `{title, body, language: en|ms|zh, triggerKeywords: string[]}` and return it with `id` and

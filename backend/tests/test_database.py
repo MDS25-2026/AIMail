@@ -298,3 +298,22 @@ def test_a_snoozed_email_leaves_the_inbox_until_it_is_due_and_comes_back_unread(
     pk, snoozed, hidden, shown = _run(scenario())
     assert snoozed.snoozedUntil is not None and not snoozed.isRead and pk not in hidden
     assert [e.id for e in shown] == [pk] and not shown[0].isRead
+
+
+def test_a_snoozed_email_with_a_reply_waiting_stays_reachable_to_cancel_it():
+    owner = uuid4()
+
+    async def scenario():
+        async with get_sessionmaker()() as session, session.begin():
+            session.add(UserProfile(id=owner, email=f"{owner}@example.com"))
+        async with get_sessionmaker()() as session, session.begin():
+            message = Message(id=uuid4(), user_id=owner, gmail_message_id=f"sw-{uuid4()}", subject="s",
+                              masking_status=MaskingStatus.COMPLETE,
+                              snoozed_until=datetime.now(timezone.utc) + timedelta(days=2))
+            session.add(message)
+        await scheduled_sends.hold(message.id, owner, "Thanks.", datetime.now(timezone.utc) + timedelta(days=1))
+        listed = (await list_dashboard_emails(Scope(owner_id=owner), "", 10, None)).emails
+        return str(message.id), listed
+
+    pk, listed = _run(scenario())
+    assert [e.id for e in listed] == [pk] and listed[0].scheduledFor is not None
