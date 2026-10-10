@@ -22,6 +22,8 @@ import MissingDetailsNotice from "./MissingDetailsNotice";
 import PriorityBadge from "./PriorityBadge";
 import PrivacyReceipt from "./PrivacyReceipt";
 import RefineInput from "./RefineInput";
+import ScheduleBanner from "./ScheduleBanner";
+import SnoozeMenu from "./SnoozeMenu";
 import SourcesChips from "./SourcesChips";
 import TemplatePicker from "./TemplatePicker";
 import UseAsExampleButton from "./UseAsExampleButton";
@@ -91,6 +93,7 @@ function DetailHeader({ email }: { email: Email }) {
               {t("security.spoofBadge")}
             </span>
           ) : null}
+          <SnoozeMenu key={`snooze-${email.id}`} email={email} />
           <PrivacyReceipt email={email} />
           {email.details?.length ? <DetailsToggle /> : null}
           <PriorityBadge priority={email.priority} />
@@ -123,6 +126,7 @@ function DraftSection({ email, workflow }: { email: Email; workflow: DraftWorkfl
         disabled={workflow.isDraftLocked}
         isRefining={workflow.isRefining}
       />
+      <ScheduleBanner email={email} workflow={workflow} />
       <DraftStatus {...workflow.status} />
       <div className="flex items-center justify-between gap-3 border-t border-line-subtle pt-4">
         <div className="flex flex-wrap items-center gap-2">

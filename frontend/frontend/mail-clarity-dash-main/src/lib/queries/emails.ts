@@ -8,14 +8,18 @@ import {
 
 import type { Email, EmailPage, Tone } from "../../types/email";
 import {
+  cancelSchedule,
   confirmSender,
   fetchEmail,
   fetchEmailByThread,
   fetchEmailPage,
   refineEmail,
   regenerateEmail,
+  scheduleEmail,
   sendEmail,
+  snoozeEmail,
   translateEmail,
+  unsnoozeEmail,
 } from "../api/emails";
 import { adaptTemplate } from "../api/templates";
 import { queryKeys } from "./keys";
@@ -157,6 +161,11 @@ export function useSendEmail() {
 export function useAdaptTemplate() {
   return useDraftMutation(adaptTemplate);
 }
+
+export const useScheduleEmail = () => useDraftMutation(scheduleEmail);
+export const useCancelSchedule = () => useDraftMutation(cancelSchedule);
+export const useSnoozeEmail = () => useDraftMutation(snoozeEmail);
+export const useUnsnoozeEmail = () => useDraftMutation(unsnoozeEmail);
 
 export function useConfirmSender() {
   return useDraftMutation(confirmSender);

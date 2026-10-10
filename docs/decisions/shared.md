@@ -6,13 +6,27 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-11 — Quiet hours, send later and snooze
+- Decision: the listener stores the sender's UTC offset from their Date header; quiet hours are a
+  company default (admin console) with a personal override; a reply can be held (`scheduled_send`)
+  and the worker sends it through `approve_and_send` when due, unless a new message arrived in the
+  thread first or it is over an hour late; snooze hides an email until a time and returns it unread.
+  The late-night suggestion is computed in the browser and never blocks.
+- Why: reply at a decent hour for the recipient without having to remember to send tomorrow.
+- Why not block late sends: it is advice; the user decides.
+- Affects: listener (Lane A: one new column in every insert, so migration 0039 must run before the
+  new listener starts), `backend/app` (Lane B), the draft card, Settings, admin console and a
+  Scheduled page (Lane D), `specs/features/quiet-hours-send-later.md`.
+- Status: accepted (owner, 2026-10-10 spec; built 2026-10-11)
+
 ### 2026-10-11 — Fixed placeholder numbers for the owner and the sender
 - Decision: the owner's sign-off name is always `[PERSON_900]` and the sender's `[PERSON_901]`,
   never matched against the thread's own placeholders. Stored drafts are moved over by
   `scripts/renumber_sign_offs.py`, from the thread as each draft saw it, run once as it goes live.
 - Why: both used to be numbered after every person in the thread, so a newer message naming someone
   new shifted them, and an older email's stored draft would show and send that person's name.
-  Found while building templates; on 2026-10-11 none of the 28 affected drafts was wrong yet.
+  Found while building templates; on 2026-10-11 none of the 28 affected drafts (27 unsent, 1 sent)
+  was wrong yet.
 - Why not number the owner first: every message placeholder after it would move, breaking every
   stored draft and summary instead of only sign-offs.
 - Affects: `backend/app/core/vault.py` (Lane B), drafts' sign-off placeholder seen by the agent

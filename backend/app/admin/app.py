@@ -49,6 +49,7 @@ from app.core.constants import (
 from app.core.errors import DomainError, ErrorCode, register_error_handlers
 from app.core.ratelimit import RateLimiter
 from app.db.session import get_sessionmaker
+from app.quiet_hours import QuietHoursView, company_default, save
 
 MAX_DAYS = 90
 MAX_ROWS = 200
@@ -155,3 +156,16 @@ async def get_flagged(
 ) -> list[FlaggedDraft]:
     async with get_sessionmaker()() as session:
         return await stats.flagged_drafts(session, limit)
+
+
+@admin_app.get("/quiet-hours")
+async def get_company_quiet_hours(admin: AdminUser) -> QuietHoursView:
+    """The company default; each user can replace it with their own in Settings."""
+    return await company_default()
+
+
+@admin_app.put("/quiet-hours", dependencies=[Depends(require_admin_header)])
+async def put_company_quiet_hours(body: QuietHoursView, admin: AdminUser) -> QuietHoursView:
+    await save(None, body)
+    await audit(AuditAction.QUIET_HOURS, admin=admin.user_id, company=True)
+    return await company_default()

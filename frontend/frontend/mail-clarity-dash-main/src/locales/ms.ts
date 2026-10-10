@@ -17,6 +17,7 @@ export const ms: Translations = {
     audit: "Jejak Audit",
     settings: "Tetapan",
     admin: "Pentadbir",
+    scheduled: "Dijadualkan",
   },
   languages: { en: "English", ms: "Bahasa Melayu", zh: "中文" },
   inbox: {
@@ -529,6 +530,60 @@ export const ms: Translations = {
     fillBlanks_one: "Isi {{blanks}} sebelum menghantar.",
     fillBlanks_other: "Isi {{blanks}} sebelum menghantar.",
   },
+  schedule: {
+    sendLater: "Hantar kemudian",
+    scheduling: "Menjadualkan…",
+    tomorrow: "Esok, 9 pagi",
+    monday: "Isnin, 9 pagi",
+    pickTime: "Pilih masa",
+    scheduleAt: "Jadualkan",
+    scheduledFor: "Dijadualkan pada {{when}}. Ia tidak akan dihantar jika mereka membalas dahulu.",
+    cancel: "Batal",
+    cancelled: {
+      they_replied:
+        "Mereka membalas sebelum balasan berjadual anda, jadi ia tidak dihantar. Semak sebelum menghantar.",
+      too_late:
+        "Balasan berjadual anda tidak dapat dihantar tepat pada masanya, jadi ia tidak dihantar. Semak sebelum menghantar.",
+      refused:
+        "Balasan berjadual anda tidak dapat dihantar pada masanya. Semak sebelum menghantar.",
+    },
+  },
+  snooze: {
+    snooze: "Tunda",
+    snoozing: "Menunda…",
+    until: "Ditunda sehingga {{when}}",
+    wake: "Kembalikan sekarang",
+    laterToday: "Lewat hari ini",
+    tomorrow: "Esok, 9 pagi",
+    nextWeek: "Minggu depan",
+    quietEnd: "Apabila waktu senyap tamat",
+    failed: "Tidak dapat menundanya. Cuba lagi sebentar lagi.",
+  },
+  quietHours: {
+    title: "Waktu senyap",
+    intro:
+      "Apabila anda membalas lewat, AIMail mencadangkan penghantaran pada awal hari penerima. Ia tidak pernah menghalang penghantaran.",
+    useMine: "Guna waktu senyap saya sendiri",
+    following: "Mengikut waktu senyap syarikat anda: {{from}} hingga {{to}}.",
+    from: "Dari",
+    to: "Hingga",
+    timezone: "Zon waktu",
+    weekend: "Senyap sepanjang hari",
+    weekendHint:
+      "Kelantan, Terengganu dan Kedah bercuti Jumaat dan Sabtu; kebanyakan negeri Sabtu dan Ahad.",
+    sameTimes: "Masa mula dan tamat mesti berbeza.",
+    save: "Simpan",
+    saving: "Menyimpan…",
+    saved: "Disimpan.",
+    failed: "Tidak dapat menyimpan waktu senyap. Cuba lagi sebentar lagi.",
+  },
+  scheduled: {
+    heading: "Dijadualkan",
+    description: "Balasan yang ditahan untuk dihantar kemudian. Buka satu untuk membatalkannya.",
+    label: "balasan berjadual",
+    emptyTitle: "Tiada yang dijadualkan",
+    emptyHint: "Pilih Hantar kemudian pada draf dan ia akan menunggu di sini.",
+  },
   account: {
     title: "Akaun",
     signedInAs: "Log masuk sebagai {{email}}.",
@@ -664,6 +719,9 @@ export const ms: Translations = {
     unknown: "Tidak diketahui",
     needsAttention: "perlu perhatian",
     loading: "data pentadbir",
+    quietHours: "Waktu senyap syarikat",
+    quietHoursHint:
+      "Bila pengguna diberitahu sudah lewat bagi penerima. Setiap orang boleh menetapkan sendiri dalam Tetapan.",
   },
   audit: {
     shortHash: "{{head}}…{{tail}}",
@@ -759,6 +817,10 @@ export const ms: Translations = {
       send: "Balasan tidak dihantar. Draf anda tidak berubah, jadi cuba lagi sebentar lagi.",
       template:
         "Tidak dapat menulis draf daripada templat. Teks anda tidak berubah, jadi cuba lagi sebentar lagi.",
+      schedule:
+        "Tidak dapat menjadualkan balasan. Draf anda tidak berubah, jadi cuba lagi sebentar lagi.",
+      cancelSchedule:
+        "Tidak dapat membatalkannya. Ia masih dijadualkan, jadi cuba lagi sebentar lagi.",
     },
     replaceEdits: "Draf baharu akan menggantikan perubahan yang anda taip.",
     replaceConfirm: "Gantikan perubahan saya",
@@ -773,6 +835,12 @@ export const ms: Translations = {
     sendTemplates_other:
       "Balasan ini masih mempunyai {{count}} ruang dalam kurungan, seperti [Your Name]. Penerima akan melihatnya begitu sahaja.",
     toneWarning: "Draf anda mungkin mempunyai nada yang tidak profesional. Hantar juga?",
+    quietHours: {
+      them: "Sekarang {{now}} bagi mereka. Hantar pada {{sendAt}} waktu mereka?",
+      you: "Sekarang {{now}} waktu anda. Hantar pada {{sendAt}}?",
+      sendLater: "Hantar pada {{time}}",
+      sendNow: "Hantar sekarang",
+    },
   },
   signIn: {
     google: "Log masuk dengan Google",
@@ -864,6 +932,7 @@ export const ms: Translations = {
     masking_unavailable:
       "Tidak dapat menyembunyikan butiran peribadi sekarang, jadi tiada apa yang disimpan. Cuba lagi sebentar lagi.",
     too_many_templates: "Anda sudah ada 50 balasan tersimpan. Buang satu dahulu.",
+    time_out_of_range: "Pilih masa akan datang, dalam tempoh 60 hari.",
     too_many_examples: "Anda sudah ada 3 contoh. Buang satu dahulu.",
     empty: "Tiada apa untuk disimpan.",
     too_long: "Teks itu terlalu panjang.",
@@ -929,6 +998,10 @@ export const ms: Translations = {
       description:
         "AIMail mendraf balasan untuk e-mel kerja anda, menyembunyikan butiran peribadi sebelum AI melihatnya, dan tidak menghantar apa-apa tanpa kelulusan anda.",
     },
+    scheduled: {
+      title: "AIMail dijadualkan",
+      description: "Balasan yang ditahan untuk dihantar kemudian.",
+    },
   },
   assistant: {
     title: "Pembantu Peti Masuk",
@@ -977,5 +1050,7 @@ export const ms: Translations = {
     refined: "Draf diperhalus",
     sent: "Balasan dihantar",
     translated: "Terjemahan sedia",
+    scheduled: "Balasan dijadualkan",
+    scheduleCancelled: "Balasan berjadual dibatalkan",
   },
 };

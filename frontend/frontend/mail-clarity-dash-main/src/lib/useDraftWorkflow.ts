@@ -9,7 +9,16 @@ import {
   findUnfilledBlanks,
   hasUnsavedEdits,
 } from "./draftGuards";
-import { useAdaptTemplate, useRefineEmail, useRegenerateEmail, useSendEmail } from "./queries";
+import {
+  useAdaptTemplate,
+  useCancelSchedule,
+  useQuietHours,
+  useRefineEmail,
+  useRegenerateEmail,
+  useScheduleEmail,
+  useSendEmail,
+} from "./queries";
+import { quietSuggestion, type QuietSuggestion } from "./quietHours";
 import { checkTone } from "./toneCheck";
 import type { Email, Tone } from "../types/email";
 
@@ -17,6 +26,8 @@ export enum DraftAction {
   Regenerate = "regenerate",
   Refine = "refine",
   Template = "template",
+  Schedule = "schedule",
+  CancelSchedule = "cancelSchedule",
   Send = "send",
 }
 
@@ -28,9 +39,11 @@ export enum ConfirmKind {
   SendMarkers = "sendMarkers",
   SendTemplates = "sendTemplates",
   ToneWarning = "toneWarning",
+  QuietHours = "quietHours",
 }
 
-export type PendingConfirm = { kind: ConfirmKind; markerCount: number };
+/** quiet: set for ConfirmKind.QuietHours, with their time now and when their quiet hours end. */
+export type PendingConfirm = { kind: ConfirmKind; markerCount: number; quiet?: QuietSuggestion };
 
 // What was asked, not a callback: confirming must act on the draft as it is then, including
 // anything typed while the question was on screen.
@@ -42,6 +55,8 @@ export type DraftWorkflowStatus = {
   pendingConfirm: PendingConfirm | null;
   onConfirm: () => void;
   onCancel: () => void;
+  /** The quiet-hours question's other answer: hold the reply until their quiet hours end. */
+  onSendAtSuggestion: () => void;
   /** The first draft is still being written; acting now would act on the preview. */
   isGenerating: boolean;
   isLoadFailed: boolean;
@@ -75,6 +90,10 @@ export type DraftWorkflow = {
   hasUnsavedEdits: boolean;
   /** A saved template's {{blanks}} still in the draft; it cannot be sent until they are filled. */
   unfilledBlanks: string[];
+  /** Send later: hold the draft as it is now until sendAt. */
+  schedule: (sendAt: Date) => void;
+  cancelSchedule: () => void;
+  isScheduling: boolean;
   comparison: DraftComparison;
   status: DraftWorkflowStatus;
   announcement: string;
@@ -163,7 +182,10 @@ export function useDraftWorkflow(
   const regenerateMutation = useRegenerateEmail();
   const refineMutation = useRefineEmail();
   const adaptMutation = useAdaptTemplate();
+  const scheduleMutation = useScheduleEmail();
+  const cancelScheduleMutation = useCancelSchedule();
   const sendMutation = useSendEmail();
+  const quietHours = useQuietHours();
 
   const typedDraft = emailId === null ? null : (typedByEmail.get(emailId) ?? null);
   const draft = typedDraft ?? serverDraft;
@@ -247,6 +269,8 @@ export function useDraftWorkflow(
   const isRegenerating = isPendingFor(regenerateMutation, emailId);
   const isRefining = isPendingFor(refineMutation, emailId);
   const isTemplating = isPendingFor(adaptMutation, emailId);
+  const isScheduling =
+    isPendingFor(scheduleMutation, emailId) || isPendingFor(cancelScheduleMutation, emailId);
   const isSending = isPendingFor(sendMutation, emailId);
   const isCountingDown = undoCountdown !== null && undoCountdown > 0;
   // Locking: during mutations, pregen, or active undo countdown, prevent editing/sending race conditions:
@@ -254,12 +278,14 @@ export function useDraftWorkflow(
     isRegenerating ||
     isRefining ||
     isTemplating ||
+    isScheduling ||
     isSending ||
     isWaitingForDraft ||
     isCountingDown;
   // The panels disable every control that changes the draft; this backs them up. A sent reply is
   // final, and a change mid-send would leave the screen showing text other than what went out.
-  const isDraftLocked = isBusy || Boolean(email?.sentAt);
+  // A held reply is locked too: cancel it to change it, so what goes out is what was approved.
+  const isDraftLocked = isBusy || Boolean(email?.sentAt) || Boolean(email?.scheduledFor);
 
   /**
    * Begins the 5-second undo countdown for the given email. When it expires the actual
@@ -330,6 +356,8 @@ export function useDraftWorkflow(
       isTriggered: (text) => findTemplatePlaceholders(text).length > 0,
     },
     { kind: ConfirmKind.ToneWarning, isTriggered: (text) => checkTone(text).hasIssues },
+    // Last: the content checks come first; this one is only about when it lands.
+    { kind: ConfirmKind.QuietHours, isTriggered: () => suggestionNow() !== null },
   ];
 
   const continueSend = (id: string, fromGuard: number) => {
@@ -342,6 +370,27 @@ export function useDraftWorkflow(
   };
 
   const unfilledBlanks = findUnfilledBlanks(draft);
+
+  const suggestionNow = () =>
+    quietHours.data
+      ? quietSuggestion(new Date(), email?.senderUtcOffsetMinutes, quietHours.data.effective)
+      : null;
+
+  const schedule = (sendAt: Date) => {
+    if (emailId === null || isDraftLocked || unfilledBlanks.length > 0) return;
+    const id = emailId;
+    const request = () => scheduleMutation.mutateAsync({ emailId: id, draft, sendAt });
+    runMutation(id, DraftAction.Schedule, request, t("announce.scheduled")).catch(shownOnScreen);
+  };
+
+  const cancelSchedule = () => {
+    if (emailId === null || isScheduling) return;
+    const id = emailId;
+    const request = () => cancelScheduleMutation.mutateAsync({ emailId: id });
+    runMutation(id, DraftAction.CancelSchedule, request, t("announce.scheduleCancelled")).catch(
+      shownOnScreen,
+    );
+  };
 
   const send = () => {
     if (emailId === null || isDraftLocked || unfilledBlanks.length > 0) return;
@@ -368,6 +417,13 @@ export function useDraftWorkflow(
         pendingAction.kind === ConfirmKind.SendTemplates
           ? findTemplatePlaceholders(draft).length
           : findRedactionMarkers(draft).length,
+      quiet:
+        pendingAction.kind === ConfirmKind.QuietHours ? (suggestionNow() ?? undefined) : undefined,
+    },
+    onSendAtSuggestion: () => {
+      const suggestion = suggestionNow();
+      setPending(null);
+      if (suggestion) schedule(suggestion.sendAt);
     },
     onConfirm: confirm,
     onCancel: () => setPending(null),
@@ -396,6 +452,9 @@ export function useDraftWorkflow(
     insertTemplate,
     hasUnsavedEdits: hasUnsavedEdits(typedDraft, serverDraft),
     unfilledBlanks,
+    schedule,
+    cancelSchedule,
+    isScheduling,
     setTone: regenerate,
     regenerate: () => regenerate(),
     refine,

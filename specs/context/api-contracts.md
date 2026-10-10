@@ -72,6 +72,14 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   `GET /settings/scan-reading` returns `{available, mode}` (`mode`: `local` | `checked`;
   `available`: the company set `LOCAL_VISION_MODEL`); `PUT` `{mode}` saves it (`409
   scan_check_unavailable` for `checked` where it is not set up; `local` is always accepted).
+- **Quiet hours, send later, snooze (2026-10-11, `specs/features/quiet-hours-send-later.md`):**
+  `POST /emails/{id}/schedule` `{draft, sendAt}` holds the draft (checked as a send would be) and
+  returns the email with `scheduledFor`; `DELETE` cancels it. `POST /emails/{id}/snooze` `{until}`
+  hides it from `GET /emails` until then and marks it unread; `DELETE` brings it back. Both refuse a
+  time in the past or over 60 days ahead (`422 time_out_of_range`). `GET/PUT/DELETE
+  /settings/quiet-hours` (personal; DELETE follows the company default) returns `{company,
+  personal, effective}`; `GET/PUT /admin/quiet-hours` edits the company default. The email gains
+  `senderUtcOffsetMinutes`, `scheduledFor`, `scheduleCancelled`, `snoozedUntil`.
 - **Saved reply templates (2026-10-11, `specs/features/reply-templates.md`):** signed-in users only.
   `GET /templates` (most recently used first); `POST /templates` and `PUT /templates/{id}` take
   `{title, body, language: en|ms|zh, triggerKeywords: string[]}` and return it with `id` and

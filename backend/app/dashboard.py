@@ -9,7 +9,7 @@ unreachable the email still returns with its Lane A/B fields and stays uncached 
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from email.utils import parseaddr
 from enum import Enum
 from uuid import UUID
@@ -17,7 +17,7 @@ from zoneinfo import ZoneInfo
 
 import httpx
 from pydantic import BaseModel
-from sqlalchemy import func, select, tuple_, update
+from sqlalchemy import func, or_, select, tuple_, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -46,7 +46,7 @@ from app.contracts import (
     ThreadMessage,
 )
 from app.core import mailbox
-from app.core.constants import TEMPLATE_TIMEZONE
+from app.core.constants import MAX_SCHEDULE_AHEAD_DAYS, TEMPLATE_TIMEZONE
 from app.core.cursor import Cursor
 from app.core.errors import DomainError, ErrorCode
 from app.core.language import Language, detect_language
@@ -87,6 +87,13 @@ from app.private_mode import provider_for
 from app.rag.errors import EmbeddingError
 from app.rag.retrieve import retrieve
 from app.rag.utils import format_rag_context
+from app.scheduled_sends import (
+    CancelReason,
+    ScheduleState,
+    cancel_pending,
+    hold,
+    states_for,
+)
 from app.send_reconciler import mark_outcome_unknown
 from app.template_store import suggested_template_id
 from app.templates import (
@@ -206,8 +213,10 @@ def _to_email(
     thread: list[Message] | None = None,
     details: ThreadMap | None = None,
     egress: list[ModelEgress] | None = None,
+    schedule: ScheduleState | None = None,
 ) -> DashboardEmail:
     details = details or ThreadMap()
+    schedule = schedule or ScheduleState()
     key = str(message.id)
     return DashboardEmail(
         id=key,
@@ -239,6 +248,10 @@ def _to_email(
         threadId=message.thread_id,
         details=[Detail(**detail) for detail in details.details()],
         egress=[_egress_view(row) for row in egress or []],
+        senderUtcOffsetMinutes=message.sender_utc_offset_minutes,
+        scheduledFor=schedule.send_at.isoformat() if schedule.send_at else None,
+        scheduleCancelled=schedule.cancelled,
+        snoozedUntil=message.snoozed_until.isoformat() if message.snoozed_until else None,
     )
 
 
@@ -275,7 +288,9 @@ async def _thread_for(message: Message) -> list[Message]:
 
 async def list_dashboard_emails(scope: Scope, policy_email: str, limit: int, after: Cursor | None) -> EmailPage:
     """Newest first, one page; id breaks ties, so two emails stored in the same instant both appear."""
-    statement = select(Message).where(scope.where(Message.user_id))
+    # A snoozed email stays out of the inbox until it is due.
+    statement = select(Message).where(scope.where(Message.user_id),
+                                      or_(Message.snoozed_until.is_(None), Message.snoozed_until <= func.now()))
     if after:
         statement = statement.where(tuple_(Message.created_at, Message.id) < (after.created_at, after.row_id))
     # One extra row says whether another page exists without a count query.
@@ -285,7 +300,9 @@ async def list_dashboard_emails(scope: Scope, policy_email: str, limit: int, aft
         policy = await load_policy(session, policy_email)
     page = rows[:limit]
     is_more = len(rows) > limit
-    return EmailPage(emails=[_to_email(message, policy, details=_own_details(message)) for message in page],
+    schedules = await states_for([message.id for message in page])
+    return EmailPage(emails=[_to_email(message, policy, details=_own_details(message), schedule=schedules.get(message.id))
+                             for message in page],
                      nextCursor=Cursor(page[-1].created_at, page[-1].id).encode() if is_more else None)
 
 
@@ -563,7 +580,7 @@ async def email_detail(message_id: str, *, scope: Scope, viewer_id: UUID | None 
     await _mark_read(pk)
     message.read_at = message.read_at or datetime.now(timezone.utc)
     email = _to_email(message, await _policy_for(message), thread=thread, details=details,
-                      egress=await egress_for(message.id))
+                      egress=await egress_for(message.id), schedule=(await states_for([pk])).get(pk))
     # Templates are the viewer's: the original mailbox's unowned rows still get the viewer's.
     email.suggestedTemplateId = await suggested_template_id(
         viewer_id or message.user_id, f"{message.subject or ''}\n{message.body_masked or ''}")
@@ -726,6 +743,10 @@ async def approve_and_send(message_id: str, draft: str, *, scope: Scope) -> Dash
     if is_learning_style:
         await _relearn_after_send(stored.user_id)
         await remember_reply(stored.user_id, pk, message.body_masked or "", reply.stored)
+    # Sent now, by hand: a reply held for later must not go out as a second copy.
+    if await cancel_pending(pk, CancelReason.SENT_MANUALLY):
+        await audit(AuditAction.SCHEDULED_SEND_CANCELLED, user_id=message.user_id, message=message_id,
+                    reason=CancelReason.SENT_MANUALLY)
     return email
 
 
@@ -979,3 +1000,66 @@ async def translate_template(template: ReplyTemplate, language: Language) -> str
     if restored is None:
         raise TranslationError(ErrorCode.TRANSLATION_UNFAITHFUL, "a template variable was lost")
     return restored
+
+
+def _check_ahead(when: datetime) -> datetime:
+    """A send or snooze time in the future and within MAX_SCHEDULE_AHEAD_DAYS, as an aware UTC time."""
+    if when.tzinfo is None:
+        raise DomainError(ErrorCode.TIME_OUT_OF_RANGE, "the time needs a timezone")
+    now = datetime.now(timezone.utc)
+    if not now < when <= now + timedelta(days=MAX_SCHEDULE_AHEAD_DAYS):
+        raise DomainError(ErrorCode.TIME_OUT_OF_RANGE, "the time must be ahead, and not too far")
+    return when.astimezone(timezone.utc)
+
+
+async def _with_schedule(message: Message) -> DashboardEmail:
+    return _to_email(message, await _policy_for(message), schedule=(await states_for([message.id])).get(message.id))
+
+
+async def schedule_email(message_id: str, draft: str, send_at: datetime, *, scope: Scope) -> DashboardEmail | None:
+    """Hold the approved draft until send_at. Checked now as a send would be, and again when due."""
+    try:
+        pk = UUID(message_id)
+    except ValueError:
+        return None
+    message = await _load(pk, scope)
+    if message is None:
+        return None
+    _require(message, Action.SEND)
+    when = _check_ahead(send_at)
+    reply = _outgoing(draft, await _details_for(message, await _thread_for(message)))
+    await hold(pk, message.user_id, reply.stored, when)
+    await audit(AuditAction.SEND_SCHEDULED, user_id=message.user_id, message=message_id)
+    return await _with_schedule(message)
+
+
+async def cancel_schedule(message_id: str, *, scope: Scope) -> DashboardEmail | None:
+    try:
+        pk = UUID(message_id)
+    except ValueError:
+        return None
+    message = await _load(pk, scope)
+    if message is None:
+        return None
+    if await cancel_pending(pk, CancelReason.CANCELLED):
+        await audit(AuditAction.SCHEDULED_SEND_CANCELLED, user_id=message.user_id, message=message_id,
+                    reason=CancelReason.CANCELLED)
+    return await _with_schedule(message)
+
+
+async def snooze_email(message_id: str, until: datetime | None, *, scope: Scope) -> DashboardEmail | None:
+    """Out of the inbox until then, and unread when it comes back; None brings it back now."""
+    try:
+        pk = UUID(message_id)
+    except ValueError:
+        return None
+    message = await _load(pk, scope)
+    if message is None:
+        return None
+    fields = {"snoozed_until": _check_ahead(until), "read_at": None} if until else {"snoozed_until": None}
+    async with get_sessionmaker()() as session, session.begin():
+        await session.execute(update(Message).where(Message.id == pk).values(**fields))
+    for column, value in fields.items():
+        setattr(message, column, value)
+    await audit(AuditAction.EMAIL_SNOOZED, user_id=message.user_id, message=message_id, snoozed=until is not None)
+    return await _with_schedule(message)

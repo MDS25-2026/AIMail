@@ -200,6 +200,10 @@ class Message(Base):
     generation_attempts: Mapped[int] = mapped_column(server_default="0")
     # Set when Gmail's answer to a send was lost; only these are reconciled (migration 0028).
     send_outcome_unknown_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Migration 0039 (specs/features/quiet-hours-send-later.md): the sender's offset from UTC in
+    # minutes, from their Date header; and when a snoozed email comes back to the inbox.
+    sender_utc_offset_minutes: Mapped[int | None] = mapped_column(SmallInteger)
+    snoozed_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # A worker drafting this message holds it until then (migration 0027, app/jobs.py).
     generation_claimed_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     reply_to: Mapped[str | None] = mapped_column(Text)
@@ -335,6 +339,35 @@ class HoldingReply(Base):
     cancelled_reason: Mapped[str | None] = mapped_column(Text)
     sent_message_id: Mapped[str | None] = mapped_column(Text)
     send_outcome_unknown_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class QuietHours(Base):
+    """Quiet hours (migration 0039): the row with no user is the company default."""
+
+    __tablename__ = "quiet_hours"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    user_id: Mapped[UUID | None] = mapped_column(ForeignKey("user_profile.id"))
+    starts: Mapped[time] = mapped_column(Time, default=time(21))
+    ends: Mapped[time] = mapped_column(Time, default=time(8))
+    weekend_days: Mapped[list[int]] = mapped_column(ARRAY(SmallInteger), default=lambda: [6, 7])
+    timezone: Mapped[str] = mapped_column(Text, default="Asia/Kuala_Lumpur")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ScheduledSend(Base):
+    """A reply held for later (migration 0039): sent, cancelled with a reason, or still waiting."""
+
+    __tablename__ = "scheduled_send"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    message_id: Mapped[UUID] = mapped_column(ForeignKey("messages.id"))
+    user_id: Mapped[UUID | None] = mapped_column(ForeignKey("user_profile.id"))
+    draft: Mapped[str] = mapped_column(Text)
+    send_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancelled_reason: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

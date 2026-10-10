@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 
 import type { DraftWorkflow } from "../lib/useDraftWorkflow";
 import ApproveSendButton from "./ApproveSendButton";
+import SendLaterMenu from "./SendLaterMenu";
 import { button } from "./variants";
 
 type DraftActionsBarProps = { workflow: DraftWorkflow; isSent: boolean };
@@ -49,12 +50,13 @@ export default function DraftActionsBar({ workflow, isSent }: DraftActionsBarPro
         >
           {workflow.isRegenerating ? t("draft.regenerating") : t("draft.regenerate")}
         </button>
+        <SendLaterMenu workflow={workflow} isBlocked={blanks.length > 0} />
         <ApproveSendButton
           onApproveSend={workflow.send}
           isSending={workflow.isSending}
           isSent={isSent}
           isDraftChanging={isDraftChanging || isCountingDown}
-          isBlocked={blanks.length > 0}
+          isBlocked={blanks.length > 0 || workflow.isDraftLocked}
         />
       </div>
     </div>

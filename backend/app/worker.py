@@ -14,7 +14,11 @@ from dataclasses import dataclass
 from app import agent_client
 from app.core import mailbox
 from app.core.config import get_settings
-from app.core.constants import EMBED_POLL_SECONDS, HOLDING_REPLY_POLL_SECONDS
+from app.core.constants import (
+    EMBED_POLL_SECONDS,
+    HOLDING_REPLY_POLL_SECONDS,
+    SCHEDULED_SEND_POLL_SECONDS,
+)
 from app.core.logging_setup import configure_logging
 from app.dashboard import generate_pending, generate_requested
 from app.holding_reply_scheduler import schedule_new, send_due
@@ -22,6 +26,7 @@ from app.ml.categorise import classify_pending
 from app.rag.embedding_models import check_columns
 from app.rag.ingest import embed_pending, embed_pending_locally
 from app.retention import apply_retention
+from app.scheduled_send_worker import send_due as send_scheduled
 from app.send_reconciler import reconcile_sends
 from app.vault_retention import RUN_EVERY
 
@@ -67,6 +72,7 @@ def jobs() -> list[Job]:
         Job("embeddings", lambda: EMBED_POLL_SECONDS, _embeddings),
         Job("categories", lambda: CATEGORY_POLL_SECONDS, lambda: classify_pending(limit=CATEGORIES_PER_PASS)),
         Job("holding replies", lambda: HOLDING_REPLY_POLL_SECONDS, _holding_replies),
+        Job("scheduled sends", lambda: SCHEDULED_SEND_POLL_SECONDS, send_scheduled),
         Job("send reconciliation", lambda: RECONCILE_EVERY_SECONDS, reconcile_sends),
         Job("retention", lambda: RUN_EVERY.total_seconds(), apply_retention),
     ]

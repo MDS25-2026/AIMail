@@ -336,6 +336,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/emails/{message_id}/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Schedule Email Route */
+        post: operations["schedule_email_route_emails__message_id__schedule_post"];
+        /** Cancel Schedule Route */
+        delete: operations["cancel_schedule_route_emails__message_id__schedule_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/emails/{message_id}/send": {
         parameters: {
             query?: never;
@@ -348,6 +366,24 @@ export interface paths {
         /** Send Email Route */
         post: operations["send_email_route_emails__message_id__send_post"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/emails/{message_id}/snooze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Snooze Email Route */
+        post: operations["snooze_email_route_emails__message_id__snooze_post"];
+        /** Unsnooze Email Route */
+        delete: operations["unsnooze_email_route_emails__message_id__snooze_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -567,6 +603,31 @@ export interface paths {
         put: operations["put_private_mode_settings_private_mode_put"];
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/settings/quiet-hours": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Quiet Hours */
+        get: operations["get_quiet_hours_settings_quiet_hours_get"];
+        /**
+         * Put Quiet Hours
+         * @description The user's own quiet hours, replacing the company default for them.
+         */
+        put: operations["put_quiet_hours_settings_quiet_hours_put"];
+        post?: never;
+        /**
+         * Delete Quiet Hours
+         * @description Back to the company default.
+         */
+        delete: operations["delete_quiet_hours_settings_quiet_hours_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -893,10 +954,18 @@ export interface components {
             quantities: components["schemas"]["QuantityView"][];
             /** Replyto */
             replyTo?: string | null;
+            /** Schedulecancelled */
+            scheduleCancelled?: ("they_replied" | "too_late" | "refused") | null;
+            /** Scheduledfor */
+            scheduledFor?: string | null;
             /** Sender */
             sender: string;
+            /** Senderutcoffsetminutes */
+            senderUtcOffsetMinutes?: number | null;
             /** Sentat */
             sentAt?: string | null;
+            /** Snoozeduntil */
+            snoozedUntil?: string | null;
             /** Sources */
             sources: components["schemas"]["Source"][];
             /** Subject */
@@ -1167,6 +1236,29 @@ export interface components {
             /** Text */
             text: string;
         };
+        /** QuietHoursSettings */
+        QuietHoursSettings: {
+            company: components["schemas"]["QuietHoursView"];
+            effective: components["schemas"]["QuietHoursView"];
+            personal: components["schemas"]["QuietHoursView"] | null;
+        };
+        /** QuietHoursView */
+        QuietHoursView: {
+            /**
+             * End
+             * Format: time
+             */
+            end: string;
+            /**
+             * Start
+             * Format: time
+             */
+            start: string;
+            /** Timezone */
+            timezone: string;
+            /** Weekenddays */
+            weekendDays: number[];
+        };
         /** RefineRequest */
         RefineRequest: {
             /** Draft */
@@ -1201,6 +1293,16 @@ export interface components {
             /** Available */
             available: boolean;
             mode: components["schemas"]["ScanReading"];
+        };
+        /** ScheduleRequest */
+        ScheduleRequest: {
+            /** Draft */
+            draft: string;
+            /**
+             * Sendat
+             * Format: date-time
+             */
+            sendAt: string;
         };
         /** SearchRequest */
         SearchRequest: {
@@ -1293,6 +1395,14 @@ export interface components {
              * @default 09:00:00
              */
             workStart: string;
+        };
+        /** SnoozeRequest */
+        SnoozeRequest: {
+            /**
+             * Until
+             * Format: date-time
+             */
+            until: string;
         };
         /**
          * Source
@@ -2088,6 +2198,72 @@ export interface operations {
             };
         };
     };
+    schedule_email_route_emails__message_id__schedule_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardEmail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_schedule_route_emails__message_id__schedule_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardEmail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     send_email_route_emails__message_id__send_post: {
         parameters: {
             query?: never;
@@ -2102,6 +2278,72 @@ export interface operations {
                 "application/json": components["schemas"]["SendRequest"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardEmail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    snooze_email_route_emails__message_id__snooze_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SnoozeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardEmail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unsnooze_email_route_emails__message_id__snooze_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -2548,6 +2790,79 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_quiet_hours_settings_quiet_hours_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuietHoursSettings"];
+                };
+            };
+        };
+    };
+    put_quiet_hours_settings_quiet_hours_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuietHoursView"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuietHoursSettings"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_quiet_hours_settings_quiet_hours_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuietHoursSettings"];
                 };
             };
         };

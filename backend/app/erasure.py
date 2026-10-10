@@ -25,7 +25,9 @@ from app.db.models import (
     MailboxConnection,
     Message,
     ModelEgress,
+    QuietHours,
     ReplyTemplate,
+    ScheduledSend,
     SenderRule,
     StyleExample,
     StyleHabit,
@@ -50,6 +52,7 @@ class Rule:
 # In order: rows that point at others go first, so nothing depends on the database cascading for us.
 _FROM_THE_MAILBOX: tuple[Rule, ...] = (
     Rule(HoldingReply, lambda user: HoldingReply.user_id == user),
+    Rule(ScheduledSend, lambda user: ScheduledSend.user_id == user),
     Rule(ModelEgress, lambda user: ModelEgress.user_id == user),
     Rule(Message, lambda user: Message.user_id == user),
     Rule(Document, lambda user: (Document.user_id == user) & (Document.doc_type == DocType.SENT_REPLY)),
@@ -62,6 +65,7 @@ _THE_REST_OF_THE_ACCOUNT: tuple[Rule, ...] = (
     Rule(StyleExample, lambda user: StyleExample.user_id == user),
     Rule(WritingStyle, lambda user: WritingStyle.user_id == user),
     Rule(ReplyTemplate, lambda user: ReplyTemplate.user_id == user),
+    Rule(QuietHours, lambda user: QuietHours.user_id == user),
     Rule(HoldingReplySettings, lambda user: HoldingReplySettings.user_id == user),
     Rule(KeywordRule, lambda user: KeywordRule.user_id == user),
     Rule(SenderRule, lambda user: SenderRule.user_id == user),

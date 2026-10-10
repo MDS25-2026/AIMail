@@ -60,6 +60,7 @@ class ErrorCode(StrEnum):
     SCAN_CHECK_UNAVAILABLE = "scan_check_unavailable"
     TOO_MANY_EXAMPLES = "too_many_examples"
     TOO_MANY_TEMPLATES = "too_many_templates"
+    TIME_OUT_OF_RANGE = "time_out_of_range"
     ALREADY_SENT_OR_CANCELLED = "already_sent_or_cancelled"
     INVALID_SETTINGS = "invalid_settings"
     # Holding-reply settings that could never work (app/holding_reply.py validates them)
@@ -115,6 +116,7 @@ _STATUS: dict[ErrorCode, int] = {
     ErrorCode.SCAN_CHECK_UNAVAILABLE: status.HTTP_409_CONFLICT,
     ErrorCode.TOO_MANY_EXAMPLES: status.HTTP_409_CONFLICT,
     ErrorCode.TOO_MANY_TEMPLATES: status.HTTP_409_CONFLICT,
+    ErrorCode.TIME_OUT_OF_RANGE: status.HTTP_422_UNPROCESSABLE_CONTENT,
     ErrorCode.ALREADY_SENT_OR_CANCELLED: status.HTTP_409_CONFLICT,
     ErrorCode.FORBIDDEN: status.HTTP_403_FORBIDDEN,
     ErrorCode.ACCOUNT_ONLY: status.HTTP_403_FORBIDDEN,
