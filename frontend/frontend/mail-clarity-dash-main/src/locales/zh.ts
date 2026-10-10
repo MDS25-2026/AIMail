@@ -67,6 +67,20 @@ export const zh: Translations = {
     sent: "已发送",
   },
   tone: { label: "语气", professional: "正式", casual: "随和" },
+  draftDiff: {
+    view: "草稿视图",
+    draft: "草稿",
+    changes: "修改",
+    source: { edits: "你对 AI 草稿的修改", refine: "优化所做的修改" },
+    none: {
+      edits: "AI 草稿尚未修改。",
+      refine: "优化未改变草稿。",
+    },
+    added: "新增",
+    removed: "删除",
+    addedLabel: "新增：",
+    removedLabel: "删除：",
+  },
   refine: {
     placeholder: "让 AI 优化回复…",
     submit: "优化",

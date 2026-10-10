@@ -68,6 +68,20 @@ export const en = {
     sent: "Sent",
   },
   tone: { label: "Tone", professional: "Professional", casual: "Casual" },
+  draftDiff: {
+    view: "Draft view",
+    draft: "Draft",
+    changes: "Changes",
+    source: { edits: "Your edits to the AI draft", refine: "What Refine changed" },
+    none: {
+      edits: "No changes from the AI draft yet.",
+      refine: "Refine returned the draft unchanged.",
+    },
+    added: "Added",
+    removed: "Removed",
+    addedLabel: "added: ",
+    removedLabel: "removed: ",
+  },
   refine: {
     placeholder: "Ask AI to refine reply…",
     submit: "Refine",

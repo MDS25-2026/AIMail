@@ -42,6 +42,12 @@ export type DraftWorkflowStatus = {
   onRetryLoad: () => void;
 };
 
+/**
+ * What the Changes view compares (#149): the reader's edits to the AI draft, or, until they type,
+ * what the last Refine changed.
+ */
+export type DraftComparison = { before: string; after: string; source: "edits" | "refine" };
+
 /** The detail query the email came from; any query result fits. Absent when there is none. */
 export type DetailLoad = { isLoading: boolean; isError: boolean; refetch: () => unknown };
 
@@ -55,6 +61,7 @@ export type DraftWorkflow = {
   /** Rejects on failure, so the caller can keep the instruction the reader typed. */
   refine: (instruction: string) => Promise<void>;
   send: () => void;
+  comparison: DraftComparison;
   status: DraftWorkflowStatus;
   announcement: string;
   isRegenerating: boolean;
@@ -124,6 +131,8 @@ export function useDraftWorkflow(
 
   // Each email keeps its own unsaved edits, so opening another email and coming back loses nothing.
   const [typedByEmail, setTypedByEmail] = useState<ReadonlyMap<string, string>>(new Map());
+  // The text each email's last Refine was given; kept in memory only, so a reload drops it.
+  const [refinedFrom, setRefinedFrom] = useState<ReadonlyMap<string, string>>(new Map());
   const [chosenTone, setChosenTone] = useState<Scoped<Tone> | null>(null);
   const [failed, setFailed] = useState<Scoped<DraftFailure> | null>(null);
   const [pending, setPending] = useState<Scoped<PendingAction> | null>(null);
@@ -183,6 +192,7 @@ export function useDraftWorkflow(
     action: DraftAction,
     run: () => Promise<unknown>,
     done: string,
+    onDone?: () => void,
   ) => {
     const seq = ++requestSeqRef.current;
     setFailed(null);
@@ -194,6 +204,9 @@ export function useDraftWorkflow(
     }
     if (seq !== requestSeqRef.current) return;
     setTypedByEmail((current) => withoutKey(current, id));
+    // Any newer draft ends the Refine comparison; a Refine then records its own.
+    setRefinedFrom((current) => withoutKey(current, id));
+    onDone?.();
     announce(done);
   };
 
@@ -268,8 +281,15 @@ export function useDraftWorkflow(
     const id = emailId;
     // The chosen tone goes too, so the revision and its review keep it.
     const request = () => refineMutation.mutateAsync({ emailId: id, instruction, draft, tone });
-    await runMutation(id, DraftAction.Refine, request, t("announce.refined"));
+    const recordBefore = () => setRefinedFrom((current) => new Map(current).set(id, draft));
+    await runMutation(id, DraftAction.Refine, request, t("announce.refined"), recordBefore);
   };
+
+  const refineBefore = emailId === null ? undefined : refinedFrom.get(emailId);
+  const comparison: DraftComparison =
+    typedDraft === null && refineBefore !== undefined
+      ? { before: refineBefore, after: draft, source: "refine" }
+      : { before: serverDraft, after: draft, source: "edits" };
 
   // Each warning in order; "send anyway" on one resumes after it, so every send still gets the later
   // checks and the undo window.
@@ -342,6 +362,7 @@ export function useDraftWorkflow(
     send,
     undoSend,
     undoCountdown,
+    comparison,
     status,
     announcement,
     isRegenerating,

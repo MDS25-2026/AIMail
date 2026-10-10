@@ -227,3 +227,87 @@ describe("changing the tone", () => {
     expect(result.current.tone).toBe("casual");
   });
 });
+
+describe("what the Changes view compares (#149)", () => {
+  const original = emailFixture({ id: "c", draftReply: "Thanks, I will reply soon." });
+  const refined = { ...original, draftReply: "Thanks, I will reply by Friday." };
+
+  async function refineTo(result: { current: ReturnType<typeof useDraftWorkflow> }) {
+    await act(async () => {
+      await result.current.refine("Add a deadline");
+    });
+  }
+
+  test("an untouched draft compares the AI draft with itself", () => {
+    stubFetch({});
+    const { result } = renderWorkflow(original);
+    expect(result.current.comparison).toEqual({
+      before: "Thanks, I will reply soon.",
+      after: "Thanks, I will reply soon.",
+      source: "edits",
+    });
+  });
+
+  test("typed edits compare the AI draft with the reader's text", () => {
+    stubFetch({});
+    const { result } = renderWorkflow(original);
+    act(() => result.current.setDraft("Thanks, I will reply tomorrow."));
+    expect(result.current.comparison).toEqual({
+      before: "Thanks, I will reply soon.",
+      after: "Thanks, I will reply tomorrow.",
+      source: "edits",
+    });
+  });
+
+  test("after a Refine, it compares the text Refine was given with the refined draft", async () => {
+    stubFetch({ "POST /emails/c/refine": { body: refined } });
+    const { result, rerender } = renderWorkflow(original);
+    act(() => result.current.setDraft("Thanks, I will reply later."));
+    await refineTo(result);
+    rerender(refined);
+    expect(result.current.comparison).toEqual({
+      before: "Thanks, I will reply later.",
+      after: "Thanks, I will reply by Friday.",
+      source: "refine",
+    });
+  });
+
+  test("typing after a Refine compares the refined draft with the new edits", async () => {
+    stubFetch({ "POST /emails/c/refine": { body: refined } });
+    const { result, rerender } = renderWorkflow(original);
+    await refineTo(result);
+    rerender(refined);
+    act(() => result.current.setDraft("Thanks, I will reply by Monday."));
+    expect(result.current.comparison).toEqual({
+      before: "Thanks, I will reply by Friday.",
+      after: "Thanks, I will reply by Monday.",
+      source: "edits",
+    });
+  });
+
+  test("a regenerate drops the Refine comparison", async () => {
+    const regenerated = { ...original, draftReply: "Hi, noted with thanks." };
+    stubFetch({
+      "POST /emails/c/refine": { body: refined },
+      "POST /emails/c/regenerate": { body: regenerated },
+    });
+    const { result, rerender } = renderWorkflow(original);
+    await refineTo(result);
+    rerender(refined);
+    act(() => result.current.regenerate());
+    await waitFor(() => expect(result.current.isRegenerating).toBe(false));
+    rerender(regenerated);
+    expect(result.current.comparison.source).toBe("edits");
+  });
+
+  test("a failed Refine leaves the comparison as it was", async () => {
+    stubFetch({
+      "POST /emails/c/refine": { status: 502, body: { error: { code: "agent_unavailable" } } },
+    });
+    const { result } = renderWorkflow(original);
+    await act(async () => {
+      await result.current.refine("Shorter").catch(() => undefined);
+    });
+    expect(result.current.comparison.source).toBe("edits");
+  });
+});
