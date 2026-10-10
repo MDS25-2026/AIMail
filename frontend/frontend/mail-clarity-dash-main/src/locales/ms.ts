@@ -593,6 +593,13 @@ export const ms: Translations = {
     emptyHint: "Pilih Hantar kemudian pada draf dan ia akan menunggu di sini.",
   },
   todo: {
+    draftFollowUp: "Draf susulan",
+    drafting: "Mendraf…",
+    sendFollowUp: "Hantar susulan",
+    sendingFollowUp: "Menghantar…",
+    cancelFollowUp: "Batal",
+    followUpLabel: "Susulan untuk dihantar",
+    followUpFailed: "Tidak dapat mendraf atau menghantar susulan. Cuba lagi sebentar lagi.",
     heading: "Senarai tugas",
     description:
       "Yang memerlukan anda, di satu tempat. Tiada apa-apa dihantar atau diubah tanpa anda.",
@@ -806,6 +813,7 @@ export const ms: Translations = {
       generate_draft: "Draf ditulis",
       refine_draft: "Draf diperhalusi",
       approve_and_send: "Balasan diluluskan dan dihantar",
+      follow_up_sent: "Susulan dihantar",
       send_outcome_unknown: "Keputusan penghantaran tidak diketahui",
       confirm_sender: "Pengirim disahkan",
       translate_email: "E-mel diterjemah",
@@ -943,6 +951,8 @@ export const ms: Translations = {
       "Pengirim ini gagal pengesahan. Semak pengirim sebelum mendraf atau menghantar.",
     masking_pending:
       "Butiran peribadi dalam e-mel ini masih sedang disembunyikan, jadi ia belum boleh digunakan.",
+    follow_up_unavailable:
+      "Balasan ini dihantar dari Gmail, jadi AIMail tidak boleh menulis susulannya. Bukanya dalam Gmail.",
     already_sent: "Balasan ini telah pun dihantar.",
     send_in_progress:
       "Balasan ini sedang dihantar. Tunggu sebentar, kemudian semak sama ada ia sudah dihantar.",

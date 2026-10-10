@@ -572,6 +572,13 @@ export const en = {
     emptyHint: "Choose Send later on a draft and it will wait here.",
   },
   todo: {
+    draftFollowUp: "Draft follow-up",
+    drafting: "Drafting…",
+    sendFollowUp: "Send follow-up",
+    sendingFollowUp: "Sending…",
+    cancelFollowUp: "Cancel",
+    followUpLabel: "Follow-up to send",
+    followUpFailed: "Couldn't draft or send the follow-up. Try again in a moment.",
     heading: "To-do",
     description: "What needs you, in one place. Nothing here is sent or changed without you.",
     countLabel_one: "{{count}} thing needs you",
@@ -782,6 +789,7 @@ export const en = {
       generate_draft: "Draft written",
       refine_draft: "Draft refined",
       approve_and_send: "Reply approved and sent",
+      follow_up_sent: "Follow-up sent",
       send_outcome_unknown: "Send outcome unknown",
       confirm_sender: "Sender confirmed",
       translate_email: "Email translated",
@@ -915,6 +923,8 @@ export const en = {
       "This sender failed authentication. Check the sender before drafting or sending.",
     masking_pending:
       "Personal details are still being hidden in this email, so it can't be used yet.",
+    follow_up_unavailable:
+      "This reply was sent from Gmail, so AIMail can't write its follow-up. Open it in Gmail instead.",
     already_sent: "This reply has already been sent.",
     send_in_progress:
       "This reply is already being sent. Wait a moment, then check whether it went.",

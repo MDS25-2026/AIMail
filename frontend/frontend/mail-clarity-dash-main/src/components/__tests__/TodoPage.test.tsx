@@ -47,6 +47,7 @@ test("each section lists what needs the reader, and No reply needed takes an ema
             threadId: "18f2a",
             workingDays: 4,
             email: null,
+            canFollowUp: false,
           },
         ],
         waitingDays: 3,
@@ -67,4 +68,73 @@ test("each section lists what needs the reader, and No reply needed takes an ema
   await vi.waitFor(() =>
     expect(writes(calls).map((call) => call.path)).toEqual(["/emails/a1/dismiss"]),
   );
+});
+
+test("a reply sent through AIMail gets a follow-up drafted with real names, edited and sent", async () => {
+  const answered = emailFixture({
+    id: "a2",
+    details: [{ placeholder: "[PERSON_1]", value: "Aisyah Rahman", kind: "PERSON" }],
+  });
+  const waiting = {
+    id: "w2",
+    subject: "Re: Invoice",
+    sentAt: "2026-10-01T02:00:00Z",
+    threadId: "18f2b",
+    workingDays: 5,
+    email: answered,
+    canFollowUp: true,
+  };
+  const calls = stubFetch({
+    "GET /todo": {
+      body: {
+        needsAction: empty,
+        needsReview: empty,
+        unsentDrafts: empty,
+        waiting: [waiting],
+        waitingDays: 3,
+        count: 1,
+      },
+    },
+    "POST /todo/waiting/w2/follow-up": { body: { draft: "Hi [PERSON_1], just following up." } },
+    "POST /todo/waiting/w2/follow-up/send": { status: 204 },
+  });
+  renderWithProviders(<TodoPage />);
+  await userEvent.click(await screen.findByRole("button", { name: t("todo.draftFollowUp") }));
+  const editor = await screen.findByLabelText(t("todo.followUpLabel"));
+  expect((editor as HTMLTextAreaElement).value).toBe("Hi Aisyah Rahman, just following up.");
+  await userEvent.type(editor, " Thanks!");
+  await userEvent.click(screen.getByRole("button", { name: t("todo.sendFollowUp") }));
+  await vi.waitFor(() =>
+    expect(writes(calls).find((call) => call.path.endsWith("/send"))?.body).toEqual({
+      draft: "Hi Aisyah Rahman, just following up. Thanks!",
+    }),
+  );
+});
+
+test("a reply sent from Gmail is followed up in Gmail only", async () => {
+  stubFetch({
+    "GET /todo": {
+      body: {
+        needsAction: empty,
+        needsReview: empty,
+        unsentDrafts: empty,
+        waiting: [
+          {
+            id: "w3",
+            subject: "Re: PO",
+            sentAt: "2026-10-01T02:00:00Z",
+            threadId: "18f2c",
+            workingDays: 4,
+            email: null,
+            canFollowUp: false,
+          },
+        ],
+        waitingDays: 3,
+        count: 1,
+      },
+    },
+  });
+  renderWithProviders(<TodoPage />);
+  expect(await screen.findByRole("link", { name: t("todo.openInGmail") })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: t("todo.draftFollowUp") })).toBeNull();
 });

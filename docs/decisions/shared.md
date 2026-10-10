@@ -6,6 +6,16 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-11 — Follow-ups from the To-do page, for replies sent through AIMail
+- Decision: a waiting reply sent through AIMail can be followed up from the To-do page: the agent
+  rewrites it as a nudge (`/refine` with a fixed instruction), the user edits and approves it, and
+  it is sent in the email's thread with Send's checks (masking, spoof, placeholders, Gmail grant),
+  a claim on `sent_message.followed_up_at`, and an audit row (`follow_up_sent`).
+- Why only those: a reply sent from Gmail was masked by the listener with its own numbering and no
+  vault, so its placeholders cannot be restored safely.
+- Affects: `backend/app` (dashboard, todo routes; migration 0042), Lane C's `/refine` (no change,
+  a new instruction), the To-do page (Lane D), `specs/features/todo-page.md`.
+
 ### 2026-10-11 — Private mode makes one claim, and Private mode users get no Gemini email vectors
 - Decision: every Private mode string makes the agreed claim ("Drafted on AIMail's private model.
   Never sent to Google or Anthropic, and only ever used for your own replies") and no claim about

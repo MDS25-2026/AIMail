@@ -26,10 +26,11 @@ from app import (
 from app.audit import AuditAction, audit_row
 from app.core.constants import EMBEDDING_DIM
 from app.core.cursor import decode_cursor
+from app.core.errors import DomainError, ErrorCode
 from app.core.ownership import Scope
 from app.core.providers import Provider
 from app.core.ratelimit import PostgresCounters
-from app.dashboard import list_dashboard_emails, snooze_email
+from app.dashboard import SendRejectedError, list_dashboard_emails, snooze_email
 from app.db.migrate import apply_pending, pending
 from app.db.models import (
     AuthStatus,
@@ -43,7 +44,7 @@ from app.db.models import (
     UserProfile,
 )
 from app.db.session import get_engine, get_sessionmaker
-from app.gmail_send import SentReply
+from app.gmail_send import SendError, SentReply
 from app.inbox_search import search_messages_hybrid
 from app.jobs import claim_requested, request_draft
 from app.ml.categorise import classify_pending
@@ -485,3 +486,108 @@ def test_private_mode_counts_as_decided_once_switched_either_way_or_put_off():
         return [await private_mode_routes._is_decided(user) for user in (switched, put_off, untouched)]
 
     assert _run(scenario()) == [True, True, False]
+
+
+def _answered_and_sent() -> tuple[object, object, object]:
+    """An email answered through AIMail (its reply in sent_message, linked) and one answered from Gmail."""
+    owner, email, from_aimail, from_gmail = uuid4(), uuid4(), uuid4(), uuid4()
+    now = datetime.now(timezone.utc)
+
+    async def seed():
+        async with get_sessionmaker()() as session, session.begin():
+            session.add(UserProfile(id=owner, email=f"{owner}@example.com"))
+            await session.flush()
+            session.add(Message(id=email, user_id=owner, gmail_message_id=f"fu-{uuid4()}", thread_id=f"t-{email}",
+                                subject="Invoice", from_addr="a@example.com", body_masked="Can you send it?",
+                                masking_status=MaskingStatus.COMPLETE, sent_at=now - timedelta(days=5)))
+            await session.flush()
+            session.add_all([
+                SentMessage(id=from_aimail, user_id=owner, gmail_id=f"g-{uuid4()}", message_id=email,
+                            thread_id=f"t-{email}", sent_at=now - timedelta(days=5), body_masked="Could you confirm?"),
+                SentMessage(id=from_gmail, user_id=owner, gmail_id=f"g-{uuid4()}", thread_id="t-gmail",
+                            sent_at=now - timedelta(days=5), body_masked="Could you confirm?"),
+            ])
+
+    _run(seed())
+    return Scope(owner), from_aimail, from_gmail
+
+
+@pytest.fixture
+def gmail_and_agent(monkeypatch):
+    sends = []
+
+    async def refine(_message, _thread, draft, instruction, _details, _tone):
+        return {"draft": f"Following up: {draft}", "instruction": instruction}
+
+    async def can_send(_user_id):
+        return True
+
+    async def send(gmail_id, to, subject, body, *, owner_id):
+        sends.append(body)
+        if body == "fail":
+            raise SendError("Gmail refused")
+        return SentReply(gmail_id=f"g-{uuid4()}", thread_id="t", message_id="<m>")
+
+    monkeypatch.setattr(dashboard, "_refine", refine)
+    monkeypatch.setattr(dashboard.connections, "can_send", can_send)
+    monkeypatch.setattr(dashboard, "send_reply", send)
+    return sends
+
+
+def test_a_follow_up_is_drafted_from_the_reply_and_sent_as_the_threads_latest(gmail_and_agent):
+    scope, from_aimail, _ = _answered_and_sent()
+
+    async def scenario():
+        draft = await dashboard.draft_follow_up(str(from_aimail), scope=scope)
+        await dashboard.send_follow_up(str(from_aimail), draft, scope=scope)
+        try:
+            await dashboard.send_follow_up(str(from_aimail), draft, scope=scope)
+        except DomainError as again:
+            refused = again.code
+        linked = await _scalar(f"SELECT count(*) FROM sent_message WHERE user_id = '{scope.owner_id}' "
+                               "AND message_id IS NOT NULL AND remind")
+        return draft, refused, linked
+
+    draft, refused, linked = _run(scenario())
+    assert draft == "Following up: Could you confirm?"
+    assert gmail_and_agent == [draft]
+    assert refused == ErrorCode.ALREADY_SENT
+    assert linked == 1  # the link moved to the follow-up, which is now tracked
+
+
+def test_two_clicks_at_once_send_one_follow_up(gmail_and_agent):
+    scope, from_aimail, _ = _answered_and_sent()
+
+    async def scenario():
+        return await asyncio.gather(*(dashboard.send_follow_up(str(from_aimail), "Following up.", scope=scope)
+                                      for _ in range(2)), return_exceptions=True)
+
+    outcomes = _run(scenario())
+    assert gmail_and_agent == ["Following up."]
+    assert sorted(type(outcome).__name__ for outcome in outcomes) == ["DomainError", "bool"]
+
+
+def test_a_failed_follow_up_can_be_tried_again(gmail_and_agent):
+    scope, from_aimail, _ = _answered_and_sent()
+
+    async def scenario():
+        try:
+            await dashboard.send_follow_up(str(from_aimail), "fail", scope=scope)
+        except SendError:
+            pass
+        await dashboard.send_follow_up(str(from_aimail), "Following up.", scope=scope)
+
+    _run(scenario())
+    assert gmail_and_agent == ["fail", "Following up."]
+
+
+def test_a_reply_sent_from_gmail_is_followed_up_in_gmail(gmail_and_agent):
+    scope, _, from_gmail = _answered_and_sent()
+    with pytest.raises(SendRejectedError) as refused:
+        _run(dashboard.draft_follow_up(str(from_gmail), scope=scope))
+    assert refused.value.code == ErrorCode.FOLLOW_UP_UNAVAILABLE
+
+
+def test_someone_elses_reply_cannot_be_followed_up(gmail_and_agent):
+    _, from_aimail, _ = _answered_and_sent()
+    assert _run(dashboard.send_follow_up(str(from_aimail), "Hi", scope=Scope(uuid4()))) is False

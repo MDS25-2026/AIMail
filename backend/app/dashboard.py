@@ -892,7 +892,7 @@ class TranslationError(DomainError):
 # Which error a refused action raises, so each route answers with the type its callers expect.
 _REFUSAL_ERROR: dict[Action, type[DomainError]] = {
     Action.REDRAFT: DraftNotUpdatedError, Action.REFINE: DraftNotUpdatedError,
-    Action.SEND: SendRejectedError, Action.TRANSLATE: TranslationError,
+    Action.SEND: SendRejectedError, Action.TRANSLATE: TranslationError, Action.FOLLOW_UP: SendRejectedError,
 }
 
 
@@ -1083,3 +1083,109 @@ async def snooze_email(message_id: str, until: datetime | None, *, scope: Scope)
         setattr(message, column, value)
     await audit(AuditAction.EMAIL_SNOOZED, user_id=message.user_id, message=message_id, snoozed=until is not None)
     return await _with_schedule(message)
+
+
+FOLLOW_UP_INSTRUCTION = (
+    "They have not answered this reply. Rewrite it as a short, polite follow-up: say you are following "
+    "up, remind them in one line of what you asked, and ask again. Two or three sentences, in the same "
+    "language as the reply, keeping its greeting and sign-off."
+)
+
+
+async def _follow_up_target(sent_id: str, scope: Scope) -> tuple[SentMessage, Message, list[Message]] | None:
+    """A sent reply of this user's and the email it answered, with that email's thread.
+
+    Only replies sent through AIMail: their placeholders share the email's vault, so names restore
+    correctly. A reply sent from Gmail was masked apart, with nothing to restore it from.
+    """
+    try:
+        pk = UUID(sent_id)
+    except ValueError:
+        return None
+    async with get_sessionmaker()() as session:
+        sent = await session.scalar(select(SentMessage).where(SentMessage.id == pk, scope.where(SentMessage.user_id)))
+        answered = await _get(session, sent.message_id, scope) if sent and sent.message_id else None
+    if sent is None:
+        return None
+    if sent.followed_up_at is not None:
+        raise SendRejectedError(ErrorCode.ALREADY_SENT)  # its follow-up went out, or is going now
+    if answered is None:
+        raise SendRejectedError(ErrorCode.FOLLOW_UP_UNAVAILABLE)
+    _require(answered, Action.FOLLOW_UP)
+    return sent, answered, await _thread_for(answered)
+
+
+async def draft_follow_up(sent_id: str, *, scope: Scope) -> str | None:
+    """A follow-up to an unanswered reply, written by the agent from that reply. Not stored."""
+    target = await _follow_up_target(sent_id, scope)
+    if target is None:
+        return None
+    sent, answered, thread = target
+    details = await _details_for(answered, thread)
+    refined = await _refine(answered, thread, sent.body_masked, FOLLOW_UP_INSTRUCTION, details, Tone.PROFESSIONAL)
+    return refined["draft"]
+
+
+async def _claim_follow_up(sent_id: UUID) -> bool:
+    """Claim-then-send, as for a reply: a second click finds the claim and sends nothing."""
+    async with get_sessionmaker()() as session, session.begin():
+        claimed = await session.scalar(
+            update(SentMessage).where(SentMessage.id == sent_id, SentMessage.followed_up_at.is_(None))
+            .values(followed_up_at=func.now()).returning(SentMessage.id))
+    return claimed is not None
+
+
+async def _release_follow_up(sent_id: UUID) -> None:
+    async with get_sessionmaker()() as session, session.begin():
+        await session.execute(update(SentMessage).where(SentMessage.id == sent_id).values(followed_up_at=None))
+
+
+async def send_follow_up(sent_id: str, draft: str, *, scope: Scope) -> bool:
+    """Send the approved follow-up in the email's thread, through the same checks as a reply.
+
+    False when the reply is not the user's. Raises SendRejectedError, SendError or
+    SendOutcomeUnknownError as approve_and_send does.
+    """
+    target = await _follow_up_target(sent_id, scope)
+    if target is None:
+        return False
+    sent, answered, thread = target
+    reply = _outgoing(draft, await _details_for(answered, thread))
+    if answered.user_id is not None and not await connections.can_send(answered.user_id):
+        raise SendRejectedError(ErrorCode.SEND_NOT_GRANTED)
+    if not await _claim_follow_up(sent.id):
+        raise DomainError(ErrorCode.SEND_IN_PROGRESS, f"a follow-up to {sent_id} is already being sent")
+    try:
+        gmail = await send_reply(answered.gmail_message_id, answered.from_addr or "", answered.subject or "",
+                                 reply.sent, owner_id=answered.user_id)
+    except SendOutcomeUnknownError:
+        # The claim stays: Gmail may have sent it, and the listener's Sent watch records it if so.
+        await audit(AuditAction.SEND_OUTCOME_UNKNOWN, user_id=answered.user_id, success=False, sent=sent_id)
+        raise
+    except SendError:
+        await _release_follow_up(sent.id)
+        await audit(AuditAction.FOLLOW_UP_SENT, user_id=answered.user_id, success=False, sent=sent_id)
+        raise
+    try:
+        await _record_follow_up(sent, answered, reply, gmail)
+    except SQLAlchemyError:
+        # Sent, so the reader is told so; the claim blocks a second copy, and the Sent watch records it.
+        logger.exception("follow-up to %s was sent (Gmail id %s) but its record was not saved", sent_id, gmail.message_id)
+        await audit(AuditAction.FOLLOW_UP_SENT, user_id=answered.user_id, sent=sent_id, recorded=False)
+    return True
+
+
+async def _record_follow_up(sent: SentMessage, answered: Message, reply: OutgoingReply, gmail: SentReply) -> None:
+    """The follow-up becomes the thread's latest send, so the waiting clock restarts from it.
+
+    The link to the answered email moves to it too, so it can be followed up in turn.
+    """
+    async with get_sessionmaker()() as session, session.begin():
+        await session.execute(update(SentMessage).where(SentMessage.id == sent.id).values(message_id=None))
+        await session.execute(insert(SentMessage).values(
+            user_id=sent.user_id, gmail_id=gmail.gmail_id, message_id=answered.id,
+            thread_id=answered.thread_id or sent.thread_id, sent_at=func.now(), subject=sent.subject,
+            body_masked=reply.stored, remind=True,
+        ).on_conflict_do_update(index_elements=["gmail_id"], set_={"message_id": answered.id, "remind": True}))
+        record(session, AuditAction.FOLLOW_UP_SENT, user_id=answered.user_id, message=str(answered.id),
+               restored=reply.restored)
