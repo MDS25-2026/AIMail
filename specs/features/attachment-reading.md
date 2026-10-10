@@ -22,7 +22,8 @@ unredacted attachment content leaving the machine.
 
 **Out of scope**
 - Faces, signatures and handwriting: nothing here detects them. Identity documents, where they
-  matter most, are withheld whole (gate 2); on any other image they are not.
+  matter most, are withheld whole (gate 2). Since 2026-10-10 scan images reach Gemini only for
+  owners who chose checked scans, after a local vision check (`signature-detection.md`).
 - Legacy .doc/.xls, archives, and anything not listed above: skipped.
 
 ## The three gates

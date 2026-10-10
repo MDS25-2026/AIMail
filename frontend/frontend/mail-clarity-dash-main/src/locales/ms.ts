@@ -447,6 +447,22 @@ export const ms: Translations = {
       n3: "Tanya AIMail masih menggunakan Google.",
     },
   },
+  scanReading: {
+    title: "Lampiran imbasan",
+    intro:
+      "Halaman imbasan dan foto dalam e-mel anda dibaca di komputer ini dahulu, dan butiran seperti nama dan nombor IC dihitamkan.",
+    local: "Baca di komputer ini sahaja",
+    localHint:
+      "Imbasan tidak pernah dihantar ke Google. AIMail menggunakan teks yang dibaca di sini, jadi imbasan yang kabur mungkin kurang tepat.",
+    checked: "Semak dahulu, kemudian biar Gemini baca halaman yang bersih",
+    checkedHint:
+      "Model di komputer ini mencari tandatangan, wajah dan cop, dan menyimpan halaman itu di sini. Dalam ujian kami ia terlepas kira-kira 1 daripada 10, jadi tandatangan atau cop kadangkala boleh sampai ke Google.",
+    notSetUp:
+      "Semakan tidak disediakan pada AIMail ini, jadi imbasan hanya boleh dibaca di komputer ini.",
+    privateNote: "Dalam Mod Peribadi, imbasan sentiasa kekal di komputer ini.",
+    saved: "Disimpan.",
+    failed: "Tidak dapat menukar cara imbasan dibaca. Cuba lagi sebentar lagi.",
+  },
   account: {
     title: "Akaun",
     signedInAs: "Log masuk sebagai {{email}}.",
@@ -773,6 +789,8 @@ export const ms: Translations = {
       "AI tidak dapat menulis draf untuk e-mel ini, dan mencuba lagi tidak akan mengubahnya. Teks anda tidak berubah: tulis balasan sendiri, atau cuba nada yang satu lagi.",
     agent_unavailable:
       "Perkhidmatan mendraf tidak tersedia sekarang. Teks anda tidak berubah; cuba lagi sebentar lagi.",
+    scan_check_unavailable:
+      "Semakan tidak disediakan pada AIMail ini, jadi imbasan hanya boleh dibaca di komputer ini.",
     private_mode_unavailable:
       "Mod Peribadi dihidupkan, tetapi tiada model peribadi disediakan di sini, jadi tiada apa yang boleh didraf. Matikan Mod Peribadi dalam Tetapan.",
     masking_unavailable:

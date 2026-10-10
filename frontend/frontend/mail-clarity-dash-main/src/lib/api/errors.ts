@@ -15,6 +15,7 @@ export enum ApiErrorCode {
   DraftRefused = "draft_refused",
   AgentUnavailable = "agent_unavailable",
   PrivateModeUnavailable = "private_mode_unavailable",
+  ScanCheckUnavailable = "scan_check_unavailable",
   MaskingUnavailable = "masking_unavailable",
   TooManyExamples = "too_many_examples",
   Empty = "empty",

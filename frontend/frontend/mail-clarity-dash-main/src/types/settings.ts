@@ -1,4 +1,4 @@
-/** Holding reply and Private mode settings (specs/features/holding-reply.md, local-model.md). */
+/** Holding reply, Private mode and scan settings (holding-reply.md, local-model.md, signature-detection.md). */
 import type { Language } from "../lib/preferences";
 import { assertSameValues, type Schemas, type WithEnums } from "./schema";
 
@@ -60,6 +60,16 @@ export type HoldingReplyRecord = Schemas["HoldingReplyView"];
 /** Not offered when `available` is false. */
 export type PrivateMode = Schemas["PrivateModeView"];
 
+/** How scanned attachments are read (specs/features/signature-detection.md). */
+export enum ScanMode {
+  Local = "local",
+  Checked = "checked",
+}
+
+/** `available`: the company set up the local vision model that checked scans need. */
+export type ScanReading = WithEnums<Schemas["ScanReadingView"], { mode: ScanMode }>;
+
 assertSameValues<`${ActiveWhen}`, Schemas["ActiveWhen"]>(true);
+assertSameValues<`${ScanMode}`, Schemas["ScanReading"]>(true);
 assertSameValues<`${Audience}`, Schemas["Audience"]>(true);
 assertSameValues<`${ReplyScope}`, Schemas["ReplyScope"]>(true);

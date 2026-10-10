@@ -56,6 +56,7 @@ INVOICE = [
 def test_an_image_comes_back_redacted_with_business_content_intact(client):
     body = _read(client, _png(_image(INVOICE)), "image/png").get_json()
     assert len(body["images"]) == 1
+    assert "Aisyah" in body["images"][0]["text"], "the local text is unredacted; the listener masks it"
     text = _ocr(body["images"][0]["data"])
     assert "example.com" not in text and "Aisyah" not in text
     assert "September" in text, "dates are business content and must survive (known-issues.md)"
@@ -189,7 +190,8 @@ def redactor():
 
 def test_a_redaction_that_misses_an_identifier_is_withheld_not_sent(redactor, monkeypatch):
     monkeypatch.setattr(redactor, "words_to_hide", lambda words, text: set())
-    assert redactor.redact(_image(INVOICE)) is None
+    scan = redactor.redact(_image(INVOICE))
+    assert scan.png is None and "September" in scan.text
 
 
 def test_a_full_invoice_with_labels_beside_boxes_is_still_sent(redactor):
@@ -197,7 +199,7 @@ def test_a_full_invoice_with_labels_beside_boxes_is_still_sent(redactor):
     lines = ["INVOICE INV-2026-0914", "Bill to: Aisyah Rahman",
              "Email: aisyah.rahman@example.com", "Phone: 012-345 6789",
              "Payment due 30 September 2026", "Total: RM 1,250.00"]
-    png = redactor.redact(_image(lines))
+    png = redactor.redact(_image(lines)).png
     assert png is not None
     text = pytesseract.image_to_string(Image.open(io.BytesIO(png)))
     assert "Aisyah" not in text and "example.com" not in text and "6789" not in text
@@ -241,5 +243,5 @@ PASSPORT_PAGE = ["PASSPORT  PASPORT", "No. A12345678", "P<MYSAMINAH<<SITI<<<<<<<
 @pytest.mark.parametrize("lines", [ID_CARD, PASSPORT_PAGE], ids=["mykad", "passport"])
 def test_an_identity_document_is_withheld_whole(client, lines):
     body = _read(client, _png(_image(lines)), "image/png").get_json()
-    assert body["images"] == [] and body["skipped_pages"] == 1
+    assert body["images"] == [] and body["skipped_pages"] == 1 and body["text"] == ""
 

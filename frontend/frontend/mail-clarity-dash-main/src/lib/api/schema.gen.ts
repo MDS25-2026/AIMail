@@ -572,6 +572,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/settings/scan-reading": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Scan Reading */
+        get: operations["get_scan_reading_settings_scan_reading_get"];
+        /** Put Scan Reading */
+        put: operations["put_scan_reading_settings_scan_reading_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/system/info": {
         parameters: {
             query?: never;
@@ -1053,6 +1071,22 @@ export interface components {
          * @enum {string}
          */
         ReplyScope: "needs_reply" | "all";
+        /**
+         * ScanReading
+         * @description Values of user_preferences.scan_reading (migration 0036); the listener mirrors them.
+         * @enum {string}
+         */
+        ScanReading: "local" | "checked";
+        /** ScanReadingBody */
+        ScanReadingBody: {
+            mode: components["schemas"]["ScanReading"];
+        };
+        /** ScanReadingView */
+        ScanReadingView: {
+            /** Available */
+            available: boolean;
+            mode: components["schemas"]["ScanReading"];
+        };
         /** SearchRequest */
         SearchRequest: {
             /**
@@ -2362,6 +2396,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PrivateModeView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_scan_reading_settings_scan_reading_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanReadingView"];
+                };
+            };
+        };
+    };
+    put_scan_reading_settings_scan_reading_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScanReadingBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanReadingView"];
                 };
             };
             /** @description Validation Error */

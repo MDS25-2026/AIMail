@@ -45,8 +45,10 @@ func TestCloudOCRFollowsTheOwnersChoiceAndFailsClosed(t *testing.T) {
 		body   string
 		want   string
 	}{
-		{"gemini chosen", "user-a", http.StatusOK, `[{"draft_provider":"gemini"}]`, ""},
-		{"never chose", "user-a", http.StatusOK, `[]`, ""},
+		{"checked scans", "user-a", http.StatusOK, `[{"draft_provider":"gemini","scan_reading":"checked"}]`, ""},
+		{"local scans", "user-a", http.StatusOK, `[{"draft_provider":"gemini","scan_reading":"local"}]`, reasonScansLocal},
+		{"never chose", "user-a", http.StatusOK, `[]`, reasonScansLocal},
+		{"unknown scan value", "user-a", http.StatusOK, `[{"draft_provider":"gemini","scan_reading":"x"}]`, reasonScansLocal},
 		{"Private mode", "user-a", http.StatusOK, `[{"draft_provider":"local"}]`, reasonPrivateMode},
 		{"unknown value", "user-a", http.StatusOK, `[{"draft_provider":"other"}]`, reasonUnknownProvider},
 		{"lookup fails", "user-a", http.StatusInternalServerError, `{}`, reasonLookupFailed},
@@ -120,10 +122,22 @@ func TestARefusedImageNeverReachesGeminiAndIsAudited(t *testing.T) {
 func fakeReader(t *testing.T) {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write([]byte(`{"text":"","images":[{"mime_type":"image/png","data":"cG5n"}],"pages":1}`))
+		w.Write([]byte(`{"text":"","images":[{"mime_type":"image/png","data":"cG5n","text":"Local invoice 7"}],"pages":1}`))
 	}))
 	t.Cleanup(server.Close)
 	t.Setenv("ATTACHMENT_READER_URL", server.URL+"/read")
+}
+
+func TestAnOwnerWhoNeverChoseKeepsScansLocalAndGetsTheirText(t *testing.T) {
+	calls := recordOCRCalls(t)
+	fakeReader(t)
+	withPreferences(t, http.StatusOK, `[]`)
+	srv := fakeGmail(t, http.StatusOK, `{"data":"iVBORw0KGgoAAAAAAAAAAA=="}`)
+	got := ocrAttachments(context.Background(), srv, messageRef{ownerID: "user-a", msgID: "m1"},
+		imagePart("image/png", "att-1", 100))
+	if *calls != 0 || !strings.Contains(got, "Local invoice 7") {
+		t.Fatalf("want the local text and no Gemini call, got %d calls, text %q", *calls, got)
+	}
 }
 
 func TestAPrivateModeOwnersAttachmentImagesStayLocal(t *testing.T) {
@@ -133,15 +147,16 @@ func TestAPrivateModeOwnersAttachmentImagesStayLocal(t *testing.T) {
 	srv := fakeGmail(t, http.StatusOK, `{"data":"iVBORw0KGgoAAAAAAAAAAA=="}`) // a real PNG signature: the bytes are sniffed
 	got := ocrAttachments(context.Background(), srv, messageRef{ownerID: "user-a", msgID: "m1"},
 		imagePart("image/png", "att-1", 100))
-	if *calls != 0 || got != "" {
-		t.Fatalf("a Private mode image reached Gemini: %d calls, text %q", *calls, got)
+	if *calls != 0 || !strings.Contains(got, "Local invoice 7") {
+		t.Fatalf("a Private mode image reached Gemini or lost its text: %d calls, text %q", *calls, got)
 	}
 }
 
-func TestAGeminiOwnersAttachmentImagesAreTranscribed(t *testing.T) {
+func TestACheckedScansOwnersClearImagesAreTranscribed(t *testing.T) {
+	answerMarks(t, noMark)
 	calls := recordOCRCalls(t)
 	fakeReader(t)
-	withPreferences(t, http.StatusOK, `[]`)
+	withPreferences(t, http.StatusOK, `[{"draft_provider":"gemini","scan_reading":"checked"}]`)
 	srv := fakeGmail(t, http.StatusOK, `{"data":"iVBORw0KGgoAAAAAAAAAAA=="}`) // a real PNG signature: the bytes are sniffed
 	got := ocrAttachments(context.Background(), srv, messageRef{ownerID: "user-a", msgID: "m1"},
 		imagePart("image/png", "att-1", 100))
@@ -151,6 +166,7 @@ func TestAGeminiOwnersAttachmentImagesAreTranscribed(t *testing.T) {
 }
 
 func TestAnAllowedImageIsTranscribed(t *testing.T) {
+	answerMarks(t, noMark)
 	calls := recordOCRCalls(t)
 	recordAuditRows(t)
 	texts, sent := transcribeImages(context.Background(), messageRef{ownerID: "user-a", msgID: "m1"}, testImages(), "")

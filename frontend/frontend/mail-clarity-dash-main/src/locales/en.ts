@@ -432,6 +432,21 @@ export const en = {
       n3: "Ask AIMail still uses Google.",
     },
   },
+  scanReading: {
+    title: "Scanned attachments",
+    intro:
+      "Scanned pages and photos in your emails are read on this computer first, and details like names and IC numbers are blacked out.",
+    local: "Read on this computer only",
+    localHint:
+      "Scans never go to Google. AIMail uses the text it read here, so a messy scan may be read less well.",
+    checked: "Check first, then let Gemini read the clear pages",
+    checkedHint:
+      "A model on this computer looks for signatures, faces and stamps and keeps those pages here. In our tests it missed about 1 in 10, so a signature or stamp can occasionally reach Google.",
+    notSetUp: "Checking isn't set up on this AIMail, so scans can only be read on this computer.",
+    privateNote: "In Private mode, scans always stay on this computer.",
+    saved: "Saved.",
+    failed: "Couldn't change how scans are read. Try again in a moment.",
+  },
   account: {
     title: "Account",
     signedInAs: "Signed in as {{email}}.",
@@ -754,6 +769,8 @@ export const en = {
       "The AI couldn't write a draft for this email, and trying again won't change that. Your text is unchanged: write the reply yourself, or try the other tone.",
     agent_unavailable:
       "The drafting service is unavailable right now. Your text is unchanged; try again in a moment.",
+    scan_check_unavailable:
+      "Checking isn't set up on this AIMail, so scans can only be read on this computer.",
     private_mode_unavailable:
       "Private mode is on, but no private model is set up here, so nothing can be drafted. Switch Private mode off in Settings.",
     masking_unavailable:

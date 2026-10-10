@@ -1,123 +1,138 @@
-# Signature detection: no signature, face or stamp leaves the machine
+# Scanned attachments: read locally, or checked for signatures, faces and stamps first
 
-- **Status:** draft
+- **Status:** built 2026-10-10 (pending review)
 - **Owner:** veyroxie (Lane A code; JiaJun to review)
 - **Related issue:** epic #138 line 19; extends `attachment-reading.md`
 - **Last updated:** 2026-10-10
 
 ## Goal
 
-Stop handwritten signatures, faces and ink stamps on ordinary scans from reaching Gemini. The
-attachment reader redacts text it can read, but a signature is not text, so today a signed letter
-or invoice that passes the reader's gates goes to Gemini with the signature intact.
+Stop handwritten signatures, faces and ink stamps on scans from reaching Gemini. The attachment
+reader redacts text it can read, but a signature is not text, so a signed letter or invoice that
+passed the reader's gates used to go to Gemini with the signature intact.
 
 ## User story
 
-As someone whose signed documents arrive by email, I want my signature kept on my company's
-machine, so that a cloud model never holds a copy of it.
+As someone whose signed documents arrive by email, I want to choose whether scans stay on my
+company's machine entirely, or are checked first and read by Gemini when clear, knowing what each
+choice risks.
 
 ## Scope
 
 **In scope**
-- A third withholding gate in `listener/attachment-reader/reader.py`: after the existing gates
-  pass, the redacted image is shown to a local vision model (Ollama) with one yes/no question.
-- Yes means the whole image is withheld, like an identity document today. The attachment's
-  locally read text is still kept and masked.
-- No local vision model configured, or Ollama unreachable, or an unreadable answer: the image is
-  withheld (fail closed). The email still ingests.
-- A synthetic test set of about 20 made-up scans (blank, signed, stamped, with a photo) to
-  measure how many signatures the gate misses.
+- **The reader returns each scanned page's text** (as its local OCR read it, only for pages it
+  read confidently and that are not identity documents) beside the redacted image. The listener
+  masks that text with the rest of the email.
+- **A per-user setting, `user_preferences.scan_reading`** (migration 0036), in Settings >
+  Scanned attachments:
+  - `local` (default): no scan image reaches Gemini. Each page's local text stands in for it.
+  - `checked`: before each redacted image goes to Gemini, the listener asks a local vision model
+    (`LOCAL_VISION_MODEL` on Ollama) whether it shows a signature, a face or a stamp. Only three
+    clear noes send it; anything else keeps it here and uses its local text.
+- `checked` is offered only where `LOCAL_VISION_MODEL` is set; going back to `local` always works.
+- Private mode keeps every scan local, as before.
+- If Gemini fails on a sent image, its local text is used.
+- A synthetic test set (`listener/testdata/marks`, `generate.py`): 8 clear pages, 12 with a
+  signature, initials, a stamp or a photo.
 
 **Out of scope**
-- Boxing out just the signature and sending the rest. A whole-image withhold is simpler and is
-  what identity documents already get; partial redaction can come later if too much is withheld.
-- Handwriting that is not a signature (notes in a margin).
-- Text PDFs, .docx and .xlsx: they return text, never images, so they never reach this gate.
+- Boxing out just the signature and sending the rest.
+- Images embedded in email bodies (never sent to a model).
+- Text PDFs, .docx and .xlsx: they return text, never images.
+
+## Measured (2026-10-10, synthetic scans, three-question prompt)
+
+| Model | Marked pages missed | Clear pages held back | Per page |
+|---|---|---|---|
+| `gemma4:e2b` (one question) | 10 of 12 | 0 of 8 | about 1 s warm |
+| `gemma4:e2b` (three questions) | 5 of 12 | 0 of 8 | |
+| Gemma-SEA-LION-v4 4B VL (Q4_K_M) | 1 of 12 | 2 of 8 | about 6 s |
+| same, on 16 fresh pages it had not seen | 1 of 8 | 3 of 8 | |
+
+So `checked` misses about 1 in 10 marks even on clean synthetic pages, and real scans will do
+worse. That is why it is opt-in, and why the settings card says so. A cold start (model unloaded)
+took 44.5 s; the listener's call times out at 60 s.
 
 ## Acceptance criteria
 
-- [ ] Given a scan with a handwritten signature, when the reader reads it, then the image is not
-      in `images` and `skipped_pages` counts it.
-- [ ] Given a scan with a face or an ink stamp, when the reader reads it, then the same holds.
-- [ ] Given a clean scan with no signature, face or stamp, when the reader reads it, then the
-      redacted image is returned as today.
-- [ ] Given `LOCAL_VISION_MODEL` is empty, when the reader reads any scan, then no image is
-      returned and the reader's text is unchanged.
-- [ ] Given Ollama is unreachable or answers something other than the expected JSON, when the
-      reader reads a scan, then the image is withheld and a warning is logged with no content.
-- [ ] Given the synthetic test set, when the live test runs, then no signed, stamped or photo
-      scan is released, and the number of clean scans withheld is reported.
+- [x] Given a scanned page read confidently, then the reader returns its text beside the redacted
+      image; given an identity document, neither.
+- [x] Given an owner with `local` (or no choice saved), then no scan image is sent to Gemini and the
+      attachment's text includes each page's local text.
+- [x] Given `checked` and a local model answering "stamp: true" for one of three images, then two
+      are sent and the third is represented by its local text, and the withheld one is audited.
+- [x] Given `checked` and no `LOCAL_VISION_MODEL`, or an unreachable model, or an answer that is not
+      three clear noes, then no image is sent; after one failed call the rest are not asked.
+- [x] Given `PUT /settings/scan-reading {mode: "checked"}` where no vision model is set up, then
+      `409 scan_check_unavailable`; `local` is always accepted.
+- [x] Given the synthetic set and the measured model, then the live test misses no more than 1 of 12
+      marked pages (`marks_live_test.go`; `checked` accepts a measured miss rate by the owner's
+      decision, see Decisions).
 
 ## API surface
 
-No change to `POST /read`. Withheld images already count in `skipped_pages`, which the listener
-audits as `withheld` and the admin console shows.
-
-The reader calls Ollama's `POST /api/generate` with `model`, `prompt`, `images` (base64 PNG),
-`format: "json"`, `think: false`, `options.temperature: 0`, and expects `{"found": true|false}`.
+- Reader `POST /read`: each item in `images` gains `text`. Pages withheld for a leftover
+  identifier add their text to the top-level `text`.
+- `GET /settings/scan-reading` -> `{available, mode}`; `PUT` `{mode}` (see
+  `specs/context/api-contracts.md`).
+- The listener calls Ollama's `POST /api/generate` with `model`, `prompt`, `images`,
+  `format: "json"`, `think: false`, `temperature: 0`, and expects
+  `{"signature": bool, "face": bool, "stamp": bool}`.
 
 ## Data model
 
-None.
+`user_preferences.scan_reading TEXT NOT NULL DEFAULT 'local' CHECK IN ('local', 'checked')`
+(migration 0036, `specs/context/db-schema.md`).
 
 ## Dependencies
 
-- Ollama with a vision model. `gemma4:e2b`, the Private mode model, reports the `vision`
-  capability (`ollama show`).
-- New settings, both read by the reader:
-  - `LOCAL_VISION_MODEL`: empty means no local check, so every scanned image is withheld.
-  - The Ollama URL, reusing `LOCAL_LLM_URL`. From the container that is
-    `http://host.docker.internal:11434`, which needs `extra_hosts: host-gateway` in compose.
+- `LOCAL_VISION_MODEL` (backend: to offer the choice; listener: to run the check) and
+  `LOCAL_LLM_URL` for Ollama, both in `.env.example`.
+- The check runs in the listener, not the reader: the reader's container cannot reach Ollama on
+  the host's `127.0.0.1` (connection refused, measured), and opening Ollama wider would expose an
+  unauthenticated model server.
 
 ## Edge cases & failure modes
 
-- **Cold start:** the first call after Ollama has unloaded the model took 44.5 s (measured
-  2026-10-10); warm calls took 0.8 to 3.5 s. The reader's client timeout must exceed the cold
-  start, and the listener's 180 s reader timeout still bounds a 20-page scan.
-- **Many pages:** one call per released image, up to the reader's 20-page cap.
-- **GPU busy or out of memory:** Ollama falls back to the CPU and slows down; the timeout
-  withholds the image rather than waiting forever.
-- **False positives** (a logo read as a stamp): the image is withheld and only its cloud
-  transcription is lost. Missing a signature is the failure that matters, so the prompt leans
-  towards "found".
+- **Hung model:** one 60 s timeout, then the message's remaining images stay local unasked, so a
+  stuck Ollama cannot hold the Pub/Sub callback per image (#86).
+- **Preference lookup fails:** images stay local (fail closed), with their text.
+- **Database not migrated:** the lookup fails, so the same.
+- **Clear page held back:** it loses Gemini's reading, not its content.
 
 ## Security & privacy notes
 
-- The check runs on the redacted image, on the machine, before anything is sent anywhere.
-- Asking a cloud model whether an image holds a signature would already send the signature, which
-  is why the hackathon's Gemini vision pass (`backend/extract/vision.py`) cannot be reused here.
-- Logs carry the outcome only, never the image or the model's text.
+- The local text is unmasked when it leaves the reader and is masked by the listener before
+  storage, exactly like text from a text PDF.
+- Asking a cloud model whether an image holds a signature would already send it, which is why the
+  hackathon's Gemini vision pass cannot be reused.
+- Logs and audit rows carry counts and reasons, never the image or the model's text.
 
 ## Open questions
 
-- Whether a 2B model misses signatures on real, noisy scans. The synthetic set measures the
-  obvious cases; a real signed scan from the team, with consent, would be a better check.
-
-## Out-of-scope future extensions
-
-- Box out only the detected region and send the rest.
-- Run the same check on images embedded in email bodies, if those are ever sent to a model.
-
-## Implementation notes
-
-- `Redactor.redact` gains the gate after the format check; `add_image` already counts a `None`.
-- Keep the prompt and the expected answer as module constants; parse with `json.loads` and treat
-  anything but `{"found": false}` as found.
-- Tests: unit tests with a fake Ollama (found, not found, unreachable, malformed, unset model);
-  a live test, skipped when Ollama is not running, over the synthetic set.
+- How local OCR compares with Gemini on real, messy scans; and how the check does on them. A real
+  signed scan from the team, with consent, is the next measurement.
 
 ## Decisions
 
-- 2026-10-10: With no local vision model, scanned images are withheld from Gemini. Rationale:
-  the owner chose the safe default. Alternatives: send as today and log it.
-- 2026-10-10: One question covers signatures, faces and stamps. Rationale: same call, same cost.
-  Alternatives: signatures only.
-- 2026-10-10: Test with synthetic scans only. Rationale: no real personal documents in the repo.
+- 2026-10-10: Two modes, chosen per user: `local` and `checked`. Rationale: the owner wanted both
+  ("if company or user wants fully private then use local, if okay with some leaks ... use vision
+  model"). Alternatives: local only; vision check only.
+- 2026-10-10: `local` is the default, including for users who sent scans to Gemini before.
+  Rationale: the check misses about 1 in 10.
+- 2026-10-10: `checked` accepts a measured miss rate; the live test guards against regression
+  (at most 1 of 12) instead of requiring zero. Rationale: no tested local model reached zero.
+- 2026-10-10: The check lives in the listener, not the reader (see Dependencies).
+- 2026-10-10: Three questions (signature, face, stamp) instead of one. Rationale: halved Gemma's
+  misses; the other prompts tried were worse.
+- 2026-10-10: Recommended model Gemma-SEA-LION-v4 4B VL; `gemma4:e2b` is not to be used for this.
+- 2026-10-10: Synthetic scans only. Rationale: no real personal documents in the repo.
 
 ## Protected decisions
 
 <!-- BEGIN PROTECTED -->
 The signature check runs locally, before an image leaves the machine, and fails closed: no model,
-no answer or an unclear answer withholds the image.
-DO NOT replace it with a cloud vision call or make it fail open without the owner's approval.
+no answer or an unclear answer keeps the image here. `local` stays the default.
+DO NOT replace it with a cloud vision call, make it fail open, or change the default without the
+owner's approval.
 <!-- END PROTECTED -->

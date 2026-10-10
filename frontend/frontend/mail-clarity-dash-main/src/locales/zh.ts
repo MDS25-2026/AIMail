@@ -419,6 +419,20 @@ export const zh: Translations = {
       n3: "“询问 AIMail”仍使用 Google。",
     },
   },
+  scanReading: {
+    title: "扫描附件",
+    intro: "邮件中的扫描页和照片会先在这台电脑上读取，姓名和身份证号码等信息会被涂黑。",
+    local: "只在这台电脑上读取",
+    localHint:
+      "扫描件绝不会发送给 Google。AIMail 使用在这里读取的文字，因此模糊的扫描件可能读得不够准确。",
+    checked: "先检查，再让 Gemini 读取干净的页面",
+    checkedHint:
+      "这台电脑上的模型会查找签名、人脸和印章，并把这些页面留在本地。在我们的测试中，它大约每 10 个会漏掉 1 个，所以签名或印章偶尔可能会发送到 Google。",
+    notSetUp: "这个 AIMail 没有设置检查功能，所以扫描件只能在这台电脑上读取。",
+    privateNote: "在私密模式下，扫描件始终留在这台电脑上。",
+    saved: "已保存。",
+    failed: "无法更改扫描件的读取方式。请稍后再试。",
+  },
   account: {
     title: "账户",
     signedInAs: "当前登录：{{email}}。",
@@ -724,6 +738,7 @@ export const zh: Translations = {
     draft_refused:
       "AI 无法为这封邮件撰写草稿，重试也不会改变结果。您的文字没有改变：请自行撰写回复，或尝试另一种语气。",
     agent_unavailable: "起草服务暂时不可用。您的文字没有改变，请稍后重试。",
+    scan_check_unavailable: "这个 AIMail 没有设置检查功能，所以扫描件只能在这台电脑上读取。",
     private_mode_unavailable:
       "私密模式已开启，但这里没有设置私有模型，因此无法起草。请在设置中关闭私密模式。",
     masking_unavailable: "目前无法隐藏个人信息，因此未保存任何内容。请稍后重试。",
