@@ -28,8 +28,10 @@ nothing falls through the cracks between opening emails.
   in the thread after `WAITING_DAYS` (default 3) working days. Clears itself when anything arrives
   in the thread. *Draft a follow-up* writes a nudge in the thread's language, reviewed and sent the
   normal way, never automatically. *Not waiting* removes one.
-- **4. Drafts you haven't sent:** drafts ready for more than 24 hours and not sent, with *Open*
-  and *No reply needed*.
+- **4. Drafts you haven't sent:** a reminder, not a second drafts list. Only drafts ready for
+  more than 24 hours and not sent, with *Open*, *No reply needed*, and *See all drafts* linking to
+  `/drafts` (#169, the full list). Emails with `authStatus = spoof_detected` are left out, as on
+  `/drafts`.
 - **Replies sent from Gmail count too:** the listener also watches the Sent label, masks those
   emails like incoming mail, and stores them in their own table, so nothing that reads `messages`
   (the drafter, the inbox, search) can pick them up.
@@ -44,6 +46,7 @@ nothing falls through the cracks between opening emails.
   field once it exists.
 - Sorting by deadline: #142's priority, used once it lands; until then newest first.
 - Sending a follow-up automatically.
+- The full list of unsent drafts: the Drafts page (#169).
 
 ## Acceptance criteria
 
@@ -114,3 +117,5 @@ Changes go into `specs/context/db-schema.md` in the same PR.
 - 2026-10-10: Sent mail lives in its own table. Rationale: no existing reader of `messages` can
   treat it as received mail.
 - 2026-10-10: Action types are left to the team (#142); the page groups by them when they exist.
+- 2026-10-10: Section 4 only reminds about drafts older than 24 hours and links to `/drafts`
+  (#169). Rationale: one list of drafts, not two.
