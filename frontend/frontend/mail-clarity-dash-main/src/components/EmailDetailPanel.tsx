@@ -62,8 +62,8 @@ export default function EmailDetailPanel({ email, workflow, onBack }: EmailDetai
     <DetailsContext.Provider value={detailValues(email.details)}>
       <div className="relative h-full overflow-y-auto">
         <DetailHeader email={email} onBack={onBack} />
-        {/* pb-40: the end of the draft clears the phone's fixed send bar. */}
-        <div className="space-y-4 p-4 pb-40 md:p-6">
+        {/* The end of the draft clears the phone's fixed send bar and the home indicator. */}
+        <div className="space-y-4 p-4 pb-[calc(10rem+env(safe-area-inset-bottom))] md:p-6">
           <MissingDetailsNotice email={email} draft={workflow.draft} />
           <ConversationMessages messages={conversation.earlier} />
           <EmailBody key={email.id} email={email} />

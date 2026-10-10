@@ -44,7 +44,8 @@ send it with my thumb, so that replies do not wait until I am back at a laptop.
       screen, and the back arrow and the phone's back button both return to the list at the same
       position. (Checked in a headless browser at 320 and 375px, in all three languages.)
 - [x] Given an open draft on a phone, then Send, Edit and Regenerate are visible in the bottom bar
-      without scrolling, and the keyboard does not cover the editor.
+      without scrolling, and the keyboard does not cover the editor. (There is no Edit button: the draft is
+      edited in place.)
 - [x] Given any phone page, then every button and link is at least 44 by 44px.
 - [x] Given a 375px screen, then the bottom navigation shows Inbox, To-do with its count, Sent and
       Settings, and the current page is marked (not by colour alone).
@@ -101,5 +102,9 @@ None.
 - 2026-10-11: The keyboard resizes the page (`interactive-widget=resizes-content`), so the Send
   bar rides above it on Android. Safari on iOS ignores this and keeps the bar under the keyboard
   while typing; the editor itself stays visible.
+- 2026-10-11: On a phone the inbox opens an email only when it is tapped (a desktop still shows
+  the newest beside the list). Rationale: opening marks an email read and starts its draft.
+- 2026-10-11: The Chrome side panel is narrower than 768px, so it takes the phone sizes too
+  (44px controls, Regenerate as an icon). Accepted: it fits, and the panel is used by touch too.
 - 2026-10-11: The install icons are the 128px extension glyph scaled up (slightly soft at 512px)
   until the original artwork is found.

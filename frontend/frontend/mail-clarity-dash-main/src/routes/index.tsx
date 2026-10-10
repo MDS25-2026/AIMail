@@ -11,6 +11,7 @@ import { Page, pageMeta } from "../lib/pageMeta";
 import { useEmail, useEmails, useSession } from "../lib/queries";
 import { useDebouncedValue } from "../lib/useDebouncedValue";
 import { useDraftWorkflow } from "../lib/useDraftWorkflow";
+import { useIsDesktop } from "../lib/useIsDesktop";
 
 type InboxSearch = { email?: string };
 
@@ -29,13 +30,6 @@ export const Route = createFileRoute("/")({
   component: DashboardPage,
 });
 
-// Tailwind's md breakpoint: below it the inbox shows the list or one email, not both.
-const PHONE_QUERY = "(max-width: 767px)";
-
-function isPhone(): boolean {
-  return typeof window !== "undefined" && window.matchMedia(PHONE_QUERY).matches;
-}
-
 // Long enough to skip rows passed with J/K, short enough not to be felt on a click.
 const SELECTION_SETTLE_MS = 150;
 
@@ -48,10 +42,12 @@ function DashboardPage() {
   const [userSelectedId, setUserSelectedId] = useState<string | null>(null);
 
   // Derive selected email from URL search params, explicit selection, or first inbox email
-  const selectedEmailId =
-    requestedId ??
-    userSelectedId ??
-    (emails.data && emails.data.length > 0 ? emails.data[0].id : null);
+  const isDesktop = useIsDesktop();
+  // A desktop shows the newest email beside the list; a phone opens one only when it is tapped,
+  // since opening marks it read.
+  const firstEmailId =
+    isDesktop && emails.data && emails.data.length > 0 ? emails.data[0].id : null;
+  const selectedEmailId = requestedId ?? userSelectedId ?? firstEmailId;
   // Opened once the selection settles, so stepping through with J/K doesn't fetch (and mark read) every row.
   const openedEmailId = useDebouncedValue(selectedEmailId, SELECTION_SETTLE_MS);
   const selected = useEmail(openedEmailId);
@@ -71,7 +67,7 @@ function DashboardPage() {
       search: { email: id },
       // On a phone opening an email is a step the back button undoes; on a desktop J/K would
       // otherwise fill the history with every row passed.
-      replace: !isPhone(),
+      replace: isDesktop,
     });
   };
 

@@ -141,7 +141,7 @@ export default function InboxChatWidget() {
         onClick={() => setIsOpen((prev) => !prev)}
         aria-label={isOpen ? "Close inbox assistant" : "Open inbox assistant"}
         className={cn(
-          "fixed bottom-20 left-4 z-50 flex h-11 w-11 md:bottom-4 items-center justify-center rounded-full shadow-lg transition-transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2",
+          "fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-4 z-50 flex h-11 w-11 md:bottom-4 items-center justify-center rounded-full shadow-lg transition-transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2",
           // On a phone an open email's send bar owns the bottom; the assistant is a back-tap away.
           isReadingEmail && !isOpen && "hidden md:flex",
           isOpen ? "bg-surface-elevated text-fg border border-line" : "bg-brand text-brand-fg",
