@@ -37,7 +37,10 @@ class Migration:
 
     @property
     def checksum(self) -> str:
-        return hashlib.sha256(self.path.read_bytes()).hexdigest()
+        # Normalize CRLF to LF so checksums remain deterministic across Windows and Linux.
+        content = self.path.read_bytes().replace(b"\r\n", b"\n")
+        return hashlib.sha256(content).hexdigest()
+
 
 
 def migrations(directory: Path = MIGRATIONS_DIR) -> list[Migration]:

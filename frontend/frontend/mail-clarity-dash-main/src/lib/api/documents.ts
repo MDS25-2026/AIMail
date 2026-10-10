@@ -1,10 +1,14 @@
-import type { PolicyDocument } from "../../types/knowledge";
+import type { DocumentDetail, PolicyDocument } from "../../types/knowledge";
 import { HttpMethod, request } from "./client";
 
 type Ingested = { chunks: number };
 
 /** Knowledge base inventory: one row per ingested policy document. */
 export const fetchDocuments = () => request<PolicyDocument[]>("/documents");
+
+/** Fetch full document detail including reassembled text and ordered chunks. */
+export const fetchDocument = (documentId: string) =>
+  request<DocumentDetail>(`/documents/${encodeURIComponent(documentId)}`);
 
 /** Remove a document and everything stored for it; drafts stop citing it at once. */
 export const deleteDocument = (documentId: string) =>

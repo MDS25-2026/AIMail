@@ -12,6 +12,7 @@ import { useEffect, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import appCss from "../styles.css?url";
+import InboxChatWidget from "../components/InboxChatWidget";
 import PreferencesProvider from "../components/PreferencesProvider";
 import { button } from "../components/variants";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -138,6 +139,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
+      <InboxChatWidget />
     </QueryClientProvider>
   );
 }

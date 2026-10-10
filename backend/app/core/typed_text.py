@@ -91,10 +91,26 @@ def strip_link_queries(text: str) -> str:
     return "".join(kept)
 
 
-def mask_typed_text(text: str) -> str:
+_BUSINESS_PREFIXES = frozenset({
+    "billing", "support", "help", "info", "contact", "sales", "inquiries",
+    "enquiries", "admin", "service", "customerservice", "legal", "compliance",
+    "privacy", "security", "press", "media", "feedback", "team", "office",
+})
+
+
+def _mask_email_match(match: re.Match[str], *, preserve_business: bool = False) -> str:
+    addr = match.group().lower()
+    if preserve_business:
+        prefix = addr.split("@")[0].split(".")[0].split("+")[0]
+        if prefix in _BUSINESS_PREFIXES:
+            return match.group()
+    return "[EMAIL_REDACTED]"
+
+
+def mask_typed_text(text: str, *, preserve_business_emails: bool = False) -> str:
     """Strip link queries; replace emails, ICs, passports, card and phone numbers; leave everything else."""
     text = strip_link_queries(text)
-    text = _EMAIL.sub("[EMAIL_REDACTED]", text)
+    text = _EMAIL.sub(lambda m: _mask_email_match(m, preserve_business=preserve_business_emails), text)
     text = _IC_SEPARATED.sub("[IC_REDACTED]", text)
     text = _IC_BARE.sub(_mask_bare_ic, text)
     text = _PASSPORT.sub("[PASSPORT_REDACTED]", text)

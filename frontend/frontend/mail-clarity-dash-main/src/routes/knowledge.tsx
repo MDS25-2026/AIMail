@@ -1,9 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import AppShell from "../components/AppShell";
 import ConfirmAction from "../components/ConfirmAction";
+import DocumentPreviewSheet from "../components/DocumentPreviewSheet";
 import { InlineAlert, InlineStatus } from "../components/InlineMessages";
 import { PageEmpty, PageError, PageLoading } from "../components/PageState";
 import { button, field } from "../components/variants";
@@ -12,7 +13,12 @@ import { Page, pageMeta } from "../lib/pageMeta";
 import { useAddDocument, useDeleteDocument, useDocuments, useUploadDocument } from "../lib/queries";
 import { cn } from "../lib/utils";
 
+type KnowledgeSearch = { doc?: string };
+
 export const Route = createFileRoute("/knowledge")({
+  validateSearch: (search: Record<string, unknown>): KnowledgeSearch => ({
+    doc: typeof search.doc === "string" ? search.doc : undefined,
+  }),
   head: ({ match }) => ({
     meta: [...pageMeta(match.context.preferences.language, Page.Knowledge)],
   }),
@@ -21,6 +27,29 @@ export const Route = createFileRoute("/knowledge")({
 
 function KnowledgePage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { doc: requestedDocId } = Route.useSearch();
+  const [userSelectedDocId, setUserSelectedDocId] = useState<string | null>(null);
+  const selectedDocId = requestedDocId ?? userSelectedDocId;
+
+  const handleSelectDoc = (id: string) => {
+    setUserSelectedDocId(id);
+    void navigate({
+      to: "/knowledge",
+      search: { doc: id },
+      replace: true,
+    });
+  };
+
+  const handleClosePreview = () => {
+    setUserSelectedDocId(null);
+    void navigate({
+      to: "/knowledge",
+      search: { doc: undefined },
+      replace: true,
+    });
+  };
+
   const documents = useDocuments();
   const upload = useUploadDocument();
   const paste = useAddDocument();
@@ -88,16 +117,27 @@ function KnowledgePage() {
               </thead>
               <tbody>
                 {documents.data.map((doc) => (
-                  <tr key={doc.document_id} className="border-b border-line-subtle last:border-0">
+                  <tr
+                    key={doc.document_id}
+                    onClick={() => handleSelectDoc(doc.document_id)}
+                    className="group cursor-pointer border-b border-line-subtle transition-colors hover:bg-surface-muted/50 last:border-0"
+                  >
                     <td className="px-4 py-3">
-                      <div className="font-medium text-fg">{doc.title}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-fg group-hover:text-brand">
+                          {doc.title}
+                        </span>
+                        <span className="text-[10px] text-brand opacity-0 transition-opacity group-hover:opacity-100">
+                          {t("knowledge.view", "[View]")}
+                        </span>
+                      </div>
                       <div className="truncate text-xs text-fg-subtle">{doc.source}</div>
                     </td>
                     <td className="px-4 py-3 text-fg-body">{doc.doc_type}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-fg-body">
                       {doc.chunk_count}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <RemoveDocument documentId={doc.document_id} title={doc.title} />
                     </td>
                   </tr>
@@ -116,6 +156,12 @@ function KnowledgePage() {
           </div>
         ) : null}
       </section>
+
+      <DocumentPreviewSheet
+        documentId={selectedDocId}
+        isOpen={Boolean(selectedDocId)}
+        onClose={handleClosePreview}
+      />
     </AppShell>
   );
 }

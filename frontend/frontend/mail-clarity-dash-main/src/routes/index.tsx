@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import InboxList from "../components/InboxList";
@@ -34,31 +34,43 @@ const SELECTION_SETTLE_MS = 150;
 
 function DashboardPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { email: requestedId } = Route.useSearch();
   const emails = useEmails();
   const session = useSession();
-  const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
+  const [userSelectedId, setUserSelectedId] = useState<string | null>(null);
+
+  // Derive selected email from URL search params, explicit selection, or first inbox email
+  const selectedEmailId =
+    requestedId ??
+    userSelectedId ??
+    (emails.data && emails.data.length > 0 ? emails.data[0].id : null);
   // Opened once the selection settles, so stepping through with J/K doesn't fetch (and mark read) every row.
   const openedEmailId = useDebouncedValue(selectedEmailId, SELECTION_SETTLE_MS);
   const selected = useEmail(openedEmailId);
-
-  // Show the list row's copy until the detail lands; never a previous email's detail while settling.
-  const listEmail = (emails.data ?? []).find((item) => item.id === selectedEmailId) ?? null;
+  // Never a previous email's detail while the selection settles.
   const detail = selected.data?.id === selectedEmailId ? selected.data : undefined;
+
+  const handleSelectEmail = (id: string) => {
+    setUserSelectedId(id);
+    void navigate({
+      to: "/",
+      search: { email: id },
+      replace: true,
+    });
+  };
+
+  // If an email was opened directly via search/deep-link and is not in the loaded inbox page,
+  // include it in the display list so it is highlighted in the list
+  const displayEmails =
+    detail && !emails.data?.some((item) => item.id === detail.id)
+      ? [detail, ...(emails.data ?? [])]
+      : (emails.data ?? []);
+
+  // The detail call re-runs generation (~15s), so show the list row's copy until it lands.
+  const listEmail = displayEmails.find((item) => item.id === selectedEmailId) ?? null;
   const email = detail ?? listEmail;
   const workflow = useDraftWorkflow(email, selected);
-
-  const didAutoSelectRef = useRef(false);
-  useEffect(() => {
-    // Auto-select once: the email the link asked for, else the first. StrictMode double-invokes
-    // effects in dev, hence the ref.
-    const requested = emails.data?.find((item) => item.id === requestedId);
-    const first = requested ?? emails.data?.[0];
-    if (first && !didAutoSelectRef.current) {
-      didAutoSelectRef.current = true;
-      setSelectedEmailId(first.id);
-    }
-  }, [emails.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <AppShell>
@@ -82,11 +94,11 @@ function DashboardPage() {
           {emails.data?.length === 0 && session.data?.hasMailbox !== false ? (
             <PageEmpty title={t("inbox.emptyTitle")} hint={t("inbox.emptyHint")} />
           ) : null}
-          {emails.data && emails.data.length > 0 ? (
+          {displayEmails.length > 0 ? (
             <InboxList
-              emails={emails.data}
+              emails={displayEmails}
               selectedEmailId={selectedEmailId}
-              onSelectEmail={setSelectedEmailId}
+              onSelectEmail={handleSelectEmail}
             />
           ) : null}
           <LoadOlderEmails

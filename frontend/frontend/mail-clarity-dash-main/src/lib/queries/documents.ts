@@ -1,10 +1,24 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { addDocument, deleteDocument, fetchDocuments, uploadDocument } from "../api/documents";
+import {
+  addDocument,
+  deleteDocument,
+  fetchDocument,
+  fetchDocuments,
+  uploadDocument,
+} from "../api/documents";
 import { queryKeys } from "./keys";
 
 export function useDocuments() {
   return useQuery({ queryKey: queryKeys.documents, queryFn: fetchDocuments });
+}
+
+export function useDocument(documentId: string | null | undefined) {
+  return useQuery({
+    queryKey: queryKeys.document(documentId ?? ""),
+    queryFn: () => fetchDocument(documentId!),
+    enabled: Boolean(documentId),
+  });
 }
 
 /** Any change to the library changes the corpus stats too, so both entries are invalidated. */

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { groupByThread } from "../lib/conversations";
@@ -24,6 +24,7 @@ type InboxListProps = {
 
 export default function InboxList({ emails, selectedEmailId, onSelectEmail }: InboxListProps) {
   const { t } = useTranslation();
+  const listRef = useRef<HTMLUListElement>(null);
   // Filtering never touches the selection: an email the filter hides stays open in the detail panel.
   const [priority, setPriority] = useState<PriorityFilter>("all");
   const [category, setCategory] = useState<CategoryFilter>("all");
@@ -32,6 +33,16 @@ export default function InboxList({ emails, selectedEmailId, onSelectEmail }: In
     category,
   );
   const isFiltered = priority !== "all" || category !== "all";
+
+  useEffect(() => {
+    if (selectedEmailId && listRef.current) {
+      const selectedEl = listRef.current.querySelector<HTMLElement>('[aria-current="true"]');
+      if (selectedEl) {
+        selectedEl.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }
+    }
+  }, [selectedEmailId]);
+
   return (
     <div className="flex h-full flex-col">
       <div className="border-b border-line px-4 py-3">
@@ -81,6 +92,7 @@ export default function InboxList({ emails, selectedEmailId, onSelectEmail }: In
         </p>
       ) : null}
       <ul
+        ref={listRef}
         // relative: each unread row carries an absolutely positioned sr-only label; without a
         // positioned ancestor inside this scroller it positioned against the page, and 21 of them
         // stretched the document to 4211px on a 900px viewport (#96, measured).
@@ -91,15 +103,19 @@ export default function InboxList({ emails, selectedEmailId, onSelectEmail }: In
           onSelectEmail,
         )}
       >
-        {conversations.map(({ email, count, isRead }) => (
-          <EmailListItem
-            key={email.id}
-            email={{ ...email, isRead }}
-            messageCount={count}
-            selected={email.id === selectedEmailId}
-            onSelect={onSelectEmail}
-          />
-        ))}
+        {conversations.map(({ email, count, isRead, messageIds }) => {
+          const isSelected =
+            email.id === selectedEmailId || messageIds.includes(selectedEmailId ?? "");
+          return (
+            <EmailListItem
+              key={email.id}
+              email={{ ...email, isRead }}
+              messageCount={count}
+              selected={isSelected}
+              onSelect={onSelectEmail}
+            />
+          );
+        })}
       </ul>
     </div>
   );
