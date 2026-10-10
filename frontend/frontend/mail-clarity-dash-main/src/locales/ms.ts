@@ -54,6 +54,7 @@ export const ms: Translations = {
     personal: "Peribadi",
   },
   detail: {
+    backToInbox: "Kembali ke peti masuk",
     fromAt: "{{sender}} · {{when}}",
     empty: "Pilih e-mel untuk melihat draf AI",
     email: "E-mel",

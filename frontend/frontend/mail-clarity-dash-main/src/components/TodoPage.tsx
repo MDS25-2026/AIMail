@@ -49,7 +49,10 @@ export default function TodoPage() {
             section={todo.data.unsentDrafts}
             detail={(email) => email.draftReply}
             footer={
-              <Link to="/drafts" className="text-sm font-medium text-brand hover:text-brand-strong">
+              <Link
+                to="/drafts"
+                className="inline-flex min-h-11 items-center text-sm font-medium text-brand hover:text-brand-strong md:min-h-0"
+              >
                 {t("todo.allDrafts")}
               </Link>
             }

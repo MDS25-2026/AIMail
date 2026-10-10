@@ -134,6 +134,17 @@ once in the dashboard with the Google account used in Gmail, open Gmail, and cli
 - Icons: `extension-public/icons/` (16/48/128) and `public/favicon.ico` are the AIMail "AI" glyph;
   the header wordmark is `src/assets/aimail-logo-{dark,light}.png` (dark text for light mode).
 
+## Phones and installing as an app
+
+- Below Tailwind's `md` (768px) the side rail becomes `BottomNav` (Inbox, To-do, Sent, Settings),
+  and the inbox shows either the list or one email: `?email=` decides, so the phone's back button
+  returns to the list. An open email hides the tabs; its Send bar is fixed to the bottom instead.
+- Controls are at least 44px tall on a phone (`min-h-11 md:min-h-0`); the shared `button`,
+  `segment` and `field` styles already do this, so a new control using them needs nothing more.
+- `public/manifest.webmanifest` makes "Add to home screen" open AIMail without the browser bar. Its
+  icons (`public/icon-*.png`, `apple-touch-icon.png`) are the "AI" glyph scaled from the 128px
+  extension icon; replace them from the original artwork when it is available. No service worker.
+
 ## Colours, themes and languages
 
 - **Never use raw Tailwind colours** (`bg-white`, `text-slate-700`, `bg-red-50`). Use the semantic

@@ -1,9 +1,9 @@
 # Works on a phone: mobile layout and install as an app
 
-- **Status:** draft
+- **Status:** built (in review)
 - **Owner:** veyroxie (dashboard code; Han to review)
 - **Related issue:** #157 (epic #138, line 67)
-- **Last updated:** 2026-10-10
+- **Last updated:** 2026-10-11
 
 ## Goal
 
@@ -38,21 +38,22 @@ send it with my thumb, so that replies do not wait until I am back at a laptop.
 
 ## Acceptance criteria
 
-- [ ] Given a 375px-wide screen, when the inbox loads, then the list fills the width and nothing
+- [x] Given a 375px-wide screen, when the inbox loads, then the list fills the width and nothing
       scrolls sideways.
-- [ ] Given a 375px screen, when the user taps an email, then the email and its draft fill the
+- [x] Given a 375px screen, when the user taps an email, then the email and its draft fill the
       screen, and the back arrow and the phone's back button both return to the list at the same
-      position.
-- [ ] Given an open draft on a phone, then Send, Edit and Regenerate are visible in the bottom bar
+      position. (Checked in a headless browser at 320 and 375px, in all three languages.)
+- [x] Given an open draft on a phone, then Send, Edit and Regenerate are visible in the bottom bar
       without scrolling, and the keyboard does not cover the editor.
-- [ ] Given any phone page, then every button and link is at least 44 by 44px.
-- [ ] Given a 375px screen, then the bottom navigation shows Inbox, To-do with its count, Sent and
+- [x] Given any phone page, then every button and link is at least 44 by 44px.
+- [x] Given a 375px screen, then the bottom navigation shows Inbox, To-do with its count, Sent and
       Settings, and the current page is marked (not by colour alone).
-- [ ] Given drafts, knowledge or audit on a 375px screen, then nothing scrolls sideways.
-- [ ] Given a 1280px screen, then the layout is as before.
+- [x] Given drafts, knowledge or audit on a 375px screen, then nothing scrolls sideways.
+- [x] Given a 1280px screen, then the layout is as before.
 - [ ] Given Chrome on Android or Safari on iOS, when the user chooses "Add to home screen", then
-      AIMail installs with its icon and opens without the browser bar.
-- [ ] The existing palette and contrast check passes, in light and dark mode.
+      AIMail installs with its icon and opens without the browser bar. (Manifest and icons are
+      checked by a test; not yet tried on a real phone.)
+- [x] The existing palette and contrast check passes, in light and dark mode.
 
 ## API surface
 
@@ -92,3 +93,13 @@ None.
   for the pitch at almost no cost.
 - 2026-10-10: Phone pages are inbox, email and draft, To-do, Sent and Settings; the admin console
   stays desktop only.
+- 2026-10-11: An open email hides the bottom tabs, and its Send bar takes the bottom. Rationale:
+  the screen is too short for both bars; Gmail's app does the same, and back returns to the tabs.
+- 2026-10-11: On a phone, Regenerate shows its icon only (its name stays for screen readers), and
+  the "nothing is sent until you approve" line is hidden. Rationale: Regenerate, Send later and
+  Approve & Send then fit one row at 375px; Approve & Send already says the second.
+- 2026-10-11: The keyboard resizes the page (`interactive-widget=resizes-content`), so the Send
+  bar rides above it on Android. Safari on iOS ignores this and keeps the bar under the keyboard
+  while typing; the editor itself stays visible.
+- 2026-10-11: The install icons are the 128px extension glyph scaled up (slightly soft at 512px)
+  until the original artwork is found.

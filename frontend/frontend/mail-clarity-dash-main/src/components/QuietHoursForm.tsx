@@ -98,7 +98,10 @@ export default function QuietHoursForm({ initial, isSaving, onSave }: QuietHours
         <legend className="text-xs font-medium text-fg-muted">{t("quietHours.weekend")}</legend>
         <div className="mt-1 flex flex-wrap gap-3">
           {ISO_WEEK.map((day) => (
-            <label key={day} className="flex items-center gap-1 text-sm text-fg">
+            <label
+              key={day}
+              className="flex min-h-11 items-center gap-1 text-sm text-fg md:min-h-0"
+            >
               <input
                 type="checkbox"
                 checked={hours.weekendDays.includes(day)}

@@ -48,6 +48,7 @@ export const zh: Translations = {
     personal: "个人",
   },
   detail: {
+    backToInbox: "返回收件箱",
     fromAt: "{{sender}} · {{when}}",
     empty: "选择一封邮件以查看 AI 草稿",
     email: "邮件",

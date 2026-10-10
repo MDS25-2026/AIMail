@@ -7,6 +7,7 @@ import CriticConfidenceBadge from "./CriticConfidenceBadge";
 import DraftDiff from "./DraftDiff";
 import PiiMaskedBadge from "./PiiMaskedBadge";
 import ToneToggle from "./ToneToggle";
+import { segment } from "./variants";
 
 type DraftReplyEditorProps = { email: Email; workflow: DraftWorkflow; rows?: number };
 
@@ -41,11 +42,7 @@ export default function DraftReplyEditor({ email, workflow, rows = 10 }: DraftRe
               type="button"
               aria-pressed={isShowingChanges === changes}
               onClick={() => setChangesFor(changes ? email.id : null)}
-              className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
-                isShowingChanges === changes
-                  ? "bg-surface text-fg shadow-sm"
-                  : "text-fg-muted hover:text-fg-body"
-              }`}
+              className={segment({ isPressed: isShowingChanges === changes })}
             >
               {t(changes ? "draftDiff.changes" : "draftDiff.draft")}
             </button>

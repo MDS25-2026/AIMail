@@ -49,6 +49,7 @@ export const en = {
     personal: "Personal",
   },
   detail: {
+    backToInbox: "Back to inbox",
     fromAt: "{{sender}} · {{when}}",
     empty: "Select an email to see the AI draft",
     email: "Email",

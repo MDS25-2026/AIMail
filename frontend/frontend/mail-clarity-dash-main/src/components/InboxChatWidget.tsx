@@ -16,6 +16,7 @@ import { useTranslation } from "react-i18next";
 
 import { searchInbox, type ChatMessage, type SearchSource } from "../lib/api/search";
 import { useSession } from "../lib/queries";
+import { useIsReadingEmail } from "../lib/useIsReadingEmail";
 import { cn } from "../lib/utils";
 import FormattedChatMessage from "./FormattedChatMessage";
 
@@ -24,6 +25,7 @@ export default function InboxChatWidget() {
   const navigate = useNavigate();
   const session = useSession();
   const [isOpen, setIsOpen] = useState(false);
+  const isReadingEmail = useIsReadingEmail();
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -139,7 +141,9 @@ export default function InboxChatWidget() {
         onClick={() => setIsOpen((prev) => !prev)}
         aria-label={isOpen ? "Close inbox assistant" : "Open inbox assistant"}
         className={cn(
-          "fixed bottom-4 left-4 z-50 flex h-11 w-11 items-center justify-center rounded-full shadow-lg transition-transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2",
+          "fixed bottom-20 left-4 z-50 flex h-11 w-11 md:bottom-4 items-center justify-center rounded-full shadow-lg transition-transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2",
+          // On a phone an open email's send bar owns the bottom; the assistant is a back-tap away.
+          isReadingEmail && !isOpen && "hidden md:flex",
           isOpen ? "bg-surface-elevated text-fg border border-line" : "bg-brand text-brand-fg",
         )}
       >
@@ -151,7 +155,7 @@ export default function InboxChatWidget() {
         <div
           role="dialog"
           aria-label={t("assistant.title")}
-          className="relative fixed inset-x-2 bottom-16 top-16 z-50 flex flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-2xl sm:inset-auto sm:bottom-16 sm:left-4 sm:h-[540px] sm:w-[380px]"
+          className="relative fixed inset-x-2 bottom-32 top-16 z-50 md:bottom-16 flex flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-2xl sm:inset-auto sm:bottom-16 sm:left-4 sm:h-[540px] sm:w-[380px]"
         >
           {/* Header */}
           <div className="flex items-center justify-between border-b border-line bg-surface-elevated px-4 py-3">

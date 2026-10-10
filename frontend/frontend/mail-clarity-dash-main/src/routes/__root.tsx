@@ -83,13 +83,22 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
   );
 }
 
+// The installed app's title bar; the navy of the icon and manifest.
+const THEME_COLOR = "#0f172a";
+
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   // Cookie-backed, so the server renders the reader's theme and language on the first paint.
   beforeLoad: () => ({ preferences: readPreferences() }),
   head: ({ match }) => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      // viewport-fit=cover: bottom bars clear the home indicator; resizes-content: they ride above the keyboard.
+      {
+        name: "viewport",
+        content:
+          "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content",
+      },
+      { name: "theme-color", content: THEME_COLOR },
       ...pageMeta(match.context.preferences.language, Page.App),
     ],
     links: [
@@ -98,6 +107,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         href: appCss,
       },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      // "Add to home screen" installs AIMail as an app (specs/features/mobile-layout.md).
+      { rel: "manifest", href: "/manifest.webmanifest" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
     ],
   }),
   shellComponent: RootShell,
