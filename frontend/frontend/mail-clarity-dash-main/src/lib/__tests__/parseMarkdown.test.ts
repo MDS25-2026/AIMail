@@ -1,7 +1,7 @@
 import type { ReactElement } from "react";
 import { describe, expect, test } from "vitest";
 
-import { parseInlineTokens } from "../../components/FormattedChatMessage";
+import { parseInlineTokens } from "../parseMarkdown";
 
 describe("parseInlineTokens", () => {
   test("parses bold tokens into React elements", () => {

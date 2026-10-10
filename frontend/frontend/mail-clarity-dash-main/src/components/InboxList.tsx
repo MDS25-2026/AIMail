@@ -41,7 +41,7 @@ export default function InboxList({ emails, selectedEmailId, onSelectEmail }: In
         selectedEl.scrollIntoView({ block: "nearest", behavior: "smooth" });
       }
     }
-  }, [selectedEmailId, conversations]);
+  }, [selectedEmailId]);
 
   return (
     <div className="flex h-full flex-col">
