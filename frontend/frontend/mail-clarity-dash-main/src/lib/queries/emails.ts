@@ -44,8 +44,9 @@ export function useEmail(emailId: string | null) {
   const queryClient = useQueryClient();
   return useQuery({
     queryKey: queryKeys.email(emailId ?? ""),
-    queryFn: async () => {
-      const email = await fetchEmail(emailId ?? "");
+    // The signal cancels the request when the reader moves to another email before it answers.
+    queryFn: async ({ signal }) => {
+      const email = await fetchEmail(emailId ?? "", signal);
       // Patch the cached list so the unread marker clears now, not at the next refetch.
       queryClient.setQueryData<InfiniteData<EmailPage>>(
         queryKeys.emails,

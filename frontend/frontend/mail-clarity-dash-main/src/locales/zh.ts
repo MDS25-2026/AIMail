@@ -29,8 +29,22 @@ export const zh: Translations = {
     noMailboxHint: "请退出，然后重新使用 Google 登录，并允许 AIMail 读取您的 Gmail。",
     conversations_one: "{{count}} 个会话",
     conversations_other: "{{count}} 个会话",
+    filterLabel: "按优先级筛选",
+    filterAll: "全部优先级",
+    filterEmpty: "没有标记为“{{priority}}”的邮件。",
+    filterEmptyAny: "没有符合这些筛选条件的邮件。",
+    categoryFilterLabel: "按类别筛选",
+    categoryFilterAll: "全部类别",
   },
   priority: { critical: "特急", high: "紧急", medium: "中等", low: "低" },
+  category: {
+    client: "客户",
+    vendor: "供应商",
+    internal: "内部",
+    security: "安全",
+    admin: "行政",
+    personal: "个人",
+  },
   detail: {
     fromAt: "{{sender}} · {{when}}",
     empty: "选择一封邮件以查看 AI 草稿",
@@ -86,6 +100,8 @@ export const zh: Translations = {
   emailBody: {
     imagesBlocked: "已阻止远程图片，发件人无法得知您何时打开了这封邮件。",
     loadImages: "加载图片",
+    showFull: "显示完整邮件",
+    showLess: "收起",
   },
   translate: {
     action: "翻译成{{language}}",
@@ -694,6 +710,7 @@ export const zh: Translations = {
     sender_unverified: "此发件人未通过身份验证。起草或发送前请先核实发件人。",
     masking_pending: "这封邮件中的个人信息仍在隐藏中，暂时无法使用。",
     already_sent: "这封回复已经发送。",
+    send_in_progress: "这封回复正在发送中。请稍候，再查看是否已发送。",
     redaction_markers: "这封回复仍有隐藏信息，例如 [Redacted]。发送前请填入真实信息。",
     unresolved_placeholders:
       "这封回复中有 AIMail 无法填写的占位符，例如 [PERSON_3]。请在该处输入真实信息后再发送。",

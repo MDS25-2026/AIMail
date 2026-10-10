@@ -30,8 +30,22 @@ export const en = {
     noMailboxHint: "Sign out, then sign in with Google again and allow AIMail to read your Gmail.",
     conversations_one: "{{count}} conversation",
     conversations_other: "{{count}} conversations",
+    filterLabel: "Filter by priority",
+    filterAll: "All priorities",
+    filterEmpty: "No emails marked {{priority}}.",
+    filterEmptyAny: "No emails match these filters.",
+    categoryFilterLabel: "Filter by category",
+    categoryFilterAll: "All categories",
   },
   priority: { critical: "Critical", high: "Urgent", medium: "Medium", low: "Low" },
+  category: {
+    client: "Client",
+    vendor: "Vendor",
+    internal: "Internal",
+    security: "Security",
+    admin: "Admin",
+    personal: "Personal",
+  },
   detail: {
     fromAt: "{{sender}} · {{when}}",
     empty: "Select an email to see the AI draft",
@@ -88,6 +102,8 @@ export const en = {
   emailBody: {
     imagesBlocked: "Remote images are blocked, so the sender cannot see when you opened this.",
     loadImages: "Load images",
+    showFull: "Show full email",
+    showLess: "Show less",
   },
   translate: {
     action: "Translate to {{language}}",
@@ -720,6 +736,8 @@ export const en = {
     masking_pending:
       "Personal details are still being hidden in this email, so it can't be used yet.",
     already_sent: "This reply has already been sent.",
+    send_in_progress:
+      "This reply is already being sent. Wait a moment, then check whether it went.",
     redaction_markers:
       "This reply still has hidden details such as [Redacted]. Type the real details in before sending.",
     unresolved_placeholders:

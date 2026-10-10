@@ -57,6 +57,7 @@ const (
 	fieldChars          = "chars"
 	fieldImagesSkipped  = "images_skipped"
 	fieldMaskingStatus  = "masking_status"
+	fieldUnsupported    = "unsupported"
 )
 
 // Reasons are snake_case codes from this fixed set, so the admin console can count them.
@@ -69,6 +70,8 @@ const (
 	reasonReleased          = "released"
 	reasonNoPayload         = "no_payload"
 	reasonOverSizeCap       = "over_size_cap"
+	reasonUnsupportedType   = "unsupported_type"
+	reasonTypeMismatch      = "type_mismatch"
 	reasonDisconnected      = "disconnected"
 	reasonHistoryUnusable   = "history_unusable"
 	reasonTooManyAttempts   = "too_many_attempts"

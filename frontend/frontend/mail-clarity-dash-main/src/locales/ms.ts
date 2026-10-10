@@ -35,8 +35,22 @@ export const ms: Translations = {
       "Log keluar, kemudian log masuk dengan Google semula dan benarkan AIMail membaca Gmail anda.",
     conversations_one: "{{count}} perbualan",
     conversations_other: "{{count}} perbualan",
+    filterLabel: "Tapis mengikut keutamaan",
+    filterAll: "Semua keutamaan",
+    filterEmpty: "Tiada e-mel bertanda {{priority}}.",
+    filterEmptyAny: "Tiada e-mel sepadan dengan penapis ini.",
+    categoryFilterLabel: "Tapis mengikut kategori",
+    categoryFilterAll: "Semua kategori",
   },
   priority: { critical: "Kritikal", high: "Segera", medium: "Sederhana", low: "Rendah" },
+  category: {
+    client: "Pelanggan",
+    vendor: "Vendor",
+    internal: "Dalaman",
+    security: "Keselamatan",
+    admin: "Pentadbiran",
+    personal: "Peribadi",
+  },
   detail: {
     fromAt: "{{sender}} · {{when}}",
     empty: "Pilih e-mel untuk melihat draf AI",
@@ -94,6 +108,8 @@ export const ms: Translations = {
     imagesBlocked:
       "Imej jauh disekat, jadi pengirim tidak dapat melihat bila anda membuka e-mel ini.",
     loadImages: "Muatkan imej",
+    showFull: "Tunjuk e-mel penuh",
+    showLess: "Tunjuk kurang",
   },
   translate: {
     action: "Terjemah ke {{language}}",
@@ -739,6 +755,8 @@ export const ms: Translations = {
     masking_pending:
       "Butiran peribadi dalam e-mel ini masih sedang disembunyikan, jadi ia belum boleh digunakan.",
     already_sent: "Balasan ini telah pun dihantar.",
+    send_in_progress:
+      "Balasan ini sedang dihantar. Tunggu sebentar, kemudian semak sama ada ia sudah dihantar.",
     redaction_markers:
       "Balasan ini masih mengandungi butiran tersembunyi seperti [Redacted]. Taip butiran sebenar sebelum menghantar.",
     unresolved_placeholders:

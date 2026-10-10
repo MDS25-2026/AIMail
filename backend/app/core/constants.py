@@ -37,10 +37,23 @@ GENERATION_RATE_WINDOW_SECONDS = 60
 GLOBAL_GENERATION_RATE_LIMIT = 60
 DETAIL_RATE_LIMIT = 60
 DETAIL_RATE_WINDOW_SECONDS = 60
+# Sending uses the owner's Gmail quota; far above anyone approving replies by hand.
+SEND_RATE_LIMIT = 20
+SEND_RATE_WINDOW_SECONDS = 60
+# Listing emails and documents is cheap but unbounded; well above a dashboard paging and refreshing.
+LIST_RATE_LIMIT = 120
+LIST_RATE_WINDOW_SECONDS = 60
+# Typed questions for search and ask: a question, not a document.
+MAX_QUERY_CHARS = 1000
+# A refine instruction ("shorter, mention the deadline").
+MAX_INSTRUCTION_CHARS = 2000
 # Password guessing on the admin sign-in: five tries per five minutes per client, on top of
 # Supabase's own limits.
 ADMIN_SIGN_IN_LIMIT = 5
 ADMIN_SIGN_IN_WINDOW_SECONDS = 300
+# Refreshing the admin session calls Supabase; a page refreshes it now and then, never in a loop.
+ADMIN_REFRESH_LIMIT = 30
+ADMIN_REFRESH_WINDOW_SECONDS = 300
 
 # Admin console (docs/adr/0004). The dashboard as `make web` serves it; set ADMIN_ORIGINS for any
 # other host or port. Only these origins may carry the admin session cross-origin.

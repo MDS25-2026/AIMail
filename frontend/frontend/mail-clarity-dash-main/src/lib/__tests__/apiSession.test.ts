@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 
-import { fetchEmailPage, sendEmail } from "../api/emails";
+import { fetchEmail, fetchEmailPage, sendEmail } from "../api/emails";
 import { ApiErrorCode } from "../api/errors";
 
 function recordFetch(status: number, body: unknown = []) {
@@ -80,5 +80,25 @@ describe("staying signed in", () => {
     const paths = answerInTurn(401, 401, 204, 200, 200);
     await Promise.all([fetchEmailPage(), fetchEmailPage()]);
     expect(paths.filter((path) => path === "/auth/session/refresh")).toHaveLength(1);
+  });
+});
+
+describe("a request the reader no longer wants", () => {
+  test("is cancelled without being reported as a network failure", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (_url: string, init: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            init.signal?.addEventListener("abort", () =>
+              reject(new DOMException("aborted", "AbortError")),
+            );
+          }),
+      ),
+    );
+    const controller = new AbortController();
+    const pending = fetchEmail("a", controller.signal);
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
   });
 });

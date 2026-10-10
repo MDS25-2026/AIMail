@@ -81,12 +81,16 @@ describe("sending a draft that still has redaction markers", () => {
     expect(result.current.status.pendingConfirm).toBeNull();
   });
 
-  test("sending anyway sends the draft as it is at that moment", async () => {
+  test("sending anyway sends the draft as it is at that moment, after the undo window", async () => {
+    vi.useFakeTimers();
     const calls = stubFetch({ "POST /emails/m/send": { body: { ...marked, sentAt: "now" } } });
     const { result } = renderWorkflow(marked);
     act(() => result.current.send());
     act(() => result.current.setDraft("Dear [Redacted], thanks again."));
     act(() => result.current.status.onConfirm());
+    expect(calls).toEqual([]); // the undo window runs first
+    act(() => vi.advanceTimersByTime(5_000));
+    vi.useRealTimers();
     await waitFor(() => expect(calls).toHaveLength(1));
     expect(calls[0].body).toEqual({ draft: "Dear [Redacted], thanks again." });
     expect(result.current.status.pendingConfirm).toBeNull();
@@ -143,5 +147,83 @@ describe("the undo window", () => {
     act(() => vi.advanceTimersByTime(6_000));
     expect(result.current.undoCountdown).toBeNull();
     expect(calls).toEqual([]);
+  });
+});
+
+describe("send anyway (#145)", () => {
+  afterEach(() => vi.useRealTimers());
+
+  test("confirming a leftover-marker warning still starts the undo countdown, not an instant send", () => {
+    vi.useFakeTimers();
+    const calls = stubFetch({});
+    const { result } = renderWorkflow(
+      emailFixture({ id: "m", draftReply: "Thanks, we will call [PHONE_REDACTED] on Friday." }),
+    );
+    act(() => result.current.send());
+    expect(result.current.status.pendingConfirm?.kind).toBe(ConfirmKind.SendMarkers);
+    act(() => result.current.status.onConfirm());
+    expect(result.current.undoCountdown).toBe(5);
+    expect(calls).toEqual([]);
+  });
+
+  test("the checks after a confirmed warning still run: the tone warning comes next", () => {
+    stubFetch({});
+    const { result } = renderWorkflow(
+      emailFixture({
+        id: "t",
+        draftReply: "Call [PHONE_REDACTED]. THIS IS UNACCEPTABLE AND STUPID!!!",
+      }),
+    );
+    act(() => result.current.send());
+    act(() => result.current.status.onConfirm());
+    expect(result.current.status.pendingConfirm?.kind).toBe(ConfirmKind.ToneWarning);
+    expect(result.current.undoCountdown).toBeNull();
+  });
+});
+
+describe("each email keeps its own state (#138)", () => {
+  test("edits made on one email are still there after opening another and coming back", () => {
+    stubFetch({});
+    const { result, rerender } = renderWorkflow(first);
+    act(() => result.current.setDraft("My edit to A"));
+    rerender(second);
+    act(() => result.current.setDraft("My edit to B"));
+    rerender(first);
+    expect(result.current.draft).toBe("My edit to A");
+    rerender(second);
+    expect(result.current.draft).toBe("My edit to B");
+  });
+
+  test("a regenerate running on one email does not lock another", () => {
+    const answer = deferred<StubReply>();
+    stubFetch({ "POST /emails/a/regenerate": () => answer.promise });
+    const { result, rerender } = renderWorkflow(first);
+    act(() => result.current.regenerate());
+    expect(result.current.isDraftLocked).toBe(true);
+    rerender(second);
+    expect(result.current.isRegenerating).toBe(false);
+    expect(result.current.isDraftLocked).toBe(false);
+  });
+});
+
+describe("changing the tone", () => {
+  test("a failed regenerate puts the tone back to the one the draft is written in", async () => {
+    stubFetch({
+      "POST /emails/r/regenerate": { status: 502, body: { error: { code: "agent_unavailable" } } },
+    });
+    const { result } = renderWorkflow(emailFixture({ id: "r", tone: "professional" }));
+    act(() => result.current.setTone("casual"));
+    expect(result.current.tone).toBe("casual");
+    await waitFor(() => expect(result.current.status.failure).not.toBeNull());
+    expect(result.current.tone).toBe("professional");
+  });
+
+  test("a regenerate that works keeps the new tone", async () => {
+    const casual = emailFixture({ id: "s", tone: "casual", draftReply: "Hey, sounds good!" });
+    stubFetch({ "POST /emails/s/regenerate": { body: casual } });
+    const { result } = renderWorkflow(emailFixture({ id: "s", tone: "professional" }));
+    act(() => result.current.setTone("casual"));
+    await waitFor(() => expect(result.current.isRegenerating).toBe(false));
+    expect(result.current.tone).toBe("casual");
   });
 });

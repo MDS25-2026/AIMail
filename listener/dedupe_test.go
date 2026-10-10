@@ -112,3 +112,18 @@ func TestAFailureThatWillRecurIsSkippedNotRetried(t *testing.T) {
 		t.Fatal("an outage must stay retryable")
 	}
 }
+
+func TestTheCatchUpIngestsRecentMailOldestFirstAndSkipsWhatIsStored(t *testing.T) {
+	var looked []string
+	withSupabase(t, func(w http.ResponseWriter, r *http.Request) {
+		looked = append(looked, r.URL.Query().Get("gmail_message_id"))
+		w.Write([]byte(`[{"gmail_message_id":"stored"}]`)) // every one already stored: nothing is fetched
+	})
+	mb := &mailbox{srv: fakeGmail(t, http.StatusOK, `{"messages":[{"id":"m3"},{"id":"m2"},{"id":"m1"}]}`)}
+	if err := ingestHistory(context.Background(), mb, 500); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(looked, ",") != "eq.m1,eq.m2,eq.m3" || mb.lastHistoryID != 500 {
+		t.Fatalf("looked up %v, baseline %d", looked, mb.lastHistoryID)
+	}
+}

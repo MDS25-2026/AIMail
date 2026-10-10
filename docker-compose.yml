@@ -4,26 +4,45 @@
 #
 #   docker compose up -d        # analyzer :5001, anonymizer :5002, attachment reader :5003
 #   docker compose down
+#
+# Each container runs read-only with no Linux capabilities and a memory cap (about twice what it
+# uses at rest), so a malicious attachment that broke the parser can neither persist nor take the
+# host down. Not on an `internal` network: Docker publishes no ports there, and the listener on the
+# host reaches these only through the 127.0.0.1 ports below.
+x-hardened: &hardened
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  restart: unless-stopped
+
 services:
   presidio-analyzer:
     # Pinned by digest: this image decides what counts as a name. A silent :latest bump could change
     # masking recall with no code change to review.
     image: mcr.microsoft.com/presidio-analyzer@sha256:286e3fa7f3a7426e775e8564fe1870f1ba8f999d3ab8bbb8cc46a44355d9d6e9
     container_name: presidio-analyzer
+    <<: *hardened
+    mem_limit: 2g
+    cpus: 2
     ports:
       - "127.0.0.1:5001:5001"
     environment:
       - PORT=5001
-    restart: unless-stopped
 
   presidio-anonymizer:
     image: mcr.microsoft.com/presidio-anonymizer@sha256:a10a12a2a613d13cf29d3ad3641e3258444dd8c90403dd644a0a114c472c2483
     container_name: presidio-anonymizer
+    <<: *hardened
+    mem_limit: 256m
+    cpus: 1
     ports:
       - "127.0.0.1:5002:5002"
     environment:
       - PORT=5002
-    restart: unless-stopped
 
   # Reads attachments on this machine before anything else can. Documents come back as text for
   # the listener to mask; images and scanned pages come back redacted, and only if the local OCR
@@ -33,6 +52,8 @@ services:
     build: ./listener/attachment-reader
     image: aimail-attachment-reader:local
     container_name: aimail-attachment-reader
+    <<: *hardened
+    mem_limit: 2g
+    cpus: 2
     ports:
       - "127.0.0.1:5003:3000"
-    restart: unless-stopped

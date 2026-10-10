@@ -80,6 +80,21 @@ function forEmail<T>(scoped: Scoped<T> | null, emailId: string | null): T | null
   return scoped !== null && scoped.emailId === emailId ? scoped.value : null;
 }
 
+function withoutKey<V>(map: ReadonlyMap<string, V>, key: string): ReadonlyMap<string, V> {
+  if (!map.has(key)) return map;
+  const next = new Map(map);
+  next.delete(key);
+  return next;
+}
+
+/** A mutation is pending for this email: the one in flight was started for it. */
+function isPendingFor(
+  mutation: { isPending: boolean; variables?: { emailId: string } },
+  emailId: string | null,
+): boolean {
+  return mutation.isPending && mutation.variables?.emailId === emailId;
+}
+
 // The failure is already on screen through `failure`; nothing is left to handle.
 const shownOnScreen = () => undefined;
 
@@ -107,7 +122,8 @@ export function useDraftWorkflow(
     ? storedDraft
     : restoreDetails(storedDraft, detailValues(email?.details));
 
-  const [typed, setTyped] = useState<Scoped<string> | null>(null);
+  // Each email keeps its own unsaved edits, so opening another email and coming back loses nothing.
+  const [typedByEmail, setTypedByEmail] = useState<ReadonlyMap<string, string>>(new Map());
   const [chosenTone, setChosenTone] = useState<Scoped<Tone> | null>(null);
   const [failed, setFailed] = useState<Scoped<DraftFailure> | null>(null);
   const [pending, setPending] = useState<Scoped<PendingAction> | null>(null);
@@ -124,7 +140,7 @@ export function useDraftWorkflow(
   const refineMutation = useRefineEmail();
   const sendMutation = useSendEmail();
 
-  const typedDraft = forEmail(typed, emailId);
+  const typedDraft = emailId === null ? null : (typedByEmail.get(emailId) ?? null);
   const draft = typedDraft ?? serverDraft;
   const tone = forEmail(chosenTone, emailId) ?? email?.tone ?? "professional";
   const pendingAction = forEmail(pending, emailId);
@@ -177,16 +193,20 @@ export function useDraftWorkflow(
       throw error;
     }
     if (seq !== requestSeqRef.current) return;
-    setTyped((current) => (current?.emailId === id ? null : current));
+    setTypedByEmail((current) => withoutKey(current, id));
     announce(done);
   };
 
   const startRegenerate = (id: string, nextTone: Tone) => {
     setChosenTone({ emailId: id, value: nextTone });
     const request = () => regenerateMutation.mutateAsync({ emailId: id, tone: nextTone });
-    runMutation(id, DraftAction.Regenerate, request, t("announce.regenerated")).catch(
-      shownOnScreen,
-    );
+    runMutation(id, DraftAction.Regenerate, request, t("announce.regenerated")).catch(() => {
+      // The draft did not change, so the toggle goes back to the tone the stored draft is in, unless the
+      // reader has picked another tone since.
+      setChosenTone((current) =>
+        current?.emailId === id && current.value === nextTone ? null : current,
+      );
+    });
   };
 
   const startSend = (id: string) => {
@@ -194,9 +214,10 @@ export function useDraftWorkflow(
     runMutation(id, DraftAction.Send, request, t("announce.sent")).catch(shownOnScreen);
   };
 
-  const isRegenerating = regenerateMutation.isPending;
-  const isRefining = refineMutation.isPending;
-  const isSending = sendMutation.isPending;
+  // Busy only for the email the action belongs to: a send on one email doesn't lock another.
+  const isRegenerating = isPendingFor(regenerateMutation, emailId);
+  const isRefining = isPendingFor(refineMutation, emailId);
+  const isSending = isPendingFor(sendMutation, emailId);
   const isCountingDown = undoCountdown !== null && undoCountdown > 0;
   // Locking: during mutations, pregen, or active undo countdown, prevent editing/sending race conditions:
   const isBusy = isRegenerating || isRefining || isSending || isWaitingForDraft || isCountingDown;
@@ -250,30 +271,29 @@ export function useDraftWorkflow(
     await runMutation(id, DraftAction.Refine, request, t("announce.refined"));
   };
 
+  // Each warning in order; "send anyway" on one resumes after it, so every send still gets the later
+  // checks and the undo window.
+  const sendGuards: { kind: ConfirmKind; isTriggered: (text: string) => boolean }[] = [
+    { kind: ConfirmKind.SendMarkers, isTriggered: (text) => findRedactionMarkers(text).length > 0 },
+    {
+      kind: ConfirmKind.SendTemplates,
+      isTriggered: (text) => findTemplatePlaceholders(text).length > 0,
+    },
+    { kind: ConfirmKind.ToneWarning, isTriggered: (text) => checkTone(text).hasIssues },
+  ];
+
+  const continueSend = (id: string, fromGuard: number) => {
+    const triggered = sendGuards.slice(fromGuard).find((guard) => guard.isTriggered(draft));
+    if (triggered) {
+      setPending({ emailId: id, value: { kind: triggered.kind, tone } });
+      return;
+    }
+    beginUndoCountdown(id);
+  };
+
   const send = () => {
     if (emailId === null || isDraftLocked) return;
-
-    // Guard 1: redaction markers still in the draft.
-    if (findRedactionMarkers(draft).length > 0) {
-      setPending({ emailId, value: { kind: ConfirmKind.SendMarkers, tone } });
-      return;
-    }
-
-    // Guard 2: template placeholders still in the draft.
-    if (findTemplatePlaceholders(draft).length > 0) {
-      setPending({ emailId, value: { kind: ConfirmKind.SendTemplates, tone } });
-      return;
-    }
-
-    // Guard 3: tone check — warn if the draft reads as aggressive/unprofessional.
-    const { hasIssues } = checkTone(draft);
-    if (hasIssues) {
-      setPending({ emailId, value: { kind: ConfirmKind.ToneWarning, tone } });
-      return;
-    }
-
-    // All guards passed — start the undo countdown.
-    beginUndoCountdown(emailId);
+    continueSend(emailId, 0);
   };
 
   const confirm = () => {
@@ -283,13 +303,9 @@ export function useDraftWorkflow(
       startRegenerate(emailId, pendingAction.tone);
       return;
     }
-    if (pendingAction.kind === ConfirmKind.ToneWarning) {
-      // User chose to send anyway despite tone issues — proceed to undo countdown.
-      beginUndoCountdown(emailId);
-      return;
-    }
-    // SendMarkers confirmed: send immediately (user knowingly kept the markers).
-    startSend(emailId);
+    // "Send anyway": the checks after this one still run, then the undo countdown.
+    const confirmed = sendGuards.findIndex((guard) => guard.kind === pendingAction.kind);
+    continueSend(emailId, confirmed + 1);
   };
 
   const status: DraftWorkflowStatus = {
@@ -310,7 +326,7 @@ export function useDraftWorkflow(
 
   const setDraft = (text: string) => {
     if (emailId === null) return;
-    setTyped({ emailId, value: text });
+    setTypedByEmail((current) => new Map(current).set(emailId, text));
     // The warning is moot once every marker has been typed over.
     const isMarkerWarning = pendingAction?.kind === ConfirmKind.SendMarkers;
     if (isMarkerWarning && findRedactionMarkers(text).length === 0) setPending(null);

@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.6.0](https://github.com/MDS25-2026/AIMail/compare/v1.5.1...v1.6.0) (2026-10-09)
+
+
+### Features
+
+* **classifier:** train dedicated ML classifier for 6-category B2B email taxonomy ([#167](https://github.com/MDS25-2026/AIMail/issues/167)) ([151e8db](https://github.com/MDS25-2026/AIMail/commit/151e8db6c39f90f8678b295520b32458375a61ae))
+* **dashboard:** AIMail logo in the header, favicon and extension toolbar ([#181](https://github.com/MDS25-2026/AIMail/issues/181)) ([ab8410a](https://github.com/MDS25-2026/AIMail/commit/ab8410aa947a1486c51f7d032715b618ef282ada))
+* **dashboard:** collapse long email bodies with "Show full email" ([#192](https://github.com/MDS25-2026/AIMail/issues/192)) ([df89a03](https://github.com/MDS25-2026/AIMail/commit/df89a0307905002fd9e9f0539d7f558b4851d506))
+* **inbox:** category badges and category filter ([#194](https://github.com/MDS25-2026/AIMail/issues/194)) ([416bf91](https://github.com/MDS25-2026/AIMail/commit/416bf91223bdc187a17580df167edd07086dc5a5))
+* **inbox:** priority filter dropdown ([#189](https://github.com/MDS25-2026/AIMail/issues/189)) ([65aca91](https://github.com/MDS25-2026/AIMail/commit/65aca91d7b0561777a0bf271ee99ffac979853d3))
+* **safety:** add 5-second undo send countdown banner ([#166](https://github.com/MDS25-2026/AIMail/issues/166)) ([db0f168](https://github.com/MDS25-2026/AIMail/commit/db0f1688331a14fd39670e673327182e6a36d288))
+* **safety:** add pre-send tone guardrail and confirmation dialog ([#165](https://github.com/MDS25-2026/AIMail/issues/165)) ([6eb0f4b](https://github.com/MDS25-2026/AIMail/commit/6eb0f4b0b3a10ea0a2c657d141b7f606117155b0))
+* **triage:** implement deterministic SLA rules floor in Lane A listener ([#164](https://github.com/MDS25-2026/AIMail/issues/164)) ([8a81895](https://github.com/MDS25-2026/AIMail/commit/8a81895ebd432409c1d116a858e556f627699031))
+
+
+### Bug Fixes
+
+* **category:** classify each email once and store it; the model ships in the image ([#186](https://github.com/MDS25-2026/AIMail/issues/186)) ([e42c962](https://github.com/MDS25-2026/AIMail/commit/e42c9624211043c8c23de4111604b4cecbdf936e))
+* **ci:** a Presidio probe that gets no answer times out instead of hanging the job ([#184](https://github.com/MDS25-2026/AIMail/issues/184)) ([db2af3e](https://github.com/MDS25-2026/AIMail/commit/db2af3ea1e3d7e3701d3128515e5f45cec567572))
+* **ci:** the Presidio wait is two minutes of wall-clock time, not 60 tries ([#185](https://github.com/MDS25-2026/AIMail/issues/185)) ([ec82bac](https://github.com/MDS25-2026/AIMail/commit/ec82bac2e0fa48918f70f0e45ae896ece0d4ea0a))
+* **dashboard:** "send anyway" goes through the remaining checks and the undo window ([#188](https://github.com/MDS25-2026/AIMail/issues/188)) ([9a77bd2](https://github.com/MDS25-2026/AIMail/commit/9a77bd2974f3099ba68af8bf10179021564f42d0))
+* **dashboard:** main compiles again after [#165](https://github.com/MDS25-2026/AIMail/issues/165) and [#166](https://github.com/MDS25-2026/AIMail/issues/166) ([#183](https://github.com/MDS25-2026/AIMail/issues/183)) ([8de65c1](https://github.com/MDS25-2026/AIMail/commit/8de65c1b6d7a606fb289196a432e88974297f21f))
+* **dashboard:** make the Critical badge the most prominent ([#191](https://github.com/MDS25-2026/AIMail/issues/191)) ([0dc459a](https://github.com/MDS25-2026/AIMail/commit/0dc459a182a8fb9af4d4c57324c61238c8d761ac))
+
+
+### Documentation
+
+* **category:** complete Han blind audit labels in holdout_audit.csv ([#187](https://github.com/MDS25-2026/AIMail/issues/187)) ([059ed04](https://github.com/MDS25-2026/AIMail/commit/059ed0493ce39520dbc626bfa949e94af9750eb2))
+
 ## [1.5.1](https://github.com/MDS25-2026/AIMail/compare/v1.5.0...v1.5.1) (2026-10-08)
 
 

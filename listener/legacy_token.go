@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,7 +22,6 @@ const (
 	credentialsFile = "credentials.json"
 	tokenFile       = "token.json"
 	pubsubScope     = "https://www.googleapis.com/auth/pubsub"
-	oauthState      = "state-token"
 )
 
 var errNoTerminal = errors.New("no token.json and no terminal to sign in on")
@@ -76,14 +76,18 @@ func isTerminal(file *os.File) bool {
 	return err == nil && info.Mode()&os.ModeCharDevice != 0
 }
 
+// tokenFromWeb signs in with a pasted code. The code comes back by hand, not by redirect, so state
+// cannot be checked here; PKCE is what protects it: a code copied by anyone else is useless without
+// this run's verifier. The state is still random, never a fixed string a forged request could reuse.
 func tokenFromWeb(ctx context.Context, config *oauth2.Config) (*oauth2.Token, error) {
-	authURL := config.AuthCodeURL(oauthState, oauth2.AccessTypeOffline)
+	verifier := oauth2.GenerateVerifier()
+	authURL := config.AuthCodeURL(rand.Text(), oauth2.AccessTypeOffline, oauth2.S256ChallengeOption(verifier))
 	fmt.Printf("Go to the following link in your browser then type the authorization code: \n%v\n\nCode: ", authURL)
 	var authCode string
 	if _, err := fmt.Scan(&authCode); err != nil {
 		return nil, fmt.Errorf("read authorization code: %w", err)
 	}
-	tok, err := config.Exchange(ctx, authCode)
+	tok, err := config.Exchange(ctx, authCode, oauth2.VerifierOption(verifier))
 	if err != nil {
 		return nil, fmt.Errorf("exchange authorization code: %w", err)
 	}

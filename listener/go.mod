@@ -6,6 +6,7 @@ require (
 	cloud.google.com/go/pubsub v1.51.1
 	github.com/joho/godotenv v1.5.1
 	golang.org/x/oauth2 v0.37.0
+	golang.org/x/text v0.42.0
 	google.golang.org/api v0.299.0
 )
 
@@ -35,7 +36,6 @@ require (
 	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
-	golang.org/x/text v0.42.0 // indirect
 	golang.org/x/time v0.16.0 // indirect
 	google.golang.org/genproto v0.0.0-20260715232425-e75dac1f907d // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260715232425-e75dac1f907d // indirect

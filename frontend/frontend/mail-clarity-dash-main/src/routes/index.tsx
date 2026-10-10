@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import InboxList from "../components/InboxList";
@@ -9,6 +9,7 @@ import AppShell from "../components/AppShell";
 import { PageEmpty, PageError, PageLoading } from "../components/PageState";
 import { Page, pageMeta } from "../lib/pageMeta";
 import { useEmail, useEmails, useSession } from "../lib/queries";
+import { useDebouncedValue } from "../lib/useDebouncedValue";
 import { useDraftWorkflow } from "../lib/useDraftWorkflow";
 
 type InboxSearch = { email?: string };
@@ -28,6 +29,9 @@ export const Route = createFileRoute("/")({
   component: DashboardPage,
 });
 
+// Long enough to skip rows passed with J/K, short enough not to be felt on a click.
+const SELECTION_SETTLE_MS = 150;
+
 function DashboardPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -41,7 +45,11 @@ function DashboardPage() {
     requestedId ??
     userSelectedId ??
     (emails.data && emails.data.length > 0 ? emails.data[0].id : null);
-  const selected = useEmail(selectedEmailId);
+  // Opened once the selection settles, so stepping through with J/K doesn't fetch (and mark read) every row.
+  const openedEmailId = useDebouncedValue(selectedEmailId, SELECTION_SETTLE_MS);
+  const selected = useEmail(openedEmailId);
+  // Never a previous email's detail while the selection settles.
+  const detail = selected.data?.id === selectedEmailId ? selected.data : undefined;
 
   const handleSelectEmail = (id: string) => {
     setUserSelectedId(id);
@@ -55,13 +63,13 @@ function DashboardPage() {
   // If an email was opened directly via search/deep-link and is not in the loaded inbox page,
   // include it in the display list so it is highlighted in the list
   const displayEmails =
-    selected.data && !emails.data?.some((item) => item.id === selected.data?.id)
-      ? [selected.data, ...(emails.data ?? [])]
+    detail && !emails.data?.some((item) => item.id === detail.id)
+      ? [detail, ...(emails.data ?? [])]
       : (emails.data ?? []);
 
   // The detail call re-runs generation (~15s), so show the list row's copy until it lands.
   const listEmail = displayEmails.find((item) => item.id === selectedEmailId) ?? null;
-  const email = selected.data ?? listEmail;
+  const email = detail ?? listEmail;
   const workflow = useDraftWorkflow(email, selected);
 
   return (
