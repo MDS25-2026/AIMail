@@ -78,6 +78,11 @@ def _message_content(days: int) -> Executable:
                     action_items=None))
 
 
+def _sent_message_days(content_days: int) -> int:
+    """SENT_MESSAGE_DAYS, or the message content limit when that is set and shorter."""
+    return min(SENT_MESSAGE_DAYS, content_days) if content_days != KEEP_FOREVER else SENT_MESSAGE_DAYS
+
+
 def _sent_messages(days: int) -> Executable:
     return delete(SentMessage).where(SentMessage.sent_at < _older_than(days))
 
@@ -89,7 +94,8 @@ POLICIES: tuple[Policy, ...] = (
     Policy("model_egress", lambda: EGRESS_DAYS, _egress),
     Policy("rate_limit_windows", lambda: RATE_LIMIT_WINDOW_DAYS, _rate_limit_windows),
     Policy("message_content", lambda: get_settings().message_content_retention_days, _message_content),
-    Policy("sent_messages", lambda: SENT_MESSAGE_DAYS, _sent_messages),
+    Policy("sent_messages", lambda: _sent_message_days(get_settings().message_content_retention_days),
+           _sent_messages),
 )
 
 

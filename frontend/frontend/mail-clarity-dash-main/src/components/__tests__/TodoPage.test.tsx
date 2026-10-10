@@ -29,8 +29,9 @@ const empty = { emails: [], total: 0 };
 test("each section lists what needs the reader, and No reply needed takes an email out", async () => {
   const acting = emailFixture({
     id: "a1",
-    subject: "Invoice 4471",
+    subject: "Invoice for [PERSON_1]",
     actionItems: ["Pay by Friday"],
+    details: [{ placeholder: "[PERSON_1]", value: "Aisyah Rahman", kind: "PERSON" }],
   });
   const calls = stubFetch({
     "GET /todo": {
@@ -56,6 +57,9 @@ test("each section lists what needs the reader, and No reply needed takes an ema
   });
   renderWithProviders(<TodoPage />);
   expect(await screen.findByText("Pay by Friday")).toBeTruthy();
+  // The row's own details: the name, as the inbox shows it, not the placeholder.
+  expect(screen.getByText("Aisyah Rahman")).toBeTruthy();
+  expect(screen.queryByText(/\[PERSON_1\]/)).toBeNull();
   expect(screen.getByText("Re: PO")).toBeTruthy();
   const gmail = screen.getByRole("link", { name: t("todo.openInGmail") });
   expect(gmail.getAttribute("href")).toContain("#all/18f2a");

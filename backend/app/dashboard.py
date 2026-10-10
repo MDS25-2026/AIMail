@@ -316,8 +316,8 @@ def inbox_row(message: Message, policy: Policy, schedule: ScheduleState | None =
 
 
 def _own_details(message: Message) -> ThreadMap:
-    """One email's details in its own numbering, for its inbox row (subject and preview)."""
-    text = f"{message.subject or ''}\n{message.snippet_masked or ''}"
+    """One email's details in its own numbering, for its row: subject, preview and action items."""
+    text = "\n".join([message.subject or "", message.snippet_masked or "", *(message.action_items or [])])
     return build_thread_map(
         [(str(message.id), message.pii_vault, message.user_id, message.gmail_message_id or "", text)], ""
     )
@@ -780,10 +780,11 @@ async def _record_send(pk: UUID, message: Message, reply: OutgoingReply, sent: S
         record(session, AuditAction.APPROVE_AND_SEND, user_id=message.user_id, message=str(pk),
                restored=reply.restored)
         # For the to-do's waiting list; the listener's Sent watch sees the same send and is ignored.
+        # If the listener stored it first, the user's Remind me and the link to the email still land.
         await session.execute(insert(SentMessage).values(
             user_id=stored.user_id, gmail_id=sent.gmail_id, message_id=pk, thread_id=stored.thread_id,
             sent_at=func.now(), subject=stored.subject or "", body_masked=reply.stored, remind=remind,
-        ).on_conflict_do_nothing())
+        ).on_conflict_do_update(index_elements=["gmail_id"], set_={"remind": remind, "message_id": pk}))
         await session.commit()
         return _to_email(stored, await _policy_for(stored)), stored, is_learning_style
 

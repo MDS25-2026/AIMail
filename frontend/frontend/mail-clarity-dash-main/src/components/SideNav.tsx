@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
-import { useTodo } from "../lib/queries";
+import { useSession, useTodo } from "../lib/queries";
 
 const NAV_ITEMS = [
   { label: "nav.inbox", to: "/" },
@@ -19,7 +19,9 @@ const BASE_ITEM = "block w-full rounded-md px-3 py-2 text-left text-sm";
 
 export default function SideNav() {
   const { t } = useTranslation();
-  const todo = useTodo();
+  // Only with a mailbox: the admin console and a user without one must not ask for a to-do list.
+  const session = useSession();
+  const todo = useTodo(session.data?.hasMailbox === true);
   const todoCount = todo.data?.count ?? 0;
   return (
     <nav aria-label={t("nav.label")} className="w-44 shrink-0 bg-rail p-3">

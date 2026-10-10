@@ -55,7 +55,9 @@ nothing falls through the cracks between opening emails.
 ## Acceptance criteria
 
 - [x] Given an unsent email with action items, then it is in section 1 with its items.
-- [x] Given an unsent email flagged for review, then it is in section 2 with its reason.
+- [x] Given an unsent email flagged for review, then it is in section 2.
+- [ ] ... with its reason in plain words. The stored reasons are raw ("confidence 0.6 below 0.8");
+      waits on plain-wording review reasons, epic #138 line 69.
 - [x] Given a reply sent through AIMail with *Remind me* ticked, when 3 working days pass with no
       new message in the thread, then it is in section 3.
 - [x] Given a reply sent from Gmail that matches the rules, then the same holds.
@@ -66,8 +68,7 @@ nothing falls through the cracks between opening emails.
       dismissed with *No reply needed*, or replaced by a newer message.
 - [ ] Given a sent email stored from the Sent label, then it never appears in the inbox and is
       never drafted for.
-- [ ] Given *Draft a follow-up*, then a draft appears for review in the thread's language and
-      nothing is sent.
+- [ ] Drafting and sending a follow-up from AIMail: moved to a later PR (owner, 2026-10-11).
 
 ## API surface
 
@@ -85,7 +86,8 @@ Changes go into `specs/context/api-contracts.md` in the same PR.
   send), `message_id` (unique, the received email an AIMail send answered), `thread_id`, `sent_at`,
   `subject`, `body_masked`, `remind` (null = rules decide), `dismissed_at`. Written by the listener
   for Gmail sends and by the backend for AIMail sends; past AIMail sends were backfilled. No
-  recipient address and no vault are kept. Deleted after 90 days by the retention job.
+  recipient address and no vault are kept. Deleted after 90 days by the retention job, or sooner
+  when `MESSAGE_CONTENT_RETENTION_DAYS` is set shorter.
 - `messages.dismissed_at timestamptz null` (no reply needed).
 - `user_preferences.waiting_days smallint default 3`.
 
@@ -126,6 +128,8 @@ Changes go into `specs/context/db-schema.md` in the same PR.
 - 2026-10-11: The follow-up is *Open in Gmail* for now, not drafted and sent from AIMail (owner).
   Rationale: AIMail sends only replies to received mail; a nudge on the user's own sent mail is a
   new send path with its own duplicate-send risk, so it gets its own PR.
+- 2026-10-11: The To-do count is distinct emails: one email can be in all three email lists (79
+  distinct on 2026-10-11, where the three totals summed to 151).
 - 2026-10-11: The *Remind me* box forces tracking; unticked, the rules decide. Rationale: one copy
   of the rules (Python), none in TypeScript.
 - 2026-10-11: The listener's Sent path is separate from the inbox path and never fails a

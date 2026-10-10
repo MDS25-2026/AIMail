@@ -3,8 +3,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { dismissEmail, fetchTodo, notWaiting, saveWaitingDays } from "../api/todo";
 import { queryKeys } from "./keys";
 
-export function useTodo() {
-  return useQuery({ queryKey: queryKeys.todo, queryFn: fetchTodo });
+/** isEnabled: the sidebar asks only once the session says a mailbox is connected. */
+export function useTodo(isEnabled = true) {
+  return useQuery({
+    queryKey: queryKeys.todo,
+    queryFn: fetchTodo,
+    enabled: isEnabled,
+    retry: false,
+  });
 }
 
 function useTodoMutation<TVariables, TResult>(

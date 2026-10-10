@@ -13,7 +13,14 @@ import pytest
 from sqlalchemy import select, text
 from sqlalchemy.exc import DBAPIError
 
-from app import audit_routes, quiet_hours, scheduled_sends, template_store, todo
+from app import (
+    audit_routes,
+    dashboard,
+    quiet_hours,
+    scheduled_sends,
+    template_store,
+    todo,
+)
 from app.audit import AuditAction, audit_row
 from app.core.constants import EMBEDDING_DIM
 from app.core.cursor import decode_cursor
@@ -33,6 +40,7 @@ from app.db.models import (
     UserProfile,
 )
 from app.db.session import get_engine, get_sessionmaker
+from app.gmail_send import SentReply
 from app.jobs import claim_requested, request_draft
 from app.ml.categorise import classify_pending
 from app.quiet_hours import QuietHoursView
@@ -363,3 +371,40 @@ def test_the_todo_lists_what_needs_the_reader_and_what_is_still_waiting():
     assert [w.threadId for w in before.waiting] == ["A"] and before.waiting[0].workingDays >= 3
     assert before.count == 1 + 1 + 1 + 1
     assert after.needsAction.total == 0 and after.waiting == []
+
+
+def test_an_email_in_every_todo_list_counts_once():
+    owner = uuid4()
+    now = datetime.now(timezone.utc)
+
+    async def scenario():
+        async with get_sessionmaker()() as session, session.begin():
+            session.add(UserProfile(id=owner, email=f"{owner}@example.com"))
+        async with get_sessionmaker()() as session, session.begin():
+            session.add(Message(id=uuid4(), user_id=owner, gmail_message_id=f"all-{uuid4()}", subject="s",
+                                masking_status=MaskingStatus.COMPLETE, auth_status=AuthStatus.PASS,
+                                action_items=["Pay"], needs_human_review=True, draft_reply="Hi",
+                                generated_at=now - timedelta(days=2)))
+        return await todo.todo_for(Scope(owner_id=owner), f"{owner}@example.com")
+
+    result = _run(scenario())
+    assert (result.needsAction.total, result.needsReview.total, result.unsentDrafts.total) == (1, 1, 1)
+    assert result.count == 1
+
+
+def test_remind_me_survives_the_listener_storing_the_send_first():
+    async def scenario():
+        async with get_sessionmaker()() as session, session.begin():
+            message = Message(id=uuid4(), gmail_message_id=f"rm-{uuid4()}", masking_status=MaskingStatus.COMPLETE,
+                              thread_id="t-race", subject="Invoice")
+            session.add(message)
+        async with get_sessionmaker()() as session, session.begin():
+            session.add(SentMessage(gmail_id="g-race", thread_id="t-race", sent_at=datetime.now(timezone.utc)))
+        reply = dashboard.OutgoingReply(stored="Could you confirm?", sent="Could you confirm?", restored=0)
+        sent = SentReply(gmail_id="g-race", thread_id="t-race", message_id="<m>")
+        await dashboard._record_send(message.id, message, reply, sent, remind=True)
+        return message.id, await _scalar("SELECT remind::text || ' ' || message_id::text FROM sent_message "
+                                         "WHERE gmail_id = 'g-race'")
+
+    pk, row = _run(scenario())
+    assert row == f"true {pk}"

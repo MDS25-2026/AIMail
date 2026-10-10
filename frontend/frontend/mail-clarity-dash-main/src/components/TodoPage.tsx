@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { errorMessage } from "../lib/api/errors";
+import { detailValues } from "../lib/details";
+import { DetailsContext } from "../lib/detailsContext";
 import { gmailThreadUrl } from "../lib/gmailLink";
 import { useDismissEmail, useNotWaiting, useSaveWaitingDays, useTodo } from "../lib/queries";
 import { useFormat } from "../lib/useFormat";
@@ -10,6 +12,7 @@ import type { Email } from "../types/email";
 import type { TodoSection, WaitingReply } from "../types/todo";
 import { PageError, PageLoading } from "./PageState";
 import { button, field } from "./variants";
+import WithDetails from "./WithDetails";
 
 const WAITING_DAY_CHOICES = [1, 2, 3, 4, 5, 7, 10, 14] as const;
 
@@ -80,13 +83,20 @@ function EmailSection({ title, hint, section, detail, footer }: EmailSectionProp
         <ul className="relative divide-y divide-line-subtle overflow-hidden rounded-lg border border-line bg-surface">
           {section.emails.map((email) => (
             <li key={email.id} className="flex items-start justify-between gap-3 px-4 py-3">
-              <Link to="/" search={{ email: email.id }} className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-fg">{email.sender}</span>
-                <span className="block truncate text-sm text-fg-body">{email.subject}</span>
-                <span className="mt-0.5 line-clamp-1 block text-xs text-fg-muted">
-                  {detail(email)}
-                </span>
-              </Link>
+              {/* The row's own details, so it reads "Aisyah" where the inbox does, not [PERSON_1]. */}
+              <DetailsContext.Provider value={detailValues(email.details)}>
+                <Link to="/" search={{ email: email.id }} className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-fg">
+                    {email.sender}
+                  </span>
+                  <span className="block truncate text-sm text-fg-body">
+                    <WithDetails text={email.subject} />
+                  </span>
+                  <span className="mt-0.5 line-clamp-1 block text-xs text-fg-muted">
+                    <WithDetails text={detail(email)} />
+                  </span>
+                </Link>
+              </DetailsContext.Provider>
               <button
                 type="button"
                 disabled={dismiss.isPending}
@@ -152,7 +162,9 @@ function WaitingSection({
             >
               <div className="min-w-0 flex-1">
                 <span className="block truncate text-sm text-fg-body">
-                  {reply.email?.subject ?? reply.subject}
+                  <DetailsContext.Provider value={detailValues(reply.email?.details)}>
+                    <WithDetails text={reply.email?.subject ?? reply.subject} />
+                  </DetailsContext.Provider>
                 </span>
                 <span className="block text-xs text-fg-muted">
                   {t("todo.sentAgo", {
