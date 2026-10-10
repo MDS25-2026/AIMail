@@ -607,6 +607,102 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Templates */
+        get: operations["get_templates_templates_get"];
+        put?: never;
+        /** Post Template */
+        post: operations["post_template_templates_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/templates/{template_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Template */
+        put: operations["put_template_templates__template_id__put"];
+        post?: never;
+        /** Remove Template */
+        delete: operations["remove_template_templates__template_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/templates/{template_id}/adapt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Adapt Template Route
+         * @description The agent rewrites the template for the email (Draft from template); stored like a refine.
+         */
+        post: operations["adapt_template_route_templates__template_id__adapt_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/templates/{template_id}/fill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fill Template Route
+         * @description The template filled for one email, for the editor (Insert). Nothing is stored or sent.
+         */
+        post: operations["fill_template_route_templates__template_id__fill_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/templates/{template_id}/translate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Translate Template Route
+         * @description A copy in another language for the user to check; not saved until they save it.
+         */
+        post: operations["translate_template_route_templates__template_id__translate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -616,6 +712,13 @@ export interface components {
          * @enum {string}
          */
         ActiveWhen: "outside_hours" | "leave" | "always";
+        /** AdaptRequest */
+        AdaptRequest: {
+            /** Emailid */
+            emailId: string;
+            /** @default professional */
+            tone: components["schemas"]["Tone"];
+        };
         /** AskRequest */
         AskRequest: {
             /**
@@ -798,6 +901,8 @@ export interface components {
             sources: components["schemas"]["Source"][];
             /** Subject */
             subject: string;
+            /** Suggestedtemplateid */
+            suggestedTemplateId?: string | null;
             /** Threadcontext */
             threadContext: components["schemas"]["ThreadMessage"][];
             /** Threadid */
@@ -924,6 +1029,16 @@ export interface components {
             /** Id */
             id: string;
             source: components["schemas"]["ExampleSource"];
+            /** Text */
+            text: string;
+        };
+        /** FillRequest */
+        FillRequest: {
+            /** Emailid */
+            emailId: string;
+        };
+        /** FilledTemplate */
+        FilledTemplate: {
             /** Text */
             text: string;
         };
@@ -1228,6 +1343,30 @@ export interface components {
             /** Priority Model */
             priority_model: string;
         };
+        /** TemplateBody */
+        TemplateBody: {
+            /** Body */
+            body: string;
+            language: components["schemas"]["Language"];
+            /** Title */
+            title: string;
+            /** Triggerkeywords */
+            triggerKeywords?: string[];
+        };
+        /** TemplateView */
+        TemplateView: {
+            /** Body */
+            body: string;
+            /** Id */
+            id: string;
+            language: components["schemas"]["Language"];
+            /** Lastusedat */
+            lastUsedAt?: string | null;
+            /** Title */
+            title: string;
+            /** Triggerkeywords */
+            triggerKeywords?: string[];
+        };
         /** ThreadMessage */
         ThreadMessage: {
             /**
@@ -1266,6 +1405,10 @@ export interface components {
             language: string;
             /** Text */
             text: string;
+        };
+        /** TranslateTemplateRequest */
+        TranslateTemplateRequest: {
+            language: components["schemas"]["Language"];
         };
         /** ValidationError */
         ValidationError: {
@@ -2478,6 +2621,228 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SystemInfo"];
+                };
+            };
+        };
+    };
+    get_templates_templates_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplateView"][];
+                };
+            };
+        };
+    };
+    post_template_templates_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TemplateBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplateView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_template_templates__template_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TemplateBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplateView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_template_templates__template_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    adapt_template_route_templates__template_id__adapt_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdaptRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardEmail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fill_template_route_templates__template_id__fill_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FillRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FilledTemplate"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    translate_template_route_templates__template_id__translate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TranslateTemplateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplateBody"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

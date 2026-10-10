@@ -311,3 +311,47 @@ describe("what the Changes view compares (#149)", () => {
     expect(result.current.comparison.source).toBe("edits");
   });
 });
+
+describe("saved reply templates", () => {
+  const withDetails = emailFixture({
+    id: "t",
+    draftReply: "AI draft",
+    details: [{ placeholder: "[PERSON_3]", value: "Aisyah Rahman", kind: "PERSON" }],
+  });
+
+  test("an inserted template shows the sender's real name, as the editor shows the stored draft", () => {
+    const { result } = renderWorkflow(withDetails);
+    act(() => result.current.insertTemplate("Hi [PERSON_3], thanks."));
+    expect(result.current.draft).toBe("Hi Aisyah Rahman, thanks.");
+    expect(result.current.hasUnsavedEdits).toBe(true);
+  });
+
+  test("a draft with an unfilled template blank cannot be sent until it is filled", () => {
+    vi.useFakeTimers();
+    const calls = stubFetch({ "POST /emails/t/send": { body: withDetails } });
+    const { result } = renderWorkflow(withDetails);
+    act(() => result.current.setDraft("Join at {{meeting link}}"));
+    expect(result.current.unfilledBlanks).toEqual(["{{meeting link}}"]);
+    act(() => result.current.send());
+    expect(result.current.undoCountdown).toBeNull();
+    act(() => result.current.setDraft("Join at https://meet.example/abc"));
+    expect(result.current.unfilledBlanks).toEqual([]);
+    act(() => result.current.send());
+    expect(result.current.undoCountdown).not.toBeNull();
+    expect(calls).toHaveLength(0);
+    vi.useRealTimers();
+  });
+
+  test("drafting from a template asks the agent and drops the reader's typed text for its version", async () => {
+    const adapted = { ...withDetails, draftReply: "Adapted for [PERSON_3]" };
+    const calls = stubFetch({ "POST /templates/tpl-1/adapt": { body: adapted } });
+    const { result, rerender } = renderWorkflow(withDetails);
+    act(() => result.current.setDraft("Something I typed"));
+    await act(async () => {
+      await result.current.draftFromTemplate("tpl-1");
+    });
+    expect(calls[0].body).toEqual({ emailId: "t", tone: "professional" });
+    rerender(adapted);
+    expect(result.current.draft).toBe("Adapted for Aisyah Rahman");
+  });
+});

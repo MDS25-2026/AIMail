@@ -18,6 +18,7 @@ function confirmMessage(kind: ConfirmKind, count: number, t: TFunction): string 
 const FALLBACK_BY_ACTION = {
   [DraftAction.Regenerate]: "draftStatus.failed.regenerate",
   [DraftAction.Refine]: "draftStatus.failed.refine",
+  [DraftAction.Template]: "draftStatus.failed.template",
   [DraftAction.Send]: "draftStatus.failed.send",
 } as const;
 

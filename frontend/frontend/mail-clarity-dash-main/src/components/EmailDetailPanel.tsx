@@ -23,6 +23,7 @@ import PriorityBadge from "./PriorityBadge";
 import PrivacyReceipt from "./PrivacyReceipt";
 import RefineInput from "./RefineInput";
 import SourcesChips from "./SourcesChips";
+import TemplatePicker from "./TemplatePicker";
 import UseAsExampleButton from "./UseAsExampleButton";
 import WithDetails from "./WithDetails";
 
@@ -108,6 +109,7 @@ function DraftSection({ email, workflow }: { email: Email; workflow: DraftWorkfl
   return (
     <section className="space-y-4 rounded-lg border border-line bg-surface p-4">
       <DraftReplyEditor email={email} workflow={workflow} />
+      <TemplatePicker key={`templates-${email.id}`} email={email} workflow={workflow} />
       <HiddenDetailChips
         key={`hidden-${email.id}`}
         draft={workflow.draft}

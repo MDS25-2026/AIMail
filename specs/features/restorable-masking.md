@@ -107,6 +107,11 @@ retyping anything, knowing the AI only ever saw `[PERSON_1]`.
 10. **Signature.** At sign-in, the owner's name from their Google account (Supabase
    `user_metadata.full_name`) fills `user_profile.display_name` if empty; the generator receives it
    as the sign-off name.
+11. **The sender's name (2026-10-11).** The sender's display name from `messages.from_addr` (kept
+   unmasked on purpose, decision of 2026-10-04) joins the thread map as a placeholder too
+   (`ThreadMap.add_sender`), numbered after the owner so stored sign-offs keep their number. A
+   saved template's `{{name}}` becomes it (`reply-templates.md`), and a typed full name is turned
+   back into it before reaching the AI.
 
 ## Seeing the original
 

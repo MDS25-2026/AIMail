@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { findRedactionMarkers, hasUnsavedEdits } from "../draftGuards";
+import { findRedactionMarkers, findUnfilledBlanks, hasUnsavedEdits } from "../draftGuards";
 
 describe("findRedactionMarkers", () => {
   test("finds every marker shape the pipeline writes, in order", () => {
@@ -31,5 +31,15 @@ describe("hasUnsavedEdits", () => {
   test("is true when the typed text differs, including clearing it", () => {
     expect(hasUnsavedEdits("My version", "Server draft")).toBe(true);
     expect(hasUnsavedEdits("", "Server draft")).toBe(true);
+  });
+});
+
+describe("saved template blanks", () => {
+  test("every {{blank}} left in a draft is found, and none in a filled one", () => {
+    expect(findUnfilledBlanks("Hi {{name}}, see {{ meeting link }}")).toEqual([
+      "{{name}}",
+      "{{ meeting link }}",
+    ]);
+    expect(findUnfilledBlanks("Hi Aisyah, see https://meet.example")).toEqual([]);
   });
 });

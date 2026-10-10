@@ -3,14 +3,20 @@ import { useTranslation } from "react-i18next";
 
 import { detailValues, restoreDetails } from "./details";
 import { useDetailsHidden } from "./detailsVisibility";
-import { findRedactionMarkers, findTemplatePlaceholders, hasUnsavedEdits } from "./draftGuards";
-import { useRefineEmail, useRegenerateEmail, useSendEmail } from "./queries";
+import {
+  findRedactionMarkers,
+  findTemplatePlaceholders,
+  findUnfilledBlanks,
+  hasUnsavedEdits,
+} from "./draftGuards";
+import { useAdaptTemplate, useRefineEmail, useRegenerateEmail, useSendEmail } from "./queries";
 import { checkTone } from "./toneCheck";
 import type { Email, Tone } from "../types/email";
 
 export enum DraftAction {
   Regenerate = "regenerate",
   Refine = "refine",
+  Template = "template",
   Send = "send",
 }
 
@@ -61,11 +67,20 @@ export type DraftWorkflow = {
   /** Rejects on failure, so the caller can keep the instruction the reader typed. */
   refine: (instruction: string) => Promise<void>;
   send: () => void;
+  /** Draft from template: the agent rewrites a saved template for this email. */
+  draftFromTemplate: (templateId: string) => Promise<void>;
+  /** Insert: a filled template (placeholders and all) replaces the text in the editor. */
+  insertTemplate: (filled: string) => void;
+  /** The reader typed something the stored draft does not have; replacing it loses that. */
+  hasUnsavedEdits: boolean;
+  /** A saved template's {{blanks}} still in the draft; it cannot be sent until they are filled. */
+  unfilledBlanks: string[];
   comparison: DraftComparison;
   status: DraftWorkflowStatus;
   announcement: string;
   isRegenerating: boolean;
   isRefining: boolean;
+  isTemplating: boolean;
   isSending: boolean;
   /** Anything in flight; the draft must not change under a send, nor a send go out mid-change. */
   isBusy: boolean;
@@ -147,6 +162,7 @@ export function useDraftWorkflow(
 
   const regenerateMutation = useRegenerateEmail();
   const refineMutation = useRefineEmail();
+  const adaptMutation = useAdaptTemplate();
   const sendMutation = useSendEmail();
 
   const typedDraft = emailId === null ? null : (typedByEmail.get(emailId) ?? null);
@@ -230,10 +246,17 @@ export function useDraftWorkflow(
   // Busy only for the email the action belongs to: a send on one email doesn't lock another.
   const isRegenerating = isPendingFor(regenerateMutation, emailId);
   const isRefining = isPendingFor(refineMutation, emailId);
+  const isTemplating = isPendingFor(adaptMutation, emailId);
   const isSending = isPendingFor(sendMutation, emailId);
   const isCountingDown = undoCountdown !== null && undoCountdown > 0;
   // Locking: during mutations, pregen, or active undo countdown, prevent editing/sending race conditions:
-  const isBusy = isRegenerating || isRefining || isSending || isWaitingForDraft || isCountingDown;
+  const isBusy =
+    isRegenerating ||
+    isRefining ||
+    isTemplating ||
+    isSending ||
+    isWaitingForDraft ||
+    isCountingDown;
   // The panels disable every control that changes the draft; this backs them up. A sent reply is
   // final, and a change mid-send would leave the screen showing text other than what went out.
   const isDraftLocked = isBusy || Boolean(email?.sentAt);
@@ -285,6 +308,13 @@ export function useDraftWorkflow(
     await runMutation(id, DraftAction.Refine, request, t("announce.refined"), recordBefore);
   };
 
+  const draftFromTemplate = async (templateId: string) => {
+    if (emailId === null || isDraftLocked) return;
+    const id = emailId;
+    const request = () => adaptMutation.mutateAsync({ templateId, emailId: id, tone });
+    await runMutation(id, DraftAction.Template, request, t("announce.templateDrafted"));
+  };
+
   const refineBefore = emailId === null ? undefined : refinedFrom.get(emailId);
   const comparison: DraftComparison =
     typedDraft === null && refineBefore !== undefined
@@ -311,8 +341,10 @@ export function useDraftWorkflow(
     beginUndoCountdown(id);
   };
 
+  const unfilledBlanks = findUnfilledBlanks(draft);
+
   const send = () => {
-    if (emailId === null || isDraftLocked) return;
+    if (emailId === null || isDraftLocked || unfilledBlanks.length > 0) return;
     continueSend(emailId, 0);
   };
 
@@ -352,10 +384,18 @@ export function useDraftWorkflow(
     if (isMarkerWarning && findRedactionMarkers(text).length === 0) setPending(null);
   };
 
+  // Shown the way the editor shows the stored draft: real details, unless the reader hid them.
+  const insertTemplate = (filled: string) =>
+    setDraft(isHidingDetails ? filled : restoreDetails(filled, detailValues(email?.details)));
+
   return {
     draft,
     tone,
     setDraft,
+    draftFromTemplate,
+    insertTemplate,
+    hasUnsavedEdits: hasUnsavedEdits(typedDraft, serverDraft),
+    unfilledBlanks,
     setTone: regenerate,
     regenerate: () => regenerate(),
     refine,
@@ -367,6 +407,7 @@ export function useDraftWorkflow(
     announcement,
     isRegenerating,
     isRefining,
+    isTemplating,
     isSending,
     isBusy,
     isDraftLocked,

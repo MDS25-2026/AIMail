@@ -52,6 +52,7 @@ Defined in the repo-root [`../.env.example`](../.env.example). Expected keys:
 - `GOOGLE_API_KEY` — the one Google AI (Gemini) key: embeddings, query reformulation, and the agent
 - `LOCAL_LLM_URL`, `LOCAL_LLM_MODEL` — Private mode's local model in Ollama (e.g. `gemma4:e2b`); empty model = not offered
 - `LOCAL_EMBEDDING_MODEL` — Private mode's search model on the same Ollama (e.g. `embeddinggemma`); empty = Private mode drafts without search
+- `LOCAL_VISION_MODEL` — the local model that checks scans for signatures, faces and stamps (`specs/features/signature-detection.md`); empty = "checked scans" is not offered in Settings
 - `GEMINI_CHAT_MODEL` — optional, defaults to `gemini-2.5-flash`
 - `GOOGLE_API_KEY` — Gemini for the Lane C agent
 - `FRONTEND_ORIGINS` — deployed dashboard origins for CORS, comma-separated (any localhost port is allowed in dev)

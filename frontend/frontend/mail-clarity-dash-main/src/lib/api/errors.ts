@@ -18,6 +18,7 @@ export enum ApiErrorCode {
   ScanCheckUnavailable = "scan_check_unavailable",
   MaskingUnavailable = "masking_unavailable",
   TooManyExamples = "too_many_examples",
+  TooManyTemplates = "too_many_templates",
   Empty = "empty",
   TooLong = "too_long",
   NotFound = "not_found",

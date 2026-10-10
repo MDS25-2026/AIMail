@@ -13,7 +13,7 @@ import pytest
 from sqlalchemy import select, text
 from sqlalchemy.exc import DBAPIError
 
-from app import audit_routes
+from app import audit_routes, template_store
 from app.audit import AuditAction, audit_row
 from app.core.constants import EMBEDDING_DIM
 from app.core.cursor import decode_cursor
@@ -211,3 +211,27 @@ def test_a_re_upload_swaps_in_the_new_chunks_with_their_vectors_in_one_go():
 
     documents, contents = _run(upload_twice())
     assert len(documents) == 1 and contents == ["New clause.", "Second clause."]
+
+
+def test_templates_save_list_by_use_update_and_delete_for_their_owner():
+    owner = uuid4()
+
+    async def scenario():
+        async with get_sessionmaker()() as session, session.begin():
+            session.add(UserProfile(id=owner, email=f"{owner}@example.com"))
+        first = await template_store.create_template(owner, {"title": "A", "body": "Hi {{name}}", "language": "en",
+                                                             "trigger_keywords": ["invoice"]})
+        second = await template_store.create_template(owner, {"title": "B", "body": "Hai", "language": "ms",
+                                                              "trigger_keywords": []})
+        await template_store.mark_used(second.id)
+        order = [t.title for t in await template_store.list_templates(owner)]
+        updated = await template_store.update_template(owner, first.id, {"title": "A2", "body": "x",
+                                                                         "language": "en", "trigger_keywords": []})
+        someone_else = await template_store.update_template(uuid4(), first.id, {"title": "no"})
+        deleted = await template_store.delete_template(owner, first.id)
+        left = [t.title for t in await template_store.list_templates(owner)]
+        return first.created_at, order, updated.title, someone_else, deleted, left
+
+    created_at, order, title, someone_else, deleted, left = _run(scenario())
+    assert created_at is not None and order == ["B", "A"] and title == "A2"
+    assert someone_else is None and deleted and left == ["B"]
