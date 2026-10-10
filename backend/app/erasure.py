@@ -29,6 +29,7 @@ from app.db.models import (
     ReplyTemplate,
     ScheduledSend,
     SenderRule,
+    SentMessage,
     StyleExample,
     StyleHabit,
     UserPreferences,
@@ -53,6 +54,7 @@ class Rule:
 _FROM_THE_MAILBOX: tuple[Rule, ...] = (
     Rule(HoldingReply, lambda user: HoldingReply.user_id == user),
     Rule(ScheduledSend, lambda user: ScheduledSend.user_id == user),
+    Rule(SentMessage, lambda user: SentMessage.user_id == user),
     Rule(ModelEgress, lambda user: ModelEgress.user_id == user),
     Rule(Message, lambda user: Message.user_id == user),
     Rule(Document, lambda user: (Document.user_id == user) & (Document.doc_type == DocType.SENT_REPLY)),

@@ -82,6 +82,11 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   `senderUtcOffsetMinutes`, `scheduledFor`, `scheduleCancelled` (`they_replied` | `you_replied` |
   `too_late` | `refused`), `snoozedUntil`. A send time past the email's vault retention is refused
   (`422 time_out_of_range`); snooze does not hide an email with a waiting send.
+- **To-do (2026-10-11, `specs/features/todo-page.md`):** `GET /todo` returns `{needsAction,
+  needsReview, unsentDrafts: {emails, total}, waiting: [{id, subject, sentAt, threadId, workingDays,
+  email}], waitingDays, count}` (each list the newest 50). `POST /emails/{id}/dismiss` (No reply
+  needed) and `DELETE` to undo; `POST /todo/waiting/{id}/dismiss` (Not waiting); `PUT
+  /settings/todo` `{waitingDays}`. `POST /emails/{id}/send` takes `remindIfNoReply` (default false).
 - **Saved reply templates (2026-10-11, `specs/features/reply-templates.md`):** signed-in users only.
   `GET /templates` (most recently used first); `POST /templates` and `PUT /templates/{id}` take
   `{title, body, language: en|ms|zh, triggerKeywords: string[]}` and return it with `id` and

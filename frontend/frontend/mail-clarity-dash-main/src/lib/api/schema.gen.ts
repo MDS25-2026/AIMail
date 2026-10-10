@@ -302,6 +302,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/emails/{message_id}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dismiss
+         * @description No reply needed: out of the to-do lists, still in the inbox.
+         */
+        post: operations["dismiss_emails__message_id__dismiss_post"];
+        /** Undismiss */
+        delete: operations["undismiss_emails__message_id__dismiss_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/emails/{message_id}/refine": {
         parameters: {
             query?: never;
@@ -651,6 +672,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/settings/todo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Todo Settings */
+        put: operations["put_todo_settings_settings_todo_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/system/info": {
         parameters: {
             query?: never;
@@ -758,6 +796,40 @@ export interface paths {
          * @description A copy in another language for the user to check; not saved until they save it.
          */
         post: operations["translate_template_route_templates__template_id__translate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/todo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Todo */
+        get: operations["get_todo_todo_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/todo/waiting/{sent_id}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Not Waiting */
+        post: operations["not_waiting_todo_waiting__sent_id__dismiss_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1332,6 +1404,11 @@ export interface components {
         SendRequest: {
             /** Draft */
             draft: string;
+            /**
+             * Remindifnoreply
+             * @default false
+             */
+            remindIfNoReply: boolean;
         };
         /** SessionInfo */
         SessionInfo: {
@@ -1496,6 +1573,30 @@ export interface components {
             /** Timestamp */
             timestamp?: string | null;
         };
+        /** Todo */
+        Todo: {
+            /** Count */
+            count: number;
+            needsAction: components["schemas"]["TodoSection"];
+            needsReview: components["schemas"]["TodoSection"];
+            unsentDrafts: components["schemas"]["TodoSection"];
+            /** Waiting */
+            waiting: components["schemas"]["WaitingReply"][];
+            /** Waitingdays */
+            waitingDays: number;
+        };
+        /** TodoSection */
+        TodoSection: {
+            /** Emails */
+            emails: components["schemas"]["DashboardEmail"][];
+            /** Total */
+            total: number;
+        };
+        /** TodoSettings */
+        TodoSettings: {
+            /** Waitingdays */
+            waitingDays: number;
+        };
         /**
          * Tone
          * @enum {string}
@@ -1538,6 +1639,20 @@ export interface components {
          * @enum {string}
          */
         Verification: "verified" | "tampered" | "unverifiable";
+        /** WaitingReply */
+        WaitingReply: {
+            email: components["schemas"]["DashboardEmail"] | null;
+            /** Id */
+            id: string;
+            /** Sentat */
+            sentAt: string;
+            /** Subject */
+            subject: string;
+            /** Threadid */
+            threadId: string;
+            /** Workingdays */
+            workingDays: number;
+        };
         /** WritingStyleView */
         WritingStyleView: {
             /** Description */
@@ -2116,6 +2231,64 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["DashboardEmail"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dismiss_emails__message_id__dismiss_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    undismiss_emails__message_id__dismiss_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -2920,6 +3093,39 @@ export interface operations {
             };
         };
     };
+    put_todo_settings_settings_todo_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TodoSettings"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TodoSettings"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     system_info_system_info_get: {
         parameters: {
             query?: never;
@@ -3150,6 +3356,55 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["TemplateBody"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_todo_todo_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Todo"];
+                };
+            };
+        };
+    };
+    not_waiting_todo_waiting__sent_id__dismiss_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

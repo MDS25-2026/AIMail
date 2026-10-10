@@ -14,6 +14,7 @@ export const queryKeys = {
   scanReading: ["scan-reading"] as const,
   templates: ["templates"] as const,
   quietHours: ["quiet-hours"] as const,
+  todo: ["todo"] as const,
   writingStyle: ["writing-style"] as const,
   auditTrail: ["audit-trail"] as const,
   admin: {

@@ -49,6 +49,12 @@ var errRowRejected = errors.New("supabase rejected the messages row")
 // which happened. PostgREST returns the inserted rows; an ignored duplicate returns none, so an
 // audit entry can say "stored" only when something was.
 func insertMessage(ctx context.Context, row interface{}) (bool, error) {
+	return insertIgnoringDuplicates(ctx, "messages", "user_id,gmail_message_id", "gmail_message_id", row)
+}
+
+// insertIgnoringDuplicates inserts a row, or nothing when one already holds its conflict key. It
+// reports whether the row was new. A 4xx is the row itself refused, not an outage (errRowRejected).
+func insertIgnoringDuplicates(ctx context.Context, table, onConflict, returned string, row interface{}) (bool, error) {
 	if supabaseURL == "" || supabaseKey == "" {
 		return false, fmt.Errorf("SUPABASE_URL / SUPABASE_SERVICE_KEY not set")
 	}
@@ -56,7 +62,7 @@ func insertMessage(ctx context.Context, row interface{}) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("marshal row: %w", err)
 	}
-	target := fmt.Sprintf("%s/rest/v1/messages?on_conflict=user_id,gmail_message_id&select=gmail_message_id", supabaseURL)
+	target := fmt.Sprintf("%s/rest/v1/%s?on_conflict=%s&select=%s", supabaseURL, table, onConflict, returned)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, target, bytes.NewReader(body))
 	if err != nil {
 		return false, fmt.Errorf("build request: %w", err)
@@ -74,7 +80,7 @@ func insertMessage(ctx context.Context, row interface{}) (bool, error) {
 		return false, fmt.Errorf("%w: status %d", errRowRejected, resp.StatusCode)
 	}
 	if resp.StatusCode >= 300 {
-		return false, fmt.Errorf("supabase insert into messages failed: status %d", resp.StatusCode)
+		return false, fmt.Errorf("supabase insert into %s failed: status %d", table, resp.StatusCode)
 	}
 	var inserted []json.RawMessage
 	if err := json.NewDecoder(resp.Body).Decode(&inserted); err != nil {

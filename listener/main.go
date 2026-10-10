@@ -642,6 +642,8 @@ func ingestHistory(ctx context.Context, mb *mailbox, historyID uint64) error {
 	if err := ingestEach(ctx, mb, ids); err != nil {
 		return err
 	}
+	// After the received mail, and never failing the notification (sent.go).
+	ingestSent(ctx, mb, sentSince(ctx, mb, start))
 	advanceBaseline(mb, historyID)
 	return nil
 }

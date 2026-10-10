@@ -13,7 +13,14 @@ import pytest
 from sqlalchemy import select, text
 from sqlalchemy.exc import DBAPIError
 
-from app import audit_routes, quiet_hours, scheduled_sends, template_store
+from app import (
+    audit_routes,
+    dashboard,
+    quiet_hours,
+    scheduled_sends,
+    template_store,
+    todo,
+)
 from app.audit import AuditAction, audit_row
 from app.core.constants import EMBEDDING_DIM
 from app.core.cursor import decode_cursor
@@ -29,9 +36,11 @@ from app.db.models import (
     Embedding,
     MaskingStatus,
     Message,
+    SentMessage,
     UserProfile,
 )
 from app.db.session import get_engine, get_sessionmaker
+from app.gmail_send import SentReply
 from app.jobs import claim_requested, request_draft
 from app.ml.categorise import classify_pending
 from app.quiet_hours import QuietHoursView
@@ -317,3 +326,86 @@ def test_a_snoozed_email_with_a_reply_waiting_stays_reachable_to_cancel_it():
 
     pk, listed = _run(scenario())
     assert [e.id for e in listed] == [pk] and listed[0].scheduledFor is not None
+
+
+def test_the_todo_lists_what_needs_the_reader_and_what_is_still_waiting():
+    owner = uuid4()
+    now = datetime.now(timezone.utc)
+
+    def message(**fields) -> Message:
+        return Message(**({"id": uuid4(), "user_id": owner, "gmail_message_id": f"td-{uuid4()}", "subject": "s",
+                           "masking_status": MaskingStatus.COMPLETE, "auth_status": AuthStatus.PASS} | fields))
+
+    def sent(thread: str, days_ago: int, body: str) -> SentMessage:
+        return SentMessage(user_id=owner, gmail_id=f"g-{uuid4()}", thread_id=thread,
+                           sent_at=now - timedelta(days=days_ago), body_masked=body)
+
+    async def scenario():
+        async with get_sessionmaker()() as session, session.begin():
+            session.add(UserProfile(id=owner, email=f"{owner}@example.com"))
+        acting = message(action_items=["Pay the invoice"])
+        async with get_sessionmaker()() as session, session.begin():
+            session.add_all([
+                acting,
+                message(needs_human_review=True, draft_reply="Hi"),
+                message(draft_reply="Hi", generated_at=now - timedelta(days=2)),
+                message(action_items=["x"], auth_status=AuthStatus.SPOOF_DETECTED),
+                message(action_items=["x"], dismissed_at=now),
+                message(thread_id="B", created_at=now - timedelta(days=1)),  # their answer in thread B
+            ])
+        async with get_sessionmaker()() as session, session.begin():
+            waiting = sent("A", 8, "Could you confirm the date?")
+            session.add_all([waiting, sent("A", 12, "Older send in the same thread?"),
+                             sent("B", 8, "Can you send the PO?"), sent("C", 8, "Thanks, received!"),
+                             sent("D", 0, "Could you call me?")])
+        scope = Scope(owner_id=owner)
+        before = await todo.todo_for(scope, f"{owner}@example.com")
+        await todo.dismiss_waiting(scope, waiting.id)
+        await todo.dismiss_email(scope, acting.id, is_dismissed=True)
+        assert not await todo.dismiss_email(Scope(owner_id=uuid4()), acting.id, is_dismissed=True)
+        after = await todo.todo_for(scope, f"{owner}@example.com")
+        return before, after
+
+    before, after = _run(scenario())
+    assert (before.needsAction.total, before.needsReview.total, before.unsentDrafts.total) == (1, 1, 1)
+    assert [w.threadId for w in before.waiting] == ["A"] and before.waiting[0].workingDays >= 3
+    assert before.count == 1 + 1 + 1 + 1
+    assert after.needsAction.total == 0 and after.waiting == []
+
+
+def test_an_email_that_fits_every_todo_list_shows_once_in_the_most_urgent():
+    owner = uuid4()
+    now = datetime.now(timezone.utc)
+
+    async def scenario():
+        async with get_sessionmaker()() as session, session.begin():
+            session.add(UserProfile(id=owner, email=f"{owner}@example.com"))
+        async with get_sessionmaker()() as session, session.begin():
+            session.add(Message(id=uuid4(), user_id=owner, gmail_message_id=f"all-{uuid4()}", subject="s",
+                                masking_status=MaskingStatus.COMPLETE, auth_status=AuthStatus.PASS,
+                                action_items=["Pay"], needs_human_review=True, draft_reply="Hi",
+                                generated_at=now - timedelta(days=2)))
+        return await todo.todo_for(Scope(owner_id=owner), f"{owner}@example.com")
+
+    result = _run(scenario())
+    # Shown once, in the most urgent list: review comes before action and before an unsent draft.
+    assert (result.needsReview.total, result.needsAction.total, result.unsentDrafts.total) == (1, 0, 0)
+    assert result.count == 1
+
+
+def test_remind_me_survives_the_listener_storing_the_send_first():
+    async def scenario():
+        async with get_sessionmaker()() as session, session.begin():
+            message = Message(id=uuid4(), gmail_message_id=f"rm-{uuid4()}", masking_status=MaskingStatus.COMPLETE,
+                              thread_id="t-race", subject="Invoice")
+            session.add(message)
+        async with get_sessionmaker()() as session, session.begin():
+            session.add(SentMessage(gmail_id="g-race", thread_id="t-race", sent_at=datetime.now(timezone.utc)))
+        reply = dashboard.OutgoingReply(stored="Could you confirm?", sent="Could you confirm?", restored=0)
+        sent = SentReply(gmail_id="g-race", thread_id="t-race", message_id="<m>")
+        await dashboard._record_send(message.id, message, reply, sent, remind=True)
+        return message.id, await _scalar("SELECT remind::text || ' ' || message_id::text FROM sent_message "
+                                         "WHERE gmail_id = 'g-race'")
+
+    pk, row = _run(scenario())
+    assert row == f"true {pk}"

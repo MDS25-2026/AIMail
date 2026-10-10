@@ -102,6 +102,7 @@ async def _false(*_args, **_kwargs):
 
 
 class _Sent:
+    gmail_id = "g-sent-1"
     message_id = "<m>"
     thread_id = "t1"
 
@@ -121,6 +122,9 @@ class _Session:
 
     def add(self, row):
         self.added = [*getattr(self, "added", []), row]
+
+    async def execute(self, statement):
+        self.executed = [*getattr(self, "executed", []), statement]
 
     async def commit(self):
         return None
@@ -162,6 +166,19 @@ def test_an_approved_reply_goes_out_with_the_real_details_and_is_stored_with_pla
                                            scope=EVERYTHING))
     assert mailbox["sent"] == ["Dear Aisyah Rahman, we will call 012-345 6789."]
     assert message.draft_reply == "Dear [PERSON_1], we will call [PHONE_1]."
+
+
+def test_a_sent_reply_is_kept_for_the_waiting_list_with_placeholders_only(mailbox, monkeypatch):
+    message = mailbox["message"]
+    session = _Session(message)
+    monkeypatch.setattr(dashboard, "get_sessionmaker", lambda: lambda: session)
+    asyncio.run(dashboard.approve_and_send(str(message.id), "Dear [PERSON_1], could you call 012-345 6789?",
+                                           scope=EVERYTHING, remind=True))
+    inserted = [s.compile().params for s in session.executed if "sent_message" in str(s)]
+    assert len(inserted) == 1
+    assert inserted[0]["body_masked"] == "Dear [PERSON_1], could you call [PHONE_1]?"
+    assert inserted[0]["remind"] is True and inserted[0]["message_id"] == message.id
+    _no_secret_in([inserted[0]["body_masked"]])
 
 
 def test_a_placeholder_nobody_can_fill_stops_the_send_before_anything_is_claimed(mailbox):

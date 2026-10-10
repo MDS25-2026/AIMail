@@ -117,6 +117,7 @@ from app.scan_reading_routes import router as scan_reading_router
 from app.search_routes import router as search_router
 from app.sign_in import router as sign_in_router
 from app.template_routes import router as template_router
+from app.todo_routes import router as todo_router
 from app.writing_style_routes import router as writing_style_router
 from model_gateway import track_egress
 from model_runtime import ModelError
@@ -144,6 +145,7 @@ app.include_router(private_mode_router)
 app.include_router(scan_reading_router)
 app.include_router(template_router)
 app.include_router(quiet_hours_router)
+app.include_router(todo_router)
 app.include_router(writing_style_router)
 app.include_router(audit_router)
 app.include_router(search_router)
@@ -333,13 +335,16 @@ async def translate_email_route(
 
 class SendRequest(BaseModel):
     draft: str = Field(min_length=1, max_length=MAX_DRAFT_CHARS)  # the approved, possibly edited draft
+    # Remind me if they don't reply, whatever the reply says; unticked, the rules decide.
+    remindIfNoReply: bool = False
 
 
 @app.post("/emails/{message_id}/send", dependencies=[Depends(rate_limit_send), Depends(require_mailbox)])
 async def send_email_route(message_id: str, body: SendRequest, request: Request) -> DashboardEmail:
     # Human-approved send: reply to the original sender with the draft, then mark it sent.
     try:
-        email = await approve_and_send(message_id, body.draft, scope=scope_of(request))
+        email = await approve_and_send(message_id, body.draft, scope=scope_of(request),
+                                       remind=True if body.remindIfNoReply else None)
     except (SendError, SendOutcomeUnknownError) as exc:
         # The reason stays in the log (it can name local credential paths); the answer carries the code.
         logger.warning("send failed for %s: %s", message_id, exc)
