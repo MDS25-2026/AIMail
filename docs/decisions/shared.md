@@ -6,6 +6,23 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-11 — Audit of everything since #168: what changed across lanes
+- Decision: fixes from a full audit of #177 to #210, in PR #211. Cross-lane ones:
+  - **Listener (Lane A):** the baseline moves only after a catch-up has stored its mail, and only an
+    expired history (404) falls back to one. The SLA floor reads only the sender's own text (the
+    quoted email and "not urgent" no longer make a reply CRITICAL). A released quarantined email
+    gets its SLA priority.
+  - **Inbox assistant (Lane C's #195):** the assistant's own answers are never sent back to the
+    model, since their details were filled back in; subjects and snippets share the bodies'
+    placeholder numbering; a search across every user on Gemini leaves out Private mode users; with
+    details hidden the answer keeps its placeholders.
+  - **Holding replies:** none goes out while the user's own reply is scheduled (`reply_scheduled`).
+  - **Dashboard (Lane D):** an approved reply is never dropped by leaving the email in the undo
+    window (it sends now); Send later runs Send's content checks.
+- Why: each could send the wrong thing, lose mail or a reply, or break a privacy promise.
+- Not fixed, written down in the PR instead: low-risk items (counts, cost, an SLA month name,
+  edge cases with a safe failure).
+
 ### 2026-10-11 — Follow-ups from the To-do page, for replies sent through AIMail
 - Decision: a waiting reply sent through AIMail can be followed up from the To-do page: the agent
   rewrites it as a nudge (`/refine` with a fixed instruction), the user edits and approves it, and

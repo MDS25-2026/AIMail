@@ -43,6 +43,9 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   caller's). `GET /audit?limit=` (1-100, default 50) returns `{is_chain_intact, total_records,
   verified_records, head_hash, events: [{id, created_at, action, detail, success, prev_hash,
   current_hash, user_id, is_verified}]}`: the caller's own rows, or every row for the script token.
+- **Reading a document (#195):** `GET /documents/{id}` returns `{document_id, title, source, doc_type,
+  chunk_count, content, chunks: [...]}` for a document in the caller's library (`404` otherwise, or
+  with no mailbox connected); rate limited like `GET /documents`.
 - **Removing a document (2026-10-07, `specs/features/rag-retrieval.md`):** `DELETE /documents/{id}`
   returns `204` and removes the document, its chunks and both kinds of vector; `404` when it is not
   in the caller's library (someone else's, a past reply, or unknown); `422` for a malformed id.

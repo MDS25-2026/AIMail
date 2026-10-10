@@ -164,7 +164,9 @@ listener — a migration must create `messages` + `audit_log` in Supabase before
 | `sent_message_id` | `TEXT NULL` | backend | the `Message-ID` Gmail assigned to the backend's outgoing reply, read back after `messages.send` rather than assumed. Without it the thread graph breaks at every AImail hop — an incoming reply's `In-Reply-To` points here and matches nothing (migration 0009) |
 | `masking_status` | `TEXT NOT NULL DEFAULT 'complete'` | Lane A | `complete`; `pending` for a quarantined row with no content because NER masking was unavailable (#109), completed by the listener when Presidio recovers; `abandoned` when it gave up. Nothing reads or drafts from a row that is not complete (migrations 0012, 0013) |
 | `masking_attempts` | `INT NOT NULL DEFAULT 0` | Lane A | failed re-mask attempts; the loop works fewest-first and abandons a row at 12 (migration 0013) |
-| `sla_priority` | `TEXT NULL` | Lane A | deterministic SLA urgency floor from `ClassifySLA`: `CRITICAL`/`HIGH`/`MEDIUM`/`LOW` or NULL (migration 0034) |
+| `sla_priority` | `TEXT NULL` | Lane A | deterministic SLA urgency floor from `ClassifySLA`: `CRITICAL`/`HIGH`/`MEDIUM`/`LOW` or NULL (migration 0034); also set when a quarantined email is released |
+| `search_vector` | `tsvector` generated | Lane B | full-text index over `subject` and `body_masked` for the inbox assistant (GIN index; migration 0035) |
+| `embedding` | `vector(1536) NULL` | Lane B | gemini-embedding-001 vector of the masked subject and body, filled by `scripts/backfill_message_embeddings.py` (HNSW cosine index; migration 0035). Never set for Private mode users, cleared when they switch it on and by the content limit |
 | `created_at` | `TIMESTAMPTZ DEFAULT now()` | default | |
 
 Index `thread_id` — every planned consumer (thread view, sent-mail indexing, the extension's
