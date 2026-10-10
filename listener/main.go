@@ -639,14 +639,14 @@ func ingestHistory(ctx context.Context, mb *mailbox, historyID uint64) error {
 		}
 		return nil
 	})
-	if err != nil && !isGone(err) {
-		// A rate limit, a 5xx or a cancelled context: fail the notification so it is retried from
-		// the same baseline, rather than skipping to a catch-up that may not cover the gap.
+	if err != nil && isGmailTrouble(err) {
+		// A rate limit, a 5xx or no answer (a cancelled context too): fail the notification so it
+		// is retried from the same baseline, rather than skipping to a catch-up that may not cover it.
 		return fmt.Errorf("history.list from %d: %w", start, err)
 	}
 	if err != nil {
-		// An expired or pruned history ID (404) is not retryable — Gmail drops history beyond a
-		// week. Fall back rather than fail the message forever.
+		// An expired or pruned history ID (404, or another refusal) is not retryable — Gmail drops
+		// history beyond a week. Fall back rather than fail the message forever.
 		log.Printf("history.list from %d failed (%v); falling back to recent INBOX messages", start, err)
 		writeAuditLog(ctx, mb.ownerID, actionFetchHistory, auditFields{fieldHistoryID: start,
 			fieldReason: reasonHistoryUnusable, fieldErrorKind: errorKind(err)}, false)

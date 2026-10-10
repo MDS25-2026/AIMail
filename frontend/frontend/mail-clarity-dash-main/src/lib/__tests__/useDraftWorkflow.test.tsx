@@ -172,6 +172,19 @@ describe("the undo window", () => {
     );
   });
 
+  test("leaving the page during the countdown still sends the approved reply", async () => {
+    vi.useFakeTimers();
+    const calls = stubFetch({
+      "POST /emails/a/send": { body: { ...first, sentAt: "2026-10-08T00:00:00Z" } },
+    });
+    const { result, unmount } = renderWorkflow(first);
+    act(() => result.current.send());
+    unmount();
+    await vi.waitFor(() =>
+      expect(writes(calls).map((call) => call.path)).toEqual(["/emails/a/send"]),
+    );
+  });
+
   test("a question left open cannot act once the draft is counting down", () => {
     vi.useFakeTimers();
     const calls = stubFetch({});

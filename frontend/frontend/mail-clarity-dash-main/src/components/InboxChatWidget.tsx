@@ -84,11 +84,11 @@ export default function InboxChatWidget() {
     setIsLoading(true);
 
     try {
-      // Pass recent history to resolve multi-turn conversational context
-      const historyForApi = messages.slice(-6).map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
+      // Your recent questions only: the answers carry real names filled back in, and never go back.
+      const historyForApi = messages
+        .filter((m) => m.role === "user")
+        .slice(-3)
+        .map((m) => ({ role: m.role, content: m.content }));
 
       const response = await searchInbox({
         query: textToSend,
