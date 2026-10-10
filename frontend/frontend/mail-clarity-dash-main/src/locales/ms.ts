@@ -278,7 +278,7 @@ export const ms: Translations = {
     egressCaught_other: "({{count}} butiran ditutup pada semakan terakhir)",
     provider: {
       gemini: "Google Gemini",
-      local: "model syarikat anda sendiri",
+      local: "model peribadi AIMail",
     },
     purpose: {
       route: "Pengisihan",
@@ -416,7 +416,7 @@ export const ms: Translations = {
     },
     learn: "Belajar daripada balasan yang saya hantar",
     learnHint:
-      "Dimatikan melainkan anda menghidupkannya. AIMail mengesan tabiat yang anda ulang sekurang-kurangnya 3 kali, seperti salam anda atau perkataan yang selalu anda ubah, dan menyenaraikannya di sini. Ia juga menyimpan setiap balasan, dengan butiran peribadi disembunyikan, supaya draf kemudian untuk e-mel yang serupa boleh menggunakan semula cara anda menjawab.",
+      "Dimatikan melainkan anda menghidupkannya. AIMail mengesan tabiat yang anda ulang sekurang-kurangnya 3 kali, seperti salam anda atau perkataan yang selalu anda ubah, dan menyenaraikannya di sini. Ia juga menyimpan setiap balasan, dengan butiran peribadi disembunyikan, supaya draf kemudian untuk e-mel yang serupa boleh menggunakan semula cara anda menjawab. Kemudian, balasan ini mungkin juga melatih model yang menulis untuk anda sahaja; ia tidak pernah dicampur dengan balasan orang lain.",
     nothingYet:
       "Belum ada yang dipelajari. Tabiat muncul selepas anda menggunakannya dalam 3 balasan.",
     evidence_one: "Dalam {{count}} daripada {{outOf}} balasan terakhir anda",
@@ -445,23 +445,28 @@ export const ms: Translations = {
       "Google telah menghentikan akses AIMail ke Gmail anda, jadi e-mel baharu tidak masuk dan balasan tidak boleh dihantar. Akses ujian bertahan 7 hari.",
     signIn: "Log masuk semula",
   },
+  privateOffer: {
+    title: "Draf dengan model peribadi AIMail?",
+    turnOn: "Hidupkan",
+    notNow: "Bukan sekarang",
+    later: "Anda boleh menukarnya bila-bila masa dalam Tetapan.",
+  },
   privateMode: {
     notSetUp:
       "Mod peribadi dihidupkan, tetapi AIMail ini tiada model peribadi, jadi e-mel anda tidak boleh didraf di sini. Matikannya untuk mendraf dengan Gemini.",
     title: "Mod peribadi",
-    switch: "Simpan e-mel saya dalam syarikat",
+    switch: "Draf dengan model peribadi AIMail",
     intro:
-      "E-mel anda didraf, disemak, diperhalusi dan diterjemah oleh {{model}} yang berjalan pada komputer syarikat anda sendiri. Tiada apa-apa daripada peti masuk anda dihantar kepada Google.",
-    on: "Mod peribadi dihidupkan. Draf baharu kekal dalam syarikat.",
+      "Didraf dengan model peribadi AIMail ({{model}}). Tidak pernah dihantar kepada Google atau Anthropic, dan hanya digunakan untuk balasan anda sendiri. Semakan, penambahbaikan, terjemahan dan Tanya AIMail juga menggunakannya.",
+    on: "Mod peribadi dihidupkan. Draf baharu menggunakan model peribadi.",
     off: "Mod peribadi dimatikan. Draf menggunakan Gemini Google.",
     failed: "Tidak dapat menukar mod peribadi. Cuba lagi sebentar lagi.",
     notes: {
       search:
-        "Dokumen dan balasan terdahulu anda juga dicari pada komputer syarikat, jadi draf masih boleh memetiknya.",
+        "Dokumen dan balasan terdahulu anda juga dicari dengan model peribadi, jadi draf masih boleh memetiknya.",
       noSearch:
         "AIMail ini tiada carian peribadi, jadi draf dalam mod peribadi tidak akan memetik dokumen atau balasan terdahulu anda.",
       n2: "Draf mengambil masa lebih sedikit, dan semakan AI sendiri kurang ketat, jadi baca setiap draf sebelum menghantar.",
-      n3: "Tanya AIMail masih menggunakan Google.",
     },
   },
   scanReading: {

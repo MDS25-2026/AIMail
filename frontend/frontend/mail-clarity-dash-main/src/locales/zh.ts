@@ -259,7 +259,7 @@ export const zh: Translations = {
     egressCaught_other: "（最后检查时又隐藏了 {{count}} 项信息）",
     provider: {
       gemini: "Google Gemini",
-      local: "贵公司自己的模型",
+      local: "AIMail 的私有模型",
     },
     purpose: {
       route: "分类",
@@ -392,7 +392,7 @@ export const zh: Translations = {
     },
     learn: "从我发送的回复中学习",
     learnHint:
-      "除非您开启，否则保持关闭。AIMail 会留意您至少重复 3 次的习惯，例如问候语或您总会修改的用词，并在此列出。它还会保存每封回复（个人信息已隐藏），以便日后为类似邮件起草时参考您以前的回答方式。",
+      "除非您开启，否则保持关闭。AIMail 会留意您至少重复 3 次的习惯，例如问候语或您总会修改的用词，并在此列出。它还会保存每封回复（个人信息已隐藏），以便日后为类似邮件起草时参考您以前的回答方式。以后，这些回复也可能用于训练只为您写作的模型；它们绝不会与其他人的回复混在一起。",
     nothingYet: "尚未学到任何内容。某个习惯在 3 封回复中出现后才会显示。",
     evidence_one: "在您最近 {{outOf}} 封回复中出现 {{count}} 次",
     evidence_other: "在您最近 {{outOf}} 封回复中出现 {{count}} 次",
@@ -419,21 +419,26 @@ export const zh: Translations = {
       "Google 已停止 AIMail 对您 Gmail 的访问，因此新邮件不会到达，回复也无法发送。测试访问有效期为 7 天。",
     signIn: "重新登录",
   },
+  privateOffer: {
+    title: "使用 AIMail 的私有模型起草？",
+    turnOn: "开启",
+    notNow: "暂不",
+    later: "您可以随时在设置中更改。",
+  },
   privateMode: {
     notSetUp:
       "私密模式已开启，但此 AIMail 未设置私有模型，因此无法在此起草您的邮件。关闭它即可使用 Gemini 起草。",
     title: "私密模式",
-    switch: "让我的邮件留在公司内部",
+    switch: "使用 AIMail 的私有模型起草",
     intro:
-      "您的邮件由运行在公司自有电脑上的 {{model}} 起草、检查、修改和翻译。收件箱中的任何内容都不会发送给 Google。",
-    on: "私密模式已开启。新草稿留在公司内部。",
+      "由 AIMail 的私有模型（{{model}}）起草。绝不会发送给 Google 或 Anthropic，且只用于您自己的回复。检查、修改、翻译和“询问 AIMail”也使用它。",
+    on: "私密模式已开启。新草稿使用私有模型。",
     off: "私密模式已关闭。草稿使用 Google 的 Gemini。",
     failed: "无法更改私密模式，请稍后重试。",
     notes: {
-      search: "您的文件和以前的回复也在公司的电脑上搜索，因此草稿仍可引用它们。",
+      search: "您的文件和以前的回复也由私有模型搜索，因此草稿仍可引用它们。",
       noSearch: "此 AIMail 未设置私密搜索，因此私密模式下的草稿不会引用您的文件或以前的回复。",
       n2: "草稿需要稍长时间，且 AI 的自我检查较宽松，发送前请仔细阅读每份草稿。",
-      n3: "“询问 AIMail”仍使用 Google。",
     },
   },
   scanReading: {

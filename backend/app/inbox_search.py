@@ -224,10 +224,11 @@ async def search_messages_hybrid(
 
     Returns a tuple of (matched_messages, sender_candidate_words).
     """
-    query_vector = await model_gateway.embed_query(
-        search_query,
-        provider=provider,
-        purpose=PURPOSE_SEARCH,
+    # Email vectors are Gemini's (migration 0035): Private mode has none, so it matches on words only.
+    query_vector = (
+        await model_gateway.embed_query(search_query, provider=Provider.GEMINI, purpose=PURPOSE_SEARCH)
+        if provider == Provider.GEMINI
+        else None
     )
 
     cleaned_words = extract_sender_candidates(search_query)

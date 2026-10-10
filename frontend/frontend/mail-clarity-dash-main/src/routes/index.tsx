@@ -7,6 +7,7 @@ import LoadOlderEmails from "../components/LoadOlderEmails";
 import EmailDetailPanel from "../components/EmailDetailPanel";
 import AppShell from "../components/AppShell";
 import { PageEmpty, PageError, PageLoading } from "../components/PageState";
+import PrivateModeOffer from "../components/PrivateModeOffer";
 import { Page, pageMeta } from "../lib/pageMeta";
 import { useEmail, useEmails, useSession } from "../lib/queries";
 import { useDebouncedValue } from "../lib/useDebouncedValue";
@@ -91,11 +92,13 @@ function DashboardPage() {
           {workflow.announcement}
         </p>
         {/* A phone shows the list until an email is opened (?email=), then only the email. */}
+        {/* A column, so the list scrolls between the offer above and Load older below, both in view. */}
         <aside
-          className={`min-h-0 w-full shrink-0 border-line bg-surface md:block md:w-80 md:border-r ${
-            requestedId ? "hidden" : "block"
+          className={`min-h-0 w-full shrink-0 flex-col border-line bg-surface md:flex md:w-80 md:border-r ${
+            requestedId ? "hidden" : "flex"
           }`}
         >
+          <PrivateModeOffer />
           {emails.isPending ? <PageLoading label={t("inbox.heading")} /> : null}
           {emails.isError ? (
             <PageError
@@ -111,11 +114,13 @@ function DashboardPage() {
             <PageEmpty title={t("inbox.emptyTitle")} hint={t("inbox.emptyHint")} />
           ) : null}
           {displayEmails.length > 0 ? (
-            <InboxList
-              emails={displayEmails}
-              selectedEmailId={selectedEmailId}
-              onSelectEmail={handleSelectEmail}
-            />
+            <div className="min-h-0 flex-1">
+              <InboxList
+                emails={displayEmails}
+                selectedEmailId={selectedEmailId}
+                onSelectEmail={handleSelectEmail}
+              />
+            </div>
           ) : null}
           <LoadOlderEmails
             hasNextPage={emails.hasNextPage}

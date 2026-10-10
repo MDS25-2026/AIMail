@@ -39,7 +39,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
       <ReconnectBanner />
       {/* Room for the phone's bottom bar (3.5rem) and the home indicator below it. */}
-      <main className={`flex min-h-0 flex-1 md:pb-0 ${isReadingEmail ? "" : "pb-[calc(3.5rem+env(safe-area-inset-bottom))]"}`}>
+      <main
+        className={`flex min-h-0 flex-1 md:pb-0 ${isReadingEmail ? "" : "pb-[calc(3.5rem+env(safe-area-inset-bottom))]"}`}
+      >
         <SideNav />
         {children}
       </main>

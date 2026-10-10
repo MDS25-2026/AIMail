@@ -6,6 +6,18 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-11 — Private mode makes one claim, and Private mode users get no Gemini email vectors
+- Decision: every Private mode string makes the agreed claim ("Drafted on AIMail's private model.
+  Never sent to Google or Anthropic, and only ever used for your own replies") and no claim about
+  where the model runs. The inbox offers Private mode once. The email-vector backfill
+  (`scripts/backfill_message_embeddings.py`, #195) skips Private mode users, switching Private mode
+  on clears that user's email vectors, and inbox search in Private mode matches on words only.
+- Why: the backfill sent every stored email to Gemini to embed it, Private mode users' included,
+  which broke Private mode's promise; and a local query vector against Gemini's column failed
+  quietly. "On your company's computer" is false once the model is hosted.
+- Affects: `backend/app` (inbox search, Private mode routes; migration 0041), the inbox search
+  backfill script (Lane C's #195), the dashboard (Lane D), `specs/features/local-model.md`.
+
 ### 2026-10-11 — To-do page; the listener also reads the mailbox's sent replies
 - Decision: a To-do page (needs action, needs review, waiting for their reply, unsent drafts). The
   listener's watch covers the Sent label; sent replies are masked and kept in `sent_message`, apart

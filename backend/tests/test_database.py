@@ -13,9 +13,11 @@ import pytest
 from sqlalchemy import select, text
 from sqlalchemy.exc import DBAPIError
 
+import model_gateway
 from app import (
     audit_routes,
     dashboard,
+    private_mode_routes,
     quiet_hours,
     scheduled_sends,
     template_store,
@@ -25,6 +27,7 @@ from app.audit import AuditAction, audit_row
 from app.core.constants import EMBEDDING_DIM
 from app.core.cursor import decode_cursor
 from app.core.ownership import Scope
+from app.core.providers import Provider
 from app.core.ratelimit import PostgresCounters
 from app.dashboard import list_dashboard_emails, snooze_email
 from app.db.migrate import apply_pending, pending
@@ -41,12 +44,14 @@ from app.db.models import (
 )
 from app.db.session import get_engine, get_sessionmaker
 from app.gmail_send import SentReply
+from app.inbox_search import search_messages_hybrid
 from app.jobs import claim_requested, request_draft
 from app.ml.categorise import classify_pending
 from app.quiet_hours import QuietHoursView
 from app.rag.chunk import Piece
 from app.rag.embedding_models import check_columns
 from app.rag.ingest import store_chunks
+from scripts.backfill_message_embeddings import _not_private
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "")
 pytestmark = pytest.mark.skipif(not TEST_DATABASE_URL, reason="set TEST_DATABASE_URL to a throwaway database")
@@ -409,3 +414,74 @@ def test_remind_me_survives_the_listener_storing_the_send_first():
 
     pk, row = _run(scenario())
     assert row == f"true {pk}"
+
+
+def _private_and_cloud_users() -> tuple[object, object]:
+    """One user in Private mode and one on Gemini, each with an email about an invoice."""
+    private, cloud = uuid4(), uuid4()
+
+    async def seed():
+        async with get_sessionmaker()() as session, session.begin():
+            for user in (private, cloud):
+                session.add(UserProfile(id=user, email=f"{user}@example.com"))
+            await session.flush()
+            for user in (private, cloud):
+                session.add(Message(id=uuid4(), user_id=user, gmail_message_id=f"pv-{uuid4()}",
+                                    subject="Invoice for the chairs", body_masked="Please confirm the invoice.",
+                                    masking_status=MaskingStatus.COMPLETE))
+        await private_mode_routes._save_choice(private, Provider.LOCAL)
+
+    _run(seed())
+    return private, cloud
+
+
+def test_the_email_vector_backfill_leaves_out_private_mode_users():
+    private, cloud = _private_and_cloud_users()
+
+    async def owners():
+        async with get_sessionmaker()() as session:
+            return set((await session.scalars(select(Message.user_id).where(
+                Message.user_id.in_([private, cloud]), _not_private()))).all())
+
+    assert _run(owners()) == {cloud}
+
+
+def test_a_private_inbox_search_finds_by_words_without_any_model(monkeypatch):
+    private, _ = _private_and_cloud_users()
+
+    async def no_model(*_args, **_kwargs):
+        raise AssertionError("a Private mode inbox search asked a model for a vector")
+
+    monkeypatch.setattr(model_gateway, "embed_query", no_model)
+    found, _ = _run(search_messages_hybrid("invoice", 5, scope=Scope(private), provider=Provider.LOCAL))
+    assert [message.user_id for message in found] == [private]
+
+
+def test_switching_private_mode_on_forgets_the_gemini_vectors_of_the_users_emails():
+    private, cloud = _private_and_cloud_users()
+
+    async def scenario():
+        await private_mode_routes._save_choice(private, Provider.GEMINI)
+        async with get_sessionmaker()() as session, session.begin():
+            await session.execute(text("UPDATE messages SET embedding = :v WHERE user_id IN (:a, :b)"),
+                                  {"v": str([0.0] * EMBEDDING_DIM), "a": private, "b": cloud})
+        await private_mode_routes._save_choice(private, Provider.LOCAL)
+        async with get_sessionmaker()() as session:
+            rows = await session.execute(select(Message.user_id, Message.embedding.is_not(None))
+                                         .where(Message.user_id.in_([private, cloud])))
+            return dict(rows.all())
+
+    assert _run(scenario()) == {private: False, cloud: True}
+
+
+def test_private_mode_counts_as_decided_once_switched_either_way_or_put_off():
+    switched, put_off, untouched = uuid4(), uuid4(), uuid4()
+
+    async def scenario():
+        async with get_sessionmaker()() as session, session.begin():
+            session.add_all([UserProfile(id=user, email=f"{user}@example.com") for user in (switched, put_off, untouched)])
+        await private_mode_routes._save_choice(switched, Provider.GEMINI)
+        await private_mode_routes._put_off(put_off)
+        return [await private_mode_routes._is_decided(user) for user in (switched, put_off, untouched)]
+
+    assert _run(scenario()) == [True, True, False]

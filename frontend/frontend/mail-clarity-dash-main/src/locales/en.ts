@@ -268,7 +268,7 @@ export const en = {
     egressCaught_other: "({{count}} details masked at the last check)",
     provider: {
       gemini: "Google Gemini",
-      local: "your company's own model",
+      local: "AIMail's private model",
     },
     purpose: {
       route: "Sorting",
@@ -402,7 +402,7 @@ export const en = {
     },
     learn: "Learn from the replies I send",
     learnHint:
-      "Off unless you switch it on. AIMail notices habits you repeat at least 3 times, such as your greeting or words you always change, and lists them here. It also keeps each reply, with personal details hidden, so a later draft for a similar email can reuse how you answered.",
+      "Off unless you switch it on. AIMail notices habits you repeat at least 3 times, such as your greeting or words you always change, and lists them here. It also keeps each reply, with personal details hidden, so a later draft for a similar email can reuse how you answered. Later, these replies may also train a model that writes only for you; they are never mixed with anyone else's.",
     nothingYet: "Nothing learned yet. A habit shows up after you use it in 3 replies.",
     evidence_one: "In {{count}} of your last {{outOf}} replies",
     evidence_other: "In {{count}} of your last {{outOf}} replies",
@@ -430,23 +430,28 @@ export const en = {
       "Google has stopped AIMail's access to your Gmail, so new emails aren't arriving and replies can't be sent. Test access lasts 7 days.",
     signIn: "Sign in again",
   },
+  privateOffer: {
+    title: "Draft on AIMail's private model?",
+    turnOn: "Turn on",
+    notNow: "Not now",
+    later: "You can change this any time in Settings.",
+  },
   privateMode: {
     notSetUp:
       "Private mode is on, but this AIMail has no private model set up, so your emails can't be drafted here. Switch it off to draft with Gemini.",
     title: "Private mode",
-    switch: "Keep my email inside the company",
+    switch: "Draft on AIMail's private model",
     intro:
-      "Your emails are drafted, checked, refined and translated by {{model}}, running on your company's own computer. Nothing from your inbox is sent to Google.",
-    on: "Private mode is on. New drafts stay in the company.",
+      "Drafted on AIMail's private model ({{model}}). Never sent to Google or Anthropic, and only ever used for your own replies. Checks, refines, translations and Ask AIMail use it too.",
+    on: "Private mode is on. New drafts use the private model.",
     off: "Private mode is off. Drafts use Google's Gemini.",
     failed: "Couldn't change Private mode. Try again in a moment.",
     notes: {
       search:
-        "Your documents and earlier replies are searched on the company's computer too, so drafts can still quote them.",
+        "Your documents and earlier replies are searched with the private model too, so drafts can still quote them.",
       noSearch:
         "This AIMail has no private search set up, so drafts in Private mode won't quote your documents or earlier replies.",
       n2: "Drafts take a little longer, and the AI's own check is less strict, so read each draft before you send it.",
-      n3: "Ask AIMail still uses Google.",
     },
   },
   scanReading: {

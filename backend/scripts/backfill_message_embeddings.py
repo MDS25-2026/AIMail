@@ -11,22 +11,29 @@ import asyncio
 import sys
 from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, or_, select
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.db.models import Message
+from app.core.providers import Provider
+from app.db.models import Message, UserPreferences
 from app.db.session import get_sessionmaker
 from app.rag.embed import embed_documents
 
 BATCH_SIZE = 15
 
 
+def _not_private() -> ColumnElement[bool]:
+    """Private mode users' emails never go to Gemini, so they get no Gemini vector."""
+    private_users = select(UserPreferences.user_id).where(UserPreferences.draft_provider == Provider.LOCAL)
+    return or_(Message.user_id.is_(None), Message.user_id.not_in(private_users))
+
+
 async def main() -> None:
     async with get_sessionmaker()() as session:
         stmt = (
             select(Message)
-            .where(Message.embedding.is_(None), Message.body_masked.is_not(None))
+            .where(Message.embedding.is_(None), Message.body_masked.is_not(None), _not_private())
             .order_by(Message.received_at.desc().nulls_last())
         )
         messages = (await session.scalars(stmt)).all()

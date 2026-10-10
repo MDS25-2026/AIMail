@@ -629,6 +629,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/settings/private-mode/not-now": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Private Mode Not Now
+         * @description The inbox offer's "Not now": stays off, and the offer is not shown again (Settings still has it).
+         */
+        post: operations["private_mode_not_now_settings_private_mode_not_now_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/settings/quiet-hours": {
         parameters: {
             query?: never;
@@ -1287,6 +1307,8 @@ export interface components {
             available: boolean;
             /** Enabled */
             enabled: boolean;
+            /** Isdecided */
+            isDecided: boolean;
             /** Model */
             model: string;
             /** Search */
@@ -2964,6 +2986,24 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    private_mode_not_now_settings_private_mode_not_now_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
