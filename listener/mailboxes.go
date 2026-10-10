@@ -41,6 +41,9 @@ type mailbox struct {
 	sealed        string // the stored token it was started with; a reconnect changes it
 	srv           *gmail.Service
 	lastHistoryID uint64 // atomic: notifications for one mailbox are handled concurrently
+	// ingesting runs one notification at a time per mailbox: two overlapping ranges fetched, masked and
+	// read the same messages twice. Per mailbox, so one slow inbox does not hold up the others.
+	ingesting sync.Mutex
 }
 
 // invalidGrant is RFC 6749's error code for a refresh token the server will no longer honour.

@@ -17,14 +17,20 @@ Dry-run by default. Pass --apply to write.
 --all checks every masked message instead of only the outliers: the outlier heuristic needs a
 near-identical sibling to compare against, so a degraded one-off is invisible to it.
 
+--html repairs rows stored before the listener stripped HTML: markup next to a name lowers NER's
+score, so those bodies were masked worse. The markup is stripped first, then Presidio runs on the
+prose; the stripped body is written even when Presidio adds nothing.
+
 Usage (from backend/):
     python scripts/remask_outliers.py
     python scripts/remask_outliers.py --all
+    python scripts/remask_outliers.py --html
     python scripts/remask_outliers.py --apply
 """
 
 import argparse
 import asyncio
+import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -40,6 +46,7 @@ from scripts.build_study_instrument import (
     load_drafts,
     masking_outliers,
     redaction_count,
+    strip_html,
 )
 
 # What the regex floor cannot catch and therefore what a degraded row is missing. Emails, phones
@@ -60,6 +67,13 @@ _ALL_MASKED = text("""
     select id, body_masked from messages
     where masking_status = 'complete' and coalesce(body_masked, '') <> ''
 """)
+# Tags that only appear in markup, as the listener's htmlToText would have removed them.
+_WITH_HTML = text(r"""
+    select id, body_masked from messages
+    where masking_status = 'complete' and body_masked ~* '<(div|p|br|span|table|html|body|td|tr|a)[\s>/]'
+""")
+# As the listener's htmlToText: a link keeps its target as text, which the phishing check reads.
+_LINK = re.compile(r"""<a\b[^>]*\bhref\s*=\s*["'](https?://[^"'\s]+)["'][^>]*>(.*?)</a>""", re.IGNORECASE | re.DOTALL)
 _ROW = text("select subject, snippet_masked, ai_summary, sent_at from messages where id = :id")
 
 
@@ -97,18 +111,23 @@ async def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--apply", action="store_true", help="write the repaired bodies")
     parser.add_argument("--all", action="store_true", help="check every masked message")
+    parser.add_argument("--html", action="store_true", help="repair bodies still stored as HTML")
     args = parser.parse_args()
 
-    if args.all:
+    if args.all or args.html:
         async with get_sessionmaker()() as session:
-            outliers = [dict(r) for r in (await session.execute(_ALL_MASKED)).mappings().all()]
+            query = _WITH_HTML if args.html else _ALL_MASKED
+            outliers = [dict(r) for r in (await session.execute(query)).mappings().all()]
+        for row in outliers if args.html else []:
+            row["body_masked"] = strip_html(_LINK.sub(r"\2 (\1)", row["body_masked"])).strip()
     else:
         outliers = masking_outliers(await load_drafts())
     if not outliers:
         print("no masking outliers — every message matches its near-duplicates")
         return
 
-    scope = "masked message(s) checked" if args.all else "message(s) where masking looks degraded"
+    scope = ("message(s) still stored as HTML" if args.html else
+             "masked message(s) checked" if args.all else "message(s) where masking looks degraded")
     print(f"{len(outliers)} {scope}:")
     repairs: list[tuple[str, dict]] = []
 
@@ -129,7 +148,7 @@ async def main() -> None:
                   f"field(s); body {before} redaction(s) before -> {after} after"
                   f"{'' if row['sent_at'] else ', draft will regenerate'}"
                   f"{'  ' + dict(kinds).__repr__() if kinds else ''}")
-            if detections:
+            if detections or args.html:
                 repairs.append((str(draft["id"]), repair_update(row, remasked)))
 
     if not repairs:

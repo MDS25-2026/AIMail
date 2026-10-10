@@ -121,6 +121,22 @@ def test_docx_paragraphs_become_lines_and_entities_decode(client):
     assert body["text"].split("\n")[:2] == ["Terms & conditions", "Line two"]
 
 
+def test_docx_headers_footers_and_footnotes_are_read_once(client):
+    data = _office({
+        "word/document.xml": "<w:p><w:t>Body text</w:t></w:p>",
+        "word/header1.xml": "<w:p><w:t>Acme Sdn Bhd letterhead</w:t></w:p>",
+        "word/header2.xml": "<w:p><w:t>Acme Sdn Bhd letterhead</w:t></w:p>",
+        "word/footer1.xml": "<w:p><w:t>Account no. 5141 2345 6789</w:t></w:p>",
+        "word/footnotes.xml": "<w:p><w:t>See clause 4</w:t></w:p>",
+        "word/styles.xml": "<w:p><w:t>Heading 1</w:t></w:p>",
+    })
+    text = _read(client, data, reader.DOCX_MIME).get_json()["text"]
+    assert text.startswith("Body text")
+    for part in ("letterhead", "Account no.", "See clause 4"):
+        assert part in text
+    assert text.count("letterhead") == 1 and "Heading 1" not in text
+
+
 def test_xlsx_shared_strings_and_values_are_read(client):
     shared = "<sst><si><t>Widget</t></si></sst>"
     sheet = "<sheetData><row><c t='s'><v>0</v></c><c><v>42</v></c></row></sheetData>"

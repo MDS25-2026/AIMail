@@ -11,6 +11,23 @@
 
 ## Log
 
+### 2026-10-10 — Postcodes, car plates and grouped bank numbers are masked, gated on nearby words
+- Decision: three Presidio ad-hoc recognisers in `listener/main.go`. Malaysian postcodes (five digits)
+  become `LOCATION` near address words (jalan, taman, poskod, kuala...). Car plates (`WXY 1234`)
+  become `ACCOUNT` near vehicle words. Grouped bank numbers (three or more groups, never an ISO date)
+  join the account recogniser and its context words.
+- Why: each is identifying, and none was masked (epic #138 line 49).
+- Why `ACCOUNT` for plates, not a new kind: placeholder kinds are a contract across the listener,
+  the backend vault and redaction, and the dashboard. `ACCOUNT` is already the fallback for
+  identifiers, so no other service changes.
+- For whoever adds the next recogniser: Presidio compiles patterns case-blind (force case with
+  `(?-i:...)`) and matches context words as substrings ("car" fires on "card", "acc" on "accept").
+  Measure on stored mail before shipping; the first plate pattern hit nine false positives that way.
+- Not changed, for review: the older digit-run rule still masks a year after "transfer" or "payroll",
+  and any digit run after "accept" (it contains "acc").
+- Only email bodies and attachments: uploaded documents (`backend/app/rag/mask.py`) are not covered.
+- Affects: Lane A. Status: proposed — JiaJun review pending as lane owner.
+
 ### 2026-09-03 — Country and state names are kept; cities and streets stay masked
 - Decision: `LOCATION` hits naming a country or a Malaysian state are filtered out of the Presidio
   results before anonymising (`allowedLocations` in `listener/main.go`). Cities, districts and

@@ -15,16 +15,28 @@ from sqlalchemy.exc import DBAPIError
 
 from app import audit_routes
 from app.audit import AuditAction, audit_row
+from app.core.constants import EMBEDDING_DIM
 from app.core.cursor import decode_cursor
 from app.core.ownership import Scope
 from app.core.ratelimit import PostgresCounters
 from app.dashboard import list_dashboard_emails
 from app.db.migrate import apply_pending, pending
-from app.db.models import AuthStatus, MaskingStatus, Message, UserProfile
+from app.db.models import (
+    AuthStatus,
+    Chunk,
+    DocType,
+    Document,
+    Embedding,
+    MaskingStatus,
+    Message,
+    UserProfile,
+)
 from app.db.session import get_engine, get_sessionmaker
 from app.jobs import claim_requested, request_draft
 from app.ml.categorise import classify_pending
+from app.rag.chunk import Piece
 from app.rag.embedding_models import check_columns
+from app.rag.ingest import store_chunks
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "")
 pytestmark = pytest.mark.skipif(not TEST_DATABASE_URL, reason="set TEST_DATABASE_URL to a throwaway database")
@@ -179,3 +191,23 @@ def test_the_worker_classifies_an_email_once_and_stores_it():
 
     (stored, confidence), again = _run(scenario())
     assert stored is not None and 0.0 <= confidence <= 1.0 and again == stored
+
+
+def test_a_re_upload_swaps_in_the_new_chunks_with_their_vectors_in_one_go():
+    owner = Scope(owner_id=None)
+    source = f"upload://{uuid4()}.pdf"
+    vector = [1.0] + [0.0] * (EMBEDDING_DIM - 1)
+
+    async def upload_twice():
+        await store_chunks(source, "Leave", [Piece("Old clause.")], scope=owner, doc_type=DocType.POLICY,
+                           vectors=[vector])
+        await store_chunks(source, "Leave", [Piece("New clause."), Piece("Second clause.")], scope=owner,
+                           doc_type=DocType.POLICY, vectors=[vector, vector])
+        async with get_sessionmaker()() as session:
+            documents = (await session.scalars(select(Document.id).where(Document.source == source))).all()
+            contents = (await session.scalars(select(Chunk.content).join(Embedding, Embedding.chunk_id == Chunk.id)
+                                              .where(Chunk.document_id.in_(documents)).order_by(Chunk.chunk_idx))).all()
+        return documents, contents
+
+    documents, contents = _run(upload_twice())
+    assert len(documents) == 1 and contents == ["New clause.", "Second clause."]

@@ -2,6 +2,7 @@
 
 import logging
 from pathlib import Path
+from uuid import UUID
 
 from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +20,7 @@ from app.db.models import (
     UserPreferences,
 )
 from app.db.session import get_sessionmaker
+from app.private_mode import provider_for
 from app.rag.chunk import (
     SECTION_KEY,
     Piece,
@@ -58,24 +60,48 @@ async def ingest_text(
     pieces = chunk_sections(await mask_document(text, profile=MaskProfile.POLICY))
     if not pieces:
         return 0
-    await store_chunks(source, title, pieces, scope=scope, doc_type=doc_type)
-    await embed_pending()
+    # Embedded before the swap: a failure here leaves the earlier copy searchable, rather than
+    # replacing it with chunks that no search can find until the background pass catches up.
+    vectors = await _gemini_vectors(scope.owner_id, pieces)
+    await store_chunks(source, title, pieces, scope=scope, doc_type=doc_type, vectors=vectors)
     await embed_pending_locally_logged()
     return len(pieces)
 
 
+async def _gemini_vectors(owner_id: UUID | None, pieces: list[Piece]) -> list[list[float]] | None:
+    """None for a Private-mode owner: Gemini embedding would send the document to Google."""
+    if await provider_for(owner_id) == Provider.LOCAL:
+        return None
+    texts = [piece.content for piece in pieces]
+    vectors: list[list[float]] = []
+    for start in range(0, len(texts), EMBED_BATCH):
+        vectors += await model_gateway.embed_documents(texts[start:start + EMBED_BATCH], provider=Provider.GEMINI,
+                                                       purpose=INDEX)
+    return vectors
+
+
 async def store_chunks(
-    source: str, title: str, pieces: list[Piece], *, scope: Scope, doc_type: DocType
+    source: str, title: str, pieces: list[Piece], *, scope: Scope, doc_type: DocType,
+    vectors: list[list[float]] | None = None,
 ) -> None:
-    """Already-masked chunks under a source key, replacing that owner's earlier copy. Not embedded."""
+    """Already-masked chunks under a source key, replacing that owner's earlier copy in one transaction.
+
+    With `vectors` (one per piece) the Gemini embeddings go in with them; without, the background pass embeds them.
+    """
     async with get_sessionmaker()() as session, session.begin():
         document = await _replace_document(session, scope, source, title, doc_type)
-        session.add_all(
+        chunks = [
             Chunk(document_id=document.id, chunk_idx=i, content=piece.content,
                   token_count=estimate_tokens(piece.content),
                   meta={SECTION_KEY: piece.section} if piece.section else None)
             for i, piece in enumerate(pieces)
-        )
+        ]
+        session.add_all(chunks)
+        if vectors is None:
+            return
+        await session.flush()
+        session.add_all(Embedding(chunk_id=chunk.id, embedding=vector, model_name=EMBEDDING_TAG)
+                        for chunk, vector in zip(chunks, vectors, strict=True))
 
 
 async def _replace_document(
