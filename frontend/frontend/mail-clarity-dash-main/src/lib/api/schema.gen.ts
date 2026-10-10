@@ -1245,6 +1245,13 @@ export interface components {
             /** Draft */
             draft: string;
         };
+        /** FollowUpDraft */
+        FollowUpDraft: {
+            /** Details */
+            details: components["schemas"]["Detail"][];
+            /** Draft */
+            draft: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -3518,7 +3525,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["FollowUp"];
+                    "application/json": components["schemas"]["FollowUpDraft"];
                 };
             };
             /** @description Validation Error */

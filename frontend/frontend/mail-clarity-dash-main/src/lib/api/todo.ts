@@ -1,4 +1,4 @@
-import type { Todo } from "../../types/todo";
+import type { FollowUpDraft, Todo } from "../../types/todo";
 import { HttpMethod, request } from "./client";
 
 export const fetchTodo = () => request<Todo>("/todo");
@@ -13,7 +13,7 @@ export const notWaiting = (sentId: string) =>
 
 /** A follow-up to an unanswered reply sent through AIMail, in placeholder form like any draft. */
 export const draftFollowUp = (sentId: string) =>
-  request<{ draft: string }>(`/todo/waiting/${encodeURIComponent(sentId)}/follow-up`, {
+  request<FollowUpDraft>(`/todo/waiting/${encodeURIComponent(sentId)}/follow-up`, {
     method: HttpMethod.Post,
   });
 

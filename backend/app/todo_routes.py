@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from app.account_routes import account_user_id
 from app.audit import AuditAction, audit
+from app.contracts import Detail
 from app.core import mailbox
 from app.core.auth import principal_of, require_mailbox, scope_of
 from app.core.constants import MAX_DRAFT_CHARS
@@ -24,6 +25,11 @@ class TodoSettings(BaseModel):
 
 class FollowUp(BaseModel):
     draft: str = Field(min_length=1, max_length=MAX_DRAFT_CHARS)
+
+
+class FollowUpDraft(FollowUp):
+    # The thread's details, to fill in the draft's placeholders as the send will.
+    details: list[Detail]
 
 
 @router.get("/todo", dependencies=[Depends(rate_limit_list), Depends(require_mailbox)])
@@ -55,12 +61,13 @@ async def not_waiting(sent_id: UUID, request: Request) -> None:
 
 @router.post("/todo/waiting/{sent_id}/follow-up",
              dependencies=[Depends(rate_limit_generation), Depends(require_mailbox)])
-async def follow_up_draft(sent_id: str, request: Request) -> FollowUp:
+async def follow_up_draft(sent_id: str, request: Request) -> FollowUpDraft:
     """A follow-up to an unanswered reply sent through AIMail, for the user to edit and approve."""
-    draft = await draft_follow_up(sent_id, scope=scope_of(request))
-    if draft is None:
+    drafted = await draft_follow_up(sent_id, scope=scope_of(request))
+    if drafted is None:
         raise DomainError(ErrorCode.NOT_FOUND)
-    return FollowUp(draft=draft)
+    draft, details = drafted
+    return FollowUpDraft(draft=draft, details=details)
 
 
 @router.post("/todo/waiting/{sent_id}/follow-up/send", status_code=status.HTTP_204_NO_CONTENT,

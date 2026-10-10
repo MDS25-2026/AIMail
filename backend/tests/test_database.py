@@ -501,7 +501,8 @@ def _answered_and_sent() -> tuple[object, object, object]:
             await session.flush()
             session.add(Message(id=email, user_id=owner, gmail_message_id=f"fu-{uuid4()}", thread_id=f"t-{email}",
                                 subject="Invoice", from_addr="a@example.com", body_masked="Can you send it?",
-                                masking_status=MaskingStatus.COMPLETE, sent_at=now - timedelta(days=5)))
+                                masking_status=MaskingStatus.COMPLETE, sent_at=now - timedelta(days=5),
+                                created_at=now - timedelta(days=6)))
             await session.flush()
             session.add_all([
                 SentMessage(id=from_aimail, user_id=owner, gmail_id=f"g-{uuid4()}", message_id=email,
@@ -540,7 +541,7 @@ def test_a_follow_up_is_drafted_from_the_reply_and_sent_as_the_threads_latest(gm
     scope, from_aimail, _ = _answered_and_sent()
 
     async def scenario():
-        draft = await dashboard.draft_follow_up(str(from_aimail), scope=scope)
+        draft, _details = await dashboard.draft_follow_up(str(from_aimail), scope=scope)
         await dashboard.send_follow_up(str(from_aimail), draft, scope=scope)
         try:
             await dashboard.send_follow_up(str(from_aimail), draft, scope=scope)
@@ -605,3 +606,25 @@ def test_a_search_across_users_on_gemini_leaves_out_private_mode_users(monkeypat
     found, _ = _run(search_messages_hybrid("invoice", 20, scope=EVERYTHING, provider=Provider.GEMINI))
     owners = {message.user_id for message in found}
     assert cloud in owners and private not in owners
+
+
+
+@pytest.mark.parametrize("since", ["they_answered", "set_aside"])
+def test_a_follow_up_is_refused_once_the_reply_is_no_longer_waiting(gmail_and_agent, since):
+    scope, from_aimail, _ = _answered_and_sent()
+
+    async def scenario():
+        async with get_sessionmaker()() as session, session.begin():
+            sent = await session.get(SentMessage, from_aimail)
+            if since == "they_answered":
+                session.add(Message(id=uuid4(), user_id=scope.owner_id, gmail_message_id=f"ans-{uuid4()}",
+                                    thread_id=sent.thread_id, subject="Re: Invoice",
+                                    masking_status=MaskingStatus.COMPLETE))
+            else:
+                sent.dismissed_at = datetime.now(timezone.utc)
+        await dashboard.send_follow_up(str(from_aimail), "Following up.", scope=scope)
+
+    with pytest.raises(SendRejectedError) as refused:
+        _run(scenario())
+    assert refused.value.code == ErrorCode.FOLLOW_UP_STALE
+    assert gmail_and_agent == []

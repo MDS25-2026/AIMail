@@ -7,6 +7,7 @@ export enum ApiErrorCode {
   AlreadySent = "already_sent",
   SendInProgress = "send_in_progress",
   FollowUpUnavailable = "follow_up_unavailable",
+  FollowUpStale = "follow_up_stale",
   RedactionMarkers = "redaction_markers",
   UnresolvedPlaceholders = "unresolved_placeholders",
   SendNotGranted = "send_not_granted",

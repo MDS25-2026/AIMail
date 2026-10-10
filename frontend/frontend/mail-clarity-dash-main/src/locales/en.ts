@@ -923,6 +923,8 @@ export const en = {
       "This sender failed authentication. Check the sender before drafting or sending.",
     masking_pending:
       "Personal details are still being hidden in this email, so it can't be used yet.",
+    follow_up_stale:
+      "They have replied, or this reply was answered or set aside since the list loaded. Nothing was sent.",
     follow_up_unavailable:
       "This reply was sent from Gmail, so AIMail can't write its follow-up. Open it in Gmail instead.",
     already_sent: "This reply has already been sent.",

@@ -889,6 +889,7 @@ export const zh: Translations = {
     signed_out: "您的会话已结束。请重新登录以继续。",
     sender_unverified: "此发件人未通过身份验证。起草或发送前请先核实发件人。",
     masking_pending: "这封邮件中的个人信息仍在隐藏中，暂时无法使用。",
+    follow_up_stale: "自列表加载以来，对方已回复，或此回复已被回答或搁置。没有发送任何内容。",
     follow_up_unavailable: "此回复是从 Gmail 发送的，AIMail 无法撰写跟进邮件。请在 Gmail 中打开。",
     already_sent: "这封回复已经发送。",
     send_in_progress: "这封回复正在发送中。请稍候，再查看是否已发送。",

@@ -1107,25 +1107,44 @@ async def _follow_up_target(sent_id: str, scope: Scope) -> tuple[SentMessage, Me
     async with get_sessionmaker()() as session:
         sent = await session.scalar(select(SentMessage).where(SentMessage.id == pk, scope.where(SentMessage.user_id)))
         answered = await _get(session, sent.message_id, scope) if sent and sent.message_id else None
+        is_stale = sent is not None and await _is_no_longer_waiting(session, sent)
     if sent is None:
         return None
     if sent.followed_up_at is not None:
         raise SendRejectedError(ErrorCode.ALREADY_SENT)  # its follow-up went out, or is going now
     if answered is None:
         raise SendRejectedError(ErrorCode.FOLLOW_UP_UNAVAILABLE)
+    if is_stale:
+        raise SendRejectedError(ErrorCode.FOLLOW_UP_STALE)
     _require(answered, Action.FOLLOW_UP)
     return sent, answered, await _thread_for(answered)
 
 
-async def draft_follow_up(sent_id: str, *, scope: Scope) -> str | None:
-    """A follow-up to an unanswered reply, written by the agent from that reply. Not stored."""
+async def _is_no_longer_waiting(session: AsyncSession, sent: SentMessage) -> bool:
+    """Checked again at send time, as the To-do list checked it: a page left open goes stale."""
+    if sent.dismissed_at is not None:
+        return True
+    in_thread = (Message.thread_id == sent.thread_id, Message.user_id.is_not_distinct_from(sent.user_id))
+    newer_send = select(SentMessage.id).where(
+        SentMessage.thread_id == sent.thread_id, SentMessage.user_id.is_not_distinct_from(sent.user_id),
+        SentMessage.sent_at > sent.sent_at)
+    answered_since = select(Message.id).where(*in_thread, Message.created_at > sent.sent_at)
+    return bool(await session.scalar(select(newer_send.exists() | answered_since.exists())))
+
+
+async def draft_follow_up(sent_id: str, *, scope: Scope) -> tuple[str, list[Detail]] | None:
+    """A follow-up to an unanswered reply, written by the agent from that reply. Not stored.
+
+    Returned with the details of the thread it is numbered in, so the page fills in the same names
+    the send will.
+    """
     target = await _follow_up_target(sent_id, scope)
     if target is None:
         return None
     sent, answered, thread = target
     details = await _details_for(answered, thread)
     refined = await _refine(answered, thread, sent.body_masked, FOLLOW_UP_INSTRUCTION, details, Tone.PROFESSIONAL)
-    return refined["draft"]
+    return refined["draft"], [Detail(**detail) for detail in details.details()]
 
 
 async def _claim_follow_up(sent_id: UUID) -> bool:

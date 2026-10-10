@@ -1,10 +1,13 @@
 import { Link } from "@tanstack/react-router";
 import { useState, type ReactNode } from "react";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 
 import { errorMessage } from "../lib/api/errors";
 import { detailValues, restoreDetails } from "../lib/details";
 import { DetailsContext } from "../lib/detailsContext";
+import { useDetailsHidden } from "../lib/detailsVisibility";
+import { findTemplatePlaceholders } from "../lib/draftGuards";
 import { gmailThreadUrl } from "../lib/gmailLink";
 import {
   useDismissEmail,
@@ -14,6 +17,7 @@ import {
   useSendFollowUp,
   useTodo,
 } from "../lib/queries";
+import { checkTone } from "../lib/toneCheck";
 import { useFormat } from "../lib/useFormat";
 import { cn } from "../lib/utils";
 import type { Email } from "../types/email";
@@ -186,16 +190,31 @@ function WaitingRow({ reply }: { reply: WaitingReply }) {
   const notWaiting = useNotWaiting();
   const draftFollowUp = useDraftFollowUp();
   const sendFollowUp = useSendFollowUp();
-  // The follow-up being edited, with the real details in it as in the draft editor; null when closed.
+  const [isHidingDetails] = useDetailsHidden();
+  // The follow-up being edited, shown like the draft editor (real details unless hidden); null when closed.
   const [followUp, setFollowUp] = useState<string | null>(null);
+  // Set by the first Send when the text needs a second look; the next press sends anyway.
+  const [warning, setWarning] = useState<string | null>(null);
   const values = detailValues(reply.email?.details);
   const failure = notWaiting.error ?? draftFollowUp.error ?? sendFollowUp.error;
+  const open = (text: string | null) => {
+    setFollowUp(text);
+    setWarning(null);
+  };
   const startFollowUp = () =>
     draftFollowUp.mutate(reply.id, {
-      onSuccess: ({ draft }) => setFollowUp(restoreDetails(draft, values)),
+      // Filled from the thread the draft is numbered in: the same names the send will use.
+      onSuccess: ({ draft, details }) =>
+        open(isHidingDetails ? draft : restoreDetails(draft, detailValues(details))),
     });
-  const send = (draft: string) =>
-    sendFollowUp.mutate({ sentId: reply.id, draft }, { onSuccess: () => setFollowUp(null) });
+  const send = (draft: string) => {
+    const needsLook = warning === null ? followUpWarning(draft, t) : null;
+    if (needsLook) {
+      setWarning(needsLook);
+      return;
+    }
+    sendFollowUp.mutate({ sentId: reply.id, draft }, { onSuccess: () => open(null) });
+  };
   return (
     <li className="space-y-3 px-4 py-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -249,7 +268,7 @@ function WaitingRow({ reply }: { reply: WaitingReply }) {
             {t("todo.followUpLabel")}
             <textarea
               value={followUp}
-              onChange={(event) => setFollowUp(event.target.value)}
+              onChange={(event) => open(event.target.value)}
               disabled={sendFollowUp.isPending}
               rows={5}
               className={cn(field(), "mt-1 w-full resize-y text-sm")}
@@ -259,7 +278,7 @@ function WaitingRow({ reply }: { reply: WaitingReply }) {
             <button
               type="button"
               disabled={sendFollowUp.isPending}
-              onClick={() => setFollowUp(null)}
+              onClick={() => open(null)}
               className={button({ size: "sm" })}
             >
               {t("todo.cancelFollowUp")}
@@ -270,9 +289,18 @@ function WaitingRow({ reply }: { reply: WaitingReply }) {
               onClick={() => send(followUp)}
               className={button({ intent: "primary", size: "sm" })}
             >
-              {sendFollowUp.isPending ? t("todo.sendingFollowUp") : t("todo.sendFollowUp")}
+              {sendFollowUp.isPending
+                ? t("todo.sendingFollowUp")
+                : warning
+                  ? t("draftStatus.sendAnyway")
+                  : t("todo.sendFollowUp")}
             </button>
           </div>
+          {warning ? (
+            <p role="alert" className="text-xs text-warning">
+              {warning}
+            </p>
+          ) : null}
         </div>
       )}
       {failure ? (
@@ -282,4 +310,11 @@ function WaitingRow({ reply }: { reply: WaitingReply }) {
       ) : null}
     </li>
   );
+}
+
+/** What the draft editor would ask about before sending: text left for the reader, or the tone. */
+function followUpWarning(draft: string, t: TFunction): string | null {
+  const placeholders = findTemplatePlaceholders(draft).length;
+  if (placeholders > 0) return t("draftStatus.sendTemplates", { count: placeholders });
+  return checkTone(draft).hasIssues ? t("draftStatus.toneWarning") : null;
 }

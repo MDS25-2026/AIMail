@@ -951,6 +951,8 @@ export const ms: Translations = {
       "Pengirim ini gagal pengesahan. Semak pengirim sebelum mendraf atau menghantar.",
     masking_pending:
       "Butiran peribadi dalam e-mel ini masih sedang disembunyikan, jadi ia belum boleh digunakan.",
+    follow_up_stale:
+      "Mereka sudah membalas, atau balasan ini sudah dijawab atau diketepikan sejak senarai dimuatkan. Tiada apa-apa dihantar.",
     follow_up_unavailable:
       "Balasan ini dihantar dari Gmail, jadi AIMail tidak boleh menulis susulannya. Bukanya dalam Gmail.",
     already_sent: "Balasan ini telah pun dihantar.",
