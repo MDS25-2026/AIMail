@@ -546,7 +546,7 @@ async def _mark_read(pk: UUID) -> None:
         await session.commit()
 
 
-async def email_detail(message_id: str, *, scope: Scope) -> DashboardEmail | None:
+async def email_detail(message_id: str, *, scope: Scope, viewer_id: UUID | None = None) -> DashboardEmail | None:
     try:
         pk = UUID(message_id)
     except ValueError:
@@ -564,12 +564,15 @@ async def email_detail(message_id: str, *, scope: Scope) -> DashboardEmail | Non
     message.read_at = message.read_at or datetime.now(timezone.utc)
     email = _to_email(message, await _policy_for(message), thread=thread, details=details,
                       egress=await egress_for(message.id))
+    # Templates are the viewer's: the original mailbox's unowned rows still get the viewer's.
     email.suggestedTemplateId = await suggested_template_id(
-        message.user_id, f"{message.subject or ''}\n{message.body_masked or ''}")
+        viewer_id or message.user_id, f"{message.subject or ''}\n{message.body_masked or ''}")
     return email
 
 
-async def email_for_thread(thread_id: str, *, scope: Scope) -> DashboardEmail | None:
+async def email_for_thread(
+    thread_id: str, *, scope: Scope, viewer_id: UUID | None = None
+) -> DashboardEmail | None:
     """The newest of the caller's messages in a Gmail thread, as the detail view returns it.
 
     The Chrome extension knows only the thread Gmail has open, not AIMail's message id.
@@ -582,7 +585,7 @@ async def email_for_thread(thread_id: str, *, scope: Scope) -> DashboardEmail | 
         pk = await session.scalar(stmt)
     if pk is None:
         return None
-    return await email_detail(str(pk), scope=scope)
+    return await email_detail(str(pk), scope=scope, viewer_id=viewer_id)
 
 
 async def confirm_sender(message_id: str, *, scope: Scope) -> DashboardEmail | None:

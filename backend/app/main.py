@@ -247,7 +247,7 @@ async def emails(request: Request, cursor: str | None = None,
 @app.get("/emails/{message_id}", dependencies=[Depends(rate_limit_detail), Depends(require_mailbox)])
 async def email_detail_route(message_id: str, request: Request) -> DashboardEmail:
     # Detail view: adds Lane C generation (retrieve + /process-email) for one opened email.
-    email = await email_detail(message_id, scope=scope_of(request))
+    email = await email_detail(message_id, scope=scope_of(request), viewer_id=principal_of(request).user_id)
     return _found(email)
 
 
@@ -260,7 +260,7 @@ async def email_for_thread_route(
     thread_id: Annotated[str, PathParam(pattern=GMAIL_THREAD_ID)], request: Request
 ) -> DashboardEmail:
     # The Chrome extension's lookup: the email Gmail has open, by its thread.
-    email = await email_for_thread(thread_id, scope=scope_of(request))
+    email = await email_for_thread(thread_id, scope=scope_of(request), viewer_id=principal_of(request).user_id)
     return _found(email)
 
 

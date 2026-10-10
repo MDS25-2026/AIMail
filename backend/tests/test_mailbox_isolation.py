@@ -245,7 +245,7 @@ def test_re_uploading_replaces_only_the_uploaders_own_copy_and_files_it_under_th
 def test_the_extension_looks_up_the_open_thread_in_the_users_own_scope(seen, monkeypatch):
     calls = []
 
-    async def by_thread(thread_id, *, scope):
+    async def by_thread(thread_id, *, scope, viewer_id):
         calls.append((thread_id, scope))
 
     monkeypatch.setattr("app.main.email_for_thread", by_thread)

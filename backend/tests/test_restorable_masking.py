@@ -215,3 +215,16 @@ def test_a_template_adapted_by_the_agent_reaches_it_with_placeholders_only(mailb
     payload = json.loads(mailbox["payloads"][0])
     assert payload["draft"].startswith("Hi [PERSON_1]") and "[PHONE_1]" in payload["draft"]
     _no_secret_in(mailbox["payloads"])
+
+
+def test_the_suggestion_uses_the_viewers_templates_even_on_an_unowned_email(mailbox, monkeypatch):
+    asked = []
+
+    async def suggested(user_id, _text):
+        asked.append(user_id)
+        return "tpl-1"
+
+    monkeypatch.setattr(dashboard, "suggested_template_id", suggested)
+    mailbox["message"].user_id = None  # the original mailbox's rows have no owner yet
+    email = asyncio.run(dashboard.email_detail(str(mailbox["message"].id), scope=EVERYTHING, viewer_id=OWNER))
+    assert email.suggestedTemplateId == "tpl-1" and asked == [OWNER]

@@ -61,8 +61,8 @@ so that I only check it and press Send.
       check by hand).
 - [x] Given a draft still holding `{{meeting link}}`, when the user presses Send, then the send is
       refused with `unresolved_placeholders` and nothing reaches Gmail.
-- [x] Given an email older than the vault's retention, when `{{name}}` cannot be filled, then it
-      stays a blank and the send check covers it.
+- [x] Given a sender with no display name, when `{{name}}` cannot be filled, then it stays a blank
+      and the send check covers it. (It comes from `from_addr`, so the vault expiring does not empty it.)
 - [x] Given a template with trigger "invoice" in English, when an English email mentions
       "invoice", then the suggestion shows; for a Malay email it does not.
 - [x] Given *Draft from template*, then no request to the agent contains a vault value.
@@ -122,8 +122,14 @@ Changes go into `specs/context/db-schema.md` in the same PR.
 - 2026-10-11: *Insert* stores nothing; it fills the editor like typed edits. Rationale: a stored
   template draft would need a critic score it never had (the badge read "Review 0%"), and keeping
   the AI draft lets the Changes view (#149) compare the two. Alternatives: store it unreviewed.
-- 2026-10-11: The sender's placeholder comes from `from_addr` and is numbered after the owner's.
-  Rationale: stored drafts sign off with the owner's number, which must never shift.
+- 2026-10-11: The sender's placeholder comes from `from_addr` and is numbered after the owner's,
+  so adding it never moves the owner's number. Known, older issue (not from this feature): both are
+  numbered after every message in the thread, so a newer message naming a new person shifts them,
+  and an older email's stored draft then restores the wrong name. Fixing it renumbers stored drafts;
+  left to the owner's decision.
+- 2026-10-11: A `{{...}}` blocks every send, not only template drafts, with no override. Rationale:
+  the owner asked that no placeholder ever reach a recipient; a reply that genuinely needs double
+  braces (code) has to be rephrased.
 - 2026-10-11: Translating a template sends the masked typed text (fixed formats masked) with each
   variable as a `[VAR_n]` marker, and refuses a translation that lost one.
 - 2026-10-11: AI filling of `{{invoice number}}` and the like depends on the model; it is not
