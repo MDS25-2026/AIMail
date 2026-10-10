@@ -6,6 +6,19 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-11 — To-do page; the listener also reads the mailbox's sent replies
+- Decision: a To-do page (needs action, needs review, waiting for their reply, unsent drafts). The
+  listener's watch covers the Sent label; sent replies are masked and kept in `sent_message`, apart
+  from received mail, with no recipient address, deleted after 90 days. Whether a reply asked
+  something is read on the backend, over only what the user wrote (the quoted email cut off).
+- Why: replies that asked something and got no answer fell through the cracks.
+- Why a separate table: nothing that drafts or lists received mail can mistake a sent reply for
+  an email to answer (AIMail once replied to itself that way, see `ingestRecentInbox`).
+- Affects: listener (Lane A: the Sent watch and `sent_message` inserts, so migration 0040 must run
+  before the new listener starts), `backend/app` (Lane B), a To-do page and the Send bar (Lane D),
+  `specs/features/todo-page.md`.
+- Status: accepted (owner, 2026-10-10 spec, 2026-10-11 follow-up choice; built 2026-10-11)
+
 ### 2026-10-11 — Quiet hours, send later and snooze
 - Decision: the listener stores the sender's UTC offset from their Date header; quiet hours are a
   company default (admin console) with a personal override; a reply can be held (`scheduled_send`)

@@ -36,6 +36,18 @@ export default function DraftActionsBar({ workflow, isSent }: DraftActionsBarPro
           </button>
         </div>
       )}
+      {isSent ? null : (
+        <label className="flex items-center justify-end gap-2 text-xs text-fg-muted">
+          <input
+            type="checkbox"
+            checked={workflow.remindIfNoReply}
+            disabled={workflow.isDraftLocked}
+            onChange={(event) => workflow.setRemindIfNoReply(event.target.checked)}
+            className="size-4 accent-[var(--brand)]"
+          />
+          {t("todo.remindMe")}
+        </label>
+      )}
       {blanks.length > 0 ? (
         <p role="status" className="text-right text-xs text-warning">
           {t("templates.fillBlanks", { blanks: blanks.join(", "), count: blanks.length })}

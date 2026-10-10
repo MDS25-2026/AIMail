@@ -92,7 +92,10 @@ describe("sending a draft that still has redaction markers", () => {
     act(() => vi.advanceTimersByTime(5_000));
     vi.useRealTimers();
     await waitFor(() => expect(writes(calls)).toHaveLength(1));
-    expect(writes(calls)[0].body).toEqual({ draft: "Dear [Redacted], thanks again." });
+    expect(writes(calls)[0].body).toEqual({
+      draft: "Dear [Redacted], thanks again.",
+      remindIfNoReply: false,
+    });
     expect(result.current.status.pendingConfirm).toBeNull();
   });
 });
@@ -434,5 +437,21 @@ describe("quiet hours and send later", () => {
     act(() => result.current.cancelSchedule());
     await waitFor(() => expect(writes(calls)).toHaveLength(1));
     expect(writes(calls)[0].method).toBe("DELETE");
+  });
+});
+
+describe("remind me if they don't reply", () => {
+  test("is sent with the reply, and remembered per email", async () => {
+    vi.useFakeTimers();
+    const email = emailFixture({ id: "r", draftReply: "Thanks, noted." });
+    const calls = stubFetch({ "POST /emails/r/send": { body: email } });
+    const { result } = renderWorkflow(email);
+    act(() => result.current.setRemindIfNoReply(true));
+    expect(result.current.remindIfNoReply).toBe(true);
+    act(() => result.current.send());
+    act(() => vi.advanceTimersByTime(5_000));
+    vi.useRealTimers();
+    await waitFor(() => expect(writes(calls)).toHaveLength(1));
+    expect(writes(calls)[0].body).toEqual({ draft: "Thanks, noted.", remindIfNoReply: true });
   });
 });

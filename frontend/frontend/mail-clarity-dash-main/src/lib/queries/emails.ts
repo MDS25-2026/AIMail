@@ -144,10 +144,18 @@ export function useRefineEmail() {
 export function useSendEmail() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ emailId, draft }: { emailId: string; draft: string }) =>
-      sendEmail(emailId, draft),
+    mutationFn: ({
+      emailId,
+      draft,
+      remindIfNoReply = false,
+    }: {
+      emailId: string;
+      draft: string;
+      remindIfNoReply?: boolean;
+    }) => sendEmail(emailId, draft, remindIfNoReply),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKeys.email(updated.id), updated);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.todo });
       void queryClient.invalidateQueries({ queryKey: queryKeys.emails });
     },
     onError: (_error, { emailId }) => {

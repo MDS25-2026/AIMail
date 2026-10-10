@@ -41,8 +41,12 @@ export const translateEmail = (id: string, language: string) =>
   });
 
 /** Send the approved (possibly edited) draft as a reply; marks the email sent. */
-export const sendEmail = (id: string, draft: string) =>
-  request<Email>(emailPath(id, "/send"), { method: HttpMethod.Post, json: { draft } });
+/** remindIfNoReply: put it on the to-do's waiting list whatever it says (todo-page.md). */
+export const sendEmail = (id: string, draft: string, remindIfNoReply = false) =>
+  request<Email>(emailPath(id, "/send"), {
+    method: HttpMethod.Post,
+    json: { draft, remindIfNoReply },
+  });
 
 /** The owner checked a sender that failed SPF/DKIM/DMARC and says they are real; drafting resumes. */
 export const confirmSender = (id: string) =>

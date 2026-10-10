@@ -90,6 +90,9 @@ export type DraftWorkflow = {
   hasUnsavedEdits: boolean;
   /** A saved template's {{blanks}} still in the draft; it cannot be sent until they are filled. */
   unfilledBlanks: string[];
+  /** Put the reply on the to-do's waiting list whatever it says; unticked, the rules decide. */
+  remindIfNoReply: boolean;
+  setRemindIfNoReply: (isOn: boolean) => void;
   /** Send later: hold the draft as it is now until sendAt. */
   schedule: (sendAt: Date) => void;
   cancelSchedule: () => void;
@@ -165,6 +168,8 @@ export function useDraftWorkflow(
 
   // Each email keeps its own unsaved edits, so opening another email and coming back loses nothing.
   const [typedByEmail, setTypedByEmail] = useState<ReadonlyMap<string, string>>(new Map());
+  // Each email's own "remind me" choice, like its typed edits.
+  const [remindByEmail, setRemindByEmail] = useState<ReadonlyMap<string, boolean>>(new Map());
   // The text each email's last Refine was given; kept in memory only, so a reload drops it.
   const [refinedFrom, setRefinedFrom] = useState<ReadonlyMap<string, string>>(new Map());
   const [chosenTone, setChosenTone] = useState<Scoped<Tone> | null>(null);
@@ -261,7 +266,8 @@ export function useDraftWorkflow(
   };
 
   const startSend = (id: string) => {
-    const request = () => sendMutation.mutateAsync({ emailId: id, draft });
+    const remindIfNoReply = remindByEmail.get(id) ?? false;
+    const request = () => sendMutation.mutateAsync({ emailId: id, draft, remindIfNoReply });
     runMutation(id, DraftAction.Send, request, t("announce.sent")).catch(shownOnScreen);
   };
 
@@ -455,6 +461,10 @@ export function useDraftWorkflow(
     schedule,
     cancelSchedule,
     isScheduling,
+    remindIfNoReply: emailId === null ? false : (remindByEmail.get(emailId) ?? false),
+    setRemindIfNoReply: (isOn: boolean) => {
+      if (emailId !== null) setRemindByEmail((current) => new Map(current).set(emailId, isOn));
+    },
     setTone: regenerate,
     regenerate: () => regenerate(),
     refine,

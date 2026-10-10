@@ -1,9 +1,9 @@
 # To-do: what needs me
 
-- **Status:** draft
+- **Status:** built 2026-10-11 (pending review)
 - **Owner:** veyroxie
 - **Related issue:** #155 (epic #138, line 121); action types requested on #142
-- **Last updated:** 2026-10-10
+- **Last updated:** 2026-10-11
 
 ## Goal
 
@@ -26,8 +26,9 @@ nothing falls through the cracks between opening emails.
 - **2. Needs your review:** unsent emails with `needs_human_review`, with the review reason.
 - **3. Waiting for their reply:** replies sent by the user that ask something, with no new message
   in the thread after `WAITING_DAYS` (default 3) working days. Clears itself when anything arrives
-  in the thread. *Draft a follow-up* writes a nudge in the thread's language, reviewed and sent the
-  normal way, never automatically. *Not waiting* removes one.
+  in the thread. *Open in Gmail* opens the thread to write a nudge there (the Sent watch then sees it
+  and the clock starts again); *Not waiting* removes one. Only the latest reply in each thread
+  counts. Drafting and sending a follow-up from AIMail is a later PR (owner, 2026-10-11).
 - **4. Drafts you haven't sent:** a reminder, not a second drafts list. Only drafts ready for
   more than 24 hours and not sent, with *Open*, *No reply needed*, and *See all drafts* linking to
   `/drafts` (#169, the full list). Emails with `authStatus = spoof_detected` are left out, as on
@@ -36,8 +37,11 @@ nothing falls through the cracks between opening emails.
   emails like incoming mail, and stores them in their own table, so nothing that reads `messages`
   (the drafter, the inbox, search) can pick them up.
 - **"Asks something":** word rules in English, Malay and Chinese ("?", please confirm, could you,
-  boleh, sila, mohon, 请, 能否, 是否). Replies sent through AIMail also get a *Remind me if no
-  reply* box beside Send, ticked when the rules match, which the user can change.
+  boleh, sila, mohon, 请, 能否, 是否), read on the backend (`app/waiting.py`) over only what the user
+  wrote: the email quoted beneath a reply (`>` lines, "On ... wrote:", "Pada ... menulis:",
+  "...写道：") is cut off first, or its questions would make nearly every reply count. Replies sent
+  through AIMail also get a *Remind me if they don't reply* box beside Send: ticked, the reply is
+  tracked whatever it says; unticked, the rules decide.
 - **Working days** follow the weekend days in quiet hours (`quiet-hours-send-later.md`).
 - `WAITING_DAYS` is a personal setting.
 
@@ -50,14 +54,14 @@ nothing falls through the cracks between opening emails.
 
 ## Acceptance criteria
 
-- [ ] Given an unsent email with action items, then it is in section 1 with its items.
-- [ ] Given an unsent email flagged for review, then it is in section 2 with its reason.
-- [ ] Given a reply sent through AIMail with *Remind me* ticked, when 3 working days pass with no
+- [x] Given an unsent email with action items, then it is in section 1 with its items.
+- [x] Given an unsent email flagged for review, then it is in section 2 with its reason.
+- [x] Given a reply sent through AIMail with *Remind me* ticked, when 3 working days pass with no
       new message in the thread, then it is in section 3.
-- [ ] Given a reply sent from Gmail that matches the rules, then the same holds.
-- [ ] Given a reply in section 3, when any message arrives in the thread, then it leaves section 3.
-- [ ] Given "Thanks, received!" sent with no question, then it never enters section 3.
-- [ ] Given a Friday-Saturday weekend in quiet hours, then those days do not count.
+- [x] Given a reply sent from Gmail that matches the rules, then the same holds.
+- [x] Given a reply in section 3, when any message arrives in the thread, then it leaves section 3.
+- [x] Given "Thanks, received!" sent with no question, then it never enters section 3.
+- [x] Given a Friday-Saturday weekend in quiet hours, then those days do not count.
 - [ ] Given a draft ready for over 24 hours and not sent, then it is in section 4 until sent,
       dismissed with *No reply needed*, or replaced by a newer message.
 - [ ] Given a sent email stored from the Sent label, then it never appears in the inbox and is
@@ -69,17 +73,19 @@ nothing falls through the cracks between opening emails.
 
 - `GET /todo` -> `{needsAction[], needsReview[], waiting[], unsentDrafts[], count}`.
 - `POST /todo/waiting/{id}/dismiss`; `POST /emails/{id}/dismiss` (no reply needed).
-- `POST /todo/waiting/{id}/follow-up` -> a draft for review.
 - `POST /emails/{id}/send` gains `remindIfNoReply: boolean`.
-- `GET/PUT /settings/todo` `{waitingDays}`.
+- `PUT /settings/todo` `{waitingDays}` (1 to 30); `GET /todo` returns the current value.
+- `DELETE /emails/{id}/dismiss` undoes *No reply needed*.
 
 Changes go into `specs/context/api-contracts.md` in the same PR.
 
 ## Data model
 
-- `sent_message`: `id`, `user_id`, `gmail_id` (unique), `thread_id`, `sent_at`, `subject`,
-  `body_masked`, `asks_something`, `remind` (null = rules decide), `dismissed_at`. Written by the
-  listener for Gmail sends and by the backend for AIMail sends.
+- `sent_message` (migration 0040): `id`, `user_id`, `gmail_id` (unique, null for a backfilled
+  send), `message_id` (unique, the received email an AIMail send answered), `thread_id`, `sent_at`,
+  `subject`, `body_masked`, `remind` (null = rules decide), `dismissed_at`. Written by the listener
+  for Gmail sends and by the backend for AIMail sends; past AIMail sends were backfilled. No
+  recipient address and no vault are kept. Deleted after 90 days by the retention job.
 - `messages.dismissed_at timestamptz null` (no reply needed).
 - `user_preferences.waiting_days smallint default 3`.
 
@@ -117,5 +123,13 @@ Changes go into `specs/context/db-schema.md` in the same PR.
 - 2026-10-10: Sent mail lives in its own table. Rationale: no existing reader of `messages` can
   treat it as received mail.
 - 2026-10-10: Action types are left to the team (#142); the page groups by them when they exist.
+- 2026-10-11: The follow-up is *Open in Gmail* for now, not drafted and sent from AIMail (owner).
+  Rationale: AIMail sends only replies to received mail; a nudge on the user's own sent mail is a
+  new send path with its own duplicate-send risk, so it gets its own PR.
+- 2026-10-11: The *Remind me* box forces tracking; unticked, the rules decide. Rationale: one copy
+  of the rules (Python), none in TypeScript.
+- 2026-10-11: The listener's Sent path is separate from the inbox path and never fails a
+  notification; a sent reply that cannot be masked, or an automatic reply (Auto-Submitted), is
+  skipped. Sent mail has no attachment reading.
 - 2026-10-10: Section 4 only reminds about drafts older than 24 hours and links to `/drafts`
   (#169). Rationale: one list of drafts, not two.

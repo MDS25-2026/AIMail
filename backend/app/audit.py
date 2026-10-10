@@ -47,6 +47,7 @@ class AuditAction(StrEnum):
     SCHEDULED_SEND_CANCELLED = "scheduled_send_cancelled"
     EMAIL_SNOOZED = "email_snoozed"
     QUIET_HOURS = "quiet_hours"
+    TODO_SETTINGS = "todo_settings"
     HOLDING_REPLY_SETTINGS = "holding_reply_settings"
     HOLDING_REPLY_SCHEDULED = "holding_reply_scheduled"
     HOLDING_REPLY_CANCELLED = "holding_reply_cancelled"

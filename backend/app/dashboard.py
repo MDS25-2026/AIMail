@@ -18,6 +18,7 @@ from zoneinfo import ZoneInfo
 import httpx
 from pydantic import BaseModel
 from sqlalchemy import func, or_, select, tuple_, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -61,6 +62,7 @@ from app.db.models import (
     Message,
     ModelEgress,
     ReplyTemplate,
+    SentMessage,
     UserProfile,
 )
 from app.db.session import get_sessionmaker
@@ -304,9 +306,13 @@ async def list_dashboard_emails(scope: Scope, policy_email: str, limit: int, aft
     page = rows[:limit]
     is_more = len(rows) > limit
     schedules = await states_for([message.id for message in page])
-    return EmailPage(emails=[_to_email(message, policy, details=_own_details(message), schedule=schedules.get(message.id))
-                             for message in page],
+    return EmailPage(emails=[inbox_row(message, policy, schedules.get(message.id)) for message in page],
                      nextCursor=Cursor(page[-1].created_at, page[-1].id).encode() if is_more else None)
+
+
+def inbox_row(message: Message, policy: Policy, schedule: ScheduleState | None = None) -> DashboardEmail:
+    """An email as a list shows it: its own subject and preview details, no thread or draft detail."""
+    return _to_email(message, policy, details=_own_details(message), schedule=schedule)
 
 
 def _own_details(message: Message) -> ThreadMap:
@@ -699,7 +705,9 @@ async def _load(pk: UUID, scope: Scope) -> Message | None:
         return await _get(session, pk, scope)
 
 
-async def approve_and_send(message_id: str, draft: str, *, scope: Scope) -> DashboardEmail | None:
+async def approve_and_send(
+    message_id: str, draft: str, *, scope: Scope, remind: bool | None = None
+) -> DashboardEmail | None:
     """Send the approved (possibly edited) draft as a reply, then record what was sent.
 
     A message already sent is returned unchanged; one another request is sending right now is refused with
@@ -740,7 +748,7 @@ async def approve_and_send(message_id: str, draft: str, *, scope: Scope) -> Dash
                     message=message_id)
         raise
     try:
-        email, stored, is_learning_style = await _record_send(pk, message, reply, sent)
+        email, stored, is_learning_style = await _record_send(pk, message, reply, sent, remind)
     except SQLAlchemyError:
         return await _sent_but_not_recorded(message, reply, sent)
     if is_learning_style:
@@ -753,8 +761,8 @@ async def approve_and_send(message_id: str, draft: str, *, scope: Scope) -> Dash
     return email
 
 
-async def _record_send(pk: UUID, message: Message, reply: OutgoingReply,
-                       sent: SentReply) -> tuple[DashboardEmail, Message, bool]:
+async def _record_send(pk: UUID, message: Message, reply: OutgoingReply, sent: SentReply,
+                       remind: bool | None = None) -> tuple[DashboardEmail, Message, bool]:
     """What was sent, with its audit row in the same transaction; and whether style learning is on."""
     async with get_sessionmaker()() as session:
         stored = await session.get(Message, pk)
@@ -771,6 +779,11 @@ async def _record_send(pk: UUID, message: Message, reply: OutgoingReply,
         # In the same transaction: the trail records this send exactly when the record of it commits.
         record(session, AuditAction.APPROVE_AND_SEND, user_id=message.user_id, message=str(pk),
                restored=reply.restored)
+        # For the to-do's waiting list; the listener's Sent watch sees the same send and is ignored.
+        await session.execute(insert(SentMessage).values(
+            user_id=stored.user_id, gmail_id=sent.gmail_id, message_id=pk, thread_id=stored.thread_id,
+            sent_at=func.now(), subject=stored.subject or "", body_masked=reply.stored, remind=remind,
+        ).on_conflict_do_nothing())
         await session.commit()
         return _to_email(stored, await _policy_for(stored)), stored, is_learning_style
 

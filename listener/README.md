@@ -28,6 +28,11 @@ type their bytes show, not the type the sender declared; ones of a type the read
 counted in the audit log. If Gmail no longer has the history since the last notification (a listener
 down for over a week), the 50 newest inbox messages are checked and the ones not yet stored are ingested.
 
+The watch also covers the Sent label. Replies the mailbox sends are masked the same way and stored
+in `sent_message`, never `messages`, for the to-do's waiting list (`sent.go`,
+`specs/features/todo-page.md`); mail to yourself, automatic replies and sent mail that cannot be
+masked are skipped, and a failure there never holds up received mail.
+
 The sender's UTC offset is read from the `Date` header and stored as
 `sender_utc_offset_minutes`, so the dashboard can say "it's 11:40pm for them" before a late reply
 (`specs/features/quiet-hours-send-later.md`); an unreadable header stores null.
@@ -110,6 +115,7 @@ listener/
 ├── audit.go                # audit rows: action constants, sorted-JSON detail, owner id
 ├── privatemode.go          # the owner's Private mode and scan choices, read before any image goes to OCR
 ├── marks.go                # local vision check for signatures, faces and stamps before Gemini
+├── sent.go                 # the mailbox's own sent replies, for the to-do's waiting list
 ├── config.go, health.go    # Pub/Sub settings from the environment; /healthz and /readyz
 ├── legacy_token.go         # the optional token.json mailbox
 ├── Dockerfile              # distroless, non-root service image

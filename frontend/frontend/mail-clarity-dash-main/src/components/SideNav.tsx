@@ -1,8 +1,11 @@
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
+import { useTodo } from "../lib/queries";
+
 const NAV_ITEMS = [
   { label: "nav.inbox", to: "/" },
+  { label: "nav.todo", to: "/todo" },
   { label: "nav.drafts", to: "/drafts" },
   { label: "nav.sent", to: "/sent" },
   { label: "nav.scheduled", to: "/scheduled" },
@@ -16,6 +19,8 @@ const BASE_ITEM = "block w-full rounded-md px-3 py-2 text-left text-sm";
 
 export default function SideNav() {
   const { t } = useTranslation();
+  const todo = useTodo();
+  const todoCount = todo.data?.count ?? 0;
   return (
     <nav aria-label={t("nav.label")} className="w-44 shrink-0 bg-rail p-3">
       <ul className="space-y-1">
@@ -29,6 +34,12 @@ export default function SideNav() {
               activeProps={{ className: `${BASE_ITEM} bg-rail-active font-semibold text-on-rail` }}
             >
               {t(item.label)}
+              {item.to === "/todo" && todoCount > 0 ? (
+                <span className="ml-2 rounded-full bg-brand px-1.5 text-xs font-semibold text-on-brand">
+                  <span className="sr-only">{t("todo.countLabel", { count: todoCount })}</span>
+                  <span aria-hidden>{todoCount}</span>
+                </span>
+              ) : null}
             </Link>
           </li>
         ))}
