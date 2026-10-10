@@ -6,6 +6,32 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-11 — Saved reply templates; the sender's name joins the thread map
+- Decision: personal templates (`reply_template`, migration 0038) with `{{variables}}`. `{{name}}`
+  is the sender's display name as a placeholder (`ThreadMap.add_sender`, numbered after the owner),
+  so the AI never sees it and the send fills it in. *Insert* fills the editor and stores nothing;
+  *Draft from template* goes through the existing refine path; a `{{...}}` left in a draft refuses
+  the send.
+- Why: the user fills only what the email does not say, and no unmasked name is stored or sent.
+- Why not store inserted templates: they would carry a critic score they never had.
+- Affects: `backend/app` (Lane B), the draft card and Settings (Lane D), the refine call to the
+  agent (Lane C, unchanged), `specs/features/reply-templates.md`, `restorable-masking.md`.
+- Status: accepted (owner, 2026-10-10 spec; built 2026-10-11)
+
+### 2026-10-10 — Scanned attachments: local by default, a local vision check by choice
+- Decision: scan images no longer reach Gemini by default; the reader returns each page's local text
+  and the listener masks and uses it. A user may choose checked scans (`user_preferences.scan_reading`,
+  migration 0036): a local vision model (`LOCAL_VISION_MODEL`) checks each redacted image for a
+  signature, face or stamp, and only clear ones go to Gemini.
+- Why: signatures, faces and stamps are not text, so the reader could not redact them. Measured on
+  synthetic scans, the best local model (Gemma-SEA-LION-v4 4B) still misses about 1 in 10, so the
+  check is opt-in and its card says so.
+- Why not in the reader: its container cannot reach Ollama on the host's loopback, and opening
+  Ollama wider exposes an unauthenticated model server. The listener runs on the host.
+- Affects: listener (Lane A), `backend/app` settings route (Lane B), Settings card (Lane D),
+  `specs/features/signature-detection.md`.
+- Status: accepted (owner, 2026-10-10)
+
 ### 2026-10-05 — Restorable masking: numbered placeholders and an encrypted per-email vault
 - Decision: the listener masks each detail as a numbered placeholder (`[PERSON_1]`) instead of a
   fixed marker and seals the placeholder-to-value map into `messages.pii_vault` with `PII_VAULT_KEY`

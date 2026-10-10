@@ -4,7 +4,8 @@ Runs beside the listener on 127.0.0.1 and never calls out. For each attachment:
 - a PDF page with a text layer, a .docx or an .xlsx gives back plain text, which the listener
   masks like any body text, so it needs no vision model at all;
 - a scanned page or an image is redacted here, and returned only if the local OCR read the text
-  it found confidently. A page with low-confidence words is skipped rather than handed to a
+  it found confidently, together with that text, which the listener masks and uses wherever the
+  image is not sent on (the owner's choice, or a signature, face or stamp on it). A page with low-confidence words is skipped rather than handed to a
   stronger remote reader that would see what was never masked. Text the OCR never detects at all
   (handwriting, rotated or tiny print) cannot be gated this way: see docs/known-issues.md.
 """
@@ -103,10 +104,19 @@ class ReaderError(ValueError):
     """The attachment cannot be read. Maps to 422; the listener skips that attachment."""
 
 
+@dataclass(frozen=True)
+class Scan:
+    """One scanned page: its text as the local OCR read it ("" when that cannot be trusted), and the
+    redacted image, or None when the image must not leave the machine."""
+
+    text: str = ""
+    png: bytes | None = None
+
+
 @dataclass
 class Reading:
     texts: list[str] = field(default_factory=list)
-    images: list[bytes] = field(default_factory=list)
+    images: list[Scan] = field(default_factory=list)
     skipped_pages: int = 0
     pages: int = 0
     # Pages not read at all: past MAX_PDF_PAGES or past the time budget. Reported, never silent.
@@ -115,8 +125,9 @@ class Reading:
     def as_json(self) -> dict:
         return {
             "text": "\n\n".join(t for t in self.texts if t.strip()),
-            "images": [{"mime_type": "image/png", "data": base64.b64encode(i).decode()}
-                       for i in self.images],
+            # Each image's local text stands in for it wherever the image is not sent on.
+            "images": [{"mime_type": "image/png", "data": base64.b64encode(i.png).decode(), "text": i.text}
+                       for i in self.images if i.png],
             "skipped_pages": self.skipped_pages,
             "pages": self.pages,
             "unread_pages": self.unread_pages,
@@ -204,8 +215,8 @@ class Redactor:
             current = [(i, w) for (i, _), w in zip(survivors, placed)]
         return hidden
 
-    def redact(self, image: Image.Image) -> bytes | None:
-        """Redacted PNG, or None when this image must not leave the machine.
+    def redact(self, image: Image.Image) -> Scan:
+        """The page's local text and its redacted PNG; either is left out when it cannot be trusted.
 
         Two gates. The first: the local OCR must have read the page confidently, since text it
         cannot read cannot be checked. The second: OCR of the redacted pixels must find no
@@ -216,29 +227,30 @@ class Redactor:
         rgb = image.convert("RGB")
         text, words = ocr_words(rgb)
         if not confidently_read(words):
-            return None
+            return Scan()
         if self._findings(text, ID_DOCUMENT_ENTITIES):
             logger.warning("image reads as an identity document; withheld whole")
-            return None
+            return Scan()
         redacted = rgb.copy()
         draw = ImageDraw.Draw(redacted)
         for index in self.words_to_hide(words, text):
             draw.rectangle(words[index].box, fill=REDACTION_FILL)
         if self._findings(ocr_words(redacted)[0], FORMAT_ENTITIES):
             logger.warning("redaction left a detectable identifier; image withheld")
-            return None
+            return Scan(text=text)
         buffer = io.BytesIO()
         redacted.save(buffer, format="PNG")
-        return buffer.getvalue()
+        return Scan(text=text, png=buffer.getvalue())
 
 
 def add_image(reading: Reading, redactor: Redactor, image: Image.Image) -> None:
     reading.pages += 1
-    png = redactor.redact(image)
-    if png is None:
+    scan = redactor.redact(image)
+    if scan.png is None:
         reading.skipped_pages += 1
+        reading.texts.append(scan.text)
         return
-    reading.images.append(png)
+    reading.images.append(scan)
 
 
 def read_pdf(data: bytes, redactor: Redactor) -> Reading:

@@ -10,8 +10,10 @@ unreachable the email still returns with its Lane A/B fields and stays uncached 
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from email.utils import parseaddr
 from enum import Enum
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 import httpx
 from pydantic import BaseModel
@@ -44,13 +46,22 @@ from app.contracts import (
     ThreadMessage,
 )
 from app.core import mailbox
+from app.core.constants import TEMPLATE_TIMEZONE
 from app.core.cursor import Cursor
 from app.core.errors import DomainError, ErrorCode
-from app.core.language import detect_language
+from app.core.language import Language, detect_language
 from app.core.ownership import EVERYTHING, Scope
 from app.core.redaction import PLACEHOLDER, has_redaction_marker
+from app.core.typed_text import mask_typed_text
 from app.core.vault import ThreadMap, VaultUnavailableError, build_thread_map
-from app.db.models import AuthStatus, MaskingStatus, Message, ModelEgress, UserProfile
+from app.db.models import (
+    AuthStatus,
+    MaskingStatus,
+    Message,
+    ModelEgress,
+    ReplyTemplate,
+    UserProfile,
+)
 from app.db.session import get_sessionmaker
 from app.egress_log import egress_for, save_egress
 from app.email_policy import Action, refusal_for
@@ -77,6 +88,14 @@ from app.rag.errors import EmbeddingError
 from app.rag.retrieve import retrieve
 from app.rag.utils import format_rag_context
 from app.send_reconciler import mark_outcome_unknown
+from app.template_store import suggested_template_id
+from app.templates import (
+    fill_variables,
+    format_day,
+    has_unfilled_variable,
+    protect_variables,
+    restore_variables,
+)
 from app.writing_style import edit_ratio, is_learning, relearn, style_for
 from model_gateway import track_egress
 
@@ -243,6 +262,7 @@ async def _details_for(message: Message, thread: list[Message]) -> ThreadMap:
         [(str(m.id), m.pii_vault, m.user_id, m.gmail_message_id or "",
           f"{m.subject or ''}\n{m.snippet_masked or ''}\n{m.body_masked or ''}") for m in ordered],
         await _owner_name(message.user_id),
+        parseaddr(message.from_addr or "")[0],
     )
 
 
@@ -306,6 +326,8 @@ def _outgoing(draft: str, details: ThreadMap) -> OutgoingReply:
         raise SendRejectedError(ErrorCode.UNRESOLVED_PLACEHOLDERS)
     if has_redaction_marker(sent):
         raise SendRejectedError(ErrorCode.REDACTION_MARKERS)
+    if has_unfilled_variable(sent):
+        raise SendRejectedError(ErrorCode.UNRESOLVED_PLACEHOLDERS)  # a template's {{blank}} left in
     return OutgoingReply(stored=stored, sent=sent, restored=len(PLACEHOLDER.findall(stored)))
 
 
@@ -524,7 +546,7 @@ async def _mark_read(pk: UUID) -> None:
         await session.commit()
 
 
-async def email_detail(message_id: str, *, scope: Scope) -> DashboardEmail | None:
+async def email_detail(message_id: str, *, scope: Scope, viewer_id: UUID | None = None) -> DashboardEmail | None:
     try:
         pk = UUID(message_id)
     except ValueError:
@@ -540,11 +562,17 @@ async def email_detail(message_id: str, *, scope: Scope) -> DashboardEmail | Non
     # Opening the detail view is the moment a person actually reads it.
     await _mark_read(pk)
     message.read_at = message.read_at or datetime.now(timezone.utc)
-    return _to_email(message, await _policy_for(message), thread=thread, details=details,
-                     egress=await egress_for(message.id))
+    email = _to_email(message, await _policy_for(message), thread=thread, details=details,
+                      egress=await egress_for(message.id))
+    # Templates are the viewer's: the original mailbox's unowned rows still get the viewer's.
+    email.suggestedTemplateId = await suggested_template_id(
+        viewer_id or message.user_id, f"{message.subject or ''}\n{message.body_masked or ''}")
+    return email
 
 
-async def email_for_thread(thread_id: str, *, scope: Scope) -> DashboardEmail | None:
+async def email_for_thread(
+    thread_id: str, *, scope: Scope, viewer_id: UUID | None = None
+) -> DashboardEmail | None:
     """The newest of the caller's messages in a Gmail thread, as the detail view returns it.
 
     The Chrome extension knows only the thread Gmail has open, not AIMail's message id.
@@ -557,7 +585,7 @@ async def email_for_thread(thread_id: str, *, scope: Scope) -> DashboardEmail | 
         pk = await session.scalar(stmt)
     if pk is None:
         return None
-    return await email_detail(str(pk), scope=scope)
+    return await email_detail(str(pk), scope=scope, viewer_id=viewer_id)
 
 
 async def confirm_sender(message_id: str, *, scope: Scope) -> DashboardEmail | None:
@@ -891,3 +919,63 @@ async def refine_email(
     await audit(AuditAction.REFINE_DRAFT, user_id=message.user_id, message=message_id,
                 review=message.needs_human_review)
     return _to_email(message, await _policy_for(message), thread=thread, details=details)
+
+
+ADAPT_INSTRUCTION = (
+    "Rewrite this saved template as the reply to this email. Keep the user's wording and structure. "
+    "Where the template has a {{variable}}, fill it only with what the email itself states; leave any "
+    "other {{variable}} exactly as written, braces included."
+)
+
+
+def filled_template(template: ReplyTemplate, details: ThreadMap) -> str:
+    """The template with the variables AIMail can fill: names as placeholders, and today's date."""
+    today = format_day(datetime.now(ZoneInfo(TEMPLATE_TIMEZONE)).date(), Language(template.language))
+    return fill_variables(template.body, sender=details.sender, owner=details.owner, today=today)
+
+
+async def fill_template(message_id: str, template: ReplyTemplate, *, scope: Scope) -> str | None:
+    """The template filled for this email, for the editor; nothing is stored or sent to a model."""
+    try:
+        pk = UUID(message_id)
+    except ValueError:
+        return None
+    loaded = await _load_with_thread(pk, scope)
+    if loaded is None:
+        return None
+    message, thread = loaded
+    _require(message, Action.REFINE)
+    return filled_template(template, await _details_for(message, thread))
+
+
+async def adapt_template(
+    message_id: str, template: ReplyTemplate, *, scope: Scope, tone: Tone = Tone.PROFESSIONAL
+) -> DashboardEmail | None:
+    """The agent rewrites the filled template for this email; reviewed and stored like a refine."""
+    filled = await fill_template(message_id, template, scope=scope)
+    if filled is None:
+        return None
+    return await refine_email(message_id, ADAPT_INSTRUCTION, filled, scope=scope, tone=tone)
+
+
+async def translate_template(template: ReplyTemplate, language: Language) -> str:
+    """The template in another language, every {{variable}} kept, for the user to check and save.
+
+    Only masked typed text leaves, as in a refine: a phone number in the template comes back as a
+    marker the user retypes.
+    """
+    protected, variables = protect_variables(mask_typed_text(template.body))
+    if len(protected) > MAX_TRANSLATE_CHARS:
+        raise TranslationError(ErrorCode.TOO_LARGE, "template too long to translate")
+    try:
+        translated = await _call_agent("/translate", TranslateRequest(
+            text=protected, language=language, provider=await provider_for(template.user_id)), TranslateResponse)
+    except httpx.HTTPStatusError as exc:
+        raise TranslationError(_translation_refusal(exc.response)) from exc
+    except httpx.HTTPError as exc:
+        raise TranslationError(ErrorCode.AGENT_UNAVAILABLE, "agent unreachable") from exc
+    await save_egress(translated.pop("egress", []), user_id=template.user_id, message_id=None)
+    restored = restore_variables(translated["text"], variables)
+    if restored is None:
+        raise TranslationError(ErrorCode.TRANSLATION_UNFAITHFUL, "a template variable was lost")
+    return restored

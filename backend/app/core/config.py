@@ -97,6 +97,8 @@ class Settings(BaseSettings):
     local_llm_url: str = "http://localhost:11434"
     # Private mode's search: a local embedding model on the same Ollama; "" = no search in Private mode.
     local_embedding_model: str = ""
+    # Checks scans for signatures, faces and stamps before Gemini reads them; "" = checked scans not offered.
+    local_vision_model: str = ""
     # Reuse the listener's OAuth creds (gmail.send scope) to send approved replies. Best-practice
     # upgrade: a service account + domain-wide delegation so the backend has its own credentials.
     gmail_credentials_path: str = str(_REPO_ROOT / "listener" / "credentials.json")

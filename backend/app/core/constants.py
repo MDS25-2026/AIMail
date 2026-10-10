@@ -70,3 +70,12 @@ HOLD_WINDOW_MINUTES = 10
 HOLDING_REPLY_STALE_MINUTES = 20
 HOLDING_REPLY_DAILY_CAP = 50
 HOLDING_REPLY_POLL_SECONDS = 60
+
+# Saved reply templates (specs/features/reply-templates.md).
+MAX_TEMPLATES = 50
+MAX_TEMPLATE_TITLE_CHARS = 120
+MAX_TEMPLATE_BODY_CHARS = 5_000
+MAX_TEMPLATE_TRIGGERS = 10
+MAX_TEMPLATE_TRIGGER_CHARS = 40
+# Where "today" is read for a template's {{today}}: the company's, not the server's, calendar day.
+TEMPLATE_TIMEZONE = "Asia/Kuala_Lumpur"

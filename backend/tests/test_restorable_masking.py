@@ -7,6 +7,7 @@ keeps placeholders. Every payload to the agent is captured and checked for the r
 import asyncio
 import json
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
@@ -81,7 +82,8 @@ def mailbox(monkeypatch, test_settings):
                         ("_call_agent", call_agent), ("_claim_send", claim), ("send_reply", send_reply),
                         ("audit", nothing), ("_update_unsent", _true), ("_style_fields", no_style),
                         ("is_learning", _false), ("provider_for", gemini), ("egress_for", no_egress),
-                        ("save_egress", nothing), ("request_draft", nothing), ("release_drafting", nothing)):
+                        ("save_egress", nothing), ("request_draft", nothing), ("release_drafting", nothing),
+                        ("suggested_template_id", nothing)):
         monkeypatch.setattr(dashboard, name, value)
     monkeypatch.setattr(dashboard.connections, "can_send", can_send)
     return state
@@ -190,3 +192,39 @@ def test_an_inbox_row_shows_its_own_details(mailbox):
     row = dashboard._to_email(mailbox["message"], details=dashboard._own_details(mailbox["message"]))
     assert row.subject == "Claim for [PERSON_1]"
     assert {d.placeholder: d.value for d in row.details}["[PERSON_1]"] == "Aisyah Rahman"
+
+
+def _template(body: str) -> SimpleNamespace:
+    return SimpleNamespace(id=uuid4(), user_id=OWNER, body=body, language="en")
+
+
+def test_a_template_fills_the_sender_and_owner_as_placeholders(mailbox):
+    mailbox["message"].from_addr = "Aisyah Rahman <aisyah@example.com>"
+    filled = asyncio.run(dashboard.fill_template(
+        str(mailbox["message"].id), _template("Hi {{name}}, regards {{my name}}. {{meeting link}}"),
+        scope=EVERYTHING))
+    # The sender's display name is the same person as the body's [PERSON_1], so it gets that number.
+    assert filled == "Hi [PERSON_1], regards [PERSON_2]. {{meeting link}}"
+    assert mailbox["payloads"] == []  # filling asks no model
+
+
+def test_a_template_adapted_by_the_agent_reaches_it_with_placeholders_only(mailbox):
+    mailbox["message"].from_addr = "Aisyah Rahman <aisyah@example.com>"
+    body = "Hi {{name}}, I'll ring Aisyah Rahman on 012-345 6789. {{my name}}"
+    asyncio.run(dashboard.adapt_template(str(mailbox["message"].id), _template(body), scope=EVERYTHING))
+    payload = json.loads(mailbox["payloads"][0])
+    assert payload["draft"].startswith("Hi [PERSON_1]") and "[PHONE_1]" in payload["draft"]
+    _no_secret_in(mailbox["payloads"])
+
+
+def test_the_suggestion_uses_the_viewers_templates_even_on_an_unowned_email(mailbox, monkeypatch):
+    asked = []
+
+    async def suggested(user_id, _text):
+        asked.append(user_id)
+        return "tpl-1"
+
+    monkeypatch.setattr(dashboard, "suggested_template_id", suggested)
+    mailbox["message"].user_id = None  # the original mailbox's rows have no owner yet
+    email = asyncio.run(dashboard.email_detail(str(mailbox["message"].id), scope=EVERYTHING, viewer_id=OWNER))
+    assert email.suggestedTemplateId == "tpl-1" and asked == [OWNER]

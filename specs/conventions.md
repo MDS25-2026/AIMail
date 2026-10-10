@@ -2,10 +2,10 @@
 
 Code style and naming rules for AImail. Read this before writing code.
 
-## Python (`backend/`, early `listener/`)
+## Python (`backend/`, `listener/attachment-reader/`)
 
 - **Style:** [PEP 8](https://peps.python.org/pep-0008/).
-- **Formatter:** `black` (line length 100). **Linter:** `ruff`.
+- **Linter:** `ruff` with its default rules (`make lint`). No formatter is enforced.
 - **Type hints required** on every function signature and return type. No bare `Any` outside validation boundaries.
 - **Naming:**
   - Functions, variables, modules → `snake_case`
@@ -18,20 +18,21 @@ Code style and naming rules for AImail. Read this before writing code.
 ## TypeScript (`frontend/`)
 
 - **No plain JS.** `.ts` and `.tsx` only.
-- **Linter:** ESLint (Next.js config). **Formatter:** Prettier.
+- **Linter:** ESLint (the dashboard's `eslint.config.js`: TypeScript, React hooks, Prettier as a rule).
+  **Formatter:** Prettier. Both run in `make check`.
 - **Naming:**
   - Variables, functions, hooks → `camelCase` (`useThreadList`)
   - Components, types, interfaces → `PascalCase` (`ThreadCard`, `Draft`)
   - Constants → `UPPER_SNAKE_CASE`
-  - Files: components `PascalCase.tsx`, everything else `kebab-case.ts`
+  - Files: components `PascalCase.tsx`, everything else `camelCase.ts`
 - **Booleans:** prefix with `is` / `has` / `can` / `should` / `was` / `will`.
 - **No `any`.** Use `unknown` only at validation boundaries.
-- **State:** prefer server components and React Query / TanStack Query for data; reach for client state only when justified.
+- **State:** TanStack Query for server data, behind the hooks in `src/lib/queries`; reach for client state only when justified.
 
-## Go (`listener/go/`, future)
+## Go (`listener/`)
 
 - **Format:** `gofmt` / `goimports`. Non-negotiable.
-- **Linter:** `golangci-lint` (default ruleset).
+- **Checks:** `go vet` and `gofmt -l` (CI, and `make check`).
 - **Naming:** standard Go — exported `PascalCase`, unexported `camelCase`. Receiver names short and consistent.
 - **Errors:** wrap with `fmt.Errorf("context: %w", err)`. Never discard.
 

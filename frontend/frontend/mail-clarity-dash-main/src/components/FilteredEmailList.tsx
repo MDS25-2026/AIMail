@@ -37,7 +37,10 @@ export default function FilteredEmailList({
   const { t } = useTranslation();
   const format = useFormat();
   const emails = useEmails();
-  const rows = (emails.data ?? []).filter(filter);
+  // Newest first by the list's own time: Sent orders by when each reply went out, not when it arrived.
+  const rows = (emails.data ?? [])
+    .filter(filter)
+    .sort((a, b) => Date.parse(timestampOf(b)) - Date.parse(timestampOf(a)));
 
   return (
     <section className="relative min-w-0 flex-1 overflow-y-auto bg-surface-muted p-6">

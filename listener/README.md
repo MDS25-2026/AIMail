@@ -28,6 +28,13 @@ type their bytes show, not the type the sender declared; ones of a type the read
 counted in the audit log. If Gmail no longer has the history since the last notification (a listener
 down for over a week), the 50 newest inbox messages are checked and the ones not yet stored are ingested.
 
+Scanned pages and images are read by the local attachment reader, which returns each page's text and
+a redacted copy. By default only the text is used, masked with the rest of the email, and no scan
+image reaches Gemini. An owner who chooses checked scans (Settings, `user_preferences.scan_reading`)
+gets the redacted images sent to Gemini when a local vision model (`LOCAL_VISION_MODEL`, on Ollama)
+finds no signature, face or stamp on them; any doubt keeps the image here and uses its text
+(`marks.go`, `specs/features/signature-detection.md`).
+
 Every detail becomes a numbered placeholder (`[PERSON_1]`, `[PHONE_2]`), the same value always the
 same number within an email, and the placeholder-to-value map is sealed with `PII_VAULT_KEY` into
 the row's `pii_vault` (`details.go`), so the backend can show the owner the real details and fill
@@ -97,13 +104,15 @@ listener/
 ├── authresults.go          # sender verdict from Google's own Authentication-Results header
 ├── sender.go               # sender facts computed once for every messages row
 ├── audit.go                # audit rows: action constants, sorted-JSON detail, owner id
-├── privatemode.go          # the owner's Private mode choice, read before any image goes to OCR
+├── privatemode.go          # the owner's Private mode and scan choices, read before any image goes to OCR
+├── marks.go                # local vision check for signatures, faces and stamps before Gemini
 ├── config.go, health.go    # Pub/Sub settings from the environment; /healthz and /readyz
 ├── legacy_token.go         # the optional token.json mailbox
 ├── Dockerfile              # distroless, non-root service image
 ├── details.go              # numbered placeholders and the sealed per-email detail vault
 ├── main_test.go            # offline regex-floor tests: typing, ordering, IC date gate, false-positive guards
 ├── presidio_live_test.go   # live NER tests against the containers; self-skip when Presidio is down
+├── marks_live_test.go      # live mark check on testdata/marks; self-skips without Ollama
 ├── credentials.json        # OAuth client (gitignored)
 └── token.json              # OAuth token (gitignored, regenerated on re-auth)
 ```

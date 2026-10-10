@@ -73,6 +73,20 @@ export const ms: Translations = {
     sent: "Dihantar",
   },
   tone: { label: "Nada", professional: "Profesional", casual: "Santai" },
+  draftDiff: {
+    view: "Paparan draf",
+    draft: "Draf",
+    changes: "Perubahan",
+    source: { edits: "Suntingan anda pada draf AI", refine: "Perubahan oleh Perhalus" },
+    none: {
+      edits: "Belum ada perubahan daripada draf AI.",
+      refine: "Perhalus tidak mengubah draf.",
+    },
+    added: "Ditambah",
+    removed: "Dibuang",
+    addedLabel: "ditambah: ",
+    removedLabel: "dibuang: ",
+  },
   refine: {
     placeholder: "Minta AI memperhalus balasan…",
     submit: "Perhalus",
@@ -447,6 +461,74 @@ export const ms: Translations = {
       n3: "Tanya AIMail masih menggunakan Google.",
     },
   },
+  scanReading: {
+    title: "Lampiran imbasan",
+    intro:
+      "Halaman imbasan dan foto dalam e-mel anda dibaca di komputer ini dahulu, dan butiran seperti nama dan nombor IC dihitamkan.",
+    local: "Baca di komputer ini sahaja",
+    localHint:
+      "Imbasan tidak pernah dihantar ke Google. AIMail menggunakan teks yang dibaca di sini, jadi imbasan yang kabur mungkin kurang tepat.",
+    checked: "Semak dahulu, kemudian biar Gemini baca halaman yang bersih",
+    checkedHint:
+      "Model di komputer ini mencari tandatangan, wajah dan cop, dan menyimpan halaman itu di sini. Dalam ujian kami ia terlepas kira-kira 1 daripada 10, jadi tandatangan atau cop kadangkala boleh sampai ke Google.",
+    notSetUp:
+      "Semakan tidak disediakan pada AIMail ini, jadi imbasan hanya boleh dibaca di komputer ini.",
+    privateNote: "Dalam Mod Peribadi, imbasan sentiasa kekal di komputer ini.",
+    saved: "Disimpan.",
+    failed: "Tidak dapat menukar cara imbasan dibaca. Cuba lagi sebentar lagi.",
+  },
+  templates: {
+    title: "Balasan tersimpan",
+    intro:
+      "Balasan yang anda tulis berulang kali. Gunakan dalam mana-mana draf, sebiji-sebiji atau disesuaikan dengan e-mel.",
+    loadFailed: "Tidak dapat memuatkan balasan tersimpan anda.",
+    new: "Balasan tersimpan baharu",
+    edit: "Sunting",
+    delete: "Buang",
+    deleteNamed: "Buang {{title}}",
+    deleteConfirm: "Buang balasan tersimpan ini?",
+    deleteYes: "Buang",
+    deleting: "Membuang…",
+    keep: "Simpan",
+    deleteFailed: "Tidak dapat membuangnya. Cuba lagi sebentar lagi.",
+    translateTo: {
+      en: "Salinan dalam bahasa Inggeris",
+      ms: "Salinan dalam bahasa Melayu",
+      zh: "Salinan dalam bahasa Cina",
+    },
+    translating: "Menterjemah…",
+    translateFailed: "Tidak dapat menterjemahnya. Cuba lagi sebentar lagi.",
+    language: { en: "Inggeris", ms: "Melayu", zh: "Cina" },
+    fieldTitle: "Tajuk",
+    fieldLanguage: "Bahasa",
+    fieldBody: "Balasan",
+    variables: {
+      intro: "AIMail mengisi ini untuk anda:",
+      name: "nama pengirim",
+      myName: "nama anda",
+      today: "tarikh hari ini",
+      other: "Apa-apa lagi dalam kurungan berganda ialah ruang yang anda isi sebelum menghantar.",
+    },
+    fieldTriggers: "Cadangkan apabila e-mel menyebut",
+    triggersHint: "Perkataan dipisahkan dengan koma, contohnya: invois, bayaran",
+    save: "Simpan",
+    saving: "Menyimpan…",
+    saveFailed: "Tidak dapat menyimpannya. Cuba lagi sebentar lagi.",
+    cancel: "Batal",
+    suggested: 'Balasan tersimpan anda "{{title}}" sesuai untuk e-mel ini.',
+    suggestedOption: "{{title}} (dicadangkan)",
+    choose: "Balasan tersimpan",
+    insert: "Masukkan",
+    inserting: "Memasukkan…",
+    insertFailed: "Tidak dapat memasukkannya. Cuba lagi sebentar lagi.",
+    replaceEdits: "Gantikan perubahan yang anda taip dengan balasan tersimpan ini?",
+    replaceYes: "Gantikan",
+    keepEdits: "Kekalkan perubahan saya",
+    adapt: "Tulis draf daripadanya",
+    drafting: "Menulis draf…",
+    fillBlanks_one: "Isi {{blanks}} sebelum menghantar.",
+    fillBlanks_other: "Isi {{blanks}} sebelum menghantar.",
+  },
   account: {
     title: "Akaun",
     signedInAs: "Log masuk sebagai {{email}}.",
@@ -675,6 +757,8 @@ export const ms: Translations = {
       refine:
         "Draf tidak dapat diperhalusi. Teks dan arahan anda tidak berubah, jadi cuba lagi sebentar lagi.",
       send: "Balasan tidak dihantar. Draf anda tidak berubah, jadi cuba lagi sebentar lagi.",
+      template:
+        "Tidak dapat menulis draf daripada templat. Teks anda tidak berubah, jadi cuba lagi sebentar lagi.",
     },
     replaceEdits: "Draf baharu akan menggantikan perubahan yang anda taip.",
     replaceConfirm: "Gantikan perubahan saya",
@@ -773,10 +857,13 @@ export const ms: Translations = {
       "AI tidak dapat menulis draf untuk e-mel ini, dan mencuba lagi tidak akan mengubahnya. Teks anda tidak berubah: tulis balasan sendiri, atau cuba nada yang satu lagi.",
     agent_unavailable:
       "Perkhidmatan mendraf tidak tersedia sekarang. Teks anda tidak berubah; cuba lagi sebentar lagi.",
+    scan_check_unavailable:
+      "Semakan tidak disediakan pada AIMail ini, jadi imbasan hanya boleh dibaca di komputer ini.",
     private_mode_unavailable:
       "Mod Peribadi dihidupkan, tetapi tiada model peribadi disediakan di sini, jadi tiada apa yang boleh didraf. Matikan Mod Peribadi dalam Tetapan.",
     masking_unavailable:
       "Tidak dapat menyembunyikan butiran peribadi sekarang, jadi tiada apa yang disimpan. Cuba lagi sebentar lagi.",
+    too_many_templates: "Anda sudah ada 50 balasan tersimpan. Buang satu dahulu.",
     too_many_examples: "Anda sudah ada 3 contoh. Buang satu dahulu.",
     empty: "Tiada apa untuk disimpan.",
     too_long: "Teks itu terlalu panjang.",
@@ -885,6 +972,7 @@ export const ms: Translations = {
     closeAria: "Tutup pratonton dokumen",
   },
   announce: {
+    templateDrafted: "Draf ditulis daripada templat anda",
     regenerated: "Draf dijana semula",
     refined: "Draf diperhalus",
     sent: "Balasan dihantar",

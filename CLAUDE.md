@@ -10,7 +10,7 @@ AImail is an AI-powered corporate email assistant. It ingests email threads, mas
 
 Three services, split into four ownership lanes. `specs/architecture.md` is the authoritative version of this section — if the two disagree, that file wins.
 
-1. **`listener/`** (Lane A, **Go**) — receives Gmail Pub/Sub push notifications, pulls the message, **masks PII here** (ordered regex floor for email/phone/Malaysian IC, then Presidio NER for names, locations, and context-gated account numbers; quarantines the message with no content until it can be masked if Presidio is down), and writes the masked row plus an audit entry to Supabase via PostgREST. Stateless.
+1. **`listener/`** (Lane A, **Go**) — receives Gmail's notifications from a Pub/Sub pull subscription, fetches the message, **masks PII here** (ordered regex floor for email/phone/Malaysian IC, then Presidio NER for names, locations, and context-gated account numbers; quarantines the message with no content until it can be masked if Presidio is down), and writes the masked row plus an audit entry to Supabase via PostgREST. Stateless.
 2. **`backend/`** (Lanes B + C, Python/FastAPI) — reads masked rows via asyncpg. Lane B (`app/`) does retrieval, the priority classifier, and the REST surface; Lane C (`email_agent.py`, served separately on :8001) does router/generator/critic/refine generation on Gemini. Also sends approved replies via the Gmail API.
 3. **`frontend/frontend/mail-clarity-dash-main/`** (Lane D) — **Vite + React + TypeScript + Tailwind** dashboard (not Next.js). Talks to the backend via REST only.
 
@@ -90,4 +90,4 @@ When you finish exploring a service or subsystem for the first time, **offer** t
 
 ## Running it
 
-`make dev` starts everything: Presidio containers, backend (:8000), Lane C agent (:8001), dashboard (:8090), and the listener. Ports 8000/8001/8090 are freed first; **:8080 is deliberately left alone** for other local projects. `make check` runs the backend tests and ruff, then the dashboard typecheck, eslint, unit tests and palette (contrast and colour-blind) check. `go test ./...` in `listener/` and `make test-reader` cover Lane A. Stop the stack with Ctrl+C, never Ctrl+Z — a suspended run keeps holding the ports and the next start fails to bind.
+`make dev` starts everything: Presidio containers, backend (:8000), Lane C agent (:8001), dashboard (:8090), and the listener. Ports 8000/8001/8090 are freed first; **:8080 is deliberately left alone** for other local projects. `make check` runs the backend tests and ruff, then the dashboard typecheck, eslint, unit tests and palette (contrast and colour-blind) check, then the listener's `go vet`, `gofmt` and `go test -short` (`make go-check`). The full `go test ./...` in `listener/` (live Gemini and vision-model tests included) and `make test-reader` cover the rest of Lane A. Stop the stack with Ctrl+C, never Ctrl+Z — a suspended run keeps holding the ports and the next start fails to bind.

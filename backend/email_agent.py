@@ -32,6 +32,7 @@ from app.agent_contract import (
 )
 from app.core.agent_auth import require_agent_token
 from app.core.config import get_settings
+from app.core.draft_text import strip_subject_line
 from app.core.health import health_router, model_configured
 from app.core.logging_setup import configure_logging
 from app.core.middleware import request_context
@@ -664,6 +665,8 @@ async def _judged(ctx: DraftContext, draft: str) -> CriticVerdict | ModelError:
 
 async def assess(ctx: DraftContext, draft: str) -> Candidate:
     """The critic and the deterministic checks, on one draft. A critic failure leaves it unjudged."""
+    # Every draft passes here, generated, repaired or refined: the reader and the critic see what is sent.
+    draft = strip_subject_line(draft)
     judged, pii_findings = await asyncio.gather(_judged(ctx, draft), scan_draft_pii(draft))
     verdict = judged if isinstance(judged, CriticVerdict) else None
     return Candidate(

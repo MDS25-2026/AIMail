@@ -227,3 +227,131 @@ describe("changing the tone", () => {
     expect(result.current.tone).toBe("casual");
   });
 });
+
+describe("what the Changes view compares (#149)", () => {
+  const original = emailFixture({ id: "c", draftReply: "Thanks, I will reply soon." });
+  const refined = { ...original, draftReply: "Thanks, I will reply by Friday." };
+
+  async function refineTo(result: { current: ReturnType<typeof useDraftWorkflow> }) {
+    await act(async () => {
+      await result.current.refine("Add a deadline");
+    });
+  }
+
+  test("an untouched draft compares the AI draft with itself", () => {
+    stubFetch({});
+    const { result } = renderWorkflow(original);
+    expect(result.current.comparison).toEqual({
+      before: "Thanks, I will reply soon.",
+      after: "Thanks, I will reply soon.",
+      source: "edits",
+    });
+  });
+
+  test("typed edits compare the AI draft with the reader's text", () => {
+    stubFetch({});
+    const { result } = renderWorkflow(original);
+    act(() => result.current.setDraft("Thanks, I will reply tomorrow."));
+    expect(result.current.comparison).toEqual({
+      before: "Thanks, I will reply soon.",
+      after: "Thanks, I will reply tomorrow.",
+      source: "edits",
+    });
+  });
+
+  test("after a Refine, it compares the text Refine was given with the refined draft", async () => {
+    stubFetch({ "POST /emails/c/refine": { body: refined } });
+    const { result, rerender } = renderWorkflow(original);
+    act(() => result.current.setDraft("Thanks, I will reply later."));
+    await refineTo(result);
+    rerender(refined);
+    expect(result.current.comparison).toEqual({
+      before: "Thanks, I will reply later.",
+      after: "Thanks, I will reply by Friday.",
+      source: "refine",
+    });
+  });
+
+  test("typing after a Refine compares the refined draft with the new edits", async () => {
+    stubFetch({ "POST /emails/c/refine": { body: refined } });
+    const { result, rerender } = renderWorkflow(original);
+    await refineTo(result);
+    rerender(refined);
+    act(() => result.current.setDraft("Thanks, I will reply by Monday."));
+    expect(result.current.comparison).toEqual({
+      before: "Thanks, I will reply by Friday.",
+      after: "Thanks, I will reply by Monday.",
+      source: "edits",
+    });
+  });
+
+  test("a regenerate drops the Refine comparison", async () => {
+    const regenerated = { ...original, draftReply: "Hi, noted with thanks." };
+    stubFetch({
+      "POST /emails/c/refine": { body: refined },
+      "POST /emails/c/regenerate": { body: regenerated },
+    });
+    const { result, rerender } = renderWorkflow(original);
+    await refineTo(result);
+    rerender(refined);
+    act(() => result.current.regenerate());
+    await waitFor(() => expect(result.current.isRegenerating).toBe(false));
+    rerender(regenerated);
+    expect(result.current.comparison.source).toBe("edits");
+  });
+
+  test("a failed Refine leaves the comparison as it was", async () => {
+    stubFetch({
+      "POST /emails/c/refine": { status: 502, body: { error: { code: "agent_unavailable" } } },
+    });
+    const { result } = renderWorkflow(original);
+    await act(async () => {
+      await result.current.refine("Shorter").catch(() => undefined);
+    });
+    expect(result.current.comparison.source).toBe("edits");
+  });
+});
+
+describe("saved reply templates", () => {
+  const withDetails = emailFixture({
+    id: "t",
+    draftReply: "AI draft",
+    details: [{ placeholder: "[PERSON_3]", value: "Aisyah Rahman", kind: "PERSON" }],
+  });
+
+  test("an inserted template shows the sender's real name, as the editor shows the stored draft", () => {
+    const { result } = renderWorkflow(withDetails);
+    act(() => result.current.insertTemplate("Hi [PERSON_3], thanks."));
+    expect(result.current.draft).toBe("Hi Aisyah Rahman, thanks.");
+    expect(result.current.hasUnsavedEdits).toBe(true);
+  });
+
+  test("a draft with an unfilled template blank cannot be sent until it is filled", () => {
+    vi.useFakeTimers();
+    const calls = stubFetch({ "POST /emails/t/send": { body: withDetails } });
+    const { result } = renderWorkflow(withDetails);
+    act(() => result.current.setDraft("Join at {{meeting link}}"));
+    expect(result.current.unfilledBlanks).toEqual(["{{meeting link}}"]);
+    act(() => result.current.send());
+    expect(result.current.undoCountdown).toBeNull();
+    act(() => result.current.setDraft("Join at https://meet.example/abc"));
+    expect(result.current.unfilledBlanks).toEqual([]);
+    act(() => result.current.send());
+    expect(result.current.undoCountdown).not.toBeNull();
+    expect(calls).toHaveLength(0);
+    vi.useRealTimers();
+  });
+
+  test("drafting from a template asks the agent and drops the reader's typed text for its version", async () => {
+    const adapted = { ...withDetails, draftReply: "Adapted for [PERSON_3]" };
+    const calls = stubFetch({ "POST /templates/tpl-1/adapt": { body: adapted } });
+    const { result, rerender } = renderWorkflow(withDetails);
+    act(() => result.current.setDraft("Something I typed"));
+    await act(async () => {
+      await result.current.draftFromTemplate("tpl-1");
+    });
+    expect(calls[0].body).toEqual({ emailId: "t", tone: "professional" });
+    rerender(adapted);
+    expect(result.current.draft).toBe("Adapted for Aisyah Rahman");
+  });
+});

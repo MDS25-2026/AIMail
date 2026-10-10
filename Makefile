@@ -4,12 +4,12 @@
 VENV := .venv/bin
 .DEFAULT_GOAL := help
 
-.PHONY: help api-types api-types-check check test lint typecheck hooks dev backend worker agent web test-reader migrate seed ingest eval eval-reform baseline backfill generate ml-deps distilbert eval-classifier label eval-critic latency extension
+.PHONY: help api-types api-types-check check go-check test lint typecheck hooks dev backend worker agent web test-reader migrate seed ingest eval eval-reform baseline backfill generate ml-deps distilbert eval-classifier label eval-critic latency extension
 
 help:  ## list targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  make %-12s %s\n", $$1, $$2}'
 
-check: test lint typecheck api-types-check  ## backend tests + ruff; dashboard typecheck, eslint, unit tests, palette check; API types fresh
+check: test lint typecheck api-types-check go-check  ## backend tests + ruff; dashboard typecheck, eslint, unit tests, palette check; API types fresh; listener vet, gofmt, tests
 
 DASHBOARD := frontend/frontend/mail-clarity-dash-main
 OPENAPI := backend/.openapi.json
@@ -61,6 +61,10 @@ web:  ## run the dashboard on :8090 (8080 is left to other local projects)
 extension:  ## build the Chrome extension into extension-dist/ (load unpacked) and aimail-extension.zip
 	cd frontend/frontend/mail-clarity-dash-main && npm run build:extension
 	cd frontend/frontend/mail-clarity-dash-main/extension-dist && python3 -m zipfile -c ../aimail-extension.zip .
+
+go-check:  ## listener: go vet, gofmt, and the tests (-short: no Gemini call, no slow model run)
+	@command -v go >/dev/null || { echo "go-check: Go is not installed, skipping (CI's listener job runs these)"; exit 0; }; \
+	cd listener && go vet ./... && test -z "$$(gofmt -l .)" && go test -short ./...
 
 test-reader:  ## attachment reader tests, inside its image against the real OCR and NER models
 	docker build -q -t aimail-attachment-reader:test listener/attachment-reader

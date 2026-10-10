@@ -137,6 +137,8 @@ class DashboardEmail(BaseModel):
     details: list[Detail] = Field(default_factory=list)
     # What actually left for a model while working on this email, newest first. Detail responses only.
     egress: list[EgressRecord] = Field(default_factory=list)
+    # The reader's saved template whose trigger words and language match this email. Detail only.
+    suggestedTemplateId: str | None = None
 
 
 # Newest first, at most this many per page unless the caller asks for fewer.

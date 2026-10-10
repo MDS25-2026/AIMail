@@ -175,7 +175,10 @@ These are not defects — they are trade-offs with reasons, recorded so the reas
   never detected at all: a line of handwriting beside confidently printed text would reach Gemini
   unredacted. The listener's `maskText` still runs on the transcript, which catches the formats it
   knows, but only after Gemini has seen the image. Accepted because the alternative, withholding
-  any image with a region the OCR skipped, would withhold nearly every photo and logo.
+  any image with a region the OCR skipped, would withhold nearly every photo and logo. Since
+  2026-10-10 this applies only to owners who chose checked scans; by default no scan image reaches
+  Gemini (`specs/features/signature-detection.md`), and the local check also misses about 1 in 10
+  signatures, faces and stamps.
 - **Attachments are over-redacted where NER is unsure.** A capitalised label can be tagged as a
   name ("Bill to:" loses "Bill"). The business content that matters (amounts, dates, reference
   numbers) survives: `tests/test_reader.py` asserts it on a synthetic invoice.

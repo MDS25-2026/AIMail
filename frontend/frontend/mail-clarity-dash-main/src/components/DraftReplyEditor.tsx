@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { DraftWorkflow } from "../lib/useDraftWorkflow";
 import type { Email } from "../types/email";
 import CriticConfidenceBadge from "./CriticConfidenceBadge";
+import DraftDiff from "./DraftDiff";
 import PiiMaskedBadge from "./PiiMaskedBadge";
 import ToneToggle from "./ToneToggle";
 
@@ -10,6 +12,9 @@ type DraftReplyEditorProps = { email: Email; workflow: DraftWorkflow; rows?: num
 
 export default function DraftReplyEditor({ email, workflow, rows = 10 }: DraftReplyEditorProps) {
   const { t } = useTranslation();
+  // Remembers which email Changes was opened on, so opening another email starts on Draft.
+  const [changesFor, setChangesFor] = useState<string | null>(null);
+  const isShowingChanges = changesFor === email.id;
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -25,16 +30,41 @@ export default function DraftReplyEditor({ email, workflow, rows = 10 }: DraftRe
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         <CriticConfidenceBadge value={email.criticConfidence} />
         <PiiMaskedBadge masked={email.piiMasked} />
+        <div
+          role="group"
+          aria-label={t("draftDiff.view")}
+          className="ml-auto inline-flex rounded-md border border-line bg-surface-muted p-0.5"
+        >
+          {[false, true].map((changes) => (
+            <button
+              key={String(changes)}
+              type="button"
+              aria-pressed={isShowingChanges === changes}
+              onClick={() => setChangesFor(changes ? email.id : null)}
+              className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+                isShowingChanges === changes
+                  ? "bg-surface text-fg shadow-sm"
+                  : "text-fg-muted hover:text-fg-body"
+              }`}
+            >
+              {t(changes ? "draftDiff.changes" : "draftDiff.draft")}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <textarea
-        value={workflow.draft}
-        rows={rows}
-        disabled={workflow.isDraftLocked}
-        aria-label={t("draft.title")}
-        onChange={(event) => workflow.setDraft(event.target.value)}
-        className="mt-2 w-full resize-y rounded-md border border-line-strong p-3 text-sm leading-relaxed text-fg disabled:bg-surface-muted disabled:text-fg-subtle"
-      />
+      {isShowingChanges ? (
+        <DraftDiff comparison={workflow.comparison} rows={rows} />
+      ) : (
+        <textarea
+          value={workflow.draft}
+          rows={rows}
+          disabled={workflow.isDraftLocked}
+          aria-label={t("draft.title")}
+          onChange={(event) => workflow.setDraft(event.target.value)}
+          className="mt-2 w-full resize-y rounded-md border border-line-strong p-3 text-sm leading-relaxed text-fg disabled:bg-surface-muted disabled:text-fg-subtle"
+        />
+      )}
     </div>
   );
 }

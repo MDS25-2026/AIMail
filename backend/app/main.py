@@ -108,8 +108,10 @@ from app.rag.library import (
 )
 from app.rag.mask import DocumentMaskingError
 from app.rag.retrieve import ContextChunk, retrieve
+from app.scan_reading_routes import router as scan_reading_router
 from app.search_routes import router as search_router
 from app.sign_in import router as sign_in_router
+from app.template_routes import router as template_router
 from app.writing_style_routes import router as writing_style_router
 from model_gateway import track_egress
 from model_runtime import ModelError
@@ -134,6 +136,8 @@ app.include_router(sign_in_router)
 app.include_router(account_router)
 app.include_router(holding_reply_router)
 app.include_router(private_mode_router)
+app.include_router(scan_reading_router)
+app.include_router(template_router)
 app.include_router(writing_style_router)
 app.include_router(audit_router)
 app.include_router(search_router)
@@ -243,7 +247,7 @@ async def emails(request: Request, cursor: str | None = None,
 @app.get("/emails/{message_id}", dependencies=[Depends(rate_limit_detail), Depends(require_mailbox)])
 async def email_detail_route(message_id: str, request: Request) -> DashboardEmail:
     # Detail view: adds Lane C generation (retrieve + /process-email) for one opened email.
-    email = await email_detail(message_id, scope=scope_of(request))
+    email = await email_detail(message_id, scope=scope_of(request), viewer_id=principal_of(request).user_id)
     return _found(email)
 
 
@@ -256,7 +260,7 @@ async def email_for_thread_route(
     thread_id: Annotated[str, PathParam(pattern=GMAIL_THREAD_ID)], request: Request
 ) -> DashboardEmail:
     # The Chrome extension's lookup: the email Gmail has open, by its thread.
-    email = await email_for_thread(thread_id, scope=scope_of(request))
+    email = await email_for_thread(thread_id, scope=scope_of(request), viewer_id=principal_of(request).user_id)
     return _found(email)
 
 

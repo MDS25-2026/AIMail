@@ -241,7 +241,7 @@ class UserProfile(Base):
 
 
 class UserPreferences(Base):
-    """Defaults reproduce today's behaviour, so an unconfigured user sees no change."""
+    """Defaults reproduce today's behaviour, so an unconfigured user sees no change; scan_reading excepted."""
 
     __tablename__ = "user_preferences"
 
@@ -251,6 +251,9 @@ class UserPreferences(Base):
     default_tone: Mapped[str] = mapped_column(Text)
     # Private mode (migration 0022): "gemini" or "local".
     draft_provider: Mapped[str] = mapped_column(Text, default="gemini")
+    # Scanned attachments (migration 0036): "local" or "checked". Defaults to local, not to the old
+    # behaviour of sending scans to Gemini: the check misses about 1 in 10 signatures and stamps.
+    scan_reading: Mapped[str] = mapped_column(Text, default="local")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -333,6 +336,22 @@ class HoldingReply(Base):
     sent_message_id: Mapped[str | None] = mapped_column(Text)
     send_outcome_unknown_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ReplyTemplate(Base):
+    """One saved reply (migration 0038, specs/features/reply-templates.md), stored as typed."""
+
+    __tablename__ = "reply_template"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("user_profile.id"))
+    title: Mapped[str] = mapped_column(Text)
+    body: Mapped[str] = mapped_column(Text)
+    language: Mapped[str] = mapped_column(Text)
+    trigger_keywords: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class WritingStyle(Base):

@@ -9,6 +9,8 @@ type ApproveSendButtonProps = {
   /** A draft mutation is in flight. Sending now would dispatch the pre-mutation text while the
    *  screen goes on to show the new one — and a send cannot be taken back. */
   isDraftChanging: boolean;
+  /** The draft still holds a saved template's {{blank}}; the backend would refuse it. */
+  isBlocked?: boolean;
 };
 
 const SENT =
@@ -23,9 +25,10 @@ export default function ApproveSendButton({
   isSending,
   isSent,
   isDraftChanging,
+  isBlocked = false,
 }: ApproveSendButtonProps) {
   const { t } = useTranslation();
-  const disabled = isSending || isSent || isDraftChanging;
+  const disabled = isSending || isSent || isDraftChanging || isBlocked;
   const label = isSent ? t("draft.sent") : isSending ? t("draft.sending") : t("draft.approveSend");
   return (
     <button
