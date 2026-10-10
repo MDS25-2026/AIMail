@@ -396,7 +396,7 @@ export const ms: Translations = {
     },
     title: "Gaya penulisan anda",
     intro:
-      "Beritahu AIMail cara anda menulis, atau tunjukkan. Draf mengikut gaya anda. Nama, nombor dan alamat disembunyikan sebelum apa-apa disimpan, dan tiada AI dilatih dengan e-mel anda.",
+      "Beritahu AIMail cara anda menulis, atau tunjukkan. Draf mengikut gaya anda. Nama, nombor dan alamat disembunyikan sebelum apa-apa disimpan, dan e-mel anda tidak pernah melatih AI untuk orang lain.",
     loadFailed: "Tidak dapat memuatkan gaya penulisan anda.",
     describe: "Terangkan cara anda menulis",
     describePlaceholder: 'Mesra tetapi ringkas, tiada jargon, tutup dengan "Terima kasih,"',
@@ -475,13 +475,13 @@ export const ms: Translations = {
       "Halaman imbasan dan foto dalam e-mel anda dibaca di komputer ini dahulu, dan butiran seperti nama dan nombor IC dihitamkan.",
     local: "Baca di komputer ini sahaja",
     localHint:
-      "Imbasan tidak pernah dihantar ke Google. AIMail menggunakan teks yang dibaca di sini, jadi imbasan yang kabur mungkin kurang tepat.",
+      "Imej imbasan tidak pernah dihantar ke Google. AIMail menggunakan teks yang dibaca di sini, dengan butiran disembunyikan seperti e-mel yang lain, jadi imbasan yang kabur mungkin kurang tepat.",
     checked: "Semak dahulu, kemudian biar Gemini baca halaman yang bersih",
     checkedHint:
       "Model di komputer ini mencari tandatangan, wajah dan cop, dan menyimpan halaman itu di sini. Dalam ujian kami ia terlepas kira-kira 1 daripada 10, jadi tandatangan atau cop kadangkala boleh sampai ke Google.",
     notSetUp:
       "Semakan tidak disediakan pada AIMail ini, jadi imbasan hanya boleh dibaca di komputer ini.",
-    privateNote: "Dalam Mod Peribadi, imbasan sentiasa kekal di komputer ini.",
+    privateNote: "Dalam Mod Peribadi, imej imbasan tidak pernah dihantar ke Google.",
     saved: "Disimpan.",
     failed: "Tidak dapat menukar cara imbasan dibaca. Cuba lagi sebentar lagi.",
   },
@@ -1058,12 +1058,12 @@ export const ms: Translations = {
     title: "Pembantu Peti Masuk",
     groundedBadge: "[Soal Jawab Berasas]",
     privacyNotice:
-      "[PRIVASI DIPELIHARA] Butiran sensitif ditopengkan sebelum pemprosesan AI dan dipulihkan secara setempat pada peranti anda.",
+      "Butiran peribadi ditopengkan sebelum AI membaca e-mel anda, dan AIMail mengisinya semula selepas AI menjawab. Jawapannya yang terdahulu tidak pernah dihantar semula kepada AI.",
     askInbox: "Tanya peti masuk anda",
     askInboxHint:
       "Tanya soalan bahasa semula jadi tentang surat-menyurat e-mel dan dasar syarikat anda.",
     searching: "Mencari peti masuk & mensintesis jawapan…",
-    restoredNotice: "[Butiran peribadi dipulihkan secara setempat]",
+    restoredNotice: "[Butiran peribadi diisi semula oleh AIMail]",
     sources_one: "{{count}} sumber",
     sources_other: "{{count}} sumber",
     sourcesBreakdown: "({{emails}} e-mel, {{docs}} dokumen)",

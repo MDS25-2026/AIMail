@@ -13,7 +13,7 @@ from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
-from sqlalchemy import func, or_, select
+from sqlalchemy import ColumnElement, and_, func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 
 import model_gateway
@@ -23,6 +23,7 @@ from app.core.typed_text import mask_typed_text
 from app.core.vault import ThreadMap, VaultUnavailableError, open_vault
 from app.db.models import Chunk, Document, Message
 from app.db.session import get_sessionmaker
+from app.private_mode import not_private
 from app.rag.retrieve import ContextChunk
 from app.rag.retrieve import search as search_policy_documents
 from model_runtime import ModelError
@@ -160,14 +161,18 @@ class SearchSource(BaseModel):
     received_at: str | None = None
 
 
+HISTORY_QUESTIONS = 3
+MAX_HISTORY_TURNS = 20
+
+
 class ChatMessage(BaseModel):
     role: Literal["user", "assistant"]
-    content: str
+    content: str = Field(max_length=8000)
 
 
 class InboxSearchRequest(BaseModel):
     query: str = Field(min_length=1, max_length=1000)
-    history: list[ChatMessage] = Field(default_factory=list)
+    history: list[ChatMessage] = Field(default_factory=list, max_length=MAX_HISTORY_TURNS)
     k_emails: int = Field(default=5, ge=1, le=20)
     k_docs: int = Field(default=3, ge=1, le=10)
 
@@ -180,13 +185,19 @@ class InboxSearchResponse(BaseModel):
     intent: str | None = None
 
 
+def _questions(history: list[ChatMessage]) -> list[str]:
+    """The user's recent questions only. The assistant's answers carry real names filled back in
+    after the model answered, so sending them back would hand those names to the model."""
+    asked = [turn.content for turn in history if turn.role == "user"]
+    return [mask_typed_text(question) for question in asked[-HISTORY_QUESTIONS:]]
+
+
 async def contextualize_query(query: str, history: list[ChatMessage], provider: Provider) -> str:
     """Resolve pronouns and conversational context into a self-contained search query."""
     if not history:
         return query
 
-    recent_history = history[-6:]
-    formatted_turns = "\n".join(f"{m.role.capitalize()}: {m.content}" for m in recent_history)
+    formatted_turns = "\n".join(f"User: {content}" for content in _questions(history))
 
     prompt = f"""Given the following conversation history and a follow-up question, rewrite the follow-up question into a standalone search query.
 Resolve all pronouns (e.g. "it", "that", "she", "they", "the second one") using the conversation history.
@@ -211,6 +222,14 @@ Standalone query:"""
         logger.warning("Query contextualization failed, falling back to raw query: %s", exc)
 
     return query
+
+
+def _visible(scope: Scope, provider: Provider) -> ColumnElement[bool]:
+    """The rows this search may read. A search across users on Gemini leaves out Private mode users,
+    whose emails never go to Gemini (a script with the backend token gets every user's scope)."""
+    if scope.is_everything and provider == Provider.GEMINI:
+        return and_(scope.where(Message.user_id), not_private(Message.user_id))
+    return scope.where(Message.user_id)
 
 
 async def search_messages_hybrid(
@@ -241,7 +260,7 @@ async def search_messages_hybrid(
                 select(Message)
                 .where(
                     Message.search_vector.op("@@")(func.websearch_to_tsquery("english", search_query)),
-                    scope.where(Message.user_id),
+                    _visible(scope, provider),
                 )
                 .order_by(
                     func.ts_rank_cd(
@@ -259,7 +278,7 @@ async def search_messages_hybrid(
                     select(Message)
                     .where(
                         Message.search_vector.op("@@")(func.plainto_tsquery("english", search_query)),
-                        scope.where(Message.user_id),
+                        _visible(scope, provider),
                     )
                     .order_by(
                         func.ts_rank_cd(
@@ -282,7 +301,7 @@ async def search_messages_hybrid(
                     select(Message)
                     .where(
                         or_(*conditions),
-                        scope.where(Message.user_id),
+                        _visible(scope, provider),
                     )
                     .order_by(Message.received_at.desc())
                     .limit(10)
@@ -300,7 +319,7 @@ async def search_messages_hybrid(
                     select(Message)
                     .where(
                         Message.embedding.is_not(None),
-                        scope.where(Message.user_id),
+                        _visible(scope, provider),
                         distance <= 0.35,  # Stricter similarity floor (>= 65% similarity)
                     )
                     .order_by(distance)
@@ -376,7 +395,7 @@ async def execute_inbox_search(
 
     # 0. Route query intent via two-tier hybrid router
     intent = await route_query_intent(effective_query, provider)
-    logger.info("Resolved query intent: %s for query: '%s'", intent, effective_query)
+    logger.info("Resolved query intent: %s", intent)
 
     matched_emails: list[Message] = []
     sender_candidates: list[str] = []
@@ -388,7 +407,7 @@ async def execute_inbox_search(
             async with get_sessionmaker()() as session:
                 stmt = (
                     select(Message)
-                    .where(scope.where(Message.user_id))
+                    .where(_visible(scope, provider))
                     .order_by(Message.received_at.desc())
                     .limit(request.k_emails)
                 )
@@ -504,6 +523,10 @@ async def execute_inbox_search(
     email_blocks: list[str] = []
     sender_vault: dict[str, str] = {}
 
+    # Each email's own placeholder numbers, moved into the one numbering the answer is restored with.
+    shared_subjects = {msg.id: thread_map.renumber(str(msg.id), strip_emojis(msg.subject or "").strip() or "(No subject)")
+                       for msg in matched_emails}
+    shared_snippets = {msg.id: thread_map.renumber(str(msg.id), format_email_snippet(msg)) for msg in matched_emails}
     for idx, msg in enumerate(matched_emails, 1):
         tag = f"[Email {idx}]"
         sender_placeholder = f"[SENDER_{idx}]"
@@ -524,7 +547,7 @@ async def execute_inbox_search(
             (msg.body_masked or msg.snippet_masked or "").strip()[:1500],
         )
 
-        clean_subject = strip_emojis(msg.subject or "(No subject)").strip() or "(No subject)"
+        clean_subject = shared_subjects[msg.id]
 
         email_blocks.append(
             f"{tag}\n"
@@ -537,9 +560,9 @@ async def execute_inbox_search(
         candidate_sources_map[tag] = SearchSource(
             source_type=SourceType.EMAIL,
             id=str(msg.id),
-            title=clean_subject,
+            title=thread_map.restore(clean_subject)[0],
             subtitle=f"{msg.from_addr or 'Unknown sender'} · {format_received_date(msg.received_at)}",
-            snippet=format_email_snippet(msg),
+            snippet=thread_map.restore(shared_snippets[msg.id])[0],
             received_at=msg.received_at.isoformat() if msg.received_at else None,
         )
 
@@ -568,10 +591,8 @@ async def execute_inbox_search(
     emails_section = "\n\n".join(email_blocks) if email_blocks else "None found."
     docs_section = "\n\n".join(doc_blocks) if doc_blocks else "None found."
 
-    history_text = ""
-    if request.history:
-        history_lines = [f"{m.role.capitalize()}: {m.content}" for m in request.history[-6:]]
-        history_text = "Prior conversation:\n" + "\n".join(history_lines) + "\n\n"
+    questions = _questions(request.history)
+    history_text = ("Earlier questions:\n" + "\n".join(f"User: {q}" for q in questions) + "\n\n") if questions else ""
 
     if intent == QueryIntent.INBOX_OVERVIEW:
         task_instruction = (
@@ -631,8 +652,8 @@ Helpful Grounded Answer:"""
             for idx, msg in enumerate(matched_emails[:5], 1):
                 sender_val = sender_vault.get(f"[SENDER_{idx}]", msg.from_addr or "Unknown sender")
                 date_val = format_received_date(msg.received_at)
-                subj_val = msg.subject or "(No subject)"
-                snip_val = format_email_snippet(msg)
+                subj_val = shared_subjects[msg.id]
+                snip_val = shared_snippets[msg.id]
                 overview_lines.append(f"- **{subj_val}** — *{sender_val}* ({date_val})\n  {snip_val} [Email {idx}]\n")
             citations_list = ", ".join(f"[Email {i}]" for i in range(1, len(matched_emails[:5]) + 1))
             answer_text = "\n".join(overview_lines) + f"\nCitations: {citations_list}"
@@ -641,7 +662,7 @@ Helpful Grounded Answer:"""
             for idx, msg in enumerate(matched_emails[:3], 1):
                 sender_val = sender_vault.get(f"[SENDER_{idx}]", msg.from_addr or "Unknown sender")
                 date_val = format_received_date(msg.received_at)
-                subj_val = msg.subject or "(No subject)"
+                subj_val = shared_subjects[msg.id]
                 fallback_lines.append(f"- **{subj_val}** — *{sender_val}* ({date_val}) [Email {idx}]")
             citations_list = ", ".join(f"[Email {i}]" for i in range(1, len(matched_emails[:3]) + 1))
             answer_text = "\n".join(fallback_lines) + f"\n\nCitations: {citations_list}"

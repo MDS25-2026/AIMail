@@ -281,7 +281,7 @@ See [`../features/rag-retrieval.md`](../features/rag-retrieval.md).
   ```json
   {
     "query": string,
-    "history"?: [{ "role": "user" | "assistant", "content": string }],
+    "history"?: [{ "role": "user" | "assistant", "content": string (≤ 8000) }] (≤ 20 turns),
     "k_emails"?: int (1–20, default 5),
     "k_docs"?: int (1–10, default 3)
   }
@@ -299,11 +299,18 @@ See [`../features/rag-retrieval.md`](../features/rag-retrieval.md).
         "snippet": string,
         "received_at": string | null
       }
-    ]
+    ],
+    "sender_vault": { [placeholder: string]: string },
+    "has_restored_pii": boolean,
+    "intent": string | null
   }
   ```
-- Auth required (cookie or bearer). Scoped strictly to the caller's mailbox and uploaded documents.
-- 401 `signed_out` / `session_invalid` · 404 `mailbox_not_connected` · 422 `invalid_request` · 503 `ai_service_unreachable`.
+- Only the user's last three questions from `history` reach the model; the assistant's turns never
+  do, since their details were filled back in after the model answered (2026-10-11). Subjects and
+  snippets use the same placeholder numbering as the bodies, so restored names match.
+- Auth required (cookie or bearer). Scoped to the caller's mailbox and uploaded documents; with the
+  bearer token (every user's scope) on Gemini, Private mode users' emails are left out.
+- 401 `signed_out` / `session_invalid` · 404 `not_found` (no mailbox connected) · 422 `invalid_request` · 429 `rate_limited` · 503 `ai_service_unreachable`.
 
 
 ### Dashboard (email view)

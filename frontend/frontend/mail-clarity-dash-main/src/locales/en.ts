@@ -382,7 +382,7 @@ export const en = {
     },
     title: "Your writing style",
     intro:
-      "Tell AIMail how you write, or show it. Drafts follow your style. Names, numbers and addresses are hidden before anything is saved, and no AI is trained on your email.",
+      "Tell AIMail how you write, or show it. Drafts follow your style. Names, numbers and addresses are hidden before anything is saved, and your email never trains an AI for anyone else.",
     loadFailed: "Couldn't load your writing style.",
     describe: "Describe how you write",
     describePlaceholder: 'Warm but brief, no jargon, close with "Thanks,"',
@@ -460,12 +460,12 @@ export const en = {
       "Scanned pages and photos in your emails are read on this computer first, and details like names and IC numbers are blacked out.",
     local: "Read on this computer only",
     localHint:
-      "Scans never go to Google. AIMail uses the text it read here, so a messy scan may be read less well.",
+      "Scan images never go to Google. AIMail uses the text it read here, with details hidden like the rest of the email, so a messy scan may be read less well.",
     checked: "Check first, then let Gemini read the clear pages",
     checkedHint:
       "A model on this computer looks for signatures, faces and stamps and keeps those pages here. In our tests it missed about 1 in 10, so a signature or stamp can occasionally reach Google.",
     notSetUp: "Checking isn't set up on this AIMail, so scans can only be read on this computer.",
-    privateNote: "In Private mode, scans always stay on this computer.",
+    privateNote: "In Private mode, scan images never go to Google.",
     saved: "Saved.",
     failed: "Couldn't change how scans are read. Try again in a moment.",
   },
@@ -1017,12 +1017,12 @@ export const en = {
     title: "Inbox Assistant",
     groundedBadge: "[Grounded Q&A]",
     privacyNotice:
-      "[PRIVACY PRESERVED] Sensitive details are masked before AI processing and restored locally on your device.",
+      "Personal details are masked before the AI reads your emails, and AIMail fills them back in after it answers. Its earlier answers are never sent back to the AI.",
     askInbox: "Ask your inbox",
     askInboxHint:
       "Ask natural language questions about your email correspondence and company policies.",
     searching: "Searching inbox & synthesizing answer…",
-    restoredNotice: "[Personal details restored locally]",
+    restoredNotice: "[Personal details filled back in by AIMail]",
     sources_one: "{{count}} source",
     sources_other: "{{count}} sources",
     sourcesBreakdown: "({{emails}} emails, {{docs}} docs)",

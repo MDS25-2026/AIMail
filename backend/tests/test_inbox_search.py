@@ -3,9 +3,14 @@
 import asyncio
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
+from uuid import uuid4
 
+from app import inbox_search
+from app.core.ownership import EVERYTHING
 from app.core.providers import Provider
+from app.db.models import Message
 from app.inbox_search import (
+    ChatMessage,
     InboxSearchRequest,
     InboxSearchResponse,
     QueryIntent,
@@ -145,3 +150,44 @@ def test_format_helpers() -> None:
     mock_msg.body_masked = "a" * 350
     assert len(format_email_snippet(mock_msg)) <= 280
     assert format_email_snippet(mock_msg).endswith("...")
+
+
+def test_the_assistants_earlier_answers_never_go_back_to_the_model(monkeypatch) -> None:
+    prompts = []
+
+    async def capture(prompt, **_kwargs):
+        prompts.append(prompt)
+        return "invoices from the second sender"
+
+    monkeypatch.setattr(inbox_search.model_gateway, "generate", capture)
+    history = [ChatMessage(role="user", content="recent emails?"),
+               ChatMessage(role="assistant", content="From Aisyah binti Ali, Petronas, Kuantan: an invoice.")]
+    asyncio.run(inbox_search.contextualize_query("what did she want?", history, Provider.GEMINI))
+    assert "recent emails?" in prompts[0] and "Aisyah" not in prompts[0] and "Petronas" not in prompts[0]
+
+
+def test_a_quoted_subject_restores_its_own_emails_person_not_the_first_emails(monkeypatch) -> None:
+    first = Message(id=uuid4(), user_id=None, gmail_message_id="g1", subject="Meeting",
+                    body_masked="[PERSON_1] asks to meet.", pii_vault=b"v1")
+    second = Message(id=uuid4(), user_id=None, gmail_message_id="g2", subject="Refund for [PERSON_1]",
+                     body_masked="[PERSON_1] wants a refund.", pii_vault=b"v2")
+    vaults = {"g1": {"[PERSON_1]": "Ali"}, "g2": {"[PERSON_1]": "Siti"}}
+
+    async def found(*_args, **_kwargs):
+        return [first, second], []
+
+    async def echo_second_subject(prompt, **_kwargs):
+        subject = prompt.split("[Email 2]\nSubject: ")[1].split("\n")[0]
+        return f"{subject} [Email 2]\nCitations: [Email 2]"
+
+    async def email_search(*_args, **_kwargs):
+        return inbox_search.QueryIntent.EMAIL_SEARCH
+
+    monkeypatch.setattr(inbox_search, "route_query_intent", email_search)
+    monkeypatch.setattr(inbox_search, "search_messages_hybrid", found)
+    monkeypatch.setattr(inbox_search, "open_vault", lambda _vault, _user, gmail_id: vaults[gmail_id])
+    monkeypatch.setattr(inbox_search.model_gateway, "generate", echo_second_subject)
+    response = asyncio.run(inbox_search.execute_inbox_search(
+        InboxSearchRequest(query="refunds?"), scope=EVERYTHING, provider=Provider.GEMINI))
+    assert response.answer.startswith("Refund for Siti")
+    assert response.sources[0].title == "Refund for Siti"

@@ -372,7 +372,7 @@ export const zh: Translations = {
     },
     title: "您的写作风格",
     intro:
-      "告诉 AIMail 您的写作方式，或给它看示例。草稿会遵循您的风格。保存前会隐藏姓名、号码和地址，也不会用您的邮件训练任何 AI。",
+      "告诉 AIMail 您的写作方式，或给它看示例。草稿会遵循您的风格。保存前会隐藏姓名、号码和地址，您的邮件也绝不会为其他人训练 AI。",
     loadFailed: "无法加载您的写作风格。",
     describe: "描述您的写作方式",
     describePlaceholder: '亲切但简洁，不用术语，结尾用"谢谢，"',
@@ -446,12 +446,12 @@ export const zh: Translations = {
     intro: "邮件中的扫描页和照片会先在这台电脑上读取，姓名和身份证号码等信息会被涂黑。",
     local: "只在这台电脑上读取",
     localHint:
-      "扫描件绝不会发送给 Google。AIMail 使用在这里读取的文字，因此模糊的扫描件可能读得不够准确。",
+      "扫描图像绝不会发送给 Google。AIMail 使用在这里读取的文字，并像邮件其余部分一样隐藏个人信息，因此模糊的扫描件可能读得不够准确。",
     checked: "先检查，再让 Gemini 读取干净的页面",
     checkedHint:
       "这台电脑上的模型会查找签名、人脸和印章，并把这些页面留在本地。在我们的测试中，它大约每 10 个会漏掉 1 个，所以签名或印章偶尔可能会发送到 Google。",
     notSetUp: "这个 AIMail 没有设置检查功能，所以扫描件只能在这台电脑上读取。",
-    privateNote: "在私密模式下，扫描件始终留在这台电脑上。",
+    privateNote: "在私密模式下，扫描图像绝不会发送给 Google。",
     saved: "已保存。",
     failed: "无法更改扫描件的读取方式。请稍后再试。",
   },
@@ -971,11 +971,12 @@ export const zh: Translations = {
   assistant: {
     title: "收件箱助手",
     groundedBadge: "[基于事实问答]",
-    privacyNotice: "[隐私保护] 敏感信息在AI处理前已脱敏，并在本地设备上恢复。",
+    privacyNotice:
+      "AI 阅读您的邮件前，个人信息已被隐藏，AI 回答后由 AIMail 填回。它之前的回答绝不会再发送给 AI。",
     askInbox: "询问您的收件箱",
     askInboxHint: "就您的电子邮件往来和公司政策提出自然语言问题。",
     searching: "正在搜索收件箱并综合回答…",
-    restoredNotice: "[个人详细信息已在本地恢复]",
+    restoredNotice: "[个人信息已由 AIMail 填回]",
     sources_one: "{{count}} 个来源",
     sources_other: "{{count}} 个来源",
     sourcesBreakdown: "({{emails}} 封邮件, {{docs}} 篇文档)",

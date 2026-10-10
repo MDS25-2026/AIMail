@@ -27,7 +27,7 @@ from app.audit import AuditAction, audit_row
 from app.core.constants import EMBEDDING_DIM
 from app.core.cursor import decode_cursor
 from app.core.errors import DomainError, ErrorCode
-from app.core.ownership import Scope
+from app.core.ownership import EVERYTHING, Scope
 from app.core.providers import Provider
 from app.core.ratelimit import PostgresCounters
 from app.dashboard import SendRejectedError, list_dashboard_emails, snooze_email
@@ -48,11 +48,11 @@ from app.gmail_send import SendError, SentReply
 from app.inbox_search import search_messages_hybrid
 from app.jobs import claim_requested, request_draft
 from app.ml.categorise import classify_pending
+from app.private_mode import not_private
 from app.quiet_hours import QuietHoursView
 from app.rag.chunk import Piece
 from app.rag.embedding_models import check_columns
 from app.rag.ingest import store_chunks
-from scripts.backfill_message_embeddings import _not_private
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "")
 pytestmark = pytest.mark.skipif(not TEST_DATABASE_URL, reason="set TEST_DATABASE_URL to a throwaway database")
@@ -444,7 +444,7 @@ def test_the_email_vector_backfill_leaves_out_private_mode_users():
     async def owners():
         async with get_sessionmaker()() as session:
             return set((await session.scalars(select(Message.user_id).where(
-                Message.user_id.in_([private, cloud]), _not_private()))).all())
+                Message.user_id.in_([private, cloud]), not_private(Message.user_id)))).all())
 
     assert _run(owners()) == {cloud}
 
@@ -593,3 +593,15 @@ def test_a_reply_sent_from_gmail_is_followed_up_in_gmail(gmail_and_agent):
 def test_someone_elses_reply_cannot_be_followed_up(gmail_and_agent):
     _, from_aimail, _ = _answered_and_sent()
     assert _run(dashboard.send_follow_up(str(from_aimail), "Hi", scope=Scope(uuid4()))) is False
+
+
+def test_a_search_across_users_on_gemini_leaves_out_private_mode_users(monkeypatch):
+    private, cloud = _private_and_cloud_users()
+
+    async def no_vector(*_args, **_kwargs):
+        return []
+
+    monkeypatch.setattr(model_gateway, "embed_query", no_vector)
+    found, _ = _run(search_messages_hybrid("invoice", 20, scope=EVERYTHING, provider=Provider.GEMINI))
+    owners = {message.user_id for message in found}
+    assert cloud in owners and private not in owners
