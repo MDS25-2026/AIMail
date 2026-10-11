@@ -38,6 +38,9 @@ export const en = {
     filterEmptyAny: "No emails match these filters.",
     categoryFilterLabel: "Filter by category",
     categoryFilterAll: "All categories",
+    sortLabel: "Sort the inbox",
+    sortUrgent: "Most urgent first",
+    sortNewest: "Newest first",
   },
   priority: { critical: "Critical", high: "Urgent", medium: "Medium", low: "Low" },
   category: {

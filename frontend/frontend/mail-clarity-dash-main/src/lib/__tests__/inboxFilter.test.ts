@@ -8,6 +8,7 @@ import {
   filterByPriority,
   PRIORITIES,
   shownCategory,
+  sortConversations,
 } from "../inboxFilter";
 import type { Email, EmailCategory, Priority } from "../../types/email";
 import { emailFixture } from "../../test/emailFixture";
@@ -48,6 +49,51 @@ describe("the inbox priority filter", () => {
 
   test("offers every priority, most urgent first", () => {
     expect(PRIORITIES).toEqual(["critical", "high", "medium", "low"]);
+  });
+});
+
+describe("the inbox sort (#142)", () => {
+  // Newest first, as the API sends it.
+  const inbox = [
+    email("low-new", "low"),
+    email("medium-new", "medium"),
+    email("critical-new", "critical"),
+    email("high", "high"),
+    email("low-old", "low"),
+    email("critical-old", "critical"),
+  ];
+  const sorted = (emails: Email[], sort: Parameters<typeof sortConversations>[1]) =>
+    sortConversations(groupByThread(emails), sort).map(({ email }) => email.id);
+
+  test("most urgent first, newest first within a tier", () => {
+    expect(sorted(inbox, "urgent")).toEqual([
+      "critical-new",
+      "critical-old",
+      "high",
+      "medium-new",
+      "low-new",
+      "low-old",
+    ]);
+  });
+
+  test("newest first keeps the order the emails arrived in", () => {
+    expect(sorted(inbox, "newest")).toEqual(inbox.map(({ id }) => id));
+  });
+
+  test("a thread is placed by its newest email, the one its row shows", () => {
+    const emails = [
+      email("newest", "low", "t1"),
+      email("medium", "medium"),
+      email("older", "critical", "t1"),
+    ];
+    expect(sorted(emails, "urgent")).toEqual(["medium", "newest"]);
+  });
+
+  test("leaves the list it was given as it was", () => {
+    const conversations = groupByThread(inbox);
+    const before = conversations.map(({ email }) => email.id);
+    sortConversations(conversations, "urgent");
+    expect(conversations.map(({ email }) => email.id)).toEqual(before);
   });
 });
 
