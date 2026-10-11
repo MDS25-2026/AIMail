@@ -6,6 +6,7 @@ import type { Email } from "../types/email";
 import CriticConfidenceBadge from "./CriticConfidenceBadge";
 import DraftDiff from "./DraftDiff";
 import PiiMaskedBadge from "./PiiMaskedBadge";
+import ReviewReasonList from "./ReviewReasonList";
 import ToneToggle from "./ToneToggle";
 import { segment } from "./variants";
 
@@ -49,6 +50,7 @@ export default function DraftReplyEditor({ email, workflow, rows = 10 }: DraftRe
           ))}
         </div>
       </div>
+      <ReviewReasonList reasons={email.reviewReasons ?? []} />
 
       {isShowingChanges ? (
         <DraftDiff comparison={workflow.comparison} rows={rows} />

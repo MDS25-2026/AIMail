@@ -97,16 +97,42 @@ export const ms: Translations = {
     suggestionDirect: "Jadikan lebih terus",
     suggestionDeadline: "Tambah tarikh akhir",
   },
-  critic: {
-    passing: "Pengkritik {{percent}}%",
-    review: "Pengkritik {{percent}}% · semakan disyorkan",
-    passingTitle: "Keyakinan Ejen Pengkritik {{percent}}% (sasaran {{target}}%)",
-    reviewTitle:
-      "Keyakinan Ejen Pengkritik {{percent}}%, di bawah sasaran {{target}}%: semakan disyorkan",
+  review: {
+    heading: "Sebab untuk menyemak draf ini",
+    pass: "Semakan AI lulus · {{percent}}% pasti",
+    flagged: "Semakan AI: disyorkan semak · {{percent}}% pasti",
+    reasons: {
+      no_reply: "AIMail menilai e-mel ini tidak perlu dibalas.",
+      no_draft: "AIMail tidak dapat menulis draf untuk e-mel ini.",
+      phishing_link:
+        "E-mel ini meminta butiran log masuk di sebelah pautan. Ia mungkin pancingan data.",
+      not_grounded:
+        "Tiada dokumen syarikat yang sepadan, jadi balasan ini tidak disokong oleh polisi anda.",
+      pii_found: "Draf ini mungkin mengandungi butiran peribadi: {{items}}.",
+      pii_scan_unavailable:
+        "Semakan privasi tidak dapat dijalankan. Baca draf untuk butiran peribadi sebelum menghantar.",
+      figures_not_in_source: "Angka ini tiada dalam e-mel atau dokumen anda: {{items}}.",
+      critic_unavailable: "Semakan AI tidak dapat dijalankan pada draf ini.",
+      grounding_failed: "Semakan AI menemui dakwaan yang tidak disokong oleh dokumen anda.",
+      does_not_address: "Ia mungkin tidak menjawab: {{items}}.",
+      incomplete: "Ia mungkin tidak menjawab semua yang ditanya dalam e-mel.",
+      refine_rounds: "AIMail perlu menyemak semula draf ini sebelum menunjukkannya.",
+      repair_stopped: "AIMail berhenti menambah baik draf ini lebih awal.",
+      low_confidence: "Semakan AI tidak yakin dengan draf ini.",
+      unknown: "Ditandakan untuk semakan anda.",
+    },
+    kinds: {
+      EMAIL_ADDRESS: "alamat e-mel",
+      CREDIT_CARD: "nombor kad",
+      IBAN_CODE: "nombor akaun bank",
+      MY_NRIC: "nombor kad pengenalan",
+      MY_PHONE: "nombor telefon",
+      other: "butiran lain",
+    },
   },
   pii: {
-    masked: "PII disamarkan",
-    none: "Tiada PII",
+    masked: "Butiran peribadi disembunyikan",
+    none: "Tiada butiran peribadi ditemui",
     maskedTitle: "Data peribadi dikesan dan disamarkan sebelum e-mel ini dibaca",
     noneTitle: "Tiada data peribadi dikesan dalam e-mel ini",
   },

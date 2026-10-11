@@ -27,6 +27,8 @@ from app.agent_contract import (
     ProcessEmailResponse,
     RefineRequest,
     RefineResponse,
+    ReviewCode,
+    ReviewReason,
     TranslateRequest,
     TranslationLanguage,
 )
@@ -557,13 +559,22 @@ def unsupported_specifics(draft: str, *sources: str) -> list[str]:
 
 # ---------- Input signals: reasons for review that come from the email, not the draft ----------
 
-def input_reasons(email_body: str, rag_context: str) -> list[str]:
+@dataclass(frozen=True)
+class Flag:
+    """One reason for review: the code the dashboard words, the text the admin console reads."""
+
+    code: ReviewCode
+    text: str
+    items: tuple[str, ...] = ()
+
+
+def input_reasons(email_body: str, rag_context: str) -> list[Flag]:
     """The same for a generated draft and a refined one: the email did not change."""
     reasons = []
     if phishing_signal(email_body):
-        reasons.append("possible phishing: asks for credentials beside a link")
+        reasons.append(Flag(ReviewCode.PHISHING_LINK, "possible phishing: asks for credentials beside a link"))
     if not rag_context.strip():
-        reasons.append("no policy context retrieved: reply is not grounded")
+        reasons.append(Flag(ReviewCode.NOT_GROUNDED, "no policy context retrieved: reply is not grounded"))
     return reasons
 
 
@@ -704,7 +715,7 @@ async def repair(ctx: DraftContext, first: Candidate) -> Repaired:
 
 
 def build_review_reasons(candidate: Candidate, attempts: int,
-                         stopped_by: ModelErrorCode | None = None) -> list[str]:
+                         stopped_by: ModelErrorCode | None = None) -> list[Flag]:
     """Why a human should look. Reads the checks, not only the critic's own score.
 
     tone_match is excluded on purpose: style is advisory, and blocking a correct, PII-clean,
@@ -713,29 +724,34 @@ def build_review_reasons(candidate: Candidate, attempts: int,
     """
     verdict = candidate.verdict
     reasons = []
-    if candidate.pii_findings:
-        reasons.append(f"pii: {', '.join(candidate.pii_findings)}")
+    leaks = [finding for finding in candidate.pii_findings if finding != PRESIDIO_UNAVAILABLE]
+    if leaks:
+        reasons.append(Flag(ReviewCode.PII_FOUND, f"pii: {', '.join(leaks)}", tuple(leaks)))
+    if PRESIDIO_UNAVAILABLE in candidate.pii_findings:
+        reasons.append(Flag(ReviewCode.PII_SCAN_UNAVAILABLE, f"pii: {PRESIDIO_UNAVAILABLE}"))
     if candidate.specifics:
-        reasons.append(f"figures not in source: {', '.join(candidate.specifics)}")
+        reasons.append(Flag(ReviewCode.FIGURES_NOT_IN_SOURCE,
+                            f"figures not in source: {', '.join(candidate.specifics)}", tuple(candidate.specifics)))
     if candidate.critic_error:
-        reasons.append(f"critic unavailable: {candidate.critic_error}")
+        reasons.append(Flag(ReviewCode.CRITIC_UNAVAILABLE, f"critic unavailable: {candidate.critic_error}"))
     if verdict and not verdict.grounding_ok:
-        reasons.append("grounding check failed")
+        reasons.append(Flag(ReviewCode.GROUNDING_FAILED, "grounding check failed"))
     if candidate.unaddressed:
-        reasons.append(f"does not address: {'; '.join(candidate.unaddressed)}")
+        reasons.append(Flag(ReviewCode.DOES_NOT_ADDRESS, f"does not address: {'; '.join(candidate.unaddressed)}",
+                            tuple(candidate.unaddressed)))
     elif verdict and not verdict.completeness:
         # Fallback for emails where nothing was extracted to check per-item.
-        reasons.append("does not address everything asked")
+        reasons.append(Flag(ReviewCode.INCOMPLETE, "does not address everything asked"))
     if attempts:
-        reasons.append(f"needed {attempts} refine round(s)")
+        reasons.append(Flag(ReviewCode.REFINE_ROUNDS, f"needed {attempts} refine round(s)", (str(attempts),)))
     if stopped_by:
-        reasons.append(f"repair stopped: {stopped_by}")
+        reasons.append(Flag(ReviewCode.REPAIR_STOPPED, f"repair stopped: {stopped_by}"))
     if candidate.confidence is None or candidate.confidence < REVIEW_THRESHOLD:
-        reasons.append(f"confidence {candidate.confidence} below {REVIEW_THRESHOLD}")
+        reasons.append(Flag(ReviewCode.LOW_CONFIDENCE, f"confidence {candidate.confidence} below {REVIEW_THRESHOLD}"))
     return reasons
 
 
-def review_fields(candidate: Candidate, reasons: list[str]) -> dict:
+def review_fields(candidate: Candidate, reasons: list[Flag]) -> dict:
     """The response fields a generated and a refined draft share."""
     verdict = candidate.verdict
     return {
@@ -750,9 +766,15 @@ def review_fields(candidate: Candidate, reasons: list[str]) -> dict:
         "pii_findings": candidate.pii_findings,
         "unsupported_specifics": candidate.specifics,
         "unaddressed_requests": candidate.unaddressed,
-        "review_reasons": reasons,
+        **flag_fields(reasons),
         "prompt_version": PROMPT_VERSION,
     }
+
+
+def flag_fields(reasons: list[Flag]) -> dict:
+    """The reasons twice: as text for the admin console and audit, as codes for the dashboard."""
+    return {"review_reasons": [flag.text for flag in reasons],
+            "review_codes": [ReviewReason(code=flag.code, items=list(flag.items)) for flag in reasons]}
 
 
 def _unavailable(error: ModelError) -> HTTPException:
@@ -787,8 +809,8 @@ async def _process_email(req: ProcessEmailRequest) -> ProcessEmailResponse:
     signals = input_reasons(req.email_body, req.rag_context)
     if category == "NA":
         return ProcessEmailResponse(category=category, summary=summary, action_items=action_items,
-                                    needs_human_review=True, review_reasons=["no reply drafted", *signals],
-                                    prompt_version=PROMPT_VERSION)
+                                    needs_human_review=True, prompt_version=PROMPT_VERSION,
+                                    **flag_fields([Flag(ReviewCode.NO_REPLY, "no reply drafted"), *signals]))
 
     ctx = DraftContext(thread_context=req.thread_context, rag_context=req.rag_context,
                        email_body=req.email_body, tone=req.tone, action_items=action_items,

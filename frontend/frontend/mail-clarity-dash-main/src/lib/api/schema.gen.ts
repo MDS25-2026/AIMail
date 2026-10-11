@@ -1083,6 +1083,8 @@ export interface components {
             quantities: components["schemas"]["QuantityView"][];
             /** Replyto */
             replyTo?: string | null;
+            /** Reviewreasons */
+            reviewReasons?: components["schemas"]["ReviewReason"][];
             /** Schedulecancelled */
             scheduleCancelled?: ("they_replied" | "you_replied" | "too_late" | "refused") | null;
             /** Scheduledfor */
@@ -1426,6 +1428,18 @@ export interface components {
          * @enum {string}
          */
         ReplyScope: "needs_reply" | "all";
+        /**
+         * ReviewCode
+         * @description Why a draft needs a person, as a stable code the dashboard words in each language.
+         * @enum {string}
+         */
+        ReviewCode: "no_reply" | "no_draft" | "phishing_link" | "not_grounded" | "pii_found" | "pii_scan_unavailable" | "figures_not_in_source" | "critic_unavailable" | "grounding_failed" | "does_not_address" | "incomplete" | "refine_rounds" | "repair_stopped" | "low_confidence" | "unknown";
+        /** ReviewReason */
+        ReviewReason: {
+            code: components["schemas"]["ReviewCode"];
+            /** Items */
+            items?: string[];
+        };
         /**
          * ScanReading
          * @description Values of user_preferences.scan_reading (migration 0036); the listener mirrors them.

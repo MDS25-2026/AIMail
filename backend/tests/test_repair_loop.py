@@ -91,6 +91,7 @@ def test_a_failed_repair_returns_the_draft_it_had_with_that_drafts_checks(agent)
     body = _draft()
     assert body["draft"] == "It will be paid within 60 days." and body["unsupported_specifics"] == ["60"]
     assert body["attempts"] == 0 and f"repair stopped: {ModelErrorCode.DEADLINE_EXCEEDED}" in body["review_reasons"]
+    assert {"code": "repair_stopped", "items": []} in body["review_codes"]  # the same reason, as a code
 
 
 def test_a_failed_critique_keeps_the_draft_and_says_why(agent):

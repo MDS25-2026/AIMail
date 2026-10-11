@@ -29,6 +29,7 @@ from app.agent_contract import (
     ProcessEmailRequest,
     ProcessEmailResponse,
     RefineResponse,
+    ReviewCode,
     Tone,
     TranslateRequest,
     TranslateResponse,
@@ -91,6 +92,7 @@ from app.rag.errors import EmbeddingError
 from app.rag.retrieve import retrieve
 from app.rag.utils import format_rag_context
 from app.retention import KEEP_FOREVER
+from app.review_reasons import review_reasons
 from app.scheduled_sends import (
     CancelReason,
     ScheduleState,
@@ -245,6 +247,7 @@ def _to_email(
         sources=[Source(**source) for source in message.rag_sources or []],
         piiMasked=bool((message.emails_masked or 0) + (message.phones_masked or 0)),
         criticConfidence=message.critic_confidence or 0.0,
+        reviewReasons=review_reasons(message.critic_checks),
         sentAt=message.sent_at.isoformat() if message.sent_at else None,
         isRead=message.read_at is not None,
         quantities=_quantity_views(message.body_masked or ""),
@@ -452,7 +455,8 @@ def _not_drafted(code: str) -> dict:
     """Stored like an NA route: a human handles it, and the poller stops retrying a failure that
     repeats at temperature 0 and would otherwise spend quota every cycle."""
     return {"category": "NA", "draft": None, "summary": "", "action_items": [],
-            "needs_human_review": True, "review_reasons": [f"no draft: {code}"], NOT_DRAFTED: True}
+            "needs_human_review": True, "review_reasons": [f"no draft: {code}"],
+            "review_codes": [{"code": ReviewCode.NO_DRAFT, "items": []}], NOT_DRAFTED: True}
 
 
 def _source_records(chunks: list[ContextChunk]) -> list[dict]:
@@ -522,6 +526,7 @@ def _review_fields(reviewed: dict) -> dict:
             "completeness": reviewed.get("completeness"),
             "pii_findings": reviewed.get("pii_findings") or [],
             "review_reasons": reviewed.get("review_reasons") or [],
+            "review_codes": reviewed.get("review_codes") or [],
             # Which models answered and how many retries it took; outcomes and ms, no content.
             "model_calls": reviewed.get("model_calls") or [],
             "prompt_version": reviewed.get("prompt_version") or "",

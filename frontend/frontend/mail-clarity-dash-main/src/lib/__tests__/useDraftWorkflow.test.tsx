@@ -213,6 +213,8 @@ describe("send anyway (#145)", () => {
     act(() => result.current.status.onConfirm());
     expect(result.current.undoCountdown).toBe(5);
     expect(writes(calls)).toEqual([]);
+    // Ends the countdown here: unmounting with one running sends it, by design.
+    act(() => result.current.undoSend());
   });
 
   test("the checks after a confirmed warning still run: the tone warning comes next", () => {
@@ -388,6 +390,7 @@ describe("saved reply templates", () => {
     act(() => result.current.send());
     expect(result.current.undoCountdown).not.toBeNull();
     expect(writes(calls)).toHaveLength(0);
+    act(() => result.current.undoSend()); // unmounting with a countdown running sends it, by design
     vi.useRealTimers();
   });
 
@@ -471,6 +474,8 @@ describe("quiet hours and send later", () => {
     act(() => result.current.status.onConfirm());
     expect(result.current.undoCountdown).toBe(5);
     expect(writes(calls)).toEqual([]);
+    // Ends the countdown here: unmounting with one running sends it, by design.
+    act(() => result.current.undoSend());
   });
 
   test("Send later runs the same content checks as Send before holding the reply", async () => {
