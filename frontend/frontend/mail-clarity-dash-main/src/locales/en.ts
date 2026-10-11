@@ -971,6 +971,25 @@ export const en = {
       "Signing in with Google lets AIMail read and send your Gmail. AIMail is a final-year project at Monash University Malaysia.",
   },
   errors: {
+    ai_service_unreachable: "The AI service didn't answer. Nothing changed; try again in a moment.",
+    translation_unfaithful:
+      "The translation changed a figure or a hidden detail, so it isn't shown. Read the original instead.",
+    unreadable_pdf:
+      "That PDF has no text AIMail can read; it may be a scan. Try a PDF with selectable text.",
+    already_sent_or_cancelled: "That reply was already sent or cancelled.",
+    session_invalid: "Your session has ended. Sign in again to continue.",
+    not_connected: "Your Gmail isn't connected. Sign in again with Google to connect it.",
+    conflict: "Something changed while you were working. Reload and try again.",
+    forbidden: "You don't have access to that.",
+    account_only: "That needs a signed-in account.",
+    invalid_request: "That request wasn't valid. Reload the page and try again.",
+    invalid_settings: "Those settings couldn't be saved. Check them and try again.",
+    client_header_missing: "The request was refused. Reload the page and try again.",
+    database_unreachable: "AIMail's database isn't reachable right now. Try again in a moment.",
+    database_error: "Something went wrong saving that. Try again in a moment.",
+    internal: "Something went wrong on our side. Try again in a moment.",
+    account_not_fully_deleted:
+      "Your account was only partly deleted. Try again, or ask the AIMail owner for help.",
     admin_signed_out: "You're not signed in to the admin console.",
     admin_session_invalid: "Your admin session has ended. Sign in again.",
     admin_header_missing:
@@ -979,7 +998,7 @@ export const en = {
     network: "Couldn't reach AIMail. Check your connection and try again.",
     signed_out: "Your session has ended. Sign in again to continue.",
     sender_unverified:
-      "This sender failed authentication. Check the sender before drafting or sending.",
+      "We couldn't confirm this email really came from this sender. Check the sender before drafting or sending.",
     masking_pending:
       "Personal details are still being hidden in this email, so it can't be used yet.",
     follow_up_stale:
