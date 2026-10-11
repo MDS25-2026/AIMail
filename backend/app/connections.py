@@ -9,19 +9,15 @@ import logging
 from uuid import UUID
 
 import httpx
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core import mailbox, token_crypt, vault
+from app.core import token_crypt
 from app.core.supabase_auth import Session
 from app.db.models import (
-    Document,
     MailboxConnection,
-    Message,
-    ScheduledSend,
-    SentMessage,
     UserProfile,
 )
 from app.db.session import get_sessionmaker
@@ -76,8 +72,6 @@ async def store_connection(
             await session.execute(insert(MailboxConnection).values(user_id=user_id, **values)
                                   .on_conflict_do_update(index_elements=["user_id"],
                                                          set_={**values, "updated_at": func.now()}))
-            if email.lower() == mailbox.owner():
-                await _hand_over_unowned_rows(session, user_id)
     except (SQLAlchemyError, OSError) as exc:
         raise ConnectionStoreError(f"database refused the connection: {type(exc).__name__}") from exc
 
@@ -94,31 +88,6 @@ async def can_send(user_id: UUID) -> bool:
         scopes = await session.scalar(select(MailboxConnection.scopes)
                                       .where(MailboxConnection.user_id == user_id))
     return GMAIL_SEND in (scopes or [])
-
-
-async def _reseal_unowned_vaults(session: AsyncSession, user_id: str) -> None:
-    """Vaults are sealed against their owner, so rows changing owner need theirs sealed again. One
-    that will not open (no key, corrupt) is left as it was: its details were unreadable anyway."""
-    rows = (await session.execute(
-        select(Message.id, Message.gmail_message_id, Message.pii_vault)
-        .where(Message.user_id.is_(None), Message.pii_vault.is_not(None))
-    )).all()
-    for message_id, gmail_message_id, sealed in rows:
-        try:
-            resealed = vault.reseal_for_owner(sealed, gmail_message_id or "", None, UUID(user_id))
-        except vault.VaultUnavailableError as exc:
-            logger.warning("vault of message %s not moved to its owner: %s", message_id, exc)
-            continue
-        await session.execute(update(Message).where(Message.id == message_id).values(pii_vault=resealed))
-
-
-async def _hand_over_unowned_rows(session: AsyncSession, user_id: str) -> None:
-    """The original mailbox's account just connected: its unowned mail and documents become its own."""
-    await _reseal_unowned_vaults(session, user_id)
-    # Quiet hours stay: their row with no user is the company default, not the mailbox's.
-    for model in (Message, Document, SentMessage, ScheduledSend):
-        await session.execute(update(model).where(model.user_id.is_(None)).values(user_id=user_id))
-    logger.info("handed the original mailbox's unowned rows over to user %s", user_id)
 
 
 async def connect_mailbox(session: Session) -> None:

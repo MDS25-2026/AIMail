@@ -1,12 +1,11 @@
 """Send an approved reply via the Gmail API, from the mailbox the email arrived in.
 
 A connected user's mailbox uses their own refresh token, stored sealed in mailbox_connection and
-refreshed with the Google OAuth client that issued it (GOOGLE_OAUTH_CLIENT_ID/SECRET). Rows with no
-owner belong to the original single mailbox, which still uses the listener's token.json.
+refreshed with the Google OAuth client that issued it (GOOGLE_OAUTH_CLIENT_ID/SECRET). A row with no
+owner has no mailbox to send from (the token.json mailbox was retired), so it is refused.
 """
 
 import base64
-import json
 import logging
 import re
 import time
@@ -14,7 +13,6 @@ from dataclasses import dataclass
 from datetime import datetime
 from email.message import EmailMessage
 from html import escape
-from pathlib import Path
 from uuid import UUID
 
 import httpx
@@ -100,13 +98,6 @@ class SendOutcomeUnknownError(_CodedSendError):
 _NEVER_REACHED_GMAIL = (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout)
 
 
-def _load_creds() -> tuple[dict, dict]:
-    settings = get_settings()
-    installed = json.loads(Path(settings.gmail_credentials_path).read_text())["installed"]
-    token = json.loads(Path(settings.gmail_token_path).read_text())
-    return installed, token
-
-
 async def _connection_grant(owner_id: UUID) -> dict[str, str]:
     """A connected user's refresh token, with the OAuth client it was issued to."""
     settings = get_settings()
@@ -126,17 +117,15 @@ async def _connection_grant(owner_id: UUID) -> dict[str, str]:
 
 
 async def _refresh_grant(owner_id: UUID | None) -> dict[str, str]:
-    """What to refresh with: a user's own connection, or token.json for the original mailbox."""
-    if owner_id is not None:
-        return await _connection_grant(owner_id)
-    installed, token = _load_creds()
-    return {"client_id": installed["client_id"], "client_secret": installed["client_secret"],
-            "refresh_token": token["refresh_token"]}
+    """The owner's own connection; a row with no owner has none."""
+    if owner_id is None:
+        raise GmailAccessError("this email has no owner, so there is no mailbox to send from")
+    return await _connection_grant(owner_id)
 
 
 # Access tokens last about an hour, so refreshing on every send added a second round trip to
 # Google before the mail could go out — the whole of the delay between clicking Approve & Send and
-# the reply appearing. Cached per mailbox (None is the original one) until shortly before expiry.
+# the reply appearing. Cached per mailbox until shortly before expiry.
 # A concurrent send may refresh twice, which is harmless and cheaper than a lock.
 _cached_tokens: dict[UUID | None, tuple[str, float]] = {}
 _EXPIRY_MARGIN_SECONDS = 60
@@ -335,14 +324,6 @@ async def sent_message_in_thread_since(thread_id: str, since: datetime, *, owner
         messages = response.json().get("messages", [])
     sent = [m for m in messages if "SENT" in m.get("labelIds", []) and int(m.get("internalDate", 0)) > since_ms]
     return sent[0].get("id") if sent else None
-
-
-async def profile_address() -> str:
-    """The address of the original single mailbox (token.json), the owner of unowned rows."""
-    async with httpx.AsyncClient(timeout=30) as client:
-        response = await _gmail_request(client, "GET", _PROFILE_URL, None)
-        response.raise_for_status()
-        return response.json()["emailAddress"]
 
 
 async def _post_send(

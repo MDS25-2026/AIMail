@@ -26,8 +26,7 @@ flowchart LR
 
 n8n is not in the pipeline. Lane A ingests straight from the Gmail API + Pub/Sub, and outbound
 send is the backend calling the Gmail API directly, with the owner's own Google connection
-(`mailbox_connection`), or `token.json` for the original mailbox's unowned rows
-(`backend/app/gmail_send.py`). The n8n scaffolding is archived in `legacy/n8n/`.
+(`mailbox_connection`, `backend/app/gmail_send.py`). The n8n scaffolding is archived in `legacy/n8n/`.
 
 ## Components
 
@@ -35,8 +34,8 @@ send is the backend calling the Gmail API directly, with the owner's own Google 
   fetches the message named by the notification's history ID, **masks PII in the listener** (not
   the backend), and writes the masked row + an audit entry to Supabase via the PostgREST API
   (`SUPABASE_URL` + `SUPABASE_SERVICE_KEY`). Stateless. It watches every connected mailbox
-  (`mailbox_connection` rows, plus the original `token.json` mailbox, stored with no owner;
-  `listener/mailboxes.go`) and also stores the mailbox's own sent replies, masked, in
+  (`mailbox_connection` rows, `listener/mailboxes.go`; the original `token.json` mailbox was
+  retired 2026-10-12 and the file now only signs in to Pub/Sub) and also stores the mailbox's own sent replies, masked, in
   `sent_message` (`listener/sent.go`).
 
   **Masking fails closed (#109).** If Presidio NER is unavailable for any part of a message, the

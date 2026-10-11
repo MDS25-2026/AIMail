@@ -83,8 +83,10 @@ policies.
   mailbox). The global `messages_gmail_message_id_key` stays until every listener upserts on the
   new key; step 5 drops it.
 - Index `messages_user_created_idx (user_id, created_at DESC)` serves each user's inbox.
-- **NULL owner** means the original single mailbox (`app/core/mailbox.py`). Those rows are visible
-  only to that mailbox's account, and move to it (`user_id` set) when it connects with Google.
+- **NULL owner** was the original single mailbox, retired 2026-10-12 once every row had an owner.
+  A row with no owner is now visible only to a script holding the shared token; no user sees it.
+  `audit_log`, `model_egress` (script searches) and the company-default `quiet_hours` row still
+  have NULL owners on purpose.
 
 ### Restorable masking: messages.pii_vault (migration 0018)
 

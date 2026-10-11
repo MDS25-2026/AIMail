@@ -3,10 +3,10 @@
 Usage (from backend/, needs the database and, for Gemini, GOOGLE_API_KEY; the set's corpus must be
 ingested for the owner):
 
-    python scripts/eval_retrieval.py --owner <uuid>                       # report at today's cutoff
-    python scripts/eval_retrieval.py --owner <uuid> --calibrate           # record scores, pick the cutoff
-    python scripts/eval_retrieval.py --owner <uuid> --provider local --calibrate
-    python scripts/eval_retrieval.py --set eval/retrieval/v0.json --reformulate   # S5 against S3
+    python scripts/eval_retrieval.py --owner you@example.com                       # report at today's cutoff
+    python scripts/eval_retrieval.py --owner you@example.com --calibrate           # record scores, pick the cutoff
+    python scripts/eval_retrieval.py --owner you@example.com --provider local --calibrate
+    python scripts/eval_retrieval.py --owner you@example.com --set eval/retrieval/v0.json --reformulate
 
 --calibrate writes eval/retrieval/<set>.<provider>.scores.json (scores and judgments, no text) and
 the chosen cutoff into app/rag/cutoffs.json. tests/test_retrieval_calibration.py replays the
@@ -19,11 +19,10 @@ import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from uuid import UUID
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.core.ownership import LEGACY, Scope
+from app.core.ownership import Scope, scope_of_email
 from app.core.providers import Provider
 from app.rag import calibration
 from app.rag.calibration import Ranked
@@ -86,7 +85,10 @@ def record(results: list[Ranked], set_path: Path, spec: dict, provider: Provider
 async def main(args: argparse.Namespace) -> None:
     spec = json.loads(args.set.read_text(encoding="utf-8"))
     provider = Provider(args.provider)
-    scope = Scope(owner_id=args.owner) if args.owner else LEGACY
+    try:
+        scope = await scope_of_email(args.owner)
+    except LookupError as exc:
+        raise SystemExit(str(exc)) from exc
     results = await run(spec, scope, provider, args.reformulate)
     print(f"set=v{spec['version']} queries={len(results)} k={spec['k']} provider={provider} "
           f"model={model_tag(provider)}{' reformulated' if args.reformulate else ''}\n")
@@ -100,7 +102,7 @@ async def main(args: argparse.Namespace) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--set", type=Path, default=DEFAULT_SET)
-    parser.add_argument("--owner", type=UUID, help="the account whose documents are searched; omit for unowned")
+    parser.add_argument("--owner", required=True, help="sign-in email of the account whose documents are searched")
     parser.add_argument("--provider", choices=[p.value for p in Provider], default=Provider.GEMINI.value)
     parser.add_argument("--calibrate", action="store_true")
     parser.add_argument("--reformulate", action="store_true")

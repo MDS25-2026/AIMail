@@ -60,7 +60,8 @@ Pinned versions: [`specs/context/tech-stack.md`](specs/context/tech-stack.md).
 
 Server-side services share the root `.env` (copy from [`.env.example`](.env.example)); the
 dashboard keeps its own public env (`VITE_BACKEND_URL`). The listener ingests every connected
-mailbox; its original `token.json` mailbox is optional (see [`listener/README.md`](listener/README.md)).
+mailbox. `listener/token.json`, if present, only signs the listener in to Pub/Sub on a developer's machine
+(see [`listener/README.md`](listener/README.md)).
 
 **Create the tables** (needs `DATABASE_URL`): `make migrate` applies the pending migrations in
 `backend/app/db/migrations/` (42 today) in order and records each in `schema_migrations`.

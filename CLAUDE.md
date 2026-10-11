@@ -26,7 +26,8 @@ People sign in to the dashboard with Google through Supabase (`docs/adr/0005`); 
 the session in HttpOnly cookies and checks it on every route except `GET /` and the `/auth` sign-in
 routes (`backend/app/core/auth.py`). Signing in with Google also connects the user's Gmail, and
 every email and document query is scoped to its owner (`backend/app/core/ownership.py`); rows with
-no owner belong to the original `token.json` mailbox's account until it connects. Scripts and tests use `Authorization: Bearer <BACKEND_API_TOKEN>`,
+no owner (from the retired `token.json` mailbox) are visible only to scripts; `make ingest` and
+`make seed` take `OWNER=<email>`. Scripts and tests use `Authorization: Bearer <BACKEND_API_TOKEN>`,
 which stays server-side and must never be put in a `VITE_` variable. Cookie requests that change
 state carry `X-AIMail-Client: 1`. The admin console has its own sign-in (`docs/adr/0004`). The
 Lane C agent on :8001 checks `AGENT_TOKEN` (`backend/app/core/agent_auth.py`): without one it answers loopback callers only, and a deployed environment refuses to start without it.

@@ -8,11 +8,10 @@ writes the masked row (tagged with the owner's `user_id`) plus an audit entry vi
 sign-ups are picked up every two minutes without a restart; each mailbox's history baseline is
 saved on its connection row, so a restart resumes where it stopped.
 
-The original `token.json` mailbox still runs, storing rows with no owner, until its account signs
-in with Google; then its connection replaces it. It is optional: without `credentials.json`, or
-without `token.json` and no terminal to sign in on, it is skipped and the service runs on connected
-mailboxes alone. Pub/Sub authenticates as the `token.json` account while there is one, otherwise
-with Application Default Credentials (a deployment's service account).
+The original `token.json` mailbox is no longer watched (retired 2026-10-12): every mailbox is a
+connected user's. The file is kept only to sign in to Pub/Sub on a developer's machine. Without
+`credentials.json`, or without `token.json` and no terminal to sign in on, Pub/Sub uses Application
+Default Credentials (a deployment's service account, or `gcloud auth application-default login`).
 
 Masking is split by PII nature. Format-clear PII (email, phone, Malaysian IC) is redacted by an
 ordered, offline regex floor — most-specific first, and a bare 12-digit run is only typed as an IC
@@ -59,8 +58,7 @@ anonymizer container is no longer used.
 
 ## Run locally
 
-Needs, in this folder, `credentials.json` and `token.json` (OAuth for the shared Gmail and
-Pub/Sub), and in the repo-root `.env`: `GCP_PROJECT_ID`, `PUBSUB_TOPIC`, `PUBSUB_SUBSCRIPTION`,
+Needs, in this folder, `credentials.json` and `token.json` (OAuth used only to sign in to Pub/Sub), and in the repo-root `.env`: `GCP_PROJECT_ID`, `PUBSUB_TOPIC`, `PUBSUB_SUBSCRIPTION`,
 `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, and for connected
 users `TOKEN_ENCRYPTION_KEY`, `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` (the same values
 as the backend).
@@ -68,12 +66,12 @@ as the backend).
 ```bash
 docker compose up -d   # from repo root: starts Presidio analyzer :5001 + anonymizer :5002 (optional)
 cd listener
-go run .        # first run opens a browser to log in as the shared Gmail, then writes token.json
+go run .        # first run opens a browser to log in with the Google account that reads Pub/Sub; writes token.json
 ```
 
 Expect `ingesting the mailbox of user ...` for each connected user, then `Listening for incoming
 emails on Pub/Sub...`. Send a mail to
-the watched inbox to see it masked and stored. Re-auth by deleting `token.json` and re-running.
+a connected inbox to see it masked and stored. Re-auth by deleting `token.json` and re-running.
 Ctrl+C or SIGTERM stops it cleanly.
 
 ## Run as a service
@@ -123,7 +121,7 @@ listener/
 ├── marks.go                # local vision check for signatures, faces and stamps before Gemini
 ├── sent.go                 # the mailbox's own sent replies, for the to-do's waiting list
 ├── config.go, health.go    # Pub/Sub settings from the environment; /healthz and /readyz
-├── legacy_token.go         # the optional token.json mailbox
+├── legacy_token.go         # token.json, used only to sign in to Pub/Sub
 ├── Dockerfile              # distroless, non-root service image
 ├── details.go              # numbered placeholders and the sealed per-email detail vault
 ├── main_test.go            # offline regex-floor tests: typing, ordering, IC date gate, false-positive guards

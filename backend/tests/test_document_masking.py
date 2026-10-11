@@ -6,11 +6,12 @@ embedding model with every name and phone number in them.
 
 import asyncio
 import json
+from uuid import uuid4
 
 import httpx
 import pytest
 
-from app.core.ownership import EVERYTHING
+from app.core.ownership import EVERYTHING, Scope
 from app.rag import ingest, mask
 from tests.conftest import AUTH_HEADERS as AUTH
 
@@ -56,6 +57,7 @@ def test_a_document_is_refused_rather_than_stored_unmasked_when_presidio_is_down
 
 def test_the_paste_route_answers_503_when_masking_is_unavailable(api_client, monkeypatch):
     _presidio(monkeypatch, _down)
+    monkeypatch.setattr("app.main._owner_scope", lambda _request: Scope(owner_id=uuid4()))
     response = api_client.post("/documents", json={"title": "Leave", "text": POLICY}, headers=AUTH)
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "masking_unavailable"

@@ -56,7 +56,7 @@ async def scope_of_principal(principal: Principal) -> Scope | None:
     """Whose rows the caller may touch, or None when no mailbox is connected for them."""
     if principal.is_service:
         return ownership.EVERYTHING
-    return await ownership.scope_for(principal.user_id, principal.email)
+    return await ownership.scope_for(principal.user_id)
 
 
 def _user_id(claims: dict) -> UUID | None:

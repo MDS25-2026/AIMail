@@ -43,11 +43,6 @@ def test_the_api_starts_no_background_jobs(monkeypatch):
     started = []
     monkeypatch.setattr(asyncio, "create_task", lambda *a, **k: started.append(a))
 
-    async def owner():
-        return None
-
-    monkeypatch.setattr("app.main.mailbox.resolve_owner", owner)
-
     async def run():
         async with _lifespan(None):
             pass

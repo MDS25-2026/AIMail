@@ -8,7 +8,6 @@ from pydantic import BaseModel, Field
 from app.account_routes import account_user_id
 from app.audit import AuditAction, audit
 from app.contracts import Detail
-from app.core import mailbox
 from app.core.auth import principal_of, require_mailbox, scope_of
 from app.core.constants import MAX_DRAFT_CHARS
 from app.core.errors import DomainError, ErrorCode
@@ -34,7 +33,7 @@ class FollowUpDraft(FollowUp):
 
 @router.get("/todo", dependencies=[Depends(rate_limit_list), Depends(require_mailbox)])
 async def get_todo(request: Request) -> Todo:
-    return await todo_for(scope_of(request), principal_of(request).email or mailbox.owner())
+    return await todo_for(scope_of(request), principal_of(request).email or "")
 
 
 @router.post("/emails/{message_id}/dismiss", status_code=status.HTTP_204_NO_CONTENT,

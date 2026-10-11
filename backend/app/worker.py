@@ -12,7 +12,6 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from app import agent_client
-from app.core import mailbox
 from app.core.config import get_settings
 from app.core.constants import (
     EMBED_POLL_SECONDS,
@@ -97,7 +96,6 @@ async def _every(job: Job) -> None:
 async def run() -> None:
     configure_logging()
     await check_columns()
-    await mailbox.resolve_owner()
     stop = asyncio.Event()
     for sig in (signal.SIGTERM, signal.SIGINT):
         asyncio.get_running_loop().add_signal_handler(sig, stop.set)

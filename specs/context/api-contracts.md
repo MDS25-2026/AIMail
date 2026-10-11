@@ -25,8 +25,7 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   `session_invalid`, and a cookie request that changes state without `X-AIMail-Client: 1` returns
   `403` `client_header_missing`. An unset `BACKEND_API_TOKEN` never matches. Implementation:
   `backend/app/core/auth.py`.
-- Mailbox scope: a signed-in user sees mail only for a mailbox they own (stage 1: the Gmail account
-  the backend is connected to, read at startup; `MAILBOX_OWNER_EMAIL` is a fallback). Anyone else gets an empty page from `GET /emails` and `[]` from `GET /documents`, and `404` from every
+- Mailbox scope: a signed-in user sees mail only once their own Gmail is connected. Anyone else gets an empty page from `GET /emails` and `[]` from `GET /documents`, and `404` from every
   route about one email, `/search`, `/ask` and document ingestion.
 - **Holding reply (2026-10-06, `specs/features/holding-reply.md`):** `GET /settings/holding-reply`
   returns `{enabled, activeWhen, workDays, workStart, workEnd, timezone, leaveFrom, leaveUntil,
@@ -154,8 +153,9 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   the signed-in user's own rows (`app/core/ownership.py`). Another user's email id answers `404`,
   exactly like an unknown id; `GET /emails` returns an empty page and `GET /documents` `[]` for a user with no
   connected Gmail; `/search`, `/ask` and drafting ground only on the user's own documents;
-  `GET /auth/session`'s `hasMailbox` is true when the user has connected Gmail (or owns the
-  original single mailbox). The shared script token still sees everything.
+  `GET /auth/session`'s `hasMailbox` is true when the user has connected Gmail. The shared script
+  token still sees everything, but `POST /documents` and `POST /documents/upload` with it answer
+  `403 account_only`: a document needs an owner (`make ingest OWNER=<email>` instead; 2026-10-12).
 - Sign-in: `GET /auth/google/start` redirects to Supabase, asking Google for `gmail.readonly` and
   `gmail.send` offline with consent (per-user mailboxes, step 2); the callback stores the user's
   sealed Gmail connection if Gmail read access was granted, and never fails sign-in over it.

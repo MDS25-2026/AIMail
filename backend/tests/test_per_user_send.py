@@ -1,8 +1,8 @@
 """A reply goes out from the mailbox the email arrived in (per-user mailboxes, step 3).
 
 A connected user's mail is answered with their own refresh token, unsealed in memory and refreshed
-with the Google OAuth client that issued it. The original single mailbox keeps token.json. A user
-who let AIMail read but not send is told so before anything is claimed.
+with the Google OAuth client that issued it. A user who let AIMail read but not send is told so
+before anything is claimed.
 """
 
 import asyncio
@@ -41,8 +41,6 @@ def google(monkeypatch, test_settings):
             return sealed
 
     monkeypatch.setattr(gmail_send, "get_sessionmaker", lambda: lambda: _Session())
-    monkeypatch.setattr(gmail_send, "_load_creds", lambda: (
-        {"client_id": "desktop-client", "client_secret": "desktop-secret"}, {"refresh_token": "1//legacy"}))
     refreshes: list[dict] = []
 
     def handle(request: httpx.Request) -> httpx.Response:
@@ -61,21 +59,21 @@ def test_a_connected_users_mail_is_sent_with_their_own_token_and_the_web_client(
     assert refreshes[0]["client_id"] == "web-client" and refreshes[0]["client_secret"] == "web-secret"
 
 
-def test_the_original_mailbox_still_uses_token_json(google):
+def test_each_mailbox_has_its_own_cached_token(google, monkeypatch):
     refreshes, client = google
-    assert asyncio.run(gmail_send._access_token(client, None)) == "access-for-1//legacy"
-    assert refreshes[0]["client_id"] == "desktop-client"
+    bob = uuid4()
 
+    async def grant(owner_id):
+        return {"client_id": "web-client", "client_secret": "web-secret", "refresh_token": f"1//{owner_id}"}
 
-def test_each_mailbox_has_its_own_cached_token(google):
-    refreshes, client = google
+    monkeypatch.setattr(gmail_send, "_refresh_grant", grant)
 
     async def both():
-        return (await gmail_send._access_token(client, ALICE), await gmail_send._access_token(client, None),
+        return (await gmail_send._access_token(client, ALICE), await gmail_send._access_token(client, bob),
                 await gmail_send._access_token(client, ALICE))
 
-    alice, legacy, alice_again = asyncio.run(both())
-    assert alice == alice_again != legacy
+    alice, other, alice_again = asyncio.run(both())
+    assert alice == alice_again != other
     assert len(refreshes) == 2
 
 

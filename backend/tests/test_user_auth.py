@@ -11,7 +11,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from urllib.parse import parse_qs, urlparse
-from uuid import uuid4
+from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 import httpx
 import jwt
@@ -21,7 +21,7 @@ from fastapi.testclient import TestClient
 
 from app import sign_in
 from app.contracts import EmailPage
-from app.core import supabase_auth
+from app.core import ownership, supabase_auth
 from app.core.auth import CLIENT_HEADER, SESSION_COOKIE
 from app.core.config import get_settings
 from app.dashboard import _to_email
@@ -46,8 +46,12 @@ class _FakeJwks:
         return _SigningKey(KEY.public_key())
 
 
+def _user_id(email: str) -> UUID:
+    return uuid5(NAMESPACE_URL, email.lower())
+
+
 def _token(email: str) -> str:
-    claims = {"sub": f"user-{email}", "email": email, "aud": "authenticated", "iss": AUTH_BASE,
+    claims = {"sub": str(_user_id(email)), "email": email, "aud": "authenticated", "iss": AUTH_BASE,
               "exp": int(time.time()) + 600}
     return jwt.encode(claims, KEY, algorithm="ES256")
 
@@ -59,12 +63,17 @@ async def _never(_user_id):
 @pytest.fixture
 def client(monkeypatch, test_settings):
     for name, value in (("SUPABASE_URL", SUPABASE), ("SUPABASE_ANON_KEY", "anon"),
-                        ("MAILBOX_OWNER_EMAIL", OWNER), ("BACKEND_PUBLIC_URL", "http://localhost:8000"),
+                        ("BACKEND_PUBLIC_URL", "http://localhost:8000"),
                         ("DASHBOARD_URL", "http://localhost:8090"), ("ADMIN_COOKIE_SECURE", "false")):
         monkeypatch.setenv(name, value)
     get_settings.cache_clear()
     monkeypatch.setattr(supabase_auth, "_jwks", lambda base: _FakeJwks())
     monkeypatch.setattr(sign_in.connections, "needs_reconnect", _never)
+
+    async def only_the_owner_connected(user_id):
+        return user_id == _user_id(OWNER)
+
+    monkeypatch.setattr(ownership, "is_connected", only_the_owner_connected)
 
     async def emails(scope, policy_email, limit, after):
         return EmailPage(emails=[EMAIL])
@@ -125,7 +134,7 @@ def test_another_user_gets_404_for_an_email_id(client):
     assert _signed_in(client, "someone.else@gmail.com").get("/emails/e1").status_code == 404
 
 
-def test_the_owner_match_ignores_case(client):
+def test_a_connected_user_is_recognised_whatever_the_case_of_their_email(client):
     assert _signed_in(client, "Owner@Gmail.com").get("/emails").json()["emails"] == [EMAIL.model_dump(mode="json")]
 
 

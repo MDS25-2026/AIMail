@@ -1,8 +1,8 @@
 """Each user sees and acts on only their own mail and documents (per-user mailboxes, step 3).
 
-A user with a connected Gmail is scoped to rows carrying their user id. Rows with no owner belong
-to the original single mailbox's owner until that account connects. Anyone else's id reads as
-missing (404), never as forbidden, so an id reveals nothing about what exists.
+A user with a connected Gmail is scoped to rows carrying their user id. A row with no owner (the
+retired token.json mailbox's) is visible only to a script holding the shared token. Anyone else's id
+reads as missing (404), never as forbidden, so an id reveals nothing about what exists.
 """
 
 import asyncio
@@ -21,7 +21,7 @@ from app.contracts import EmailPage
 from app.core import ownership, supabase_auth
 from app.core.auth import SESSION_COOKIE
 from app.core.config import get_settings
-from app.core.ownership import EVERYTHING, LEGACY, Scope
+from app.core.ownership import EVERYTHING, Scope
 from app.core.providers import Provider
 from app.db.models import Message
 from app.main import app
@@ -32,7 +32,8 @@ SUPABASE = "https://project.supabase.co"
 KEY = ec.generate_private_key(ec.SECP256R1())
 ALICE = UUID("aaaaaaaa-0000-4000-8000-000000000001")
 BOB = UUID("bbbbbbbb-0000-4000-8000-000000000002")
-LEGACY_OWNER = "owner@gmail.com"
+# The address of the retired token.json mailbox: it once saw the unowned rows without connecting.
+OLD_MAILBOX = "owner@gmail.com"
 
 
 @dataclass(frozen=True)
@@ -58,8 +59,7 @@ async def _never(_user_id):
 @pytest.fixture
 def seen(monkeypatch, test_settings):
     """Signs users in, connects only Alice, and records the scope every dashboard call receives."""
-    for name, value in (("SUPABASE_URL", SUPABASE), ("SUPABASE_ANON_KEY", "anon"),
-                        ("MAILBOX_OWNER_EMAIL", LEGACY_OWNER)):
+    for name, value in (("SUPABASE_URL", SUPABASE), ("SUPABASE_ANON_KEY", "anon")):
         monkeypatch.setenv(name, value)
     get_settings.cache_clear()
     monkeypatch.setattr(supabase_auth, "_jwks", lambda base: _FakeJwks())
@@ -127,9 +127,9 @@ def test_the_inbox_lists_only_the_users_own_mail(seen):
     assert _as(BOB, "bob@gmail.com").get("/emails").json()["emails"] == []
 
 
-def test_the_original_mailbox_owner_keeps_the_unowned_rows_until_they_connect(seen):
-    _as("not-a-uuid-in-old-tokens", LEGACY_OWNER).get("/emails")
-    assert seen == [LEGACY]
+def test_the_old_mailboxs_address_sees_nothing_until_it_connects_like_anyone_else(seen):
+    assert _as(BOB, OLD_MAILBOX).get("/emails").json()["emails"] == []
+    assert seen == []
 
 
 def test_scripts_with_the_shared_token_still_see_everything(seen):
@@ -152,13 +152,18 @@ def test_a_users_scope_matches_only_their_own_rows():
     assert _sql(Scope(owner_id=ALICE).where(Message.user_id)) == f"messages.user_id = '{ALICE}'"
 
 
-def test_the_legacy_scope_matches_only_unowned_rows():
-    assert _sql(LEGACY.where(Message.user_id)) == "messages.user_id IS NULL"
+def test_a_scope_with_no_owner_matches_no_row_and_only_scripts_see_unowned_ones():
+    assert _sql(Scope(owner_id=None).where(Message.user_id)) == "false"
+    assert _sql(EVERYTHING.where(Message.user_id)) == "true"
 
 
-def test_a_script_writing_a_document_files_it_under_the_original_mailbox():
-    assert EVERYTHING.owner_of_new_rows() == LEGACY
-    assert Scope(owner_id=ALICE).owner_of_new_rows() == Scope(owner_id=ALICE)
+@pytest.mark.parametrize("path, request_args", [
+    ("/documents", {"json": {"title": "Leave", "text": "Apply three days ahead."}}),
+    ("/documents/upload", {"files": {"file": ("a.pdf", b"%PDF-1.4 x", "application/pdf")}}),
+])
+def test_a_script_cannot_add_a_document_without_naming_an_owner(api_client, path, request_args):
+    response = api_client.post(path, headers=AUTH_HEADERS, **request_args)
+    assert response.status_code == 403 and response.json()["error"]["code"] == "account_only"
 
 
 class _Capture:

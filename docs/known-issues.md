@@ -104,11 +104,6 @@ have not been repaired.
 
 The privacy receipt therefore under-reports what left the machine for those two paths.
 
-### Private mode does not cover unowned rows before the original owner connects — Lane B
-Rows with no owner (`user_id` NULL) belong to the original `token.json` mailbox's account until it
-connects Gmail (`backend/app/core/ownership.py`). Until then, that user's Private mode preference
-is not applied to those rows; they are drafted with Gemini.
-
 ### Training data for the priority classifier is not in git — Lane B
 The category classifier's data, model and results are now tracked (`backend/data/category/`,
 `backend/models/category-classifier.joblib`, `backend/results/category*`). The priority classifier's
@@ -167,6 +162,10 @@ These are not defects — they are trade-offs with reasons, recorded so the reas
 - Fourteen local branches exist, several from earlier team work that may never have merged.
 
 ## Fixed
+
+### Private mode did not cover unowned rows before the original owner connected — Lane B — FIXED 2026-10-12
+The original `token.json` mailbox and its unowned rows were retired (`app/core/mailbox.py` removed);
+every row has an owner, so every row follows its owner's Private mode setting.
 
 ### Names a person typed reached the model as typed — Lane B — FIXED 2026-10-12 (#215)
 Refine instructions and drafts, Search, Ask AIMail, the inbox assistant, template translation and

@@ -47,10 +47,9 @@ def test_any_other_token_failure_does_not_ask_the_user_to_reconnect(marked, stat
     assert marked == []
 
 
-def test_the_original_mailbox_is_never_marked(marked):
-    with pytest.raises(httpx.HTTPStatusError):
-        asyncio.run(gmail_send._access_token(_token_endpoint(400, {"error": "invalid_grant"}), None))
-    assert marked == []
+def test_an_email_with_no_owner_has_no_mailbox_to_send_from():
+    with pytest.raises(gmail_send.GmailAccessError, match="no owner"):
+        asyncio.run(gmail_send._refresh_grant(None))
 
 
 def test_a_send_refused_for_expired_access_is_its_own_error(marked, monkeypatch):
@@ -62,9 +61,8 @@ def test_a_send_refused_for_expired_access_is_its_own_error(marked, monkeypatch)
         asyncio.run(gmail_send.send_reply("gm-1", "a@b.c", "Hi", "body", owner_id=ALICE))
 
 
-@pytest.mark.parametrize("module", ["app.gmail_send", "app.connections", "app.core.mailbox"])
+@pytest.mark.parametrize("module", ["app.gmail_send", "app.connections"])
 def test_each_mailbox_module_imports_on_its_own(module):
-    # A cycle (gmail_send -> connections -> mailbox -> gmail_send) only shows when a script
-    # imports one of them first; the app's own import order hid it.
+    # A cycle between them only shows when a script imports one of them first; the app's own import order hid it.
     result = subprocess.run([sys.executable, "-c", f"import {module}"], capture_output=True, text=True, check=False)
     assert result.returncode == 0, result.stderr
