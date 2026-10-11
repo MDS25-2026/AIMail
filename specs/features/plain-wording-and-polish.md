@@ -1,6 +1,6 @@
 # Plain wording, mark unread, and polish
 
-- **Status:** in progress (PR pending)
+- **Status:** built 2026-10-11 (in review)
 - **Owner:** veyroxie (Hanif to review the review-reason codes in `email_agent.py`)
 - **Related issue:** epic #138, Phase 2 lines 67, 69, 70, 71 and 72
 - **Last updated:** 2026-10-11
@@ -44,24 +44,26 @@ through.
 - Showing the original email fetched live from Gmail (epic line 68): it would put unmasked content
   in the dashboard, which is a privacy decision for the owner, not polish.
 - A welcome tour: deferred, so the dashboard stays as the award poster shows it.
+- Paging on Sent and Drafts (epic line 71): already done; both lists page through older mail with
+  the inbox's own "Load older emails".
 - The unread count in the navigation: Han's issue #171.
 
 ## Acceptance criteria
 
-- [ ] Given a draft flagged for low confidence and an unanswered point, then the email view says
+- [x] Given a draft flagged for low confidence and an unanswered point, then the email view says
       so in words in all three languages, and lists the point.
-- [ ] Given a row stored before the codes existed, then its reasons still show in words, or as
+- [x] Given a row stored before the codes existed, then its reasons still show in words, or as
       "flagged for review" when unrecognised.
-- [ ] Given the To-do page, then each "needs review" row shows its first reason (todo-page.md's
+- [x] Given the To-do page, then each "needs review" row shows its first reason (todo-page.md's
       "with its reason" box).
-- [ ] No PII value is ever shown as a reason: PII reasons list entity types only.
-- [ ] Given an opened email, when the user marks it unread, then it shows unread in the list and
+- [x] No PII value is ever shown as a reason: PII reasons list entity types only.
+- [x] Given an opened email, when the user marks it unread, then it shows unread in the list and
       stays unread after the view refreshes.
-- [ ] Given a Chinese policy passage and a Chinese draft that quotes it, then the quoted sentence
+- [x] Given a Chinese policy passage and a Chinese draft that quotes it, then the quoted sentence
       is highlighted.
-- [ ] Given the error page with the language cookie set to Malay or Chinese, then it reads in that
+- [x] Given the error page with the language cookie set to Malay or Chinese, then it reads in that
       language.
-- [ ] Every page has one `h1`, a skip link reaches the main content, and after navigating, focus is
+- [x] Every page has one `h1`, a skip link reaches the main content, and after navigating, focus is
       on the new page's heading.
 
 ## API surface
@@ -94,3 +96,7 @@ No migration: codes are stored inside the existing `critic_checks` JSON as `revi
 - 2026-10-11: Codes are emitted by the agent beside the text, not parsed from the text by the
   dashboard. Rationale: parsing breaks silently whenever a reason is reworded.
 - 2026-10-11: Showing the original email live from Gmail is left to the owner (privacy model).
+- 2026-10-11: Opening an email marks it read; a separate `read_email` does that, and `email_detail`
+  never does, so mark unread is not undone by the open view refreshing.
+- 2026-10-11: Leaving an email during the undo window sends it (from #211); tests that end with a
+  countdown running now cancel it, or unmounting would send it into the next test.
