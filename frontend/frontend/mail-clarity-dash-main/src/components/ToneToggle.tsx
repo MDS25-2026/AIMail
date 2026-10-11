@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 
 import type { Tone } from "../types/email";
+import { segment } from "./variants";
 
 type ToneToggleProps = {
   tone: Tone;
@@ -25,9 +26,7 @@ export default function ToneToggle({ tone, onToneChange, disabled = false }: Ton
           aria-pressed={tone === option}
           disabled={disabled}
           onClick={() => onToneChange(option)}
-          className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
-            tone === option ? "bg-surface text-fg shadow-sm" : "text-fg-muted hover:text-fg-body"
-          }`}
+          className={segment({ isPressed: tone === option })}
         >
           {t(`tone.${option}`)}
         </button>

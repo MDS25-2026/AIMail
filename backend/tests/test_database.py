@@ -13,9 +13,11 @@ import pytest
 from sqlalchemy import select, text
 from sqlalchemy.exc import DBAPIError
 
+import model_gateway
 from app import (
     audit_routes,
     dashboard,
+    private_mode_routes,
     quiet_hours,
     scheduled_sends,
     template_store,
@@ -24,9 +26,11 @@ from app import (
 from app.audit import AuditAction, audit_row
 from app.core.constants import EMBEDDING_DIM
 from app.core.cursor import decode_cursor
-from app.core.ownership import Scope
+from app.core.errors import DomainError, ErrorCode
+from app.core.ownership import EVERYTHING, Scope
+from app.core.providers import Provider
 from app.core.ratelimit import PostgresCounters
-from app.dashboard import list_dashboard_emails, snooze_email
+from app.dashboard import SendRejectedError, list_dashboard_emails, snooze_email
 from app.db.migrate import apply_pending, pending
 from app.db.models import (
     AuthStatus,
@@ -40,9 +44,11 @@ from app.db.models import (
     UserProfile,
 )
 from app.db.session import get_engine, get_sessionmaker
-from app.gmail_send import SentReply
+from app.gmail_send import SendError, SentReply
+from app.inbox_search import search_messages_hybrid
 from app.jobs import claim_requested, request_draft
 from app.ml.categorise import classify_pending
+from app.private_mode import not_private
 from app.quiet_hours import QuietHoursView
 from app.rag.chunk import Piece
 from app.rag.embedding_models import check_columns
@@ -275,15 +281,18 @@ def test_a_reschedule_replaces_the_waiting_send_and_a_cancel_shows_its_reason():
             session.add(message)
         first = datetime(2030, 1, 1, 1, tzinfo=timezone.utc)
         await scheduled_sends.hold(message.id, None, "one", first)
+        held_at = await _scalar(f"SELECT created_at FROM scheduled_send WHERE message_id = '{message.id}'")
         await scheduled_sends.hold(message.id, None, "two", first + timedelta(hours=1))
+        rescheduled_at = await _scalar(f"SELECT created_at FROM scheduled_send WHERE message_id = '{message.id}'")
         rows = await _scalar(f"SELECT count(*) FROM scheduled_send WHERE message_id = '{message.id}'")
         waiting = (await scheduled_sends.states_for([message.id]))[message.id]
         await scheduled_sends.cancel_pending(message.id, scheduled_sends.CancelReason.THEY_REPLIED)
         after = (await scheduled_sends.states_for([message.id]))[message.id]
-        return rows, waiting, after
+        return rows, waiting, after, rescheduled_at > held_at
 
-    rows, waiting, after = _run(scenario())
+    rows, waiting, after, is_restarted = _run(scenario())
     assert rows == 1 and waiting.send_at == datetime(2030, 1, 1, 2, tzinfo=timezone.utc)
+    assert is_restarted  # "they replied since" counts from the reschedule
     assert after.send_at is None and after.cancelled == scheduled_sends.CancelReason.THEY_REPLIED
 
 
@@ -400,12 +409,225 @@ def test_remind_me_survives_the_listener_storing_the_send_first():
                               thread_id="t-race", subject="Invoice")
             session.add(message)
         async with get_sessionmaker()() as session, session.begin():
-            session.add(SentMessage(gmail_id="g-race", thread_id="t-race", sent_at=datetime.now(timezone.utc)))
+            session.add(SentMessage(gmail_id="g-race", thread_id="t-race", sent_at=datetime.now(timezone.utc),
+                                    body_masked="Could you confirm, [PERSON_3]?"))
         reply = dashboard.OutgoingReply(stored="Could you confirm?", sent="Could you confirm?", restored=0)
         sent = SentReply(gmail_id="g-race", thread_id="t-race", message_id="<m>")
         await dashboard._record_send(message.id, message, reply, sent, remind=True)
-        return message.id, await _scalar("SELECT remind::text || ' ' || message_id::text FROM sent_message "
-                                         "WHERE gmail_id = 'g-race'")
+        return message.id, await _scalar("SELECT remind::text || ' ' || message_id::text || ' ' || body_masked "
+                                         "FROM sent_message WHERE gmail_id = 'g-race'")
 
     pk, row = _run(scenario())
-    assert row == f"true {pk}"
+    # The listener's masking (its own [PERSON_3]) gives way to AIMail's copy, which shares the vault.
+    assert row == f"true {pk} Could you confirm?"
+
+
+def _private_and_cloud_users() -> tuple[object, object]:
+    """One user in Private mode and one on Gemini, each with an email about an invoice."""
+    private, cloud = uuid4(), uuid4()
+
+    async def seed():
+        async with get_sessionmaker()() as session, session.begin():
+            for user in (private, cloud):
+                session.add(UserProfile(id=user, email=f"{user}@example.com"))
+            await session.flush()
+            for user in (private, cloud):
+                session.add(Message(id=uuid4(), user_id=user, gmail_message_id=f"pv-{uuid4()}",
+                                    subject="Invoice for the chairs", body_masked="Please confirm the invoice.",
+                                    masking_status=MaskingStatus.COMPLETE))
+        await private_mode_routes._save_choice(private, Provider.LOCAL)
+
+    _run(seed())
+    return private, cloud
+
+
+def test_the_email_vector_backfill_leaves_out_private_mode_users():
+    private, cloud = _private_and_cloud_users()
+
+    async def owners():
+        async with get_sessionmaker()() as session:
+            return set((await session.scalars(select(Message.user_id).where(
+                Message.user_id.in_([private, cloud]), not_private(Message.user_id)))).all())
+
+    assert _run(owners()) == {cloud}
+
+
+def test_a_private_inbox_search_finds_by_words_without_any_model(monkeypatch):
+    private, _ = _private_and_cloud_users()
+
+    async def no_model(*_args, **_kwargs):
+        raise AssertionError("a Private mode inbox search asked a model for a vector")
+
+    monkeypatch.setattr(model_gateway, "embed_query", no_model)
+    found, _ = _run(search_messages_hybrid("invoice", 5, scope=Scope(private), provider=Provider.LOCAL))
+    assert [message.user_id for message in found] == [private]
+
+
+def test_switching_private_mode_on_forgets_the_gemini_vectors_of_the_users_emails():
+    private, cloud = _private_and_cloud_users()
+
+    async def scenario():
+        await private_mode_routes._save_choice(private, Provider.GEMINI)
+        async with get_sessionmaker()() as session, session.begin():
+            await session.execute(text("UPDATE messages SET embedding = :v WHERE user_id IN (:a, :b)"),
+                                  {"v": str([0.0] * EMBEDDING_DIM), "a": private, "b": cloud})
+        await private_mode_routes._save_choice(private, Provider.LOCAL)
+        async with get_sessionmaker()() as session:
+            rows = await session.execute(select(Message.user_id, Message.embedding.is_not(None))
+                                         .where(Message.user_id.in_([private, cloud])))
+            return dict(rows.all())
+
+    assert _run(scenario()) == {private: False, cloud: True}
+
+
+def test_private_mode_counts_as_decided_once_switched_either_way_or_put_off():
+    switched, put_off, untouched = uuid4(), uuid4(), uuid4()
+
+    async def scenario():
+        async with get_sessionmaker()() as session, session.begin():
+            session.add_all([UserProfile(id=user, email=f"{user}@example.com") for user in (switched, put_off, untouched)])
+        await private_mode_routes._save_choice(switched, Provider.GEMINI)
+        await private_mode_routes._put_off(put_off)
+        return [await private_mode_routes._is_decided(user) for user in (switched, put_off, untouched)]
+
+    assert _run(scenario()) == [True, True, False]
+
+
+def _answered_and_sent() -> tuple[object, object, object]:
+    """An email answered through AIMail (its reply in sent_message, linked) and one answered from Gmail."""
+    owner, email, from_aimail, from_gmail = uuid4(), uuid4(), uuid4(), uuid4()
+    now = datetime.now(timezone.utc)
+
+    async def seed():
+        async with get_sessionmaker()() as session, session.begin():
+            session.add(UserProfile(id=owner, email=f"{owner}@example.com"))
+            await session.flush()
+            session.add(Message(id=email, user_id=owner, gmail_message_id=f"fu-{uuid4()}", thread_id=f"t-{email}",
+                                subject="Invoice", from_addr="a@example.com", body_masked="Can you send it?",
+                                masking_status=MaskingStatus.COMPLETE, sent_at=now - timedelta(days=5),
+                                created_at=now - timedelta(days=6)))
+            await session.flush()
+            session.add_all([
+                SentMessage(id=from_aimail, user_id=owner, gmail_id=f"g-{uuid4()}", message_id=email,
+                            thread_id=f"t-{email}", sent_at=now - timedelta(days=5), body_masked="Could you confirm?"),
+                SentMessage(id=from_gmail, user_id=owner, gmail_id=f"g-{uuid4()}", thread_id="t-gmail",
+                            sent_at=now - timedelta(days=5), body_masked="Could you confirm?"),
+            ])
+
+    _run(seed())
+    return Scope(owner), from_aimail, from_gmail
+
+
+@pytest.fixture
+def gmail_and_agent(monkeypatch):
+    sends = []
+
+    async def refine(_message, _thread, draft, instruction, _details, _tone):
+        return {"draft": f"Following up: {draft}", "instruction": instruction}
+
+    async def can_send(_user_id):
+        return True
+
+    async def send(gmail_id, to, subject, body, *, owner_id):
+        sends.append(body)
+        if body == "fail":
+            raise SendError("Gmail refused")
+        return SentReply(gmail_id=f"g-{uuid4()}", thread_id="t", message_id="<m>")
+
+    monkeypatch.setattr(dashboard, "_refine", refine)
+    monkeypatch.setattr(dashboard.connections, "can_send", can_send)
+    monkeypatch.setattr(dashboard, "send_reply", send)
+    return sends
+
+
+def test_a_follow_up_is_drafted_from_the_reply_and_sent_as_the_threads_latest(gmail_and_agent):
+    scope, from_aimail, _ = _answered_and_sent()
+
+    async def scenario():
+        draft, _details = await dashboard.draft_follow_up(str(from_aimail), scope=scope)
+        await dashboard.send_follow_up(str(from_aimail), draft, scope=scope)
+        try:
+            await dashboard.send_follow_up(str(from_aimail), draft, scope=scope)
+        except DomainError as again:
+            refused = again.code
+        linked = await _scalar(f"SELECT count(*) FROM sent_message WHERE user_id = '{scope.owner_id}' "
+                               "AND message_id IS NOT NULL AND remind")
+        return draft, refused, linked
+
+    draft, refused, linked = _run(scenario())
+    assert draft == "Following up: Could you confirm?"
+    assert gmail_and_agent == [draft]
+    assert refused == ErrorCode.ALREADY_SENT
+    assert linked == 1  # the link moved to the follow-up, which is now tracked
+
+
+def test_two_clicks_at_once_send_one_follow_up(gmail_and_agent):
+    scope, from_aimail, _ = _answered_and_sent()
+
+    async def scenario():
+        return await asyncio.gather(*(dashboard.send_follow_up(str(from_aimail), "Following up.", scope=scope)
+                                      for _ in range(2)), return_exceptions=True)
+
+    outcomes = _run(scenario())
+    assert gmail_and_agent == ["Following up."]
+    assert sorted(type(outcome).__name__ for outcome in outcomes) == ["DomainError", "bool"]
+
+
+def test_a_failed_follow_up_can_be_tried_again(gmail_and_agent):
+    scope, from_aimail, _ = _answered_and_sent()
+
+    async def scenario():
+        try:
+            await dashboard.send_follow_up(str(from_aimail), "fail", scope=scope)
+        except SendError:
+            pass
+        await dashboard.send_follow_up(str(from_aimail), "Following up.", scope=scope)
+
+    _run(scenario())
+    assert gmail_and_agent == ["fail", "Following up."]
+
+
+def test_a_reply_sent_from_gmail_is_followed_up_in_gmail(gmail_and_agent):
+    scope, _, from_gmail = _answered_and_sent()
+    with pytest.raises(SendRejectedError) as refused:
+        _run(dashboard.draft_follow_up(str(from_gmail), scope=scope))
+    assert refused.value.code == ErrorCode.FOLLOW_UP_UNAVAILABLE
+
+
+def test_someone_elses_reply_cannot_be_followed_up(gmail_and_agent):
+    _, from_aimail, _ = _answered_and_sent()
+    assert _run(dashboard.send_follow_up(str(from_aimail), "Hi", scope=Scope(uuid4()))) is False
+
+
+def test_a_search_across_users_on_gemini_leaves_out_private_mode_users(monkeypatch):
+    private, cloud = _private_and_cloud_users()
+
+    async def no_vector(*_args, **_kwargs):
+        return []
+
+    monkeypatch.setattr(model_gateway, "embed_query", no_vector)
+    found, _ = _run(search_messages_hybrid("invoice", 20, scope=EVERYTHING, provider=Provider.GEMINI))
+    owners = {message.user_id for message in found}
+    assert cloud in owners and private not in owners
+
+
+
+@pytest.mark.parametrize("since", ["they_answered", "set_aside"])
+def test_a_follow_up_is_refused_once_the_reply_is_no_longer_waiting(gmail_and_agent, since):
+    scope, from_aimail, _ = _answered_and_sent()
+
+    async def scenario():
+        async with get_sessionmaker()() as session, session.begin():
+            sent = await session.get(SentMessage, from_aimail)
+            if since == "they_answered":
+                session.add(Message(id=uuid4(), user_id=scope.owner_id, gmail_message_id=f"ans-{uuid4()}",
+                                    thread_id=sent.thread_id, subject="Re: Invoice",
+                                    masking_status=MaskingStatus.COMPLETE))
+            else:
+                sent.dismissed_at = datetime.now(timezone.utc)
+        await dashboard.send_follow_up(str(from_aimail), "Following up.", scope=scope)
+
+    with pytest.raises(SendRejectedError) as refused:
+        _run(scenario())
+    assert refused.value.code == ErrorCode.FOLLOW_UP_STALE
+    assert gmail_and_agent == []

@@ -11,7 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import timedelta
 
-from sqlalchemy import Executable, delete, func, update
+from sqlalchemy import Executable, delete, func, or_, update
 
 from app.core.config import get_settings
 from app.db.models import (
@@ -19,6 +19,7 @@ from app.db.models import (
     Message,
     ModelEgress,
     RateLimitCounter,
+    ScheduledSend,
     SentMessage,
 )
 from app.db.session import get_sessionmaker
@@ -35,6 +36,8 @@ EGRESS_DAYS = 365
 RATE_LIMIT_WINDOW_DAYS = 1
 # A sent reply is kept only to see who has not answered; after a quarter that question is stale.
 SENT_MESSAGE_DAYS = 90
+# A sent or cancelled send-later row only explains what happened; a month covers any question about it.
+FINISHED_SCHEDULE_DAYS = 30
 KEEP_FOREVER = 0
 
 
@@ -75,16 +78,21 @@ def _message_content(days: int) -> Executable:
     # Counts, priority, thread identity and the audit trail stay; the readable content goes.
     return (update(Message).where(Message.created_at < _older_than(days), Message.body_masked != "")
             .values(body_masked="", snippet_masked="", ai_summary="", draft_reply="", rag_sources=None,
-                    action_items=None))
+                    action_items=None, embedding=None))
 
 
-def _sent_message_days(content_days: int) -> int:
-    """SENT_MESSAGE_DAYS, or the message content limit when that is set and shorter."""
-    return min(SENT_MESSAGE_DAYS, content_days) if content_days != KEEP_FOREVER else SENT_MESSAGE_DAYS
+def _capped(days: int, content_days: int) -> int:
+    """days, or the message content limit when that is set and shorter: these hold email content too."""
+    return min(days, content_days) if content_days != KEEP_FOREVER else days
 
 
 def _sent_messages(days: int) -> Executable:
     return delete(SentMessage).where(SentMessage.sent_at < _older_than(days))
+
+
+def _finished_schedules(days: int) -> Executable:
+    is_finished = or_(ScheduledSend.sent_at.is_not(None), ScheduledSend.cancelled_reason.is_not(None))
+    return delete(ScheduledSend).where(is_finished, ScheduledSend.created_at < _older_than(days))
 
 
 POLICIES: tuple[Policy, ...] = (
@@ -94,8 +102,11 @@ POLICIES: tuple[Policy, ...] = (
     Policy("model_egress", lambda: EGRESS_DAYS, _egress),
     Policy("rate_limit_windows", lambda: RATE_LIMIT_WINDOW_DAYS, _rate_limit_windows),
     Policy("message_content", lambda: get_settings().message_content_retention_days, _message_content),
-    Policy("sent_messages", lambda: _sent_message_days(get_settings().message_content_retention_days),
+    Policy("sent_messages", lambda: _capped(SENT_MESSAGE_DAYS, get_settings().message_content_retention_days),
            _sent_messages),
+    Policy("finished_scheduled_sends",
+           lambda: _capped(FINISHED_SCHEDULE_DAYS, get_settings().message_content_retention_days),
+           _finished_schedules),
 )
 
 

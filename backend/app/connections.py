@@ -16,7 +16,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import mailbox, token_crypt, vault
 from app.core.supabase_auth import Session
-from app.db.models import Document, MailboxConnection, Message, UserProfile
+from app.db.models import (
+    Document,
+    MailboxConnection,
+    Message,
+    ScheduledSend,
+    SentMessage,
+    UserProfile,
+)
 from app.db.session import get_sessionmaker
 
 logger = logging.getLogger(__name__)
@@ -108,7 +115,8 @@ async def _reseal_unowned_vaults(session: AsyncSession, user_id: str) -> None:
 async def _hand_over_unowned_rows(session: AsyncSession, user_id: str) -> None:
     """The original mailbox's account just connected: its unowned mail and documents become its own."""
     await _reseal_unowned_vaults(session, user_id)
-    for model in (Message, Document):
+    # Quiet hours stay: their row with no user is the company default, not the mailbox's.
+    for model in (Message, Document, SentMessage, ScheduledSend):
         await session.execute(update(model).where(model.user_id.is_(None)).values(user_id=user_id))
     logger.info("handed the original mailbox's unowned rows over to user %s", user_id)
 

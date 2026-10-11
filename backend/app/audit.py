@@ -32,6 +32,7 @@ class AuditAction(StrEnum):
     REFINE_DRAFT = "refine_draft"
     TRANSLATE_EMAIL = "translate_email"
     APPROVE_AND_SEND = "approve_and_send"
+    FOLLOW_UP_SENT = "follow_up_sent"
     SEND_OUTCOME_UNKNOWN = "send_outcome_unknown"
     SEND_RECONCILED = "send_reconciled"
     CONFIRM_SENDER = "confirm_sender"

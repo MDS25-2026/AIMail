@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { detailValues, restoreDetails } from "./details";
@@ -47,7 +47,8 @@ export type PendingConfirm = { kind: ConfirmKind; markerCount: number; quiet?: Q
 
 // What was asked, not a callback: confirming must act on the draft as it is then, including
 // anything typed while the question was on screen.
-type PendingAction = { kind: ConfirmKind; tone: Tone };
+// sendAt: the warning came from Send later, so "send anyway" schedules rather than sends.
+type PendingAction = { kind: ConfirmKind; tone: Tone; sendAt?: Date };
 
 /** What the reader is asked or told about the draft, rendered by DraftStatus. */
 export type DraftWorkflowStatus = {
@@ -103,6 +104,8 @@ export type DraftWorkflow = {
   isRegenerating: boolean;
   isRefining: boolean;
   isTemplating: boolean;
+  /** Ends the undo window by sending now; for when the email leaves the screen. */
+  sendNowIfCounting: () => void;
   isSending: boolean;
   /** Anything in flight; the draft must not change under a send, nor a send go out mid-change. */
   isBusy: boolean;
@@ -183,6 +186,8 @@ export function useDraftWorkflow(
   // The email this countdown belongs to, so we clean up on email change.
   const undoEmailIdRef = useRef<string | null>(null);
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // The send the running countdown will make, so leaving the email can make it now instead.
+  const pendingSendRef = useRef<(() => void) | null>(null);
 
   const regenerateMutation = useRegenerateEmail();
   const refineMutation = useRefineEmail();
@@ -205,27 +210,32 @@ export function useDraftWorkflow(
   };
 
   // Clear the countdown interval and reset state.
-  const clearCountdown = () => {
+  // Refs and a state setter only, so it never changes between renders.
+  const clearCountdown = useCallback(() => {
     if (countdownIntervalRef.current !== null) {
       clearInterval(countdownIntervalRef.current);
       countdownIntervalRef.current = null;
     }
     setUndoCountdown(null);
     undoEmailIdRef.current = null;
-  };
-
-  // Cancel any active countdown when the email changes or on unmount.
-  useEffect(() => {
-    return () => {
-      clearCountdown();
-    };
+    pendingSendRef.current = null;
   }, []);
+
+  // Leaving the email or the page in the undo window sends now: the reader approved it, and a
+  // silent cancel would leave them believing it went out.
+  const sendNowIfCounting = useCallback(() => {
+    const pendingSend = pendingSendRef.current;
+    clearCountdown();
+    pendingSend?.();
+  }, [clearCountdown]);
+
+  useEffect(() => sendNowIfCounting, [sendNowIfCounting]);
 
   useEffect(() => {
     if (emailId !== undoEmailIdRef.current && undoEmailIdRef.current !== null) {
-      clearCountdown();
+      sendNowIfCounting();
     }
-  }, [emailId]);
+  }, [emailId, sendNowIfCounting]);
 
   // Last issued wins: two regenerates for the same email share one cache entry, so a slow first
   // response could otherwise overwrite a newer one.
@@ -300,6 +310,7 @@ export function useDraftWorkflow(
   const beginUndoCountdown = (id: string) => {
     clearCountdown();
     undoEmailIdRef.current = id;
+    pendingSendRef.current = () => startSend(id);
     setUndoCountdown(UNDO_COUNTDOWN_SECONDS);
 
     let remaining = UNDO_COUNTDOWN_SECONDS;
@@ -308,6 +319,7 @@ export function useDraftWorkflow(
       if (remaining <= 0) {
         clearInterval(countdownIntervalRef.current!);
         countdownIntervalRef.current = null;
+        pendingSendRef.current = null;
         setUndoCountdown(0);
         // Fire the actual send — use id captured in closure so we send the right email.
         startSend(id);
@@ -366,13 +378,20 @@ export function useDraftWorkflow(
     { kind: ConfirmKind.QuietHours, isTriggered: () => suggestionNow() !== null },
   ];
 
-  const continueSend = (id: string, fromGuard: number) => {
-    const triggered = sendGuards.slice(fromGuard).find((guard) => guard.isTriggered(draft));
+  const continueSend = (id: string, fromGuard: number, sendAt?: Date) => {
+    const triggered = sendGuards
+      .slice(fromGuard)
+      .filter((guard) => sendAt === undefined || guard.kind !== ConfirmKind.QuietHours)
+      .find((guard) => guard.isTriggered(draft));
     if (triggered) {
-      setPending({ emailId: id, value: { kind: triggered.kind, tone } });
+      setPending({ emailId: id, value: { kind: triggered.kind, tone, sendAt } });
       return;
     }
-    beginUndoCountdown(id);
+    if (sendAt === undefined) {
+      beginUndoCountdown(id);
+      return;
+    }
+    scheduleChecked(sendAt);
   };
 
   const unfilledBlanks = findUnfilledBlanks(draft);
@@ -382,7 +401,14 @@ export function useDraftWorkflow(
       ? quietSuggestion(new Date(), email?.senderUtcOffsetMinutes, quietHours.data.effective)
       : null;
 
+  /** Send later: the same content checks as Send, then held for the chosen time. */
   const schedule = (sendAt: Date) => {
+    if (emailId === null || isDraftLocked || unfilledBlanks.length > 0) return;
+    setPending(null);
+    continueSend(emailId, 0, sendAt);
+  };
+
+  const scheduleChecked = (sendAt: Date) => {
     if (emailId === null || isDraftLocked || unfilledBlanks.length > 0) return;
     const id = emailId;
     const request = () => scheduleMutation.mutateAsync({ emailId: id, draft, sendAt });
@@ -400,19 +426,22 @@ export function useDraftWorkflow(
 
   const send = () => {
     if (emailId === null || isDraftLocked || unfilledBlanks.length > 0) return;
+    // A question left open (Replace edits?) must not act on the draft once it is on its way.
+    setPending(null);
     continueSend(emailId, 0);
   };
 
   const confirm = () => {
     setPending(null);
-    if (emailId === null || pendingAction === null) return;
+    // Busy (regenerating, sending, counting down): the draft on screen may not be the one confirmed.
+    if (emailId === null || pendingAction === null || isDraftLocked) return;
     if (pendingAction.kind === ConfirmKind.ReplaceEdits) {
       startRegenerate(emailId, pendingAction.tone);
       return;
     }
     // "Send anyway": the checks after this one still run, then the undo countdown.
     const confirmed = sendGuards.findIndex((guard) => guard.kind === pendingAction.kind);
-    continueSend(emailId, confirmed + 1);
+    continueSend(emailId, confirmed + 1, pendingAction.sendAt);
   };
 
   const status: DraftWorkflowStatus = {
@@ -429,7 +458,8 @@ export function useDraftWorkflow(
     onSendAtSuggestion: () => {
       const suggestion = suggestionNow();
       setPending(null);
-      if (suggestion) schedule(suggestion.sendAt);
+      // The content checks ran before this, the last one, was shown.
+      if (suggestion) scheduleChecked(suggestion.sendAt);
     },
     onConfirm: confirm,
     onCancel: () => setPending(null),
@@ -439,7 +469,8 @@ export function useDraftWorkflow(
   };
 
   const setDraft = (text: string) => {
-    if (emailId === null) return;
+    // Locked while a send counts down or a new draft is coming: the screen keeps the text being sent.
+    if (emailId === null || isDraftLocked) return;
     setTypedByEmail((current) => new Map(current).set(emailId, text));
     // The warning is moot once every marker has been typed over.
     const isMarkerWarning = pendingAction?.kind === ConfirmKind.SendMarkers;
@@ -477,6 +508,7 @@ export function useDraftWorkflow(
     isRegenerating,
     isRefining,
     isTemplating,
+    sendNowIfCounting,
     isSending,
     isBusy,
     isDraftLocked,

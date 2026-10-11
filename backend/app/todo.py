@@ -46,6 +46,8 @@ class WaitingReply(BaseModel):
     workingDays: int
     # The email in AIMail this reply answered, when there is one, to open it.
     email: DashboardEmail | None
+    # Sent through AIMail, so AIMail can draft and send its follow-up; one sent from Gmail opens in Gmail.
+    canFollowUp: bool
 
 
 class Todo(BaseModel):
@@ -124,7 +126,8 @@ async def _waiting(session: AsyncSession, scope: Scope, waiting_days: int, quiet
             continue
         waiting.append(WaitingReply(id=str(sent.id), subject=sent.subject, sentAt=sent.sent_at.isoformat(),
                                     threadId=sent.thread_id, workingDays=days,
-                                    email=inbox_row(received, policy) if received else None))
+                                    email=inbox_row(received, policy) if received else None,
+                                    canFollowUp=sent.message_id is not None))
     return sorted(waiting, key=lambda reply: reply.sentAt)[:SECTION_LIMIT]
 
 

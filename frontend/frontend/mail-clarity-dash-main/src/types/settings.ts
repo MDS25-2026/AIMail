@@ -33,6 +33,7 @@ export enum CancelReason {
   NoTemplate = "no_template",
   Stale = "stale",
   UserReplied = "user_replied",
+  ReplyScheduled = "reply_scheduled",
   Cooldown = "cooldown",
   DailyCap = "daily_cap",
   NoReplyNeeded = "no_reply_needed",

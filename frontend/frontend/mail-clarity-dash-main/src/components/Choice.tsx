@@ -1,3 +1,6 @@
+import { cn } from "../lib/utils";
+import { segment } from "./variants";
+
 /** A labelled row of mutually exclusive options, as segmented buttons. */
 type ChoiceProps<T extends string> = {
   label: string;
@@ -21,11 +24,10 @@ export default function Choice<T extends string>({
           <label
             key={option.value}
             lang={option.lang}
-            className={`cursor-pointer rounded px-2.5 py-1 text-xs font-medium focus-within:ring-2 focus-within:ring-brand ${
-              option.value === value
-                ? "bg-surface text-fg shadow-sm"
-                : "text-fg-muted hover:text-fg-body"
-            }`}
+            className={cn(
+              segment({ isPressed: option.value === value }),
+              "inline-flex cursor-pointer items-center focus-within:ring-2 focus-within:ring-brand",
+            )}
           >
             <input
               type="radio"

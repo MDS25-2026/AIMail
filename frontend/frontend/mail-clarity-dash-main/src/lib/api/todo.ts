@@ -1,4 +1,4 @@
-import type { Todo } from "../../types/todo";
+import type { FollowUpDraft, Todo } from "../../types/todo";
 import { HttpMethod, request } from "./client";
 
 export const fetchTodo = () => request<Todo>("/todo");
@@ -10,6 +10,18 @@ export const dismissEmail = (emailId: string) =>
 /** Not waiting: the reply leaves the waiting list. */
 export const notWaiting = (sentId: string) =>
   request<void>(`/todo/waiting/${encodeURIComponent(sentId)}/dismiss`, { method: HttpMethod.Post });
+
+/** A follow-up to an unanswered reply sent through AIMail, in placeholder form like any draft. */
+export const draftFollowUp = (sentId: string) =>
+  request<FollowUpDraft>(`/todo/waiting/${encodeURIComponent(sentId)}/follow-up`, {
+    method: HttpMethod.Post,
+  });
+
+export const sendFollowUp = ({ sentId, draft }: { sentId: string; draft: string }) =>
+  request<void>(`/todo/waiting/${encodeURIComponent(sentId)}/follow-up/send`, {
+    method: HttpMethod.Post,
+    json: { draft },
+  });
 
 export const saveWaitingDays = (waitingDays: number) =>
   request<{ waitingDays: number }>("/settings/todo", {

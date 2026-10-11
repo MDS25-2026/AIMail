@@ -1,6 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { dismissEmail, fetchTodo, notWaiting, saveWaitingDays } from "../api/todo";
+import {
+  dismissEmail,
+  draftFollowUp,
+  fetchTodo,
+  notWaiting,
+  saveWaitingDays,
+  sendFollowUp,
+} from "../api/todo";
 import { queryKeys } from "./keys";
 
 /** isEnabled: the sidebar asks only once the session says a mailbox is connected. */
@@ -26,3 +33,7 @@ function useTodoMutation<TVariables, TResult>(
 export const useDismissEmail = () => useTodoMutation(dismissEmail);
 export const useNotWaiting = () => useTodoMutation(notWaiting);
 export const useSaveWaitingDays = () => useTodoMutation(saveWaitingDays);
+export const useSendFollowUp = () => useTodoMutation(sendFollowUp);
+
+/** Drafting changes nothing stored, so the to-do list is left as it is. */
+export const useDraftFollowUp = () => useMutation({ mutationFn: draftFollowUp });

@@ -11,7 +11,8 @@ from enum import StrEnum
 
 from app.core.language import Language
 
-TEMPLATE_VARIABLE = re.compile(r"\{\{\s*([^{}]*?)\s*\}\}")
+# One pass over the braces; _key trims the spaces inside (two \s* around a lazy group backtrack badly).
+TEMPLATE_VARIABLE = re.compile(r"\{\{([^{}]*)\}\}")
 # Stands in for a variable while the template is translated: the translator copies bracketed
 # markers exactly, so each variable comes back where it was.
 _VARIABLE_MARKER = "[VAR_{}]"

@@ -629,6 +629,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/settings/private-mode/not-now": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Private Mode Not Now
+         * @description The inbox offer's "Not now": stays off, and the offer is not shown again (Settings still has it).
+         */
+        post: operations["private_mode_not_now_settings_private_mode_not_now_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/settings/quiet-hours": {
         parameters: {
             query?: never;
@@ -830,6 +850,43 @@ export interface paths {
         put?: never;
         /** Not Waiting */
         post: operations["not_waiting_todo_waiting__sent_id__dismiss_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/todo/waiting/{sent_id}/follow-up": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Follow Up Draft
+         * @description A follow-up to an unanswered reply sent through AIMail, for the user to edit and approve.
+         */
+        post: operations["follow_up_draft_todo_waiting__sent_id__follow_up_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/todo/waiting/{sent_id}/follow-up/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Follow Up Send */
+        post: operations["follow_up_send_todo_waiting__sent_id__follow_up_send_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1183,6 +1240,18 @@ export interface components {
             /** Text */
             text: string;
         };
+        /** FollowUp */
+        FollowUp: {
+            /** Draft */
+            draft: string;
+        };
+        /** FollowUpDraft */
+        FollowUpDraft: {
+            /** Details */
+            details: components["schemas"]["Detail"][];
+            /** Draft */
+            draft: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1240,6 +1309,11 @@ export interface components {
             k_emails: number;
             /** Query */
             query: string;
+            /**
+             * Restore
+             * @default true
+             */
+            restore: boolean;
         };
         /** InboxSearchResponse */
         InboxSearchResponse: {
@@ -1287,6 +1361,8 @@ export interface components {
             available: boolean;
             /** Enabled */
             enabled: boolean;
+            /** Isdecided */
+            isDecided: boolean;
             /** Model */
             model: string;
             /** Search */
@@ -1641,6 +1717,8 @@ export interface components {
         Verification: "verified" | "tampered" | "unverifiable";
         /** WaitingReply */
         WaitingReply: {
+            /** Canfollowup */
+            canFollowUp: boolean;
             email: components["schemas"]["DashboardEmail"] | null;
             /** Id */
             id: string;
@@ -2967,6 +3045,24 @@ export interface operations {
             };
         };
     };
+    private_mode_not_now_settings_private_mode_not_now_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     get_quiet_hours_settings_quiet_hours_get: {
         parameters: {
             query?: never;
@@ -3398,6 +3494,70 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    follow_up_draft_todo_waiting__sent_id__follow_up_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FollowUpDraft"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    follow_up_send_todo_waiting__sent_id__follow_up_send_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FollowUp"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             204: {

@@ -7,7 +7,7 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, and_, exists, select, update
+from sqlalchemy import ColumnElement, and_, exists, func, select, update
 from sqlalchemy.dialects.postgresql import distinct_on, insert
 
 from app.db.models import ScheduledSend
@@ -40,7 +40,9 @@ async def hold(message_id: UUID, user_id: UUID | None, draft: str, send_at: date
     statement = insert(ScheduledSend).values(message_id=message_id, user_id=user_id, draft=draft, send_at=send_at)
     async with get_sessionmaker()() as session, session.begin():
         await session.execute(statement.on_conflict_do_update(
-            index_elements=["message_id"], index_where=_PENDING, set_={"draft": draft, "send_at": send_at}))
+            # created_at restarts: "they replied" counts from this decision, not the one it replaces.
+            index_elements=["message_id"], index_where=_PENDING,
+            set_={"draft": draft, "send_at": send_at, "created_at": func.now()}))
 
 
 async def cancel_pending(message_id: UUID, reason: CancelReason) -> bool:

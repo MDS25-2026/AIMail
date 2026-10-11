@@ -21,7 +21,7 @@ export default function QuietHoursCard() {
         {t("quietHours.title")}
       </h2>
       <p className="text-sm text-fg-muted">{t("quietHours.intro")}</p>
-      <label className="flex items-center gap-2 text-sm font-medium text-fg">
+      <label className="flex min-h-11 items-center gap-2 text-sm font-medium text-fg md:min-h-0">
         <input
           type="checkbox"
           checked={personal !== null}

@@ -9,11 +9,13 @@ import {
   followCompanyQuietHours,
   fetchScanReading,
   fetchSystemInfo,
+  putOffPrivateMode,
   saveHoldingReplySettings,
   savePrivateMode,
   saveQuietHours,
   saveScanReading,
 } from "../api/settings";
+import type { PrivateMode } from "../../types/settings";
 import { queryKeys } from "./keys";
 
 // Replies wait in a queue the scheduler drains, so the list changes without the reader acting.
@@ -64,6 +66,18 @@ export function useSavePrivateMode() {
   return useMutation({
     mutationFn: savePrivateMode,
     onSuccess: (saved) => queryClient.setQueryData(queryKeys.privateMode, saved),
+  });
+}
+
+/** The inbox offer's "Not now": it is not shown again; Settings still has the switch. */
+export function usePutOffPrivateMode() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: putOffPrivateMode,
+    onSuccess: () =>
+      queryClient.setQueryData<PrivateMode>(queryKeys.privateMode, (mode) =>
+        mode ? { ...mode, isDecided: true } : mode,
+      ),
   });
 }
 

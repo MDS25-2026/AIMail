@@ -49,6 +49,7 @@ export const en = {
     personal: "Personal",
   },
   detail: {
+    backToInbox: "Back to inbox",
     fromAt: "{{sender}} · {{when}}",
     empty: "Select an email to see the AI draft",
     email: "Email",
@@ -267,7 +268,7 @@ export const en = {
     egressCaught_other: "({{count}} details masked at the last check)",
     provider: {
       gemini: "Google Gemini",
-      local: "your company's own model",
+      local: "AIMail's private model",
     },
     purpose: {
       route: "Sorting",
@@ -360,6 +361,7 @@ export const en = {
       no_template: "Not sent: no message written",
       stale: "Not sent: couldn't go out in time",
       user_replied: "Not sent: you replied first",
+      reply_scheduled: "Not sent: your own reply is scheduled",
       cooldown: "Not sent: they had one recently",
       daily_cap: "Not sent: daily limit reached",
       no_reply_needed: "Not sent: email didn't need a reply",
@@ -381,7 +383,7 @@ export const en = {
     },
     title: "Your writing style",
     intro:
-      "Tell AIMail how you write, or show it. Drafts follow your style. Names, numbers and addresses are hidden before anything is saved, and no AI is trained on your email.",
+      "Tell AIMail how you write, or show it. Drafts follow your style. Names, numbers and addresses are hidden before anything is saved, and your email never trains an AI for anyone else.",
     loadFailed: "Couldn't load your writing style.",
     describe: "Describe how you write",
     describePlaceholder: 'Warm but brief, no jargon, close with "Thanks,"',
@@ -401,7 +403,7 @@ export const en = {
     },
     learn: "Learn from the replies I send",
     learnHint:
-      "Off unless you switch it on. AIMail notices habits you repeat at least 3 times, such as your greeting or words you always change, and lists them here. It also keeps each reply, with personal details hidden, so a later draft for a similar email can reuse how you answered.",
+      "Off unless you switch it on. AIMail notices habits you repeat at least 3 times, such as your greeting or words you always change, and lists them here. It also keeps each reply, with personal details hidden, so a later draft for a similar email can reuse how you answered. Later, these replies may also train a model that writes only for you; they are never mixed with anyone else's.",
     nothingYet: "Nothing learned yet. A habit shows up after you use it in 3 replies.",
     evidence_one: "In {{count}} of your last {{outOf}} replies",
     evidence_other: "In {{count}} of your last {{outOf}} replies",
@@ -429,23 +431,28 @@ export const en = {
       "Google has stopped AIMail's access to your Gmail, so new emails aren't arriving and replies can't be sent. Test access lasts 7 days.",
     signIn: "Sign in again",
   },
+  privateOffer: {
+    title: "Draft on AIMail's private model?",
+    turnOn: "Turn on",
+    notNow: "Not now",
+    later: "You can change this any time in Settings.",
+  },
   privateMode: {
     notSetUp:
       "Private mode is on, but this AIMail has no private model set up, so your emails can't be drafted here. Switch it off to draft with Gemini.",
     title: "Private mode",
-    switch: "Keep my email inside the company",
+    switch: "Draft on AIMail's private model",
     intro:
-      "Your emails are drafted, checked, refined and translated by {{model}}, running on your company's own computer. Nothing from your inbox is sent to Google.",
-    on: "Private mode is on. New drafts stay in the company.",
+      "Drafted on AIMail's private model ({{model}}). Never sent to Google or Anthropic, and only ever used for your own replies. Checks, refines, translations and Ask AIMail use it too.",
+    on: "Private mode is on. New drafts use the private model.",
     off: "Private mode is off. Drafts use Google's Gemini.",
     failed: "Couldn't change Private mode. Try again in a moment.",
     notes: {
       search:
-        "Your documents and earlier replies are searched on the company's computer too, so drafts can still quote them.",
+        "Your documents and earlier replies are searched with the private model too, so drafts can still quote them.",
       noSearch:
         "This AIMail has no private search set up, so drafts in Private mode won't quote your documents or earlier replies.",
       n2: "Drafts take a little longer, and the AI's own check is less strict, so read each draft before you send it.",
-      n3: "Ask AIMail still uses Google.",
     },
   },
   scanReading: {
@@ -454,12 +461,12 @@ export const en = {
       "Scanned pages and photos in your emails are read on this computer first, and details like names and IC numbers are blacked out.",
     local: "Read on this computer only",
     localHint:
-      "Scans never go to Google. AIMail uses the text it read here, so a messy scan may be read less well.",
+      "Scan images never go to Google. AIMail uses the text it read here, with details hidden like the rest of the email, so a messy scan may be read less well.",
     checked: "Check first, then let Gemini read the clear pages",
     checkedHint:
       "A model on this computer looks for signatures, faces and stamps and keeps those pages here. In our tests it missed about 1 in 10, so a signature or stamp can occasionally reach Google.",
     notSetUp: "Checking isn't set up on this AIMail, so scans can only be read on this computer.",
-    privateNote: "In Private mode, scans always stay on this computer.",
+    privateNote: "In Private mode, scan images never go to Google.",
     saved: "Saved.",
     failed: "Couldn't change how scans are read. Try again in a moment.",
   },
@@ -566,6 +573,13 @@ export const en = {
     emptyHint: "Choose Send later on a draft and it will wait here.",
   },
   todo: {
+    draftFollowUp: "Draft follow-up",
+    drafting: "Drafting…",
+    sendFollowUp: "Send follow-up",
+    sendingFollowUp: "Sending…",
+    cancelFollowUp: "Cancel",
+    followUpLabel: "Follow-up to send",
+    followUpFailed: "Couldn't draft or send the follow-up. Try again in a moment.",
     heading: "To-do",
     description: "What needs you, in one place. Nothing here is sent or changed without you.",
     countLabel_one: "{{count}} thing needs you",
@@ -776,6 +790,7 @@ export const en = {
       generate_draft: "Draft written",
       refine_draft: "Draft refined",
       approve_and_send: "Reply approved and sent",
+      follow_up_sent: "Follow-up sent",
       send_outcome_unknown: "Send outcome unknown",
       confirm_sender: "Sender confirmed",
       translate_email: "Email translated",
@@ -909,6 +924,10 @@ export const en = {
       "This sender failed authentication. Check the sender before drafting or sending.",
     masking_pending:
       "Personal details are still being hidden in this email, so it can't be used yet.",
+    follow_up_stale:
+      "They have replied, or this reply was answered or set aside since the list loaded. Nothing was sent.",
+    follow_up_unavailable:
+      "This reply was sent from Gmail, so AIMail can't write its follow-up. Open it in Gmail instead.",
     already_sent: "This reply has already been sent.",
     send_in_progress:
       "This reply is already being sent. Wait a moment, then check whether it went.",
@@ -998,15 +1017,18 @@ export const en = {
     },
   },
   assistant: {
+    open: "Open inbox assistant",
+    close: "Close inbox assistant",
+    send: "Ask",
     title: "Inbox Assistant",
     groundedBadge: "[Grounded Q&A]",
     privacyNotice:
-      "[PRIVACY PRESERVED] Sensitive details are masked before AI processing and restored locally on your device.",
+      "Personal details are masked before the AI reads your emails, and AIMail fills them back in after it answers. Its earlier answers are never sent back to the AI.",
     askInbox: "Ask your inbox",
     askInboxHint:
       "Ask natural language questions about your email correspondence and company policies.",
     searching: "Searching inbox & synthesizing answer…",
-    restoredNotice: "[Personal details restored locally]",
+    restoredNotice: "[Personal details filled back in by AIMail]",
     sources_one: "{{count}} source",
     sources_other: "{{count}} sources",
     sourcesBreakdown: "({{emails}} emails, {{docs}} docs)",

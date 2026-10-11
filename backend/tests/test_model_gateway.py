@@ -7,6 +7,7 @@ import pytest
 
 import local_client
 import model_gateway
+from app.core.config import get_settings
 from app.core.providers import Provider
 from model_runtime import ModelError, ModelErrorCode, track_calls
 from tests.conftest import agent_client
@@ -94,6 +95,17 @@ def test_a_long_stage_keeps_its_own_output_budget(ollama):
     asyncio.run(local_client.generate_local("Translate", max_output_tokens=16_384, system="Rules"))
     body = seen[0].decode()
     assert '"num_predict":16384' in body.replace(" ", "") and '"role":"system"' in body.replace(" ", "")
+
+
+@pytest.mark.parametrize(("setting", "sent"), [("-1m", '"keep_alive":"-1m"'), ("", None)])
+def test_the_model_stays_loaded_only_as_long_as_the_company_chose(ollama, monkeypatch, setting, sent):
+    answer_with, seen = ollama
+    monkeypatch.setenv("LOCAL_LLM_KEEP_ALIVE", setting)
+    get_settings.cache_clear()
+    answer_with({"message": {"content": "Noted."}, "done_reason": "stop"})
+    asyncio.run(local_client.generate_local("Draft a reply"))
+    body = seen[0].decode().replace(" ", "")
+    assert (sent in body) if sent else ("keep_alive" not in body)
 
 
 def test_local_attempts_are_recorded_like_geminis(ollama):

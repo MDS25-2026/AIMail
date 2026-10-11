@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from app.retention import SENT_MESSAGE_DAYS, _sent_message_days
+from app.retention import SENT_MESSAGE_DAYS, _capped
 from app.waiting import asks_something, own_text, working_days_since
 
 GMAIL_QUOTE = """Thanks, received. We'll process it this week.
@@ -63,6 +63,6 @@ def test_working_days_skip_the_users_weekend():
 
 
 def test_sent_copies_are_kept_no_longer_than_the_message_content_limit():
-    assert _sent_message_days(0) == SENT_MESSAGE_DAYS  # no content limit set
-    assert _sent_message_days(30) == 30
-    assert _sent_message_days(365) == SENT_MESSAGE_DAYS
+    assert _capped(SENT_MESSAGE_DAYS, 0) == SENT_MESSAGE_DAYS  # no content limit set
+    assert _capped(SENT_MESSAGE_DAYS, 30) == 30
+    assert _capped(SENT_MESSAGE_DAYS, 365) == SENT_MESSAGE_DAYS

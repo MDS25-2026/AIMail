@@ -68,6 +68,8 @@ class Refusal(StrEnum):
     # Checked when the hold window ends.
     STALE = "stale"
     USER_REPLIED = "user_replied"
+    # The user's own reply is waiting to go out (send later): an "I'm away" would cancel it.
+    REPLY_SCHEDULED = "reply_scheduled"
     COOLDOWN = "cooldown"
     DAILY_CAP = "daily_cap"
     NO_REPLY_NEEDED = "no_reply_needed"

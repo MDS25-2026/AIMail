@@ -24,7 +24,7 @@ export default function SideNav() {
   const todo = useTodo(session.data?.hasMailbox === true);
   const todoCount = todo.data?.count ?? 0;
   return (
-    <nav aria-label={t("nav.label")} className="w-44 shrink-0 bg-rail p-3">
+    <nav aria-label={t("nav.label")} className="hidden w-44 shrink-0 bg-rail p-3 md:block">
       <ul className="space-y-1">
         {NAV_ITEMS.map((item) => (
           <li key={item.to}>

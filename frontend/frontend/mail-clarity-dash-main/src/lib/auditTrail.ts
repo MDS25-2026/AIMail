@@ -7,6 +7,7 @@ const NAMED_ACTIONS = [
   "generate_draft",
   "refine_draft",
   "approve_and_send",
+  "follow_up_sent",
   "send_outcome_unknown",
   "confirm_sender",
   "translate_email",

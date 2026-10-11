@@ -116,8 +116,14 @@ async def _send(held: ScheduledSend) -> bool:
         await cancel_claimed(held.id, CancelReason.REFUSED)
         await _call_off(held.id, held.user_id, held.message_id, CancelReason.REFUSED)
         return False
+    except Exception:
+        # Unexpected (the database, say): released to be tried next pass, never left claimed for good.
+        # A repeat cannot send twice: approve_and_send's own claim on the email answers it.
+        await release(held.id)
+        raise
     if email is None:  # the email is gone
         await cancel_claimed(held.id, CancelReason.REFUSED)
+        await _call_off(held.id, held.user_id, held.message_id, CancelReason.REFUSED)
         return False
     return True
 

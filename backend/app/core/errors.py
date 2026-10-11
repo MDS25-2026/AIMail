@@ -44,6 +44,10 @@ class ErrorCode(StrEnum):
     # Drafting and sending
     ALREADY_SENT = "already_sent"
     SEND_IN_PROGRESS = "send_in_progress"
+    # A reply sent from Gmail: AIMail cannot restore its details, so it is followed up in Gmail.
+    FOLLOW_UP_UNAVAILABLE = "follow_up_unavailable"
+    # They answered, a newer reply went, or it was set aside, since the To-do list was loaded.
+    FOLLOW_UP_STALE = "follow_up_stale"
     MASKING_PENDING = "masking_pending"
     SENDER_UNVERIFIED = "sender_unverified"
     DRAFT_REFUSED = "draft_refused"
@@ -109,6 +113,8 @@ _STATUS: dict[ErrorCode, int] = {
     ErrorCode.CONFLICT: status.HTTP_409_CONFLICT,
     ErrorCode.ALREADY_SENT: status.HTTP_409_CONFLICT,
     ErrorCode.SEND_IN_PROGRESS: status.HTTP_409_CONFLICT,
+    ErrorCode.FOLLOW_UP_UNAVAILABLE: status.HTTP_409_CONFLICT,
+    ErrorCode.FOLLOW_UP_STALE: status.HTTP_409_CONFLICT,
     ErrorCode.MASKING_PENDING: status.HTTP_409_CONFLICT,
     ErrorCode.SENDER_UNVERIFIED: status.HTTP_409_CONFLICT,
     ErrorCode.GOOGLE_ACCESS_EXPIRED: status.HTTP_409_CONFLICT,

@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.db.models import Message
 from app.db.session import get_sessionmaker
+from app.private_mode import not_private
 from app.rag.embed import embed_documents
 
 BATCH_SIZE = 15
@@ -26,7 +27,7 @@ async def main() -> None:
     async with get_sessionmaker()() as session:
         stmt = (
             select(Message)
-            .where(Message.embedding.is_(None), Message.body_masked.is_not(None))
+            .where(Message.embedding.is_(None), Message.body_masked.is_not(None), not_private(Message.user_id))
             .order_by(Message.received_at.desc().nulls_last())
         )
         messages = (await session.scalars(stmt)).all()
