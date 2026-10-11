@@ -24,13 +24,15 @@ export function useFocusOnNavigate(): void {
     const focusHeading = () => {
       const found = document.querySelector<HTMLElement>(headingSelector);
       const heading = found !== previous ? found : null;
-      const target =
-        heading ?? (framesLeft === 0 ? document.getElementById(MAIN_CONTENT_ID) : null);
+      const isOutOfTime = framesLeft <= 0;
+      // Out of time: the content area, if the page has one; sign-in and the extension preview do not.
+      const target = heading ?? (isOutOfTime ? document.getElementById(MAIN_CONTENT_ID) : null);
       if (target) {
         target.tabIndex = -1;
         target.focus({ preventScroll: true });
         return;
       }
+      if (isOutOfTime) return;
       framesLeft -= 1;
       frame = requestAnimationFrame(focusHeading);
     };

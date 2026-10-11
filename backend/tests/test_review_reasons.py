@@ -35,3 +35,13 @@ def test_stored_codes_win_over_the_text():
 
 def test_an_email_never_reviewed_has_no_reasons():
     assert review_reasons(None) == [] and review_reasons({}) == []
+
+
+def test_an_agent_that_sent_no_codes_still_gets_its_reasons_read_from_the_text():
+    checks = {"review_reasons": ["confidence 0.4 below 0.9"], "review_codes": []}
+    assert review_reasons(checks) == [ReviewReason(code=ReviewCode.LOW_CONFIDENCE)]
+
+
+def test_a_stored_code_this_backend_does_not_know_is_flagged_not_a_failed_load():
+    checks = {"review_codes": [{"code": "brand_new_check", "items": ["x"]}]}
+    assert review_reasons(checks) == [ReviewReason(code=ReviewCode.UNKNOWN, items=["x"])]

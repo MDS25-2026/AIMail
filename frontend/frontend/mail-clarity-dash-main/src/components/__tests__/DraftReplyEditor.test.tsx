@@ -6,7 +6,7 @@ import { stubFetch } from "../../test/fetchStub";
 import { emailFixture } from "../../test/emailFixture";
 import { renderWithProviders } from "../../test/render";
 import { useDraftWorkflow } from "../../lib/useDraftWorkflow";
-import type { Email } from "../../types/email";
+import { ReviewCode, type Email } from "../../types/email";
 import DraftReplyEditor from "../DraftReplyEditor";
 
 function Editor({ email }: { email: Email }) {
@@ -60,5 +60,31 @@ describe("the Changes view (#149)", () => {
     rerender(<Editor email={second} />);
     expect(draftButton().getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByRole("textbox")).toBeTruthy();
+  });
+});
+
+describe("the AI check (plain-wording-and-polish.md)", () => {
+  test("a confident draft with a reason to check says so, and never 'passed'", () => {
+    stubFetch({});
+    const flagged = emailFixture({
+      id: "d3",
+      criticConfidence: 0.95,
+      reviewReasons: [{ code: ReviewCode.NotGrounded, items: [] }],
+    });
+    renderWithProviders(<Editor email={flagged} />);
+    expect(screen.getByText("AI check: review suggested · 95% sure")).toBeTruthy();
+    expect(screen.queryByText(/AI check passed/)).toBeNull();
+    expect(
+      screen.getByText("No company document matched, so the reply isn't backed by your policies."),
+    ).toBeTruthy();
+  });
+
+  test("a draft with nothing to check passes, with no reason list", () => {
+    stubFetch({});
+    renderWithProviders(
+      <Editor email={emailFixture({ id: "d4", criticConfidence: 0.92, reviewReasons: [] })} />,
+    );
+    expect(screen.getByText("AI check passed · 92% sure")).toBeTruthy();
+    expect(screen.queryByText("Why to check this draft")).toBeNull();
   });
 });

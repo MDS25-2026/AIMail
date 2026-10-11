@@ -30,7 +30,10 @@ export default function DraftReplyEditor({ email, workflow, rows = 10 }: DraftRe
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        <CriticConfidenceBadge value={email.criticConfidence} />
+        <CriticConfidenceBadge
+          value={email.criticConfidence}
+          isFlagged={(email.reviewReasons ?? []).length > 0}
+        />
         <PiiMaskedBadge masked={email.piiMasked} />
         <div
           role="group"

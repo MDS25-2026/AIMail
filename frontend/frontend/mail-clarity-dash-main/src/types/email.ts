@@ -63,8 +63,8 @@ export enum ReviewCode {
 
 export type ReviewReason = Schemas["ReviewReason"];
 
-/** Below this the draft is flagged "review recommended". */
-export const CRITIC_CONFIDENCE_THRESHOLD = 0.8;
+/** Below this the agent flags a draft for review: email_agent.py REVIEW_THRESHOLD, shown in Settings. */
+export const CRITIC_CONFIDENCE_THRESHOLD = 0.9;
 
 assertSameValues<`${AuthStatus}`, Schemas["AuthStatus"]>(true);
 assertSameValues<`${MaskingStatus}`, Schemas["DashboardEmail"]["masking"]>(true);

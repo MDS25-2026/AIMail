@@ -218,6 +218,7 @@ describe("the undo window", () => {
     expect(result.current.status.pendingConfirm).toBeNull();
     act(() => result.current.status.onConfirm());
     expect(writes(calls)).toEqual([]);
+    act(() => result.current.undoSend()); // unmounting with a countdown running sends it, by design
   });
 });
 

@@ -35,9 +35,19 @@ def _from_text(text: str) -> ReviewReason:
     return ReviewReason(code=code, items=items)
 
 
+def _from_stored(reason: dict) -> ReviewReason:
+    # A code from a newer agent than this backend is still a reason to look, never a failed load.
+    try:
+        code = ReviewCode(reason.get("code"))
+    except ValueError:
+        code = ReviewCode.UNKNOWN
+    return ReviewReason(code=code, items=reason.get("items") or [])
+
+
 def review_reasons(critic_checks: dict | None) -> list[ReviewReason]:
-    """The stored codes, or for an older draft, its reasons read from their text."""
+    """The stored codes, or, when there are none, the reasons read from their text: an older draft,
+    or one from an agent that was not restarted with the backend and sent text only."""
     checks = critic_checks or {}
-    if "review_codes" in checks:
-        return [ReviewReason(**reason) for reason in checks["review_codes"]]
+    if checks.get("review_codes"):
+        return [_from_stored(reason) for reason in checks["review_codes"]]
     return [_from_text(text) for text in checks.get("review_reasons") or []]

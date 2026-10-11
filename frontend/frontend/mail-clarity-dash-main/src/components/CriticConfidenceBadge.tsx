@@ -1,26 +1,26 @@
 import { CircleCheck, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { CRITIC_CONFIDENCE_THRESHOLD } from "../types/email";
+type CriticConfidenceBadgeProps = { value: number; isFlagged: boolean };
 
-/** The AI check's verdict in words, with how sure it was; 0.8 and above passes. The icon and the
- *  words carry the verdict too, so it never rests on colour alone (WCAG 1.4.1). */
-export default function CriticConfidenceBadge({ value }: { value: number }) {
+/** The AI check's verdict in words, with how sure it was. The verdict is the agent's own (any
+ *  review reason flags it), so the badge never says "passed" above a list of reasons to check.
+ *  The icon and the words carry it too, so it never rests on colour alone (WCAG 1.4.1). */
+export default function CriticConfidenceBadge({ value, isFlagged }: CriticConfidenceBadgeProps) {
   const { t } = useTranslation();
   const percent = Math.round(value * 100);
-  const isPassing = value >= CRITIC_CONFIDENCE_THRESHOLD;
-  const Icon = isPassing ? CircleCheck : TriangleAlert;
+  const Icon = isFlagged ? TriangleAlert : CircleCheck;
 
   return (
     <span
       className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset ${
-        isPassing
-          ? "bg-success-soft text-success ring-success-line"
-          : "bg-warning-soft text-warning ring-warning-line"
+        isFlagged
+          ? "bg-warning-soft text-warning ring-warning-line"
+          : "bg-success-soft text-success ring-success-line"
       }`}
     >
       <Icon aria-hidden className="size-3" />
-      {t(isPassing ? "review.pass" : "review.flagged", { percent })}
+      {t(isFlagged ? "review.flagged" : "review.pass", { percent })}
     </span>
   );
 }
