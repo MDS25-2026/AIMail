@@ -40,7 +40,16 @@ def client(monkeypatch, test_settings):
                         ("TOKEN_ENCRYPTION_KEY", "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=")):
         monkeypatch.setenv(name, value)
     get_settings.cache_clear()
+    monkeypatch.setattr(connections, "remember_profile", _remembered)
+    PROFILES.clear()
     return TestClient(app)
+
+
+PROFILES: list[tuple[str, str, str]] = []
+
+
+async def _remembered(session):
+    PROFILES.append((session.user_id, session.email, session.full_name))
 
 
 def _supabase_answers(monkeypatch, body: dict):
@@ -98,6 +107,23 @@ def test_unticking_gmail_read_on_googles_screen_stores_nothing_but_still_signs_i
     _granted(monkeypatch, {"openid", "email"})
     assert _callback(client).headers["location"] == "http://localhost:8090"
     assert stored == []
+
+
+def test_signing_in_without_gmail_still_creates_the_profile_settings_belong_to(client, monkeypatch, stored):
+    _supabase_answers(monkeypatch, _session())
+    _callback(client)
+    assert stored == [] and PROFILES == [(USER_ID, "new.user@gmail.com", "New User")]
+
+
+def test_a_profile_that_cannot_be_saved_never_blocks_sign_in(client, monkeypatch, caplog):
+    async def broken(_session):
+        raise connections.ConnectionStoreError("database down")
+
+    monkeypatch.setattr(connections, "remember_profile", broken)
+    _supabase_answers(monkeypatch, _session())
+    caplog.set_level("WARNING")
+    assert _callback(client).headers["location"] == "http://localhost:8090"
+    assert "could not save the profile" in caplog.text
 
 
 def test_no_refresh_token_stores_nothing_and_logs_which_fields_came_back(client, monkeypatch, stored, caplog):

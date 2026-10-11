@@ -141,6 +141,10 @@ async def finish_google_sign_in(
     except (supabase_auth.SupabaseUnavailableError, supabase_auth.SupabaseNotConfiguredError) as exc:
         logger.warning("Google sign-in could not reach Supabase: %s", exc)
         return _back_to_sign_in(SIGN_IN_UNAVAILABLE)
+    try:
+        await connections.remember_profile(session)
+    except connections.ConnectionStoreError as exc:
+        logger.warning("could not save the profile for user %s: %s", session.user_id, exc)
     await connections.connect_mailbox(session)
     response = RedirectResponse(get_settings().dashboard_url, status_code=status.HTTP_303_SEE_OTHER)
     _set_session(response, session)

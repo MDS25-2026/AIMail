@@ -56,6 +56,16 @@ async def _upsert_profile(session: AsyncSession, user_id: str, email: str, displ
     ))
 
 
+async def remember_profile(session: Session) -> None:
+    """The profile every setting belongs to, made at sign-in whether or not Gmail was granted: a user
+    who signed in without Gmail used to have none, and their settings writes failed."""
+    try:
+        async with get_sessionmaker()() as db, db.begin():
+            await _upsert_profile(db, session.user_id, session.email, session.full_name)
+    except (SQLAlchemyError, OSError) as exc:
+        raise ConnectionStoreError(f"database refused the profile: {type(exc).__name__}") from exc
+
+
 async def store_connection(
     user_id: str, email: str, refresh_token: str, scopes: list[str], display_name: str
 ) -> None:
