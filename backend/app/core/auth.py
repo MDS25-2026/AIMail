@@ -1,7 +1,8 @@
 """Who is calling the API, and whose mail they may see (docs/adr/0005).
 
 Three ways in, checked in order: the shared BACKEND_API_TOKEN as a bearer (scripts and tests only,
-never shipped to a browser); a Supabase access token as a bearer (the extension and Outlook add-in);
+never shipped to a browser); a Supabase access token as a bearer (for a client that cannot carry the
+cookie; the Chrome extension uses the cookie);
 the dashboard's HttpOnly session cookie. Applied app-wide (see main.py), so a route added later is
 protected by default; exempting a path is a deliberate edit below.
 """

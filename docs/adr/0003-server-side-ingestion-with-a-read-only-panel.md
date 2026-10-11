@@ -1,9 +1,9 @@
 # ADR 0003 — Mail is ingested server-side only; a Gmail side panel may show it, read-only
 
-- **Status:** Proposed
+- **Status:** Accepted 2026-10-11
 - **Date:** 2026-10-08
 - **Deciders:** veyroxie (proposer); Lane A and D owners to confirm
-- **Supersedes:** [ADR 0001](0001-no-chrome-extension.md) once accepted
+- **Supersedes:** [ADR 0001](0001-no-chrome-extension.md)
 
 ## Context
 
@@ -24,6 +24,8 @@ message content from the page or send it anywhere.
 
 - ADR 0001's real objection, unmasked mail handled in the browser, does not apply to a panel that
   reads an id and asks the backend, which only ever returns the masked copy.
+  (Note, 2026-10-11: like the dashboard, the panel also receives the signed-in owner's own restored
+  details for display, per [ADR 0006](0006-restorable-masking.md); it still reads nothing from the page.)
 - One ingestion path keeps masking in one place, which is what the privacy claims rest on.
 - The panel answers the usability gap (switching between Gmail and the dashboard) without a second
   source of mail.
