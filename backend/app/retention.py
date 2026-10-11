@@ -15,6 +15,8 @@ from sqlalchemy import Executable, delete, func, or_, update
 
 from app.core.config import get_settings
 from app.db.models import (
+    DocType,
+    Document,
     HoldingReply,
     Message,
     ModelEgress,
@@ -38,6 +40,8 @@ RATE_LIMIT_WINDOW_DAYS = 1
 SENT_MESSAGE_DAYS = 90
 # A sent or cancelled send-later row only explains what happened; a month covers any question about it.
 FINISHED_SCHEDULE_DAYS = 30
+# Replies kept for "Learn from the replies I send"; style learning reads the recent ones, so a year is ample.
+PAST_REPLY_DAYS = 365
 KEEP_FOREVER = 0
 
 
@@ -95,6 +99,11 @@ def _finished_schedules(days: int) -> Executable:
     return delete(ScheduledSend).where(is_finished, ScheduledSend.created_at < _older_than(days))
 
 
+def _past_replies(days: int) -> Executable:
+    # Its chunks and vectors go with it (ON DELETE CASCADE, migration 0001).
+    return delete(Document).where(Document.doc_type == DocType.SENT_REPLY, Document.created_at < _older_than(days))
+
+
 POLICIES: tuple[Policy, ...] = (
     Policy("vault", lambda: get_settings().vault_retention_days, _vault),
     Policy("learning_pairs", lambda: LEARNING_PAIR_DAYS, _learning_pairs),
@@ -107,6 +116,8 @@ POLICIES: tuple[Policy, ...] = (
     Policy("finished_scheduled_sends",
            lambda: _capped(FINISHED_SCHEDULE_DAYS, get_settings().message_content_retention_days),
            _finished_schedules),
+    Policy("past_replies", lambda: _capped(PAST_REPLY_DAYS, get_settings().message_content_retention_days),
+           _past_replies),
 )
 
 

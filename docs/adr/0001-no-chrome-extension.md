@@ -1,6 +1,6 @@
 # ADR 0001 — No Chrome extension for AImail v1
 
-- **Status:** Accepted; to be superseded by [ADR 0003](0003-server-side-ingestion-with-a-read-only-panel.md) once it is accepted (n8n is retired, and a read-only side panel now exists)
+- **Status:** Superseded by [ADR 0003](0003-server-side-ingestion-with-a-read-only-panel.md) (2026-10-11): n8n is retired, and the side panel that was built reads only the open thread's id.
 - **Date:** 2026-04-29
 - **Deciders:** MDS25 team
 - **Supersedes:** —

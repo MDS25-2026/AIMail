@@ -8,6 +8,25 @@ Sequencing rule: Critical-first, no hard deadline. See [`adr/`](adr/) for decisi
 Reference dates: the audit's own roadmap ran 2026-08-27 to 2026-09-07; as of 2026-08-30 its
 Phase-1 window (auth + injection fencing) is already open and the week-0 items are still unpushed.
 
+## Status as of 2026-10-11
+
+Checked against `main` at `a9a6af5` with `git log`. The plan below is kept as written; each item's
+heading now carries its outcome.
+
+| Item | Outcome | Where |
+|------|---------|-------|
+| 1. API authentication | Done 2026-09-01; replaced since by Google sign-in with session cookies for people and the bearer token for scripts | merge `c90fc6d`; #139 (`docs/adr/0005-dashboard-google-sign-in.md`) |
+| 2. Prompt-injection fencing | Done | #111 |
+| 3. Presidio NER masking | Done; merged without a PR number | merge `c90fc6d` (feat/presidio) |
+| 4. Chrome extension MVP | Done | #159 (built from `vite.extension.config.ts` in the dashboard, not a separate `frontend/extension/` folder) |
+| 5. Backend audit logging | Done 2026-09-01; hash-chained and append-only since | merge `c90fc6d`; chain in #162 (migration 0024), append-only in #168 (migration 0025) |
+| 6. Attachment OCR | Done, by a different route than planned (a local attachment reader, not Tesseract in Go) | #113, #116; scans local by default since #204 |
+| 7. Upload hardening | Done 2026-09-01 | merge `c90fc6d` |
+| 8. Seam 1 reconciliation | Done 2026-08-31 (JiaJun co-sign not recorded here) | `6dfa14a` |
+| 9. Docs and repo hygiene | Partly done: CLAUDE.md rewritten, n8n and the Next.js scaffold archived under `legacy/`. Still open: flattening the dashboard path, `AI_DOCS/rag.md`, `AI_DOCS/listener.md` | #28, #70 |
+
+Issues found after the audit, open and fixed, are in [`known-issues.md`](known-issues.md).
+
 ## 0. Where the audit and the code disagree (read first)
 
 Three of the audit's nine claims need correction against the actual repo:
@@ -87,7 +106,7 @@ Decision points: (1) option (a) vs (b); (2) protect all routes vs only mutating 
 masked content — recommend all, exempt `GET /`); (3) Lane C: localhost bind only, or bind + token;
 (4) tighten the permissive localhost CORS regex now or later.
 
-### Item 2 — Indirect prompt injection (OWASP LLM01) — Lane C, Hanif — M
+### Item 2 — Indirect prompt injection (OWASP LLM01) — Lane C, Hanif — M — DONE (#111)
 
 Every stage of `email_agent.py` interpolates untrusted content bare into prompts: router, generator,
 **critic (the security gate itself)**, refiner, summary, action extraction, and `/refine` (which also
@@ -114,7 +133,7 @@ Decision points: (1) hard-cap confidence when injection suspected (recommended) 
 critic; (2) fence `rag_context` too (recommended — uploaded PDFs are untrusted); (3) keep threshold 0.8
 or raise for flagged mails.
 
-### Item 3 — Finish Presidio NER masking — Lane A, JiaJun (+Elyesa merge) — S
+### Item 3 — Finish Presidio NER masking — Lane A, JiaJun (+Elyesa merge) — S — DONE (merge `c90fc6d`)
 
 `feat/presidio` (local, 2 commits, +338 lines incl. tests + docker-compose) implements the regex floor
 (email/phone/Malaysian-IC with date-plausibility) plus Presidio analyzer/anonymizer with a context-gated
@@ -139,7 +158,7 @@ Report note (audit 2.2.3, external model data boundary): masked fragments still 
 `generativelanguage.googleapis.com`; state in the report that the free tier has no DPA/zero-retention
 guarantee and that masking-before-transit is the compensating control.
 
-### Item 4 — Chrome extension MVP — Lane D, Han (Hanif consulted) — L
+### Item 4 — Chrome extension MVP — Lane D, Han (Hanif consulted) — L — DONE (#159)
 
 **ADR 0003** (`adr/0003-chrome-extension-mvp.md`, Supersedes 0001; also set 0001 status to
 "Superseded by 0003"): 0001's WSM scored a world where the extension replaced/duplicated ingestion.
@@ -193,7 +212,7 @@ Acceptance: one demo loop yields `store_message` (Go) -> `generate_draft` -> `re
 Decision points: (1) same `audit_log` table (recommended) vs separate; (2) add an `actor` column (Supabase
 migration, Lane A co-sign) vs encode actor in `detail` (zero-migration); (3) log upload/ingest events too.
 
-### Item 6 — Image OCR for attachments (R01) — Lane A, JiaJun — M
+### Item 6 — Image OCR for attachments (R01) — Lane A, JiaJun — M — DONE (#113, #116; local reader instead of Tesseract)
 
 `getBody` walks text/html + text/plain only; image parts are never fetched. In `fetchLatestMessage`,
 walk `msg.Payload.Parts` for `image/*` (optionally `application/pdf`), fetch via
@@ -232,7 +251,7 @@ Acceptance: `grep -rn masked_body` returns only historical ADR/changelog text or
 
 Decision point: shared.md sign-off from JiaJun as table owner.
 
-### Item 9 — Documentation and repo hygiene — all lanes, Elyesa coordinates — S/M — CLAUDE.md rewritten 2026-09-01; legacy archive + dashboard flatten still open
+### Item 9 — Documentation and repo hygiene — all lanes, Elyesa coordinates — S/M — CLAUDE.md rewritten 2026-09-01; legacy archive done (#28, #70); dashboard flatten and AI_DOCS/rag.md, listener.md still open
 
 Root `CLAUDE.md` describes the retired world (n8n, "Python first Go later", Next.js, Qwen, old flow —
 the audit names n8n/Next.js/Qwen explicitly, section 4.1). Dead
@@ -267,9 +286,10 @@ Run sheet and quick wins live in [`demo-runsheet.md`](demo-runsheet.md). Larger 
 ## 2c. Issues found after the audit
 
 Defects and limitations discovered while testing, outside the audit's nine items, are tracked in
-[`known-issues.md`](known-issues.md) — including the unresolved dashboard scroll overflow, the
-Gmail watch never renewing, ingestion fetching "the latest message" rather than what changed, and
-uploaded documents bypassing masking.
+[`known-issues.md`](known-issues.md). The four named here when this section was written are all
+fixed and recorded under its Fixed section: the dashboard scroll overflow (#96), the Gmail watch
+never renewing and ingestion fetching "the latest message" (both #113), and uploaded documents
+bypassing masking (#139; documents stored before the fix are still open).
 
 ## 2d. Feature backlog
 
@@ -282,12 +302,13 @@ each and what must not be displaced.
 
 Could sink the demo:
 - **`feat/presidio` exists only on this laptop.** Until pushed, a disk failure erases the audit's single
-  completed item. Mitigate today (item 3 step 1).
+  completed item. Mitigate today (item 3 step 1). *Resolved: merged as `c90fc6d`.*
 - **Live send during the demo** replies to real senders. Mitigate: demo mailbox as sender/recipient, +
   item 1's auth so a projector-visible URL can't be driven by the audience.
 - **Gemini free-tier 429s** — ~6 calls/email; a refine loop during live Q&A can stall 30+ s.
   Mitigate: pre-generate demo drafts beforehand; keep the 120 s timeouts.
 - **Critic-gate bypass** — until item 2 lands, one crafted email makes the safety-gate claim falsifiable.
+  *Resolved: fencing landed in #111.*
 - **Extension scope creep** — the only L item; panel-reuse caps it, but Gmail DOM detection is the
   unknown-cost piece. Timebox it; fallback is the existing dashboard `/extension` route.
 - **Cross-file collisions** — items 3 & 6 both edit `listener/main.go`; items 1, 5, 7 touch

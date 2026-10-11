@@ -19,6 +19,7 @@ from sqlalchemy.exc import SQLAlchemyError
 import model_gateway
 from app.core.ownership import Scope
 from app.core.providers import Provider
+from app.core.typed_names import TypedNames
 from app.core.typed_text import mask_typed_text
 from app.core.vault import ThreadMap, VaultUnavailableError, open_vault
 from app.db.models import Chunk, Document, Message
@@ -199,12 +200,16 @@ def _questions(history: list[ChatMessage]) -> list[str]:
     return [mask_typed_text(question) for question in asked[-HISTORY_QUESTIONS:]]
 
 
-async def contextualize_query(query: str, history: list[ChatMessage], provider: Provider) -> str:
+async def _hidden_questions(history: list[ChatMessage], names: TypedNames) -> list[str]:
+    return [await names.hide(question) for question in _questions(history)]
+
+
+async def contextualize_query(query: str, questions: list[str], provider: Provider) -> str:
     """Resolve pronouns and conversational context into a self-contained search query."""
-    if not history:
+    if not questions:
         return query
 
-    formatted_turns = "\n".join(f"User: {content}" for content in _questions(history))
+    formatted_turns = "\n".join(f"User: {content}" for content in questions)
 
     prompt = f"""Given the following conversation history and a follow-up question, rewrite the follow-up question into a standalone search query.
 Resolve all pronouns (e.g. "it", "that", "she", "they", "the second one") using the conversation history.
@@ -245,10 +250,12 @@ async def search_messages_hybrid(
     *,
     scope: Scope,
     provider: Provider,
+    names: TypedNames,
 ) -> tuple[list[Message], list[str]]:
     """Retrieve candidate messages using sender matching and vector similarity.
 
-    Returns a tuple of (matched_messages, sender_candidate_words).
+    Returns a tuple of (matched_messages, sender_candidate_words). The query is embedded with its
+    typed names hidden; the word and sender matches run in the database with the names back in.
     """
     # Email vectors are Gemini's (migration 0035): Private mode has none, so it matches on words only.
     query_vector = (
@@ -257,7 +264,10 @@ async def search_messages_hybrid(
         else None
     )
 
-    cleaned_words = extract_sender_candidates(search_query)
+    search_query = names.restore(search_query)
+    # The typed names too: a rewritten follow-up may not carry their placeholders back intact.
+    typed = " ".join(names.names.values())
+    cleaned_words = list(dict.fromkeys([*extract_sender_candidates(search_query), *extract_sender_candidates(typed)]))
 
     async with get_sessionmaker()() as session:
         # 1. Full-Text Search (Keyword Rank)
@@ -399,10 +409,12 @@ async def execute_inbox_search(
 
     Enforces local AES-GCM PII vault restoration, sender query grounding, and universal source pruning.
     """
-    sanitized_query = mask_typed_text(request.query)
+    names = TypedNames()
+    sanitized_query = await names.hide(mask_typed_text(request.query))
+    questions = await _hidden_questions(request.history, names)
 
     # Contextualize query with conversational history
-    effective_query = await contextualize_query(sanitized_query, request.history, provider)
+    effective_query = await contextualize_query(sanitized_query, questions, provider)
 
     # 0. Route query intent via two-tier hybrid router
     intent = await route_query_intent(effective_query, provider)
@@ -433,6 +445,7 @@ async def execute_inbox_search(
             request.k_emails,
             scope=scope,
             provider=provider,
+            names=names,
         )
         # Safe fallback: if no emails match targeted search, inspect knowledge base before negative short-circuit
         if not matched_emails:
@@ -465,6 +478,7 @@ async def execute_inbox_search(
                 request.k_emails,
                 scope=scope,
                 provider=provider,
+                names=names,
             )
 
     else:  # HYBRID
@@ -473,6 +487,7 @@ async def execute_inbox_search(
             request.k_emails,
             scope=scope,
             provider=provider,
+            names=names,
         )
         try:
             raw_docs = await search_policy_documents(
@@ -551,7 +566,8 @@ async def execute_inbox_search(
             None,
         )
         if matched_target:
-            sender_match_note = f" (Matches queried sender: '{matched_target.capitalize()}')"
+            # Not the name itself: the user typed it, and the model sees typed names as placeholders.
+            sender_match_note = " (Matches the sender asked about)"
 
         body_text = thread_map.renumber(
             str(msg.id),
@@ -603,7 +619,6 @@ async def execute_inbox_search(
     emails_section = "\n\n".join(email_blocks) if email_blocks else "None found."
     docs_section = "\n\n".join(doc_blocks) if doc_blocks else "None found."
 
-    questions = _questions(request.history)
     history_text = ("Earlier questions:\n" + "\n".join(f"User: {q}" for q in questions) + "\n\n") if questions else ""
 
     if intent == QueryIntent.INBOX_OVERVIEW:
@@ -729,7 +744,7 @@ Helpful Grounded Answer:"""
                                    has_restored_pii=False, intent=intent.value)
 
     # 6. Local AES-GCM Vault PII Restoration
-    restored_text, _ = thread_map.restore(clean_answer)
+    restored_text, _ = thread_map.restore(names.restore(clean_answer))
     for placeholder, sender in sender_vault.items():
         restored_text = restored_text.replace(placeholder, sender)
 

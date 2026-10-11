@@ -10,7 +10,7 @@ from datetime import datetime, time, timedelta, timezone
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text, update
 from sqlalchemy.exc import DBAPIError
 
 import model_gateway
@@ -19,17 +19,19 @@ from app import (
     dashboard,
     private_mode_routes,
     quiet_hours,
+    retention,
     scheduled_sends,
     template_store,
     todo,
 )
 from app.audit import AuditAction, audit_row
-from app.core.constants import EMBEDDING_DIM
+from app.core.constants import EMBEDDING_DIM, LOCAL_EMBEDDING_DIM
 from app.core.cursor import decode_cursor
 from app.core.errors import DomainError, ErrorCode
 from app.core.ownership import EVERYTHING, Scope
 from app.core.providers import Provider
 from app.core.ratelimit import PostgresCounters
+from app.core.typed_names import TypedNames
 from app.dashboard import SendRejectedError, list_dashboard_emails, snooze_email
 from app.db.migrate import apply_pending, pending
 from app.db.models import (
@@ -38,6 +40,7 @@ from app.db.models import (
     DocType,
     Document,
     Embedding,
+    LocalEmbedding,
     MaskingStatus,
     Message,
     SentMessage,
@@ -227,6 +230,34 @@ def test_a_re_upload_swaps_in_the_new_chunks_with_their_vectors_in_one_go():
 
     documents, contents = _run(upload_twice())
     assert len(documents) == 1 and contents == ["New clause.", "Second clause."]
+
+
+def test_a_past_reply_older_than_a_year_goes_with_its_chunks_and_both_vectors_and_policies_stay():
+    owner = Scope(owner_id=None)
+    reply, policy = f"sent://{uuid4()}", f"upload://{uuid4()}.pdf"
+    vector = [1.0] + [0.0] * (EMBEDDING_DIM - 1)
+
+    async def scenario():
+        await store_chunks(reply, "Reply", [Piece("Thanks, noted.")], scope=owner, doc_type=DocType.SENT_REPLY,
+                           vectors=[vector])
+        await store_chunks(policy, "Leave", [Piece("Old clause.")], scope=owner, doc_type=DocType.POLICY,
+                           vectors=[vector])
+        async with get_sessionmaker()() as session, session.begin():
+            reply_chunk = await session.scalar(select(Chunk.id).join(Document).where(Document.source == reply))
+            session.add(LocalEmbedding(chunk_id=reply_chunk, embedding=[1.0] + [0.0] * (LOCAL_EMBEDDING_DIM - 1),
+                                       model_name="test"))
+            await session.execute(update(Document).where(Document.source.in_([reply, policy]))
+                                  .values(created_at=func.now() - timedelta(days=400)))
+            await session.execute(retention._past_replies(retention.PAST_REPLY_DAYS))
+        async with get_sessionmaker()() as session:
+            sources = set((await session.scalars(select(Document.source).where(
+                Document.source.in_([reply, policy])))).all())
+            orphans = await session.scalar(select(func.count(LocalEmbedding.id)).where(
+                LocalEmbedding.chunk_id == reply_chunk))
+        return sources, orphans
+
+    sources, orphans = _run(scenario())
+    assert sources == {policy} and orphans == 0
 
 
 def test_templates_save_list_by_use_update_and_delete_for_their_owner():
@@ -459,7 +490,7 @@ def test_a_private_inbox_search_finds_by_words_without_any_model(monkeypatch):
         raise AssertionError("a Private mode inbox search asked a model for a vector")
 
     monkeypatch.setattr(model_gateway, "embed_query", no_model)
-    found, _ = _run(search_messages_hybrid("invoice", 5, scope=Scope(private), provider=Provider.LOCAL))
+    found, _ = _run(search_messages_hybrid("invoice", 5, scope=Scope(private), provider=Provider.LOCAL, names=TypedNames()))
     assert [message.user_id for message in found] == [private]
 
 
@@ -606,7 +637,7 @@ def test_a_search_across_users_on_gemini_leaves_out_private_mode_users(monkeypat
         return []
 
     monkeypatch.setattr(model_gateway, "embed_query", no_vector)
-    found, _ = _run(search_messages_hybrid("invoice", 20, scope=EVERYTHING, provider=Provider.GEMINI))
+    found, _ = _run(search_messages_hybrid("invoice", 20, scope=EVERYTHING, provider=Provider.GEMINI, names=TypedNames()))
     owners = {message.user_id for message in found}
     assert cloud in owners and private not in owners
 

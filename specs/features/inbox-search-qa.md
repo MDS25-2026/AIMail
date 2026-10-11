@@ -29,7 +29,8 @@ As a corporate knowledge worker and inbox operator, I want to ask questions in p
   - Grounded answer synthesis via Google Gemini (`gemini-2.5-flash` or configured `GEMINI_CHAT_MODEL`).
   - Anti-hallucination prompt boundaries strictly citing retrieved email identifiers and document headings.
 - **Privacy & Multi-Tenant Security Guardrails**:
-  - Upfront PII masking of user queries using `mask_typed_text` before embedding or prompt dispatch.
+  - Upfront PII masking of user queries using `mask_typed_text` before embedding or prompt dispatch, and typed names
+    swapped for placeholders (`TypedNames`, 2026-10-12); sender matching runs locally with the names back in.
   - Strict tenant isolation: Queries are bounded by `Scope.where(messages.user_id)` so users can never search or cite another user's email or documents.
   - LLM inputs and retrieved payloads operate exclusively on de-identified masked text (`body_masked`).
 - **Dashboard Interactive Chat Widget (Lane D)**:

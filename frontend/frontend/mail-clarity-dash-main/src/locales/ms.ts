@@ -1001,6 +1001,28 @@ export const ms: Translations = {
       "Log masuk dengan Google membenarkan AIMail membaca dan menghantar Gmail anda. AIMail ialah projek tahun akhir di Monash University Malaysia.",
   },
   errors: {
+    ai_service_unreachable:
+      "Perkhidmatan AI tidak menjawab. Tiada apa-apa yang berubah; cuba lagi sebentar lagi.",
+    translation_unfaithful:
+      "Terjemahan mengubah angka atau butiran tersembunyi, jadi ia tidak ditunjukkan. Baca yang asal.",
+    unreadable_pdf:
+      "PDF itu tiada teks yang boleh dibaca oleh AIMail; ia mungkin imbasan. Cuba PDF dengan teks yang boleh dipilih.",
+    already_sent_or_cancelled: "Balasan itu sudah dihantar atau dibatalkan.",
+    session_invalid: "Sesi anda telah tamat. Log masuk semula untuk meneruskan.",
+    not_connected:
+      "Gmail anda tidak disambungkan. Log masuk semula dengan Google untuk menyambungkannya.",
+    conflict: "Sesuatu berubah semasa anda bekerja. Muat semula dan cuba lagi.",
+    forbidden: "Anda tiada akses kepada itu.",
+    account_only: "Itu memerlukan akaun yang telah log masuk.",
+    invalid_request: "Permintaan itu tidak sah. Muat semula halaman dan cuba lagi.",
+    invalid_settings: "Tetapan itu tidak dapat disimpan. Semak dan cuba lagi.",
+    client_header_missing: "Permintaan ditolak. Muat semula halaman dan cuba lagi.",
+    database_unreachable:
+      "Pangkalan data AIMail tidak dapat dicapai sekarang. Cuba lagi sebentar lagi.",
+    database_error: "Sesuatu tidak kena semasa menyimpan. Cuba lagi sebentar lagi.",
+    internal: "Sesuatu tidak kena di pihak kami. Cuba lagi sebentar lagi.",
+    account_not_fully_deleted:
+      "Akaun anda hanya dipadam sebahagian. Cuba lagi, atau minta bantuan pemilik AIMail.",
     admin_signed_out: "Anda belum log masuk ke konsol pentadbir.",
     admin_session_invalid: "Sesi pentadbir anda telah tamat. Log masuk semula.",
     admin_header_missing:
@@ -1009,7 +1031,7 @@ export const ms: Translations = {
     network: "Tidak dapat menghubungi AIMail. Semak sambungan anda dan cuba lagi.",
     signed_out: "Sesi anda telah tamat. Log masuk semula untuk meneruskan.",
     sender_unverified:
-      "Pengirim ini gagal pengesahan. Semak pengirim sebelum mendraf atau menghantar.",
+      "Kami tidak dapat mengesahkan e-mel ini benar-benar daripada pengirim ini. Semak pengirim sebelum mendraf atau menghantar.",
     masking_pending:
       "Butiran peribadi dalam e-mel ini masih sedang disembunyikan, jadi ia belum boleh digunakan.",
     follow_up_stale:
@@ -1040,7 +1062,7 @@ export const ms: Translations = {
     private_mode_unavailable:
       "Mod Peribadi dihidupkan, tetapi tiada model peribadi disediakan di sini, jadi tiada apa yang boleh didraf. Matikan Mod Peribadi dalam Tetapan.",
     masking_unavailable:
-      "Tidak dapat menyembunyikan butiran peribadi sekarang, jadi tiada apa yang disimpan. Cuba lagi sebentar lagi.",
+      "Tidak dapat menyembunyikan butiran peribadi sekarang, jadi tiada apa yang disimpan atau dihantar kepada AI. Cuba lagi sebentar lagi.",
     too_many_templates: "Anda sudah ada 50 balasan tersimpan. Buang satu dahulu.",
     time_out_of_range: "Pilih masa akan datang, dalam tempoh 60 hari.",
     too_many_examples: "Anda sudah ada 3 contoh. Buang satu dahulu.",

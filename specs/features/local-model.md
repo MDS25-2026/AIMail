@@ -109,9 +109,8 @@ scale well"; the proof of concept waits for the testing data.
 - Dropping masking for the local path (see Protected decisions).
 - Full-text search instead of a local embedding model: it matches words, not meaning, and cannot
   split Chinese words.
-- `/ask`, which still answers with Gemini and searches Gemini vectors; the card says so. A
-  Private-mode user's documents uploaded after switching have no Gemini vector, so `/ask` does not
-  find them.
+- (Superseded 2026-10-11: `/ask` and the inbox assistant now use the user's provider, so in Private
+  mode they search local vectors and answer with the local model; see "Next phase" item 3.)
 - Serving the model to other machines over the network.
 
 ## Acceptance criteria

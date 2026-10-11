@@ -113,7 +113,7 @@ ml-deps:  ## install the heavy DistilBERT training deps (torch/transformers/data
 	$(VENV)/pip install -r backend/requirements-ml.txt
 
 distilbert:  ## fine-tune DistilBERT: make distilbert DATASET=enron_labeled.csv [EPOCHS=3]
-	cd backend && ../$(VENV)/python scripts/train_distilbert.py "$(DATASET)" --epochs $(or $(EPOCHS),3)
+	cd backend && ../$(VENV)/python scripts/train_distilbert.py "$(DATASET)" --epochs $(or $(EPOCHS),5)
 
 generate:  ## pre-generate drafts for pending messages so opening them is instant (needs make agent)
 	cd backend && ../$(VENV)/python scripts/generate_pending.py

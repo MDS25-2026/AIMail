@@ -11,6 +11,7 @@ from enum import StrEnum
 import httpx
 
 from app.core.config import get_settings
+from app.core.redaction import ANY_MASK
 from app.core.typed_text import mask_typed_text
 
 
@@ -39,7 +40,7 @@ _MASK = "[Redacted]"
 
 
 class DocumentMaskingError(RuntimeError):
-    """Presidio could not be reached, so the document was not stored."""
+    """Presidio could not be reached, so the text was neither stored nor sent to a model."""
 
 
 def _chunks(text: str) -> list[str]:
@@ -78,5 +79,28 @@ async def mask_document(text: str, *, profile: MaskProfile) -> str:
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS) as client:
             return "".join([await _mask_names(client, url, piece, profile) for piece in _chunks(floor)])
+    except (httpx.HTTPError, KeyError, ValueError) as exc:
+        raise DocumentMaskingError(str(exc)) from exc
+
+
+def _outside_masks(text: str, hits: list[dict]) -> list[str]:
+    """The names found, leaving out any span inside a placeholder or marker ("PERSON_1" in "[PERSON_1]")."""
+    masks = [match.span() for match in ANY_MASK.finditer(text)]
+    return [text[hit["start"]:hit["end"]] for hit in hits
+            if not any(start < hit["end"] and hit["start"] < end for start, end in masks)]
+
+
+async def find_people(text: str) -> list[str]:
+    """Every name Presidio finds in the text, as written. Raises DocumentMaskingError when it is unreachable."""
+    url = get_settings().presidio_analyzer_url
+    body = {"language": "en", "entities": ["PERSON"], "score_threshold": _SCORE_THRESHOLD}
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS) as client:
+            found: list[str] = []
+            for piece in _chunks(text):
+                response = await client.post(url, json=body | {"text": piece})
+                response.raise_for_status()
+                found += _outside_masks(piece, response.json())
+            return found
     except (httpx.HTTPError, KeyError, ValueError) as exc:
         raise DocumentMaskingError(str(exc)) from exc

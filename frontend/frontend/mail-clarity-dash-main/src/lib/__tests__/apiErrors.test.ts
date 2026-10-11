@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import type { TFunction } from "i18next";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
@@ -92,4 +95,29 @@ describe("errorMessage", () => {
   test("anything that is not an ApiError gets the generic message, never its own text", () => {
     expect(errorMessage(new Error("stack trace text"), t)).toBe(t("errors.generic"));
   });
+});
+
+// The backend's own codes, read from its source so a new one cannot ship without words.
+const ERRORS_SOURCE = readFileSync(
+  join(__dirname, "../../../../../../backend/app/core/errors.py"),
+  "utf8",
+);
+const errorCodeBlock = ERRORS_SOURCE.slice(ERRORS_SOURCE.indexOf("class ErrorCode"));
+const BACKEND_CODES = [
+  ...errorCodeBlock
+    .slice(0, errorCodeBlock.indexOf("\n\n\n"))
+    .matchAll(/^ {4}[A-Z_]+ = "([a-z_]+)"$/gm),
+].map((match) => match[1]);
+
+test("every error the backend can send is a known code with its own words in all three languages", () => {
+  expect(BACKEND_CODES.length).toBeGreaterThan(50);
+  for (const language of [Language.English, Language.Malay, Language.Chinese]) {
+    const { t } = createI18n(language);
+    for (const raw of BACKEND_CODES) {
+      const code = Object.values(ApiErrorCode).find((known) => known === raw);
+      expect(code, `${raw} is not an ApiErrorCode`).toBeDefined();
+      const message = errorMessage(new ApiError(400, code ?? ApiErrorCode.Unknown, "test"), t);
+      expect(message, `${language}: ${raw}`).not.toMatch(/^errors\./);
+    }
+  }
 });

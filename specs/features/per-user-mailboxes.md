@@ -1,6 +1,6 @@
 # Per-user mailboxes: real sign-up, each user sees their own Gmail
 
-- **Status:** steps 1 to 4 built 2026-10-05 (listener part pending JiaJun's review); step 5 open
+- **Status:** steps 1 to 5 built 2026-10-05 (step 5, disconnect and delete account, below)
 - **Owner:** veyroxie; Lane A (JiaJun) for the listener part
 - **Related:** [ADR 0005](../../docs/adr/0005-dashboard-google-sign-in.md) "Stage 2", [google-sign-in.md](./google-sign-in.md), gap-plan epic #138
 - **Last updated:** 2026-10-05

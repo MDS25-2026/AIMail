@@ -11,9 +11,9 @@ cd "$(dirname "$0")"
 trap 'kill 0' EXIT INT TERM
 
 # Presidio first so the analyzer's model load warms while the services boot. Not fatal:
-# without it the listener degrades to regex-only masking by design. Not torn down on exit —
+# without it the listener quarantines new mail (stored with no content) until it can mask it. Not torn down on exit —
 # the containers are idle-cheap and restart with Docker anyway.
-docker compose up -d 2>/dev/null || echo "[presidio] unavailable — listener degrades to regex-only"
+docker compose up -d 2>/dev/null || echo "[presidio] unavailable — the listener quarantines new mail until Presidio is back"
 
 # Free stale ports first (the orphan problem). 8080 is left alone — other local projects use it;
 # the dashboard is pinned to 8090.

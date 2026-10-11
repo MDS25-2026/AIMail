@@ -36,6 +36,14 @@ def test_finished_send_later_rows_expire_and_waiting_ones_stay():
     assert named["finished_scheduled_sends"].days() == retention.FINISHED_SCHEDULE_DAYS
 
 
+def test_past_replies_kept_for_learning_expire_after_a_year_and_documents_stay(test_settings):
+    sql = _sql(retention._past_replies(365))
+    assert sql.startswith("DELETE FROM document") and "document.doc_type =" in sql
+    assert retention._past_replies(365).compile().params["doc_type_1"] == "sent_reply"
+    named = {policy.name: policy for policy in retention.POLICIES}
+    assert named["past_replies"].days() == retention.PAST_REPLY_DAYS == 365
+
+
 def test_a_policy_switched_off_is_never_run(test_settings, monkeypatch):
     ran = []
 

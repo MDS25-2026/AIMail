@@ -129,3 +129,9 @@ def test_a_vault_moved_to_a_new_owner_opens_for_them_and_no_longer_for_nobody():
     assert vault.open_vault(moved, OWNER, "gm-1") == {"[PERSON_1]": "Aisyah"}
     with pytest.raises(vault.VaultUnavailableError):
         vault.open_vault(moved, None, "gm-1")
+
+
+def test_a_known_name_in_chinese_characters_becomes_its_placeholder_inside_chinese_text():
+    thread = ThreadMap()
+    thread.add_message("first", {"[PERSON_1]": "陈美玲"}, "[PERSON_1]")
+    assert thread.tokenise_known("请转告陈美玲小姐") == "请转告[PERSON_1]小姐"

@@ -55,7 +55,7 @@ class ReviewReason(BaseModel):
 class ProcessEmailRequest(BaseModel):
     thread_context: str
     email_body: str
-    rag_context: str          # stub input standing in for Lane B's retrieval, for now
+    rag_context: str          # the policy passages Lane B's retrieval found for this email
     tone: str = DEFAULT_TONE_PROMPT
     # The owner's name as a placeholder ([PERSON_n]), never the name itself; "" for no sign-off.
     sign_off: str = ""

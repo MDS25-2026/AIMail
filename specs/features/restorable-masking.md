@@ -87,7 +87,8 @@ retyping anything, knowing the AI only ever saw `[PERSON_1]`.
 6. **Back into placeholders before the AI.** Anything the owner typed or edited (refine draft and
    instruction, a sent reply used as follow-up context) goes through `retokenise`: every known value
    in the thread map becomes its placeholder (longest first, whole words, names case-insensitive),
-   then the existing typed-text masking catches new formatted details. `draft_reply` is always
+   then the existing typed-text masking catches new formatted details, and any new name becomes a
+   `[PERSON_800+]` placeholder for that request only (2026-10-12, `privacy-gaps.md`). `draft_reply` is always
    stored in placeholder form, including the approved text after a send, so the database never
    holds a readable detail outside a vault.
 7. **Restored at send.** The backend re-tokenises the approved text, then restores every placeholder

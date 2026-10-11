@@ -55,6 +55,7 @@ from app.core.errors import DomainError, ErrorCode
 from app.core.language import Language, detect_language
 from app.core.ownership import EVERYTHING, Scope
 from app.core.redaction import PLACEHOLDER, has_redaction_marker
+from app.core.typed_names import TypedNames
 from app.core.typed_text import mask_typed_text
 from app.core.vault import ThreadMap, VaultUnavailableError, build_thread_map
 from app.db.models import (
@@ -89,6 +90,7 @@ from app.personalisation import (
 from app.plain_text import plain_text
 from app.private_mode import provider_for
 from app.rag.errors import EmbeddingError
+from app.rag.mask import DocumentMaskingError
 from app.rag.retrieve import retrieve
 from app.rag.utils import format_rag_context
 from app.retention import KEEP_FOREVER
@@ -472,13 +474,17 @@ async def _generate(message: Message, tone: Tone, thread: list[Message], details
 
     The chunks ride along under "rag_sources" so the caller stores what the draft was grounded on.
     """
+    searched: list[dict] = []
+    refused: list[dict] = []
     try:
         provider = await provider_for(message.user_id)
         with track_egress() as searched:
             chunks = await retrieve(message.body_masked or "", k=5, scope=Scope(owner_id=message.user_id),
                                     provider=provider)
+        names = TypedNames()
         request = ProcessEmailRequest(
-            thread_context=thread_context(message, thread, details),
+            # Earlier replies quoted here were typed by the owner, so a name in them is hidden too.
+            thread_context=await names.hide(thread_context(message, thread, details)),
             email_body=details.renumber(str(message.id), message.body_masked or ""),
             rag_context=format_rag_context(chunks),
             tone=TONE_PROMPTS[tone],
@@ -489,14 +495,18 @@ async def _generate(message: Message, tone: Tone, thread: list[Message], details
         try:
             generated = await _call_agent("/process-email", request, ProcessEmailResponse)
         except httpx.HTTPStatusError as exc:
+            refused = agent_client.refusal_egress(exc.response)
             if exc.response.status_code != AGENT_CONTENT_FAILURE:
                 raise
             generated = _not_drafted(_agent_error_code(exc.response))
-        await save_egress([*searched, *generated.pop("egress", [])], user_id=message.user_id, message_id=message.id)
-        return generated | {"rag_sources": _source_records(chunks)}
-    except (httpx.HTTPError, EmbeddingError, ValueError) as exc:
+        refused = generated.pop("egress", refused)
+        return names.restore_answer(generated) | {"rag_sources": _source_records(chunks)}
+    except (httpx.HTTPError, EmbeddingError, ValueError, DocumentMaskingError) as exc:
         logger.warning("draft generation failed for message %s: %s", message.id, exc)
         return {}
+    finally:
+        # Whatever already went to a model is recorded, a failed run included.
+        await save_egress([*searched, *refused], user_id=message.user_id, message_id=message.id)
 
 
 def _generation_fields(generated: dict) -> dict:
@@ -871,17 +881,19 @@ async def _refine(
 ) -> dict:
     """Lane C's revision plus its review. Raises DraftNotUpdatedError when nothing usable came back.
 
-    The user typed the draft and the instruction, so fixed-format details are masked before they
-    leave; names stay, since they were typed on purpose.
+    The user typed the draft and the instruction, so their details and any new name are hidden
+    before they leave, and the names go back into the revision (specs/features/privacy-gaps.md).
     """
+    names = TypedNames()
     request = AgentRefineRequest(
         email_body=details.renumber(str(message.id), message.body_masked or ""),
-        draft=details.for_model(draft),
-        instruction=details.for_model(instruction),
+        draft=await names.hide(details.for_model(draft)),
+        instruction=await names.hide(details.for_model(instruction)),
         tone=TONE_PROMPTS[tone],
-        thread_context=thread_context(message, thread, details),
+        thread_context=await names.hide(thread_context(message, thread, details)),
         rag_context=_stored_rag_context(message),
-        action_items=message.action_items or [],
+        # Stored with any typed name put back, so hidden again before it leaves.
+        action_items=[await names.hide(item) for item in message.action_items or []],
         sign_off=details.owner or "",
         provider=await provider_for(message.user_id),
         **await _style_fields(message),
@@ -890,6 +902,7 @@ async def _refine(
         refined = await _call_agent("/refine", request, RefineResponse)
     except httpx.HTTPStatusError as exc:
         logger.warning("refine failed for message %s: %s", message.id, exc)
+        await save_egress(agent_client.refusal_egress(exc.response), user_id=message.user_id, message_id=message.id)
         if exc.response.status_code == AGENT_CONTENT_FAILURE:
             raise DraftNotUpdatedError(ErrorCode.DRAFT_REFUSED) from exc
         raise DraftNotUpdatedError(ErrorCode.AGENT_UNAVAILABLE) from exc
@@ -899,7 +912,7 @@ async def _refine(
     await save_egress(refined.pop("egress", []), user_id=message.user_id, message_id=message.id)
     if not refined.get("draft"):
         raise DraftNotUpdatedError(ErrorCode.AGENT_UNAVAILABLE)
-    return refined
+    return names.restore_answer(refined)
 
 
 
@@ -956,6 +969,7 @@ async def translate_email(message_id: str, language: str, *, scope: Scope) -> di
         translated = await _call_agent("/translate", TranslateRequest(
             text=text, language=language, provider=await provider_for(message.user_id)), TranslateResponse)
     except httpx.HTTPStatusError as exc:
+        await save_egress(agent_client.refusal_egress(exc.response), user_id=message.user_id, message_id=message.id)
         await audit(AuditAction.TRANSLATE_EMAIL, user_id=message.user_id, success=False,
                     message=message_id, language=language)
         raise TranslationError(_translation_refusal(exc.response)) from exc
@@ -1039,15 +1053,19 @@ async def translate_template(template: ReplyTemplate, language: Language) -> str
     """The template in another language, every {{variable}} kept, for the user to check and save.
 
     Only masked typed text leaves, as in a refine: a phone number in the template comes back as a
-    marker the user retypes.
+    marker the user retypes, and a name goes back in after translation.
     """
+    names = TypedNames()
+    # Variables first, so a name check can never touch the inside of a {{variable}}.
     protected, variables = protect_variables(mask_typed_text(template.body))
+    protected = await names.hide(protected)
     if len(protected) > MAX_TRANSLATE_CHARS:
         raise TranslationError(ErrorCode.TOO_LARGE, "template too long to translate")
     try:
         translated = await _call_agent("/translate", TranslateRequest(
             text=protected, language=language, provider=await provider_for(template.user_id)), TranslateResponse)
     except httpx.HTTPStatusError as exc:
+        await save_egress(agent_client.refusal_egress(exc.response), user_id=template.user_id, message_id=None)
         raise TranslationError(_translation_refusal(exc.response)) from exc
     except httpx.HTTPError as exc:
         raise TranslationError(ErrorCode.AGENT_UNAVAILABLE, "agent unreachable") from exc
@@ -1055,7 +1073,7 @@ async def translate_template(template: ReplyTemplate, language: Language) -> str
     restored = restore_variables(translated["text"], variables)
     if restored is None:
         raise TranslationError(ErrorCode.TRANSLATION_UNFAITHFUL, "a template variable was lost")
-    return restored
+    return names.restore(restored)
 
 
 def _check_ahead(when: datetime) -> datetime:

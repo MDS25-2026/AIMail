@@ -1,83 +1,115 @@
 # Tech stack
 
-Pinned versions and authoritative documentation links. Update this file when a version is bumped.
+Pinned versions and where each pin lives. Update this file when a version is bumped. Python floors
+are in `backend/requirements.txt`; the exact versions CI and the Docker image install are in
+[`../../backend/constraints.txt`](../../backend/constraints.txt) (`pip install -r requirements.txt -c constraints.txt`).
 
-## Backend
+## Backend and agent (`backend/`)
 
-| Tech            | Version      | Docs                                                  |
-|-----------------|--------------|-------------------------------------------------------|
-| Python          | 3.11+        | https://docs.python.org/3/                            |
-| FastAPI         | latest 0.x   | https://fastapi.tiangolo.com/                         |
-| Pydantic        | 2.x          | https://docs.pydantic.dev/                            |
-| SQLAlchemy      | 2.x (async)  | https://docs.sqlalchemy.org/                          |
-| asyncpg         | latest       | https://magicstack.github.io/asyncpg/current/         |
-| pgvector-python | latest       | https://github.com/pgvector/pgvector-python           |
-| Anthropic SDK   | latest       | https://docs.claude.com/en/api/                       |
-| ruff            | latest       | https://docs.astral.sh/ruff/                          |
-| black           | latest       | https://black.readthedocs.io/                         |
+One image runs both: the API (`app.main:app`, :8000) and the Lane C agent (`email_agent:app`,
+:8001) ([`../../backend/Dockerfile`](../../backend/Dockerfile)).
 
-## Listener
+| Tech | Version | Where pinned |
+|------|---------|--------------|
+| Python | 3.12 in CI and the image; `requirements.txt` states 3.11+ | `.github/workflows/ci.yml`, `backend/Dockerfile` (`python:3.12-slim`) |
+| FastAPI | 0.142.2 | `constraints.txt` |
+| uvicorn | 0.54.0 | `constraints.txt` |
+| Pydantic / pydantic-settings | 2.13.5 / 2.x | `constraints.txt` |
+| SQLAlchemy (async) | 2.1.3 | `constraints.txt` |
+| asyncpg | 0.31.0 | `constraints.txt` |
+| pgvector (Python) | 0.5.0 | `constraints.txt` |
+| httpx | 0.28.1 | `constraints.txt` (agent model calls, Presidio, Ollama) |
+| google-genai | 2.28.0 | `constraints.txt` (embeddings and `/ask` only; the agent calls Gemini over HTTP in `gemini_client.py`) |
+| scikit-learn | 1.9.1 | `constraints.txt` (priority classifier baseline) |
+| Pint | 0.26.1 | `constraints.txt` (normalisation layer) |
+| pypdf | 6.19.0 | `constraints.txt` |
+| PyJWT | 2.15.1 | `constraints.txt` (Supabase access tokens) |
+| pytest | 9.1.1 | `constraints.txt` |
+| ruff | 0.16.10 | `constraints.txt`; the only linter, no formatter enforced |
 
-| Tech     | Version      | Docs                              |
-|----------|--------------|-----------------------------------|
-| Python   | 3.11+        | https://docs.python.org/3/        |
-| FastAPI  | latest 0.x   | https://fastapi.tiangolo.com/     |
-| httpx    | latest       | https://www.python-httpx.org/     |
-| Go (later) | 1.22+      | https://go.dev/doc/                |
+Optional training dependencies (torch, transformers, datasets) live in
+[`../../backend/requirements-ml.txt`](../../backend/requirements-ml.txt) and are not installed by CI
+(`make ml-deps`).
 
-## Frontend
+## Listener (`listener/`)
 
-| Tech         | Version | Docs                                  |
-|--------------|---------|---------------------------------------|
-| Node.js      | 20 LTS  | https://nodejs.org/                   |
-| Next.js      | 14+     | https://nextjs.org/docs               |
-| React        | 18+     | https://react.dev/                    |
-| TypeScript   | 5+      | https://www.typescriptlang.org/docs/  |
-| Tailwind CSS | 3+      | https://tailwindcss.com/docs          |
-| ESLint       | latest  | https://eslint.org/                   |
-| Prettier     | latest  | https://prettier.io/                  |
+| Tech | Version | Where pinned |
+|------|---------|--------------|
+| Go | 1.26.5 | [`../../listener/go.mod`](../../listener/go.mod); build image `golang:1.26.5-alpine`, runtime `distroless/static-debian12:nonroot` |
+| cloud.google.com/go/pubsub | v1.51.1 | `go.mod` |
+| google.golang.org/api (Gmail) | v0.299.0 | `go.mod` |
+| golang.org/x/oauth2 | v0.37.0 | `go.mod` |
 
-## Database
+The listener writes to Supabase over PostgREST (`/rest/v1/...`, `listener/dedupe.go`).
 
-| Tech       | Version | Docs                                |
-|------------|---------|-------------------------------------|
-| PostgreSQL | 16      | https://www.postgresql.org/docs/16/ |
-| pgvector   | 0.7+    | https://github.com/pgvector/pgvector |
+The attachment reader (`listener/attachment-reader/`) is a Python service built on the pinned
+`presidio-image-redactor` image (Tesseract and spaCy included), plus `pypdfium2==5.13.0`.
 
-## Automation
+## Dashboard (`frontend/frontend/mail-clarity-dash-main/`)
 
-| Tech | Version | Docs                       |
-|------|---------|----------------------------|
-| n8n  | latest  | https://docs.n8n.io/       |
+| Tech | Version | Where pinned |
+|------|---------|--------------|
+| Node.js | 22 | `.github/workflows/ci.yml` |
+| npm | 11.6.4 | `package.json` `packageManager` |
+| React | ^19.3.0 | `package.json` |
+| TanStack Start / Router | ^1.168.60 / ^1.170.41 | `package.json` |
+| TanStack Query | ^5.104.0 | `package.json` |
+| Vite | ^8.3.1 | `package.json`, configured through `@lovable.dev/vite-tanstack-config` |
+| TypeScript | ~6.0.3 | `package.json` |
+| Tailwind CSS | ^4.2.1 (`@tailwindcss/vite`) | `package.json` |
+| Radix UI primitives | 1.x | `package.json` |
+| i18next / react-i18next | ^26.4.2 / ^17.0.15 | `package.json` |
+| Zod | ^4.5.2 | `package.json` |
+| Recharts | ^3.10.1 | `package.json` |
+| Vitest | ^5.0.3 | `package.json` |
+| ESLint / Prettier | ^10.11.0 / ^3.9.9 | `package.json` |
+| openapi-typescript | ^7.13.0 | `package.json` (types generated from the backend's OpenAPI schema) |
 
-## AI
+The same project also builds the Chrome side panel (`npm run build:extension`, `make extension`).
 
-| Tech            | Version              | Docs                                   |
-|-----------------|----------------------|----------------------------------------|
-| Claude API      | claude-opus-4-7      | https://docs.claude.com/               |
-| Gemini API      | gemini-embedding-001 | https://ai.google.dev/gemini-api/docs  |
+## Data
 
-**Gemini usage (Lane B):** `gemini-embedding-001` at `output_dimensionality=1536` (L2-normalized) for RAG embeddings; Gemini Flash is the default candidate for query reformulation (R03.1). New provider vs the Claude-only AI table above — the SDK add is "ask first" per CLAUDE.md. See [`../../docs/decisions/lane-b-ml.md`](../../docs/decisions/lane-b-ml.md).
+| Tech | Version | Notes |
+|------|---------|-------|
+| PostgreSQL | 16 | Hosted on Supabase; CI tests against the `pgvector/pgvector` pg16 image (digest-pinned in `ci.yml`) |
+| pgvector | extension | `embedding` (1536 dims, Gemini) and `local_embedding` (768 dims, Private mode); see [`db-schema.md`](db-schema.md) |
+| Supabase | hosted | Postgres, PostgREST (listener writes), Google sign-in and admin auth ([`../../docs/adr/0004-admin-console-supabase-auth.md`](../../docs/adr/0004-admin-console-supabase-auth.md), [`../../docs/adr/0005-dashboard-google-sign-in.md`](../../docs/adr/0005-dashboard-google-sign-in.md)) |
 
-**Orchestration:** direct HTTP calls to the model provider with `asyncio`-based fan-out. No LangChain or LangGraph. See [ADR 0002](../../docs/adr/0002-orchestration-framework.md).
+Migrations are plain SQL in `backend/app/db/migrations/`, applied by `scripts/migrate.py` (`make migrate`).
 
-### Model tiers
+## Models and AI services
 
-The agent pipeline uses three tiers. Final picks decided by R&D + user-feedback signal (see [`../agent-pipeline.md`](../agent-pipeline.md)).
+| Service | Used for | Configured by |
+|---------|----------|---------------|
+| Google Gemini | agent stages (default `gemini-3.5-flash-lite`, optional fallback), embeddings (`gemini-embedding-001`), `/ask` (`gemini-2.5-flash`) | `GEMINI_AGENT_MODEL`, `GEMINI_FALLBACK_MODEL`, `GEMINI_CHAT_MODEL`; constants in `backend/gemini_client.py` and `backend/app/core/constants.py` |
+| Ollama (Private mode) | local drafting, embeddings and scan checks on the company's machine | `LOCAL_LLM_URL`, `LOCAL_LLM_MODEL`, `LOCAL_EMBEDDING_MODEL`, `LOCAL_VISION_MODEL`; no model is set by default ([`../features/local-model.md`](../features/local-model.md)) |
+| Microsoft Presidio | NER masking in the listener; the backend's document masking and typed-name check; the agent's draft PII scan | analyzer :5001, anonymizer :5002, digest-pinned in [`docker-compose.yml`](../../docker-compose.yml) |
 
-| Tier        | Job                                              | Candidates (shortlist)                                                |
-|-------------|--------------------------------------------------|-----------------------------------------------------------------------|
-| Classifier  | Read incoming email, classify task, emit JSON routing plan. Cheap, fast, must reason well over short text. | Gemma 3B / 7B (self-host), GPT-5 Nano, DeepSeek small                |
-| Reasoner    | Sub-tasks: summary, action items, intent extraction. Run **in parallel** — independent. | DeepSeek (strong reasoning), Claude Sonnet, GPT-5                    |
-| Drafter     | Generate the reply. Multiple options shown to user; user pick + edit feeds back into selection. | Claude Opus 4.7, Claude Sonnet, DeepSeek, GPT-5                      |
+Orchestration is direct HTTP calls with `asyncio` fan-out; no LangChain or LangGraph
+([`../../docs/adr/0002-orchestration-framework.md`](../../docs/adr/0002-orchestration-framework.md)).
+Every model call goes through `backend/model_gateway.py`. The pipeline itself is described in
+[`../agent-pipeline.md`](../agent-pipeline.md).
 
-Pin to **3 candidates per tier** during sprint 1; narrow to 1 per tier as thumbs-up/down data accumulates.
+## Containers
 
-**Current implementation:** all tiers run on **Gemini** (`gemini-3.5-flash-lite`) via direct HTTP in
-`email_agent.py` — chosen for reliability and speed after HuggingFace-hosted models proved
-rate-limited/flaky. The table above stays as the design space to narrow from.
+[`../../docker-compose.yml`](../../docker-compose.yml) runs `presidio-analyzer`,
+`presidio-anonymizer` and the attachment reader (:5003), bound to 127.0.0.1, read-only, with no
+Linux capabilities and memory caps. The backend and listener each have a Dockerfile; Ollama is run
+separately by whoever offers Private mode.
 
-### Anthropic API features in use
+## CI (`.github/workflows/`)
 
-- **Prompt caching (mandatory).** The same email-thread context is replayed across the classifier, the three reasoners, and the drafter on every inbound mail. Cache the thread block and the user's `style_profile` block to cut input-token cost by an estimated 70-90%. The 5-minute cache TTL is sufficient for a single pipeline run; no warming strategy is needed for sprint 1.
-- **Extended thinking.** Enabled on the drafter tier (Opus 4.7 / Sonnet 4.6) where reply quality justifies the latency. Disabled on the classifier and reasoners where latency dominates and the tasks are short.
+| Workflow | Jobs |
+|----------|------|
+| `ci.yml` (PRs and pushes to `main`) | `backend` (ruff, pytest, image build), `database` (migrations twice, then `test_database.py` on pgvector pg16), `api-types` (generated dashboard types match the backend schema), `frontend` (tsc, eslint, vitest, build, extension build, palette check), `listener` (build, vet, `go test` with Presidio required, gofmt), `attachment-reader` (tests inside its image) |
+| `codeql.yml` | CodeQL for Python, JavaScript/TypeScript and Go; pull requests and pushes to `main`, and weekly |
+| `release-please.yml` | release PRs and `CHANGELOG.md` |
+| `supabase-keepalive.yml` | queries the database every two days so the hosted project stays active |
+
+## Replaced or removed
+
+- **n8n:** retired; archived under `legacy/n8n/` and `legacy/n8n-webhook/`. Nothing calls it.
+- **Next.js:** never shipped; the abandoned scaffold is in `legacy/placeholders/`. The dashboard is Vite + TanStack Start.
+- **Python listener:** replaced by the Go listener; the old stub is in `legacy/placeholders/listener/`.
+- **Anthropic SDK, Claude models, black:** not used anywhere in the code.
+- **Classifier / reasoner / drafter model tiers:** replaced by one model per provider for every stage.

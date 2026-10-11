@@ -15,6 +15,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import dashboard
+from app.core import typed_names
 from app.core.config import get_settings
 from app.core.ratelimit import MemoryCounters, all_limiters
 from app.db.session import get_engine, get_sessionmaker
@@ -37,6 +38,16 @@ def default_priority_policy(monkeypatch):
         return DEFAULT_POLICY
 
     monkeypatch.setattr(dashboard, "_policy_for", neutral)
+
+
+@pytest.fixture(autouse=True)
+def no_typed_names(monkeypatch):
+    """Typed text finds no names: CI has no Presidio. tests/test_typed_names.py checks the real path."""
+
+    async def none_found(_text):
+        return []
+
+    monkeypatch.setattr(typed_names, "find_people", none_found)
 
 
 @pytest.fixture(autouse=True)
