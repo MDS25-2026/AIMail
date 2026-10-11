@@ -37,6 +37,9 @@ export const zh: Translations = {
     filterEmptyAny: "没有符合这些筛选条件的邮件。",
     categoryFilterLabel: "按类别筛选",
     categoryFilterAll: "全部类别",
+    sortLabel: "收件箱排序",
+    sortUrgent: "最紧急优先",
+    sortNewest: "最新优先",
   },
   priority: { critical: "特急", high: "紧急", medium: "中等", low: "低" },
   category: {
