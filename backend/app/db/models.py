@@ -394,6 +394,8 @@ class SentMessage(Base):
     dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # The send claim for a follow-up to this reply (migration 0042).
     followed_up_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Set when Gmail's answer to the follow-up was lost; the reconciler settles it (migration 0043).
+    follow_up_outcome_unknown_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

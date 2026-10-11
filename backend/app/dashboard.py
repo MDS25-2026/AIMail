@@ -102,7 +102,7 @@ from app.scheduled_sends import (
     states_for,
     waiting_send_exists,
 )
-from app.send_reconciler import mark_outcome_unknown
+from app.send_reconciler import mark_follow_up_unknown, mark_outcome_unknown
 from app.template_store import suggested_template_id
 from app.templates import (
     fill_variables,
@@ -1239,7 +1239,8 @@ async def send_follow_up(sent_id: str, draft: str, *, scope: Scope) -> bool:
         gmail = await send_reply(answered.gmail_message_id, answered.from_addr or "", answered.subject or "",
                                  reply.sent, owner_id=answered.user_id)
     except SendOutcomeUnknownError:
-        # The claim stays: Gmail may have sent it, and the listener's Sent watch records it if so.
+        # The claim stays: Gmail may have sent it. The reconciler asks Gmail later and releases it if not.
+        await mark_follow_up_unknown(sent.id)
         await audit(AuditAction.SEND_OUTCOME_UNKNOWN, user_id=answered.user_id, success=False, sent=sent_id)
         raise
     except SendError:

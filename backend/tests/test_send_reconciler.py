@@ -8,7 +8,7 @@ import pytest
 from sqlalchemy.dialects import postgresql
 
 from app import send_reconciler
-from app.db.models import Message
+from app.db.models import Message, SentMessage
 
 
 class _Session:
@@ -73,3 +73,43 @@ def test_a_gmail_failure_leaves_the_row_for_the_next_pass(monkeypatch):
         raise send_reconciler.httpx.ConnectError("offline")
 
     assert asyncio.run(send_reconciler._guarded(down(), uuid4())) == 0
+
+
+@pytest.fixture
+def settle_follow_up(monkeypatch):
+    updates, audited = [], []
+
+    async def audit(action, **fields):
+        audited.append(fields["outcome"])
+
+    monkeypatch.setattr(send_reconciler, "get_sessionmaker", lambda: lambda: _Session(updates))
+    monkeypatch.setattr(send_reconciler, "audit", audit)
+
+    def run(found: str | None):
+        async def ask(*_args, **_kwargs):
+            return found
+
+        monkeypatch.setattr(send_reconciler.gmail_send, "sent_message_in_thread_since", ask)
+        sent = SentMessage(id=uuid4(), user_id=uuid4(), thread_id="t1", sent_at=datetime.now(timezone.utc),
+                           followed_up_at=datetime.now(timezone.utc))
+        asyncio.run(send_reconciler._settle_follow_up(sent))
+        return updates, audited
+
+    return run
+
+
+def test_a_follow_up_gmail_shows_keeps_its_claim_and_stops_being_checked(settle_follow_up):
+    updates, audited = settle_follow_up("gmail-id-2")
+    assert updates[0]["follow_up_outcome_unknown_at"] is None and "followed_up_at" not in updates[0]
+    assert audited == ["sent"]
+
+
+def test_a_follow_up_gmail_never_got_is_released_to_be_sent_again(settle_follow_up):
+    updates, audited = settle_follow_up(None)
+    assert updates[0]["followed_up_at"] is None and updates[0]["follow_up_outcome_unknown_at"] is None
+    assert audited == ["not_sent"]
+
+
+def test_only_follow_ups_the_send_path_marked_unknown_are_asked_about():
+    sql = str(send_reconciler._unknown_follow_ups().compile(dialect=postgresql.dialect()))
+    assert "sent_message.follow_up_outcome_unknown_at <" in sql and "thread_id IS NOT NULL" in sql
