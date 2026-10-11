@@ -4,10 +4,12 @@ import { useEffect } from "react";
 import {
   fetchAdminSession,
   fetchAudit,
+  fetchCompanyQuietHours,
   fetchFlagged,
   fetchOverview,
   isAuthError,
   retryUnlessAuth,
+  saveCompanyQuietHours,
   signIn,
   signOut,
 } from "../adminApi";
@@ -86,5 +88,22 @@ export function useAdminSignOut() {
   return useMutation({
     mutationFn: signOut,
     onSettled: () => queryClient.resetQueries({ queryKey: keys.all }),
+  });
+}
+
+export function useCompanyQuietHours(isEnabled: boolean) {
+  return useQuery({
+    queryKey: keys.quietHours,
+    queryFn: fetchCompanyQuietHours,
+    enabled: isEnabled,
+    retry: retryUnlessAuth,
+  });
+}
+
+export function useSaveCompanyQuietHours() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: saveCompanyQuietHours,
+    onSuccess: (saved) => queryClient.setQueryData(keys.quietHours, saved),
   });
 }

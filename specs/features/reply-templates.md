@@ -122,11 +122,9 @@ Changes go into `specs/context/db-schema.md` in the same PR.
 - 2026-10-11: *Insert* stores nothing; it fills the editor like typed edits. Rationale: a stored
   template draft would need a critic score it never had (the badge read "Review 0%"), and keeping
   the AI draft lets the Changes view (#149) compare the two. Alternatives: store it unreviewed.
-- 2026-10-11: The sender's placeholder comes from `from_addr` and is numbered after the owner's,
-  so adding it never moves the owner's number. Known, older issue (not from this feature): both are
-  numbered after every message in the thread, so a newer message naming a new person shifts them,
-  and an older email's stored draft then restores the wrong name. Fixing it renumbers stored drafts;
-  left to the owner's decision.
+- 2026-10-11: The sender's placeholder comes from `from_addr`. Since the follow-up fix it is the
+  fixed `[PERSON_901]` (and the owner `[PERSON_900]`), so a newer message in the thread can no longer
+  shift either (`restorable-masking.md`, step 12).
 - 2026-10-11: A `{{...}}` blocks every send, not only template drafts, with no override. Rationale:
   the owner asked that no placeholder ever reach a recipient; a reply that genuinely needs double
   braces (code) has to be rephrased.

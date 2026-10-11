@@ -45,7 +45,7 @@ describe("PrivacyReceipt", () => {
         at: "2026-10-08T09:00:00Z",
       },
     ]);
-    expect(screen.getByText(/your company's own model/)).toBeTruthy();
+    expect(screen.getByText(/AIMail's private model/)).toBeTruthy();
     expect(screen.getByText(/1 detail masked at the last check/)).toBeTruthy();
   });
 

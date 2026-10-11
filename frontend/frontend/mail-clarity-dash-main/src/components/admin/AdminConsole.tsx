@@ -13,6 +13,7 @@ import type { AdminIdentity, Overview } from "../../types/admin";
 import { PageError, PageLoading } from "../PageState";
 import AuditTable from "./AuditTable";
 import BarList from "./BarList";
+import CompanyQuietHours from "./CompanyQuietHours";
 import FlaggedTable from "./FlaggedTable";
 import Panel from "./Panel";
 import StatTile from "./StatTile";
@@ -92,6 +93,10 @@ export default function AdminConsole({ admin }: { admin: AdminIdentity }) {
         {audit.isPending ? <PageLoading label={t("admin.activity")} /> : null}
         {audit.isError ? <PageError label={t("admin.activity")} error={audit.error} /> : null}
         {audit.data ? <AuditTable events={audit.data} /> : null}
+      </Panel>
+
+      <Panel title={t("admin.quietHours")}>
+        <CompanyQuietHours />
       </Panel>
     </div>
   );

@@ -112,3 +112,16 @@ func TestRemaskIntervalRejectsNonsense(t *testing.T) {
 		}
 	}
 }
+
+func TestReleasePatchCarriesTheSLAPriorityBesideTheMaskedContent(t *testing.T) {
+	patch := releasePatch{MaskedContent: MaskedContent{Subject: "Server outage"}, SlaPriority: SLACritical}
+	encoded, err := json.Marshal(patch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"sla_priority":"CRITICAL"`, `"subject":"Server outage"`} {
+		if !strings.Contains(string(encoded), want) {
+			t.Errorf("release patch %s lacks %s", encoded, want)
+		}
+	}
+}

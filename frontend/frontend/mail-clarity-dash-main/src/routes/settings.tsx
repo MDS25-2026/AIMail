@@ -5,6 +5,7 @@ import { Trans, useTranslation } from "react-i18next";
 import AccountCard from "../components/AccountCard";
 import HoldingReplyCard from "../components/HoldingReplyCard";
 import PrivateModeCard from "../components/PrivateModeCard";
+import QuietHoursCard from "../components/QuietHoursCard";
 import ScanReadingCard from "../components/ScanReadingCard";
 import TemplatesCard from "../components/TemplatesCard";
 import WritingStyleCard from "../components/WritingStyleCard";
@@ -59,6 +60,10 @@ function SettingsPage() {
 
         <div className="mb-4">
           <TemplatesCard />
+        </div>
+
+        <div className="mb-4">
+          <QuietHoursCard />
         </div>
 
         <div className="mb-4">

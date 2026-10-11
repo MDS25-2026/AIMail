@@ -7,8 +7,10 @@ import type { Language } from "./preferences";
 export enum Page {
   App = "app",
   Inbox = "inbox",
+  Todo = "todo",
   Drafts = "drafts",
   Sent = "sent",
+  Scheduled = "scheduled",
   Knowledge = "knowledge",
   Audit = "audit",
   Settings = "settings",

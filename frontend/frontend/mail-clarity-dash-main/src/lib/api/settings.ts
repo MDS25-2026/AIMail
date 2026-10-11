@@ -3,6 +3,8 @@ import type {
   HoldingReplyRecord,
   HoldingReplySettings,
   PrivateMode,
+  QuietHours,
+  QuietHoursSettings,
   ScanMode,
   ScanReading,
 } from "../../types/settings";
@@ -33,7 +35,19 @@ export const fetchPrivateMode = () => request<PrivateMode>("/settings/private-mo
 export const savePrivateMode = (enabled: boolean) =>
   request<PrivateMode>("/settings/private-mode", { method: HttpMethod.Put, json: { enabled } });
 
+export const putOffPrivateMode = () =>
+  request<void>("/settings/private-mode/not-now", { method: HttpMethod.Post });
+
 export const fetchScanReading = () => request<ScanReading>("/settings/scan-reading");
 
 export const saveScanReading = (mode: ScanMode) =>
   request<ScanReading>("/settings/scan-reading", { method: HttpMethod.Put, json: { mode } });
+
+export const fetchQuietHours = () => request<QuietHoursSettings>("/settings/quiet-hours");
+
+export const saveQuietHours = (hours: QuietHours) =>
+  request<QuietHoursSettings>("/settings/quiet-hours", { method: HttpMethod.Put, json: hours });
+
+/** Back to the company default. */
+export const followCompanyQuietHours = () =>
+  request<QuietHoursSettings>("/settings/quiet-hours", { method: HttpMethod.Delete });

@@ -17,6 +17,8 @@ export const ms: Translations = {
     audit: "Jejak Audit",
     settings: "Tetapan",
     admin: "Pentadbir",
+    scheduled: "Dijadualkan",
+    todo: "Senarai tugas",
   },
   languages: { en: "English", ms: "Bahasa Melayu", zh: "中文" },
   inbox: {
@@ -52,6 +54,7 @@ export const ms: Translations = {
     personal: "Peribadi",
   },
   detail: {
+    backToInbox: "Kembali ke peti masuk",
     fromAt: "{{sender}} · {{when}}",
     empty: "Pilih e-mel untuk melihat draf AI",
     email: "E-mel",
@@ -275,7 +278,7 @@ export const ms: Translations = {
     egressCaught_other: "({{count}} butiran ditutup pada semakan terakhir)",
     provider: {
       gemini: "Google Gemini",
-      local: "model syarikat anda sendiri",
+      local: "model peribadi AIMail",
     },
     purpose: {
       route: "Pengisihan",
@@ -369,6 +372,7 @@ export const ms: Translations = {
       no_template: "Tidak dihantar: tiada mesej ditulis",
       stale: "Tidak dihantar: tidak sempat dihantar",
       user_replied: "Tidak dihantar: anda membalas dahulu",
+      reply_scheduled: "Tidak dihantar: balasan anda sendiri telah dijadualkan",
       cooldown: "Tidak dihantar: mereka baru menerimanya",
       daily_cap: "Tidak dihantar: had harian dicapai",
       no_reply_needed: "Tidak dihantar: e-mel tidak perlu dibalas",
@@ -393,7 +397,7 @@ export const ms: Translations = {
     },
     title: "Gaya penulisan anda",
     intro:
-      "Beritahu AIMail cara anda menulis, atau tunjukkan. Draf mengikut gaya anda. Nama, nombor dan alamat disembunyikan sebelum apa-apa disimpan, dan tiada AI dilatih dengan e-mel anda.",
+      "Beritahu AIMail cara anda menulis, atau tunjukkan. Draf mengikut gaya anda. Nama, nombor dan alamat disembunyikan sebelum apa-apa disimpan, dan e-mel anda tidak pernah melatih AI untuk orang lain.",
     loadFailed: "Tidak dapat memuatkan gaya penulisan anda.",
     describe: "Terangkan cara anda menulis",
     describePlaceholder: 'Mesra tetapi ringkas, tiada jargon, tutup dengan "Terima kasih,"',
@@ -413,7 +417,7 @@ export const ms: Translations = {
     },
     learn: "Belajar daripada balasan yang saya hantar",
     learnHint:
-      "Dimatikan melainkan anda menghidupkannya. AIMail mengesan tabiat yang anda ulang sekurang-kurangnya 3 kali, seperti salam anda atau perkataan yang selalu anda ubah, dan menyenaraikannya di sini. Ia juga menyimpan setiap balasan, dengan butiran peribadi disembunyikan, supaya draf kemudian untuk e-mel yang serupa boleh menggunakan semula cara anda menjawab.",
+      "Dimatikan melainkan anda menghidupkannya. AIMail mengesan tabiat yang anda ulang sekurang-kurangnya 3 kali, seperti salam anda atau perkataan yang selalu anda ubah, dan menyenaraikannya di sini. Ia juga menyimpan setiap balasan, dengan butiran peribadi disembunyikan, supaya draf kemudian untuk e-mel yang serupa boleh menggunakan semula cara anda menjawab. Kemudian, balasan ini mungkin juga melatih model yang menulis untuk anda sahaja; ia tidak pernah dicampur dengan balasan orang lain.",
     nothingYet:
       "Belum ada yang dipelajari. Tabiat muncul selepas anda menggunakannya dalam 3 balasan.",
     evidence_one: "Dalam {{count}} daripada {{outOf}} balasan terakhir anda",
@@ -442,23 +446,28 @@ export const ms: Translations = {
       "Google telah menghentikan akses AIMail ke Gmail anda, jadi e-mel baharu tidak masuk dan balasan tidak boleh dihantar. Akses ujian bertahan 7 hari.",
     signIn: "Log masuk semula",
   },
+  privateOffer: {
+    title: "Draf dengan model peribadi AIMail?",
+    turnOn: "Hidupkan",
+    notNow: "Bukan sekarang",
+    later: "Anda boleh menukarnya bila-bila masa dalam Tetapan.",
+  },
   privateMode: {
     notSetUp:
       "Mod peribadi dihidupkan, tetapi AIMail ini tiada model peribadi, jadi e-mel anda tidak boleh didraf di sini. Matikannya untuk mendraf dengan Gemini.",
     title: "Mod peribadi",
-    switch: "Simpan e-mel saya dalam syarikat",
+    switch: "Draf dengan model peribadi AIMail",
     intro:
-      "E-mel anda didraf, disemak, diperhalusi dan diterjemah oleh {{model}} yang berjalan pada komputer syarikat anda sendiri. Tiada apa-apa daripada peti masuk anda dihantar kepada Google.",
-    on: "Mod peribadi dihidupkan. Draf baharu kekal dalam syarikat.",
+      "Didraf dengan model peribadi AIMail ({{model}}). Tidak pernah dihantar kepada Google atau Anthropic, dan hanya digunakan untuk balasan anda sendiri. Semakan, penambahbaikan, terjemahan dan Tanya AIMail juga menggunakannya.",
+    on: "Mod peribadi dihidupkan. Draf baharu menggunakan model peribadi.",
     off: "Mod peribadi dimatikan. Draf menggunakan Gemini Google.",
     failed: "Tidak dapat menukar mod peribadi. Cuba lagi sebentar lagi.",
     notes: {
       search:
-        "Dokumen dan balasan terdahulu anda juga dicari pada komputer syarikat, jadi draf masih boleh memetiknya.",
+        "Dokumen dan balasan terdahulu anda juga dicari dengan model peribadi, jadi draf masih boleh memetiknya.",
       noSearch:
         "AIMail ini tiada carian peribadi, jadi draf dalam mod peribadi tidak akan memetik dokumen atau balasan terdahulu anda.",
       n2: "Draf mengambil masa lebih sedikit, dan semakan AI sendiri kurang ketat, jadi baca setiap draf sebelum menghantar.",
-      n3: "Tanya AIMail masih menggunakan Google.",
     },
   },
   scanReading: {
@@ -467,13 +476,13 @@ export const ms: Translations = {
       "Halaman imbasan dan foto dalam e-mel anda dibaca di komputer ini dahulu, dan butiran seperti nama dan nombor IC dihitamkan.",
     local: "Baca di komputer ini sahaja",
     localHint:
-      "Imbasan tidak pernah dihantar ke Google. AIMail menggunakan teks yang dibaca di sini, jadi imbasan yang kabur mungkin kurang tepat.",
+      "Imej imbasan tidak pernah dihantar ke Google. AIMail menggunakan teks yang dibaca di sini, dengan butiran disembunyikan seperti e-mel yang lain, jadi imbasan yang kabur mungkin kurang tepat.",
     checked: "Semak dahulu, kemudian biar Gemini baca halaman yang bersih",
     checkedHint:
       "Model di komputer ini mencari tandatangan, wajah dan cop, dan menyimpan halaman itu di sini. Dalam ujian kami ia terlepas kira-kira 1 daripada 10, jadi tandatangan atau cop kadangkala boleh sampai ke Google.",
     notSetUp:
       "Semakan tidak disediakan pada AIMail ini, jadi imbasan hanya boleh dibaca di komputer ini.",
-    privateNote: "Dalam Mod Peribadi, imbasan sentiasa kekal di komputer ini.",
+    privateNote: "Dalam Mod Peribadi, imej imbasan tidak pernah dihantar ke Google.",
     saved: "Disimpan.",
     failed: "Tidak dapat menukar cara imbasan dibaca. Cuba lagi sebentar lagi.",
   },
@@ -528,6 +537,97 @@ export const ms: Translations = {
     drafting: "Menulis draf…",
     fillBlanks_one: "Isi {{blanks}} sebelum menghantar.",
     fillBlanks_other: "Isi {{blanks}} sebelum menghantar.",
+  },
+  schedule: {
+    sendLater: "Hantar kemudian",
+    scheduling: "Menjadualkan…",
+    tomorrow: "Esok, 9 pagi",
+    monday: "Isnin, 9 pagi",
+    pickTime: "Pilih masa",
+    scheduleAt: "Jadualkan",
+    scheduledFor: "Dijadualkan pada {{when}}. Ia tidak akan dihantar jika mereka membalas dahulu.",
+    cancel: "Batal",
+    cancelled: {
+      you_replied: "Anda sudah membalas dalam bebenang ini, jadi balasan berjadual tidak dihantar.",
+      they_replied:
+        "Mereka membalas sebelum balasan berjadual anda, jadi ia tidak dihantar. Semak sebelum menghantar.",
+      too_late:
+        "Balasan berjadual anda tidak dapat dihantar tepat pada masanya, jadi ia tidak dihantar. Semak sebelum menghantar.",
+      refused:
+        "Balasan berjadual anda tidak dapat dihantar pada masanya. Semak sebelum menghantar.",
+    },
+  },
+  snooze: {
+    snooze: "Tunda",
+    snoozing: "Menunda…",
+    until: "Ditunda sehingga {{when}}",
+    wake: "Kembalikan sekarang",
+    laterToday: "Lewat hari ini",
+    tomorrow: "Esok, 9 pagi",
+    nextWeek: "Minggu depan",
+    quietEnd: "Apabila waktu senyap tamat",
+    failed: "Tidak dapat menundanya. Cuba lagi sebentar lagi.",
+  },
+  quietHours: {
+    title: "Waktu senyap",
+    intro:
+      "Apabila anda membalas lewat, AIMail mencadangkan penghantaran pada awal hari penerima. Ia tidak pernah menghalang penghantaran.",
+    useMine: "Guna waktu senyap saya sendiri",
+    following: "Mengikut waktu senyap syarikat anda: {{from}} hingga {{to}}.",
+    from: "Dari",
+    to: "Hingga",
+    timezone: "Zon waktu",
+    weekend: "Senyap sepanjang hari",
+    weekendHint:
+      "Kelantan, Terengganu dan Kedah bercuti Jumaat dan Sabtu; kebanyakan negeri Sabtu dan Ahad.",
+    sameTimes: "Masa mula dan tamat mesti berbeza.",
+    save: "Simpan",
+    saving: "Menyimpan…",
+    saved: "Disimpan.",
+    failed: "Tidak dapat menyimpan waktu senyap. Cuba lagi sebentar lagi.",
+  },
+  scheduled: {
+    heading: "Dijadualkan",
+    description: "Balasan yang ditahan untuk dihantar kemudian. Buka satu untuk membatalkannya.",
+    label: "balasan berjadual",
+    emptyTitle: "Tiada yang dijadualkan",
+    emptyHint: "Pilih Hantar kemudian pada draf dan ia akan menunggu di sini.",
+  },
+  todo: {
+    draftFollowUp: "Draf susulan",
+    drafting: "Mendraf…",
+    sendFollowUp: "Hantar susulan",
+    sendingFollowUp: "Menghantar…",
+    cancelFollowUp: "Batal",
+    followUpLabel: "Susulan untuk dihantar",
+    followUpFailed: "Tidak dapat mendraf atau menghantar susulan. Cuba lagi sebentar lagi.",
+    heading: "Senarai tugas",
+    description:
+      "Yang memerlukan anda, di satu tempat. Tiada apa-apa dihantar atau diubah tanpa anda.",
+    countLabel_one: "{{count}} perkara memerlukan anda",
+    countLabel_other: "{{count}} perkara memerlukan anda",
+    needsAction: "Perlu tindakan anda",
+    needsActionHint: "E-mel yang meminta sesuatu daripada anda.",
+    needsReview: "Perlu semakan anda",
+    needsReviewHint: "Draf yang semakan AI sendiri kurang pasti.",
+    flagged: "Ditanda untuk disemak sebelum dihantar",
+    waiting: "Menunggu balasan mereka",
+    waitingAfter: "Tunjukkan balasan di sini selepas",
+    workingDays_one: "{{count}} hari bekerja",
+    workingDays_other: "{{count}} hari bekerja",
+    nothingWaiting: "Tiada balasan anda yang menunggu jawapan terlalu lama.",
+    sentAgo_one: "Dihantar {{when}}, {{count}} hari bekerja tanpa jawapan",
+    sentAgo_other: "Dihantar {{when}}, {{count}} hari bekerja tanpa jawapan",
+    openHere: "Buka",
+    openInGmail: "Buka dalam Gmail",
+    notWaiting: "Tidak menunggu",
+    unsentDrafts: "Draf yang belum anda hantar",
+    unsentDraftsHint: "Sedia lebih daripada sehari.",
+    allDrafts: "Lihat semua draf",
+    nothing: "Tiada apa-apa di sini.",
+    noReplyNeeded: "Tidak perlu dibalas",
+    failed: "Tidak dapat melakukannya. Cuba lagi sebentar lagi.",
+    remindMe: "Ingatkan saya jika mereka tidak membalas",
   },
   account: {
     title: "Akaun",
@@ -664,6 +764,9 @@ export const ms: Translations = {
     unknown: "Tidak diketahui",
     needsAttention: "perlu perhatian",
     loading: "data pentadbir",
+    quietHours: "Waktu senyap syarikat",
+    quietHoursHint:
+      "Bila pengguna diberitahu sudah lewat bagi penerima. Setiap orang boleh menetapkan sendiri dalam Tetapan.",
   },
   audit: {
     shortHash: "{{head}}…{{tail}}",
@@ -711,6 +814,7 @@ export const ms: Translations = {
       generate_draft: "Draf ditulis",
       refine_draft: "Draf diperhalusi",
       approve_and_send: "Balasan diluluskan dan dihantar",
+      follow_up_sent: "Susulan dihantar",
       send_outcome_unknown: "Keputusan penghantaran tidak diketahui",
       confirm_sender: "Pengirim disahkan",
       translate_email: "E-mel diterjemah",
@@ -759,6 +863,10 @@ export const ms: Translations = {
       send: "Balasan tidak dihantar. Draf anda tidak berubah, jadi cuba lagi sebentar lagi.",
       template:
         "Tidak dapat menulis draf daripada templat. Teks anda tidak berubah, jadi cuba lagi sebentar lagi.",
+      schedule:
+        "Tidak dapat menjadualkan balasan. Draf anda tidak berubah, jadi cuba lagi sebentar lagi.",
+      cancelSchedule:
+        "Tidak dapat membatalkannya. Ia masih dijadualkan, jadi cuba lagi sebentar lagi.",
     },
     replaceEdits: "Draf baharu akan menggantikan perubahan yang anda taip.",
     replaceConfirm: "Gantikan perubahan saya",
@@ -773,6 +881,12 @@ export const ms: Translations = {
     sendTemplates_other:
       "Balasan ini masih mempunyai {{count}} ruang dalam kurungan, seperti [Your Name]. Penerima akan melihatnya begitu sahaja.",
     toneWarning: "Draf anda mungkin mempunyai nada yang tidak profesional. Hantar juga?",
+    quietHours: {
+      them: "Sekarang {{now}} bagi mereka. Hantar pada {{sendAt}} waktu mereka?",
+      you: "Sekarang {{now}} waktu anda. Hantar pada {{sendAt}}?",
+      sendLater: "Hantar pada {{time}}",
+      sendNow: "Hantar sekarang",
+    },
   },
   signIn: {
     google: "Log masuk dengan Google",
@@ -838,6 +952,10 @@ export const ms: Translations = {
       "Pengirim ini gagal pengesahan. Semak pengirim sebelum mendraf atau menghantar.",
     masking_pending:
       "Butiran peribadi dalam e-mel ini masih sedang disembunyikan, jadi ia belum boleh digunakan.",
+    follow_up_stale:
+      "Mereka sudah membalas, atau balasan ini sudah dijawab atau diketepikan sejak senarai dimuatkan. Tiada apa-apa dihantar.",
+    follow_up_unavailable:
+      "Balasan ini dihantar dari Gmail, jadi AIMail tidak boleh menulis susulannya. Bukanya dalam Gmail.",
     already_sent: "Balasan ini telah pun dihantar.",
     send_in_progress:
       "Balasan ini sedang dihantar. Tunggu sebentar, kemudian semak sama ada ia sudah dihantar.",
@@ -864,6 +982,7 @@ export const ms: Translations = {
     masking_unavailable:
       "Tidak dapat menyembunyikan butiran peribadi sekarang, jadi tiada apa yang disimpan. Cuba lagi sebentar lagi.",
     too_many_templates: "Anda sudah ada 50 balasan tersimpan. Buang satu dahulu.",
+    time_out_of_range: "Pilih masa akan datang, dalam tempoh 60 hari.",
     too_many_examples: "Anda sudah ada 3 contoh. Buang satu dahulu.",
     empty: "Tiada apa untuk disimpan.",
     too_long: "Teks itu terlalu panjang.",
@@ -929,17 +1048,28 @@ export const ms: Translations = {
       description:
         "AIMail mendraf balasan untuk e-mel kerja anda, menyembunyikan butiran peribadi sebelum AI melihatnya, dan tidak menghantar apa-apa tanpa kelulusan anda.",
     },
+    scheduled: {
+      title: "AIMail dijadualkan",
+      description: "Balasan yang ditahan untuk dihantar kemudian.",
+    },
+    todo: {
+      title: "Senarai tugas AIMail",
+      description: "Yang memerlukan anda: tindakan, semakan, balasan yang masih menunggu.",
+    },
   },
   assistant: {
+    open: "Buka pembantu peti masuk",
+    close: "Tutup pembantu peti masuk",
+    send: "Tanya",
     title: "Pembantu Peti Masuk",
     groundedBadge: "[Soal Jawab Berasas]",
     privacyNotice:
-      "[PRIVASI DIPELIHARA] Butiran sensitif ditopengkan sebelum pemprosesan AI dan dipulihkan secara setempat pada peranti anda.",
+      "Butiran peribadi ditopengkan sebelum AI membaca e-mel anda, dan AIMail mengisinya semula selepas AI menjawab. Jawapannya yang terdahulu tidak pernah dihantar semula kepada AI.",
     askInbox: "Tanya peti masuk anda",
     askInboxHint:
       "Tanya soalan bahasa semula jadi tentang surat-menyurat e-mel dan dasar syarikat anda.",
     searching: "Mencari peti masuk & mensintesis jawapan…",
-    restoredNotice: "[Butiran peribadi dipulihkan secara setempat]",
+    restoredNotice: "[Butiran peribadi diisi semula oleh AIMail]",
     sources_one: "{{count}} sumber",
     sources_other: "{{count}} sumber",
     sourcesBreakdown: "({{emails}} e-mel, {{docs}} dokumen)",
@@ -977,5 +1107,7 @@ export const ms: Translations = {
     refined: "Draf diperhalus",
     sent: "Balasan dihantar",
     translated: "Terjemahan sedia",
+    scheduled: "Balasan dijadualkan",
+    scheduleCancelled: "Balasan berjadual dibatalkan",
   },
 };

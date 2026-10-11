@@ -2,7 +2,8 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 /** The dashboard's buttons, so a new screen picks a role instead of copying a class string. */
 export const button = cva(
-  "rounded-md font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed",
+  // min-h-11: a 44px touch target on a phone (WCAG 2.5.5); desktop keeps its compact sizes.
+  "inline-flex min-h-11 items-center justify-center rounded-md font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed md:min-h-0",
   {
     variants: {
       intent: {
@@ -20,7 +21,8 @@ export const button = cva(
       size: {
         xs: "px-2 py-1 text-xs",
         sm: "px-3 py-1.5 text-sm",
-        md: "px-4 py-2 text-sm",
+        // px-3 on a phone: Regenerate, Send later and Approve & Send fit one row at 375px.
+        md: "px-3 py-2 text-sm md:px-4",
       },
     },
     defaultVariants: { intent: "secondary", size: "sm" },
@@ -29,9 +31,22 @@ export const button = cva(
 
 export type ButtonVariants = VariantProps<typeof button>;
 
+/** One option of a two-way switch (tone, draft or changes); the pressed one is raised. */
+export const segment = cva(
+  "min-h-11 rounded px-2.5 py-1 text-xs font-medium transition-colors md:min-h-0",
+  {
+    variants: {
+      isPressed: {
+        true: "bg-surface text-fg shadow-sm",
+        false: "text-fg-muted hover:text-fg-body",
+      },
+    },
+  },
+);
+
 /** Text inputs, text areas and selects. */
 export const field = cva(
-  "rounded-md border border-line-strong bg-surface text-fg placeholder:text-fg-subtle focus-visible:outline-2 focus-visible:outline-brand disabled:bg-surface-muted disabled:text-fg-subtle",
+  "min-h-11 md:min-h-0 rounded-md border border-line-strong bg-surface text-fg placeholder:text-fg-subtle focus-visible:outline-2 focus-visible:outline-brand disabled:bg-surface-muted disabled:text-fg-subtle",
   {
     variants: {
       size: {

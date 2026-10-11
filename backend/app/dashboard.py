@@ -9,7 +9,7 @@ unreachable the email still returns with its Lane A/B fields and stays uncached 
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from email.utils import parseaddr
 from enum import Enum
 from uuid import UUID
@@ -17,7 +17,8 @@ from zoneinfo import ZoneInfo
 
 import httpx
 from pydantic import BaseModel
-from sqlalchemy import func, select, tuple_, update
+from sqlalchemy import func, or_, select, tuple_, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -46,7 +47,8 @@ from app.contracts import (
     ThreadMessage,
 )
 from app.core import mailbox
-from app.core.constants import TEMPLATE_TIMEZONE
+from app.core.config import get_settings
+from app.core.constants import MAX_SCHEDULE_AHEAD_DAYS, TEMPLATE_TIMEZONE
 from app.core.cursor import Cursor
 from app.core.errors import DomainError, ErrorCode
 from app.core.language import Language, detect_language
@@ -60,6 +62,7 @@ from app.db.models import (
     Message,
     ModelEgress,
     ReplyTemplate,
+    SentMessage,
     UserProfile,
 )
 from app.db.session import get_sessionmaker
@@ -87,6 +90,15 @@ from app.private_mode import provider_for
 from app.rag.errors import EmbeddingError
 from app.rag.retrieve import retrieve
 from app.rag.utils import format_rag_context
+from app.retention import KEEP_FOREVER
+from app.scheduled_sends import (
+    CancelReason,
+    ScheduleState,
+    cancel_pending,
+    hold,
+    states_for,
+    waiting_send_exists,
+)
 from app.send_reconciler import mark_outcome_unknown
 from app.template_store import suggested_template_id
 from app.templates import (
@@ -206,8 +218,10 @@ def _to_email(
     thread: list[Message] | None = None,
     details: ThreadMap | None = None,
     egress: list[ModelEgress] | None = None,
+    schedule: ScheduleState | None = None,
 ) -> DashboardEmail:
     details = details or ThreadMap()
+    schedule = schedule or ScheduleState()
     key = str(message.id)
     return DashboardEmail(
         id=key,
@@ -239,6 +253,10 @@ def _to_email(
         threadId=message.thread_id,
         details=[Detail(**detail) for detail in details.details()],
         egress=[_egress_view(row) for row in egress or []],
+        senderUtcOffsetMinutes=message.sender_utc_offset_minutes,
+        scheduledFor=schedule.send_at.isoformat() if schedule.send_at else None,
+        scheduleCancelled=schedule.cancelled,
+        snoozedUntil=message.snoozed_until.isoformat() if message.snoozed_until else None,
     )
 
 
@@ -275,7 +293,10 @@ async def _thread_for(message: Message) -> list[Message]:
 
 async def list_dashboard_emails(scope: Scope, policy_email: str, limit: int, after: Cursor | None) -> EmailPage:
     """Newest first, one page; id breaks ties, so two emails stored in the same instant both appear."""
-    statement = select(Message).where(scope.where(Message.user_id))
+    # A snoozed email stays out of the inbox until it is due, unless a reply to it is waiting to go
+    # out: the Scheduled page reads this list, and it must always reach the Cancel button.
+    statement = select(Message).where(scope.where(Message.user_id), or_(
+        Message.snoozed_until.is_(None), Message.snoozed_until <= func.now(), waiting_send_exists(Message.id)))
     if after:
         statement = statement.where(tuple_(Message.created_at, Message.id) < (after.created_at, after.row_id))
     # One extra row says whether another page exists without a count query.
@@ -285,13 +306,19 @@ async def list_dashboard_emails(scope: Scope, policy_email: str, limit: int, aft
         policy = await load_policy(session, policy_email)
     page = rows[:limit]
     is_more = len(rows) > limit
-    return EmailPage(emails=[_to_email(message, policy, details=_own_details(message)) for message in page],
+    schedules = await states_for([message.id for message in page])
+    return EmailPage(emails=[inbox_row(message, policy, schedules.get(message.id)) for message in page],
                      nextCursor=Cursor(page[-1].created_at, page[-1].id).encode() if is_more else None)
 
 
+def inbox_row(message: Message, policy: Policy, schedule: ScheduleState | None = None) -> DashboardEmail:
+    """An email as a list shows it: its own subject and preview details, no thread or draft detail."""
+    return _to_email(message, policy, details=_own_details(message), schedule=schedule)
+
+
 def _own_details(message: Message) -> ThreadMap:
-    """One email's details in its own numbering, for its inbox row (subject and preview)."""
-    text = f"{message.subject or ''}\n{message.snippet_masked or ''}"
+    """One email's details in its own numbering, for its row: subject, preview and action items."""
+    text = "\n".join([message.subject or "", message.snippet_masked or "", *(message.action_items or [])])
     return build_thread_map(
         [(str(message.id), message.pii_vault, message.user_id, message.gmail_message_id or "", text)], ""
     )
@@ -563,7 +590,7 @@ async def email_detail(message_id: str, *, scope: Scope, viewer_id: UUID | None 
     await _mark_read(pk)
     message.read_at = message.read_at or datetime.now(timezone.utc)
     email = _to_email(message, await _policy_for(message), thread=thread, details=details,
-                      egress=await egress_for(message.id))
+                      egress=await egress_for(message.id), schedule=(await states_for([pk])).get(pk))
     # Templates are the viewer's: the original mailbox's unowned rows still get the viewer's.
     email.suggestedTemplateId = await suggested_template_id(
         viewer_id or message.user_id, f"{message.subject or ''}\n{message.body_masked or ''}")
@@ -645,6 +672,16 @@ def _raise_unless_updated(message: Message, outcome: GenerationOutcome) -> None:
     raise AlreadySentError(str(message.id))  # SKIPPED with nothing refused: it was sent while generating
 
 
+# Longer than a Gmail send can take (its timeout is 30 s): a claim this new with no Gmail id is still going.
+SEND_IN_FLIGHT = timedelta(minutes=2)
+
+
+def _is_mid_send(message: Message) -> bool:
+    """Claimed by another request that has not heard back from Gmail yet; "sent" could be untrue."""
+    is_recent_claim = message.sent_at is not None and message.sent_at > datetime.now(timezone.utc) - SEND_IN_FLIGHT
+    return is_recent_claim and message.sent_message_id is None and message.send_outcome_unknown_at is None
+
+
 async def _claim_send(pk: UUID) -> bool:
     """Mark the message sent before sending, atomically. False if another request already has.
 
@@ -679,7 +716,9 @@ async def _load(pk: UUID, scope: Scope) -> Message | None:
         return await _get(session, pk, scope)
 
 
-async def approve_and_send(message_id: str, draft: str, *, scope: Scope) -> DashboardEmail | None:
+async def approve_and_send(
+    message_id: str, draft: str, *, scope: Scope, remind: bool | None = None
+) -> DashboardEmail | None:
     """Send the approved (possibly edited) draft as a reply, then record what was sent.
 
     A message already sent is returned unchanged; one another request is sending right now is refused with
@@ -696,6 +735,8 @@ async def approve_and_send(message_id: str, draft: str, *, scope: Scope) -> Dash
     reply = _outgoing(draft, await _details_for(message, await _thread_for(message)))
     if message.user_id is not None and not await connections.can_send(message.user_id):
         raise SendRejectedError(ErrorCode.SEND_NOT_GRANTED)
+    if _is_mid_send(message):
+        raise DomainError(ErrorCode.SEND_IN_PROGRESS, f"message {message_id} is being sent by another request")
     if message.sent_at is not None:
         return _to_email(message, await _policy_for(message))  # sent before this request: answering is idempotent
     if not await _claim_send(pk):
@@ -720,17 +761,21 @@ async def approve_and_send(message_id: str, draft: str, *, scope: Scope) -> Dash
                     message=message_id)
         raise
     try:
-        email, stored, is_learning_style = await _record_send(pk, message, reply, sent)
+        email, stored, is_learning_style = await _record_send(pk, message, reply, sent, remind)
     except SQLAlchemyError:
         return await _sent_but_not_recorded(message, reply, sent)
     if is_learning_style:
         await _relearn_after_send(stored.user_id)
         await remember_reply(stored.user_id, pk, message.body_masked or "", reply.stored)
+    # Sent now, by hand: a reply held for later must not go out as a second copy.
+    if await cancel_pending(pk, CancelReason.SENT_MANUALLY):
+        await audit(AuditAction.SCHEDULED_SEND_CANCELLED, user_id=message.user_id, message=message_id,
+                    reason=CancelReason.SENT_MANUALLY)
     return email
 
 
-async def _record_send(pk: UUID, message: Message, reply: OutgoingReply,
-                       sent: SentReply) -> tuple[DashboardEmail, Message, bool]:
+async def _record_send(pk: UUID, message: Message, reply: OutgoingReply, sent: SentReply,
+                       remind: bool | None = None) -> tuple[DashboardEmail, Message, bool]:
     """What was sent, with its audit row in the same transaction; and whether style learning is on."""
     async with get_sessionmaker()() as session:
         stored = await session.get(Message, pk)
@@ -747,6 +792,14 @@ async def _record_send(pk: UUID, message: Message, reply: OutgoingReply,
         # In the same transaction: the trail records this send exactly when the record of it commits.
         record(session, AuditAction.APPROVE_AND_SEND, user_id=message.user_id, message=str(pk),
                restored=reply.restored)
+        # For the to-do's waiting list; the listener's Sent watch sees the same send and is ignored.
+        # If the listener stored it first, the user's Remind me and the link to the email still land.
+        await session.execute(insert(SentMessage).values(
+            user_id=stored.user_id, gmail_id=sent.gmail_id, message_id=pk, thread_id=stored.thread_id,
+            sent_at=func.now(), subject=stored.subject or "", body_masked=reply.stored, remind=remind,
+        ).on_conflict_do_update(index_elements=["gmail_id"], set_={
+            # The listener's copy was masked apart, with other placeholder numbers: ours shares the vault.
+            "remind": remind, "message_id": pk, "body_masked": reply.stored, "subject": stored.subject or ""}))
         await session.commit()
         return _to_email(stored, await _policy_for(stored)), stored, is_learning_style
 
@@ -854,7 +907,7 @@ class TranslationError(DomainError):
 # Which error a refused action raises, so each route answers with the type its callers expect.
 _REFUSAL_ERROR: dict[Action, type[DomainError]] = {
     Action.REDRAFT: DraftNotUpdatedError, Action.REFINE: DraftNotUpdatedError,
-    Action.SEND: SendRejectedError, Action.TRANSLATE: TranslationError,
+    Action.SEND: SendRejectedError, Action.TRANSLATE: TranslationError, Action.FOLLOW_UP: SendRejectedError,
 }
 
 
@@ -979,3 +1032,200 @@ async def translate_template(template: ReplyTemplate, language: Language) -> str
     if restored is None:
         raise TranslationError(ErrorCode.TRANSLATION_UNFAITHFUL, "a template variable was lost")
     return restored
+
+
+def _check_ahead(when: datetime) -> datetime:
+    """A send or snooze time in the future and within MAX_SCHEDULE_AHEAD_DAYS, as an aware UTC time."""
+    if when.tzinfo is None:
+        raise DomainError(ErrorCode.TIME_OUT_OF_RANGE, "the time needs a timezone")
+    now = datetime.now(timezone.utc)
+    if not now < when <= now + timedelta(days=MAX_SCHEDULE_AHEAD_DAYS):
+        raise DomainError(ErrorCode.TIME_OUT_OF_RANGE, "the time must be ahead, and not too far")
+    return when.astimezone(timezone.utc)
+
+
+async def _with_schedule(message: Message) -> DashboardEmail:
+    return _to_email(message, await _policy_for(message), schedule=(await states_for([message.id])).get(message.id))
+
+
+async def schedule_email(message_id: str, draft: str, send_at: datetime, *, scope: Scope) -> DashboardEmail | None:
+    """Hold the approved draft until send_at. Checked now as a send would be, and again when due."""
+    try:
+        pk = UUID(message_id)
+    except ValueError:
+        return None
+    message = await _load(pk, scope)
+    if message is None:
+        return None
+    _require(message, Action.SEND)
+    if message.sent_at is not None:
+        # Send refuses nothing for a sent email (a repeat is answered as sent); a schedule would say
+        # "Scheduled" for something that will never go.
+        raise AlreadySentError(message_id)
+    when = _check_ahead(send_at)
+    # The real details behind the draft's placeholders are deleted then; it could not be sent.
+    vault_days = get_settings().vault_retention_days
+    if vault_days != KEEP_FOREVER and when > message.created_at + timedelta(days=vault_days):
+        raise DomainError(ErrorCode.TIME_OUT_OF_RANGE, "after this email's details are deleted")
+    reply = _outgoing(draft, await _details_for(message, await _thread_for(message)))
+    await hold(pk, message.user_id, reply.stored, when)
+    await audit(AuditAction.SEND_SCHEDULED, user_id=message.user_id, message=message_id)
+    return await _with_schedule(message)
+
+
+async def cancel_schedule(message_id: str, *, scope: Scope) -> DashboardEmail | None:
+    try:
+        pk = UUID(message_id)
+    except ValueError:
+        return None
+    message = await _load(pk, scope)
+    if message is None:
+        return None
+    if await cancel_pending(pk, CancelReason.CANCELLED):
+        await audit(AuditAction.SCHEDULED_SEND_CANCELLED, user_id=message.user_id, message=message_id,
+                    reason=CancelReason.CANCELLED)
+    return await _with_schedule(message)
+
+
+async def snooze_email(message_id: str, until: datetime | None, *, scope: Scope) -> DashboardEmail | None:
+    """Out of the inbox until then, and unread when it comes back; None brings it back now."""
+    try:
+        pk = UUID(message_id)
+    except ValueError:
+        return None
+    message = await _load(pk, scope)
+    if message is None:
+        return None
+    fields = {"snoozed_until": _check_ahead(until), "read_at": None} if until else {"snoozed_until": None}
+    async with get_sessionmaker()() as session, session.begin():
+        await session.execute(update(Message).where(Message.id == pk).values(**fields))
+    for column, value in fields.items():
+        setattr(message, column, value)
+    await audit(AuditAction.EMAIL_SNOOZED, user_id=message.user_id, message=message_id, snoozed=until is not None)
+    return await _with_schedule(message)
+
+
+FOLLOW_UP_INSTRUCTION = (
+    "They have not answered this reply. Rewrite it as a short, polite follow-up: say you are following "
+    "up, remind them in one line of what you asked, and ask again. Two or three sentences, in the same "
+    "language as the reply, keeping its greeting and sign-off."
+)
+
+
+async def _follow_up_target(sent_id: str, scope: Scope) -> tuple[SentMessage, Message, list[Message]] | None:
+    """A sent reply of this user's and the email it answered, with that email's thread.
+
+    Only replies sent through AIMail: their placeholders share the email's vault, so names restore
+    correctly. A reply sent from Gmail was masked apart, with nothing to restore it from.
+    """
+    try:
+        pk = UUID(sent_id)
+    except ValueError:
+        return None
+    async with get_sessionmaker()() as session:
+        sent = await session.scalar(select(SentMessage).where(SentMessage.id == pk, scope.where(SentMessage.user_id)))
+        answered = await _get(session, sent.message_id, scope) if sent and sent.message_id else None
+        is_stale = sent is not None and await _is_no_longer_waiting(session, sent)
+    if sent is None:
+        return None
+    if sent.followed_up_at is not None:
+        raise SendRejectedError(ErrorCode.ALREADY_SENT)  # its follow-up went out, or is going now
+    if answered is None:
+        raise SendRejectedError(ErrorCode.FOLLOW_UP_UNAVAILABLE)
+    if is_stale:
+        raise SendRejectedError(ErrorCode.FOLLOW_UP_STALE)
+    _require(answered, Action.FOLLOW_UP)
+    return sent, answered, await _thread_for(answered)
+
+
+async def _is_no_longer_waiting(session: AsyncSession, sent: SentMessage) -> bool:
+    """Checked again at send time, as the To-do list checked it: a page left open goes stale."""
+    if sent.dismissed_at is not None:
+        return True
+    in_thread = (Message.thread_id == sent.thread_id, Message.user_id.is_not_distinct_from(sent.user_id))
+    newer_send = select(SentMessage.id).where(
+        SentMessage.thread_id == sent.thread_id, SentMessage.user_id.is_not_distinct_from(sent.user_id),
+        SentMessage.sent_at > sent.sent_at)
+    answered_since = select(Message.id).where(*in_thread, Message.created_at > sent.sent_at)
+    return bool(await session.scalar(select(newer_send.exists() | answered_since.exists())))
+
+
+async def draft_follow_up(sent_id: str, *, scope: Scope) -> tuple[str, list[Detail]] | None:
+    """A follow-up to an unanswered reply, written by the agent from that reply. Not stored.
+
+    Returned with the details of the thread it is numbered in, so the page fills in the same names
+    the send will.
+    """
+    target = await _follow_up_target(sent_id, scope)
+    if target is None:
+        return None
+    sent, answered, thread = target
+    details = await _details_for(answered, thread)
+    refined = await _refine(answered, thread, sent.body_masked, FOLLOW_UP_INSTRUCTION, details, Tone.PROFESSIONAL)
+    return refined["draft"], [Detail(**detail) for detail in details.details()]
+
+
+async def _claim_follow_up(sent_id: UUID) -> bool:
+    """Claim-then-send, as for a reply: a second click finds the claim and sends nothing."""
+    async with get_sessionmaker()() as session, session.begin():
+        claimed = await session.scalar(
+            update(SentMessage).where(SentMessage.id == sent_id, SentMessage.followed_up_at.is_(None))
+            .values(followed_up_at=func.now()).returning(SentMessage.id))
+    return claimed is not None
+
+
+async def _release_follow_up(sent_id: UUID) -> None:
+    async with get_sessionmaker()() as session, session.begin():
+        await session.execute(update(SentMessage).where(SentMessage.id == sent_id).values(followed_up_at=None))
+
+
+async def send_follow_up(sent_id: str, draft: str, *, scope: Scope) -> bool:
+    """Send the approved follow-up in the email's thread, through the same checks as a reply.
+
+    False when the reply is not the user's. Raises SendRejectedError, SendError or
+    SendOutcomeUnknownError as approve_and_send does.
+    """
+    target = await _follow_up_target(sent_id, scope)
+    if target is None:
+        return False
+    sent, answered, thread = target
+    reply = _outgoing(draft, await _details_for(answered, thread))
+    if answered.user_id is not None and not await connections.can_send(answered.user_id):
+        raise SendRejectedError(ErrorCode.SEND_NOT_GRANTED)
+    if not await _claim_follow_up(sent.id):
+        raise DomainError(ErrorCode.SEND_IN_PROGRESS, f"a follow-up to {sent_id} is already being sent")
+    try:
+        gmail = await send_reply(answered.gmail_message_id, answered.from_addr or "", answered.subject or "",
+                                 reply.sent, owner_id=answered.user_id)
+    except SendOutcomeUnknownError:
+        # The claim stays: Gmail may have sent it, and the listener's Sent watch records it if so.
+        await audit(AuditAction.SEND_OUTCOME_UNKNOWN, user_id=answered.user_id, success=False, sent=sent_id)
+        raise
+    except SendError:
+        await _release_follow_up(sent.id)
+        await audit(AuditAction.FOLLOW_UP_SENT, user_id=answered.user_id, success=False, sent=sent_id)
+        raise
+    try:
+        await _record_follow_up(sent, answered, reply, gmail)
+    except SQLAlchemyError:
+        # Sent, so the reader is told so; the claim blocks a second copy, and the Sent watch records it.
+        logger.exception("follow-up to %s was sent (Gmail id %s) but its record was not saved", sent_id, gmail.message_id)
+        await audit(AuditAction.FOLLOW_UP_SENT, user_id=answered.user_id, sent=sent_id, recorded=False)
+    return True
+
+
+async def _record_follow_up(sent: SentMessage, answered: Message, reply: OutgoingReply, gmail: SentReply) -> None:
+    """The follow-up becomes the thread's latest send, so the waiting clock restarts from it.
+
+    The link to the answered email moves to it too, so it can be followed up in turn.
+    """
+    async with get_sessionmaker()() as session, session.begin():
+        await session.execute(update(SentMessage).where(SentMessage.id == sent.id).values(message_id=None))
+        await session.execute(insert(SentMessage).values(
+            user_id=sent.user_id, gmail_id=gmail.gmail_id, message_id=answered.id,
+            thread_id=answered.thread_id or sent.thread_id, sent_at=func.now(), subject=sent.subject,
+            body_masked=reply.stored, remind=True,
+        ).on_conflict_do_update(index_elements=["gmail_id"], set_={
+            "message_id": answered.id, "remind": True, "body_masked": reply.stored, "subject": sent.subject}))
+        record(session, AuditAction.FOLLOW_UP_SENT, user_id=answered.user_id, message=str(answered.id),
+               restored=reply.restored)

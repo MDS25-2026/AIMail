@@ -200,6 +200,12 @@ class Message(Base):
     generation_attempts: Mapped[int] = mapped_column(server_default="0")
     # Set when Gmail's answer to a send was lost; only these are reconciled (migration 0028).
     send_outcome_unknown_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Migration 0039 (specs/features/quiet-hours-send-later.md): the sender's offset from UTC in
+    # minutes, from their Date header; and when a snoozed email comes back to the inbox.
+    sender_utc_offset_minutes: Mapped[int | None] = mapped_column(SmallInteger)
+    snoozed_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # "No reply needed" (migration 0040): out of the to-do lists, still in the inbox.
+    dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # A worker drafting this message holds it until then (migration 0027, app/jobs.py).
     generation_claimed_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     reply_to: Mapped[str | None] = mapped_column(Text)
@@ -254,6 +260,10 @@ class UserPreferences(Base):
     # Scanned attachments (migration 0036): "local" or "checked". Defaults to local, not to the old
     # behaviour of sending scans to Gemini: the check misses about 1 in 10 signatures and stamps.
     scan_reading: Mapped[str] = mapped_column(Text, default="local")
+    # Working days before a reply counts as waiting too long (migration 0040, todo-page.md).
+    waiting_days: Mapped[int] = mapped_column(SmallInteger, default=3)
+    # The inbox's one-time Private mode offer: set when the user switches it or says "Not now".
+    private_mode_decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -335,6 +345,55 @@ class HoldingReply(Base):
     cancelled_reason: Mapped[str | None] = mapped_column(Text)
     sent_message_id: Mapped[str | None] = mapped_column(Text)
     send_outcome_unknown_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class QuietHours(Base):
+    """Quiet hours (migration 0039): the row with no user is the company default."""
+
+    __tablename__ = "quiet_hours"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    user_id: Mapped[UUID | None] = mapped_column(ForeignKey("user_profile.id"))
+    starts: Mapped[time] = mapped_column(Time, default=time(21))
+    ends: Mapped[time] = mapped_column(Time, default=time(8))
+    weekend_days: Mapped[list[int]] = mapped_column(ARRAY(SmallInteger), default=lambda: [6, 7])
+    timezone: Mapped[str] = mapped_column(Text, default="Asia/Kuala_Lumpur")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ScheduledSend(Base):
+    """A reply held for later (migration 0039): sent, cancelled with a reason, or still waiting."""
+
+    __tablename__ = "scheduled_send"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    message_id: Mapped[UUID] = mapped_column(ForeignKey("messages.id"))
+    user_id: Mapped[UUID | None] = mapped_column(ForeignKey("user_profile.id"))
+    draft: Mapped[str] = mapped_column(Text)
+    send_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancelled_reason: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class SentMessage(Base):
+    """A reply the user sent (migration 0040), masked, kept apart from received mail."""
+
+    __tablename__ = "sent_message"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    user_id: Mapped[UUID | None] = mapped_column(ForeignKey("user_profile.id"))
+    gmail_id: Mapped[str | None] = mapped_column(Text, unique=True)
+    message_id: Mapped[UUID | None] = mapped_column(ForeignKey("messages.id"), unique=True)
+    thread_id: Mapped[str | None] = mapped_column(Text)
+    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    subject: Mapped[str] = mapped_column(Text, default="")
+    body_masked: Mapped[str] = mapped_column(Text, default="")
+    remind: Mapped[bool | None]
+    dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The send claim for a follow-up to this reply (migration 0042).
+    followed_up_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

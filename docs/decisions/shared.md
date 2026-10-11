@@ -6,6 +6,85 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-11 — Audit of everything since #168: what changed across lanes
+- Decision: fixes from a full audit of #177 to #210, in PR #211. Cross-lane ones:
+  - **Listener (Lane A):** the baseline moves only after a catch-up has stored its mail, and only an
+    expired history (404) falls back to one. The SLA floor reads only the sender's own text (the
+    quoted email and "not urgent" no longer make a reply CRITICAL). A released quarantined email
+    gets its SLA priority.
+  - **Inbox assistant (Lane C's #195):** the assistant's own answers are never sent back to the
+    model, since their details were filled back in; subjects and snippets share the bodies'
+    placeholder numbering; a search across every user on Gemini leaves out Private mode users; with
+    details hidden the answer keeps its placeholders.
+  - **Holding replies:** none goes out while the user's own reply is scheduled (`reply_scheduled`).
+  - **Dashboard (Lane D):** an approved reply is never dropped by leaving the email in the undo
+    window (it sends now); Send later runs Send's content checks.
+- Why: each could send the wrong thing, lose mail or a reply, or break a privacy promise.
+- Not fixed, written down in the PR instead: low-risk items (counts, cost, an SLA month name,
+  edge cases with a safe failure).
+
+### 2026-10-11 — Follow-ups from the To-do page, for replies sent through AIMail
+- Decision: a waiting reply sent through AIMail can be followed up from the To-do page: the agent
+  rewrites it as a nudge (`/refine` with a fixed instruction), the user edits and approves it, and
+  it is sent in the email's thread with Send's checks (masking, spoof, placeholders, Gmail grant),
+  a claim on `sent_message.followed_up_at`, and an audit row (`follow_up_sent`).
+- Why only those: a reply sent from Gmail was masked by the listener with its own numbering and no
+  vault, so its placeholders cannot be restored safely.
+- Affects: `backend/app` (dashboard, todo routes; migration 0042), Lane C's `/refine` (no change,
+  a new instruction), the To-do page (Lane D), `specs/features/todo-page.md`.
+
+### 2026-10-11 — Private mode makes one claim, and Private mode users get no Gemini email vectors
+- Decision: every Private mode string makes the agreed claim ("Drafted on AIMail's private model.
+  Never sent to Google or Anthropic, and only ever used for your own replies") and no claim about
+  where the model runs. The inbox offers Private mode once. The email-vector backfill
+  (`scripts/backfill_message_embeddings.py`, #195) skips Private mode users, switching Private mode
+  on clears that user's email vectors, and inbox search in Private mode matches on words only.
+- Why: the backfill sent every stored email to Gemini to embed it, Private mode users' included,
+  which broke Private mode's promise; and a local query vector against Gemini's column failed
+  quietly. "On your company's computer" is false once the model is hosted.
+- Affects: `backend/app` (inbox search, Private mode routes; migration 0041), the inbox search
+  backfill script (Lane C's #195), the dashboard (Lane D), `specs/features/local-model.md`.
+
+### 2026-10-11 — To-do page; the listener also reads the mailbox's sent replies
+- Decision: a To-do page (needs action, needs review, waiting for their reply, unsent drafts). The
+  listener's watch covers the Sent label; sent replies are masked and kept in `sent_message`, apart
+  from received mail, with no recipient address, deleted after 90 days. Whether a reply asked
+  something is read on the backend, over only what the user wrote (the quoted email cut off).
+- Why: replies that asked something and got no answer fell through the cracks.
+- Why a separate table: nothing that drafts or lists received mail can mistake a sent reply for
+  an email to answer (AIMail once replied to itself that way, see `ingestRecentInbox`).
+- Affects: listener (Lane A: the Sent watch and `sent_message` inserts, so migration 0040 must run
+  before the new listener starts), `backend/app` (Lane B), a To-do page and the Send bar (Lane D),
+  `specs/features/todo-page.md`.
+- Status: accepted (owner, 2026-10-10 spec, 2026-10-11 follow-up choice; built 2026-10-11)
+
+### 2026-10-11 — Quiet hours, send later and snooze
+- Decision: the listener stores the sender's UTC offset from their Date header; quiet hours are a
+  company default (admin console) with a personal override; a reply can be held (`scheduled_send`)
+  and the worker sends it through `approve_and_send` when due, unless a new message arrived in the
+  thread first or it is over an hour late; snooze hides an email until a time and returns it unread.
+  The late-night suggestion is computed in the browser and never blocks.
+- Why: reply at a decent hour for the recipient without having to remember to send tomorrow.
+- Why not block late sends: it is advice; the user decides.
+- Affects: listener (Lane A: one new column in every insert, so migration 0039 must run before the
+  new listener starts), `backend/app` (Lane B), the draft card, Settings, admin console and a
+  Scheduled page (Lane D), `specs/features/quiet-hours-send-later.md`.
+- Status: accepted (owner, 2026-10-10 spec; built 2026-10-11)
+
+### 2026-10-11 — Fixed placeholder numbers for the owner and the sender
+- Decision: the owner's sign-off name is always `[PERSON_900]` and the sender's `[PERSON_901]`,
+  never matched against the thread's own placeholders. Stored drafts are moved over by
+  `scripts/renumber_sign_offs.py`, from the thread as each draft saw it, run once as it goes live.
+- Why: both used to be numbered after every person in the thread, so a newer message naming someone
+  new shifted them, and an older email's stored draft would show and send that person's name.
+  Found while building templates; on 2026-10-11 none of the 28 affected drafts (27 unsent, 1 sent)
+  was wrong yet.
+- Why not number the owner first: every message placeholder after it would move, breaking every
+  stored draft and summary instead of only sign-offs.
+- Affects: `backend/app/core/vault.py` (Lane B), drafts' sign-off placeholder seen by the agent
+  (Lane C, unchanged contract), `specs/features/restorable-masking.md`.
+- Status: accepted (owner, 2026-10-11)
+
 ### 2026-10-11 — Saved reply templates; the sender's name joins the thread map
 - Decision: personal templates (`reply_template`, migration 0038) with `{{variables}}`. `{{name}}`
   is the sender's display name as a placeholder (`ThreadMap.add_sender`, numbered after the owner),

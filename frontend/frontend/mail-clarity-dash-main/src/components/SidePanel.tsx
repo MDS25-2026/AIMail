@@ -19,6 +19,7 @@ import MissingDetailsNotice from "./MissingDetailsNotice";
 import PanelSummary from "./PanelSummary";
 import PrivacyReceipt from "./PrivacyReceipt";
 import RefineInput from "./RefineInput";
+import ScheduleBanner from "./ScheduleBanner";
 import SourcesChips from "./SourcesChips";
 import TemplatePicker from "./TemplatePicker";
 import WithDetails from "./WithDetails";
@@ -111,6 +112,7 @@ function PanelDraft({ email, workflow }: { email: Email; workflow: DraftWorkflow
           </div>
         </details>
       ) : null}
+      <ScheduleBanner email={email} workflow={workflow} />
       <DraftStatus {...workflow.status} />
     </section>
   );

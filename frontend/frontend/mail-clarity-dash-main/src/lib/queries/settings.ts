@@ -5,12 +5,17 @@ import {
   fetchHoldingReplies,
   fetchHoldingReplySettings,
   fetchPrivateMode,
+  fetchQuietHours,
+  followCompanyQuietHours,
   fetchScanReading,
   fetchSystemInfo,
+  putOffPrivateMode,
   saveHoldingReplySettings,
   savePrivateMode,
+  saveQuietHours,
   saveScanReading,
 } from "../api/settings";
+import type { PrivateMode } from "../../types/settings";
 import { queryKeys } from "./keys";
 
 // Replies wait in a queue the scheduler drains, so the list changes without the reader acting.
@@ -64,6 +69,18 @@ export function useSavePrivateMode() {
   });
 }
 
+/** The inbox offer's "Not now": it is not shown again; Settings still has the switch. */
+export function usePutOffPrivateMode() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: putOffPrivateMode,
+    onSuccess: () =>
+      queryClient.setQueryData<PrivateMode>(queryKeys.privateMode, (mode) =>
+        mode ? { ...mode, isDecided: true } : mode,
+      ),
+  });
+}
+
 export function useScanReading() {
   return useQuery({ queryKey: queryKeys.scanReading, queryFn: fetchScanReading });
 }
@@ -75,3 +92,21 @@ export function useSaveScanReading() {
     onSuccess: (saved) => queryClient.setQueryData(queryKeys.scanReading, saved),
   });
 }
+
+export function useQuietHours() {
+  return useQuery({ queryKey: queryKeys.quietHours, queryFn: fetchQuietHours });
+}
+
+function useQuietHoursMutation<TVariables>(
+  mutationFn: (variables: TVariables) => ReturnType<typeof fetchQuietHours>,
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn,
+    onSuccess: (saved) => queryClient.setQueryData(queryKeys.quietHours, saved),
+  });
+}
+
+export const useSaveQuietHours = () => useQuietHoursMutation(saveQuietHours);
+export const useFollowCompanyQuietHours = () =>
+  useQuietHoursMutation((_unused: void) => followCompanyQuietHours());

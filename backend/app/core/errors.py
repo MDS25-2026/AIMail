@@ -44,6 +44,10 @@ class ErrorCode(StrEnum):
     # Drafting and sending
     ALREADY_SENT = "already_sent"
     SEND_IN_PROGRESS = "send_in_progress"
+    # A reply sent from Gmail: AIMail cannot restore its details, so it is followed up in Gmail.
+    FOLLOW_UP_UNAVAILABLE = "follow_up_unavailable"
+    # They answered, a newer reply went, or it was set aside, since the To-do list was loaded.
+    FOLLOW_UP_STALE = "follow_up_stale"
     MASKING_PENDING = "masking_pending"
     SENDER_UNVERIFIED = "sender_unverified"
     DRAFT_REFUSED = "draft_refused"
@@ -60,6 +64,7 @@ class ErrorCode(StrEnum):
     SCAN_CHECK_UNAVAILABLE = "scan_check_unavailable"
     TOO_MANY_EXAMPLES = "too_many_examples"
     TOO_MANY_TEMPLATES = "too_many_templates"
+    TIME_OUT_OF_RANGE = "time_out_of_range"
     ALREADY_SENT_OR_CANCELLED = "already_sent_or_cancelled"
     INVALID_SETTINGS = "invalid_settings"
     # Holding-reply settings that could never work (app/holding_reply.py validates them)
@@ -108,6 +113,8 @@ _STATUS: dict[ErrorCode, int] = {
     ErrorCode.CONFLICT: status.HTTP_409_CONFLICT,
     ErrorCode.ALREADY_SENT: status.HTTP_409_CONFLICT,
     ErrorCode.SEND_IN_PROGRESS: status.HTTP_409_CONFLICT,
+    ErrorCode.FOLLOW_UP_UNAVAILABLE: status.HTTP_409_CONFLICT,
+    ErrorCode.FOLLOW_UP_STALE: status.HTTP_409_CONFLICT,
     ErrorCode.MASKING_PENDING: status.HTTP_409_CONFLICT,
     ErrorCode.SENDER_UNVERIFIED: status.HTTP_409_CONFLICT,
     ErrorCode.GOOGLE_ACCESS_EXPIRED: status.HTTP_409_CONFLICT,
@@ -115,6 +122,7 @@ _STATUS: dict[ErrorCode, int] = {
     ErrorCode.SCAN_CHECK_UNAVAILABLE: status.HTTP_409_CONFLICT,
     ErrorCode.TOO_MANY_EXAMPLES: status.HTTP_409_CONFLICT,
     ErrorCode.TOO_MANY_TEMPLATES: status.HTTP_409_CONFLICT,
+    ErrorCode.TIME_OUT_OF_RANGE: status.HTTP_422_UNPROCESSABLE_CONTENT,
     ErrorCode.ALREADY_SENT_OR_CANCELLED: status.HTTP_409_CONFLICT,
     ErrorCode.FORBIDDEN: status.HTTP_403_FORBIDDEN,
     ErrorCode.ACCOUNT_ONLY: status.HTTP_403_FORBIDDEN,

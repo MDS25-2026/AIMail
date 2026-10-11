@@ -28,6 +28,11 @@ export function formatTimestamp(
   });
 }
 
+/** The reader's locale, for formatting a time on someone else's clock. */
+export function localeOf(language: Language): string {
+  return LOCALE[language];
+}
+
 export function formatNumber(value: number, language: Language = Language.English): string {
   return value.toLocaleString(LOCALE[language], { maximumFractionDigits: 3 });
 }

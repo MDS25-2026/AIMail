@@ -26,7 +26,22 @@ Before masking, every text part of the body is read and converted from the sende
 HTML is reduced to prose, and Gmail's HTML-escaped snippet is unescaped. Attachments are read by the
 type their bytes show, not the type the sender declared; ones of a type the reader cannot handle are
 counted in the audit log. If Gmail no longer has the history since the last notification (a listener
-down for over a week), the 50 newest inbox messages are checked and the ones not yet stored are ingested.
+down for over a week), the 50 newest inbox messages are checked and the ones not yet stored are ingested;
+the baseline moves only once that catch-up has stored them. A Gmail outage (a rate limit, a 5xx, no
+answer) fails the notification instead, so it is retried from the same baseline.
+
+Each stored or released email also gets a deterministic SLA floor (`sla.go`,
+`specs/features/sla-rules.md`): urgency words and near deadlines, read only from what the sender wrote,
+never from the email quoted beneath a reply, and never from "not urgent".
+
+The watch also covers the Sent label. Replies the mailbox sends are masked the same way and stored
+in `sent_message`, never `messages`, for the to-do's waiting list (`sent.go`,
+`specs/features/todo-page.md`); mail to yourself, automatic replies and sent mail that cannot be
+masked are skipped, and a failure there never holds up received mail.
+
+The sender's UTC offset is read from the `Date` header and stored as
+`sender_utc_offset_minutes`, so the dashboard can say "it's 11:40pm for them" before a late reply
+(`specs/features/quiet-hours-send-later.md`); an unreadable header stores null.
 
 Scanned pages and images are read by the local attachment reader, which returns each page's text and
 a redacted copy. By default only the text is used, masked with the rest of the email, and no scan
@@ -106,6 +121,7 @@ listener/
 ├── audit.go                # audit rows: action constants, sorted-JSON detail, owner id
 ├── privatemode.go          # the owner's Private mode and scan choices, read before any image goes to OCR
 ├── marks.go                # local vision check for signatures, faces and stamps before Gemini
+├── sent.go                 # the mailbox's own sent replies, for the to-do's waiting list
 ├── config.go, health.go    # Pub/Sub settings from the environment; /healthz and /readyz
 ├── legacy_token.go         # the optional token.json mailbox
 ├── Dockerfile              # distroless, non-root service image

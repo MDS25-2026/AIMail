@@ -8,14 +8,18 @@ import {
 
 import type { Email, EmailPage, Tone } from "../../types/email";
 import {
+  cancelSchedule,
   confirmSender,
   fetchEmail,
   fetchEmailByThread,
   fetchEmailPage,
   refineEmail,
   regenerateEmail,
+  scheduleEmail,
   sendEmail,
+  snoozeEmail,
   translateEmail,
+  unsnoozeEmail,
 } from "../api/emails";
 import { adaptTemplate } from "../api/templates";
 import { queryKeys } from "./keys";
@@ -140,10 +144,18 @@ export function useRefineEmail() {
 export function useSendEmail() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ emailId, draft }: { emailId: string; draft: string }) =>
-      sendEmail(emailId, draft),
+    mutationFn: ({
+      emailId,
+      draft,
+      remindIfNoReply = false,
+    }: {
+      emailId: string;
+      draft: string;
+      remindIfNoReply?: boolean;
+    }) => sendEmail(emailId, draft, remindIfNoReply),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKeys.email(updated.id), updated);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.todo });
       void queryClient.invalidateQueries({ queryKey: queryKeys.emails });
     },
     onError: (_error, { emailId }) => {
@@ -157,6 +169,11 @@ export function useSendEmail() {
 export function useAdaptTemplate() {
   return useDraftMutation(adaptTemplate);
 }
+
+export const useScheduleEmail = () => useDraftMutation(scheduleEmail);
+export const useCancelSchedule = () => useDraftMutation(cancelSchedule);
+export const useSnoozeEmail = () => useDraftMutation(snoozeEmail);
+export const useUnsnoozeEmail = () => useDraftMutation(unsnoozeEmail);
 
 export function useConfirmSender() {
   return useDraftMutation(confirmSender);

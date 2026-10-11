@@ -59,6 +59,36 @@ var criticalPhraseRe = regexp.MustCompile(
 		`)\b`,
 )
 
+// Urgency said not to apply ("not urgent", "no rush"): removed before the phrases are matched.
+var negatedUrgencyRe = regexp.MustCompile(
+	`(?i)\b(?:not|isn't|is not|no longer|bukan|tidak)\s+(?:urgent|segera)\b|\bno rush\b|不紧急|不急`,
+)
+
+// Where a reply's quoted email begins: "> " lines, or the header a mail client writes above it.
+// Its dates and urgency are the earlier email's, not this one's (backend/app/waiting.py cuts the same).
+var quoteStartRe = regexp.MustCompile(
+	`(?i)^(?:>|-{2,}\s*Original Message|From:\s|Sent:\s|On .*wrote:\s*$|Pada .*(?:menulis|tulis):\s*$|.*写道[:：]\s*$)`,
+)
+
+// A client may wrap "On Tue, 7 Oct 2026, Aisyah <a@b.c>" and "wrote:" over two lines.
+var wrappedHeaderStartRe = regexp.MustCompile(`(?i)^(?:On|Pada)\s`)
+var headerEndRe = regexp.MustCompile(`(?i)(?:wrote|menulis|tulis):\s*$|写道[:：]\s*$`)
+
+// ownText is the part of the body this email's sender wrote, without the email quoted beneath it.
+func ownText(body string) string {
+	lines := strings.Split(body, "\n")
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if quoteStartRe.MatchString(trimmed) {
+			return strings.Join(lines[:i], "\n")
+		}
+		if i > 0 && headerEndRe.MatchString(trimmed) && wrappedHeaderStartRe.MatchString(strings.TrimSpace(lines[i-1])) {
+			return strings.Join(lines[:i-1], "\n")
+		}
+	}
+	return body
+}
+
 // Chinese / CJK urgency phrases without \b because Go RE2's \b treats non-ASCII as non-word chars.
 var criticalCjkRe = regexp.MustCompile(
 	`紧急|加急|立即|今日内|24小时内`,
@@ -225,7 +255,8 @@ func daysBetween(date, base time.Time) int {
 // ClassifySLA applies the deterministic priority rules to an email's subject and body.
 // Rules are tested in priority order; the first match wins. SLAUnset means no rule fired.
 func ClassifySLA(subject, body string, receivedAt time.Time) SLAPriority {
-	combined := subject + " " + body
+	body = ownText(body)
+	combined := negatedUrgencyRe.ReplaceAllString(subject+" "+body, " ")
 
 	// Rule 1: Newsletter / Automated → LOW (checked first so bulk mail is never escalated)
 	if isLow(subject, body) {

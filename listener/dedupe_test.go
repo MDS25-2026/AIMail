@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"google.golang.org/api/gmail/v1"
+	"google.golang.org/api/option"
 )
 
 func withSupabase(t *testing.T, handler http.HandlerFunc) *[]string {
@@ -125,5 +126,44 @@ func TestTheCatchUpIngestsRecentMailOldestFirstAndSkipsWhatIsStored(t *testing.T
 	}
 	if strings.Join(looked, ",") != "eq.m1,eq.m2,eq.m3" || mb.lastHistoryID != 500 {
 		t.Fatalf("looked up %v, baseline %d", looked, mb.lastHistoryID)
+	}
+}
+
+func TestAFailedCatchUpLeavesTheBaselineForTheRetry(t *testing.T) {
+	withSupabase(t, func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte(`[]`)) }) // nothing stored yet
+	// The list answers; fetching the message hits an outage, as during a blip mid catch-up.
+	gmailServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if strings.HasSuffix(r.URL.Path, "/messages") {
+			w.Write([]byte(`{"messages":[{"id":"m1"}]}`))
+			return
+		}
+		w.WriteHeader(http.StatusServiceUnavailable)
+		w.Write([]byte(`{"error":{"code":503,"message":"down"}}`))
+	}))
+	t.Cleanup(gmailServer.Close)
+	srv, err := gmail.NewService(context.Background(), option.WithEndpoint(gmailServer.URL+"/"),
+		option.WithoutAuthentication(), option.WithHTTPClient(gmailServer.Client()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mb := &mailbox{srv: srv}
+	if err := ingestHistory(context.Background(), mb, 500); err == nil {
+		t.Fatal("a catch-up that could not store its mail must fail the notification")
+	}
+	if mb.lastHistoryID != 0 {
+		t.Fatalf("the baseline moved to %d past mail that was never stored", mb.lastHistoryID)
+	}
+}
+
+func TestAGmailOutageIsRetriedFromTheSameBaselineNotCaughtUp(t *testing.T) {
+	var lookups int
+	withSupabase(t, func(w http.ResponseWriter, _ *http.Request) { lookups++ })
+	mb := &mailbox{srv: fakeGmail(t, http.StatusServiceUnavailable, `{}`), lastHistoryID: 100}
+	if err := ingestHistory(context.Background(), mb, 500); err == nil {
+		t.Fatal("a 503 from history.list must fail the notification")
+	}
+	if mb.lastHistoryID != 100 || lookups != 0 {
+		t.Fatalf("baseline %d after %d lookups: an outage fell back to a catch-up", mb.lastHistoryID, lookups)
 	}
 }

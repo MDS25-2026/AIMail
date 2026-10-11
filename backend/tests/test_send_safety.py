@@ -182,6 +182,13 @@ def test_the_loser_of_a_send_race_is_told_it_is_in_progress_not_that_it_was_sent
     assert refused.value.code == ErrorCode.SEND_IN_PROGRESS and harness["sent"] == 0
 
 
+def test_a_request_during_another_requests_send_is_told_it_is_in_progress(harness):
+    harness["message"].sent_at = datetime.now(timezone.utc)  # claimed a moment ago, Gmail not answered yet
+    with pytest.raises(DomainError) as refused:
+        _approve(harness)
+    assert refused.value.code == ErrorCode.SEND_IN_PROGRESS and harness["sent"] == 0
+
+
 def test_an_email_already_sent_is_returned_without_sending_again(harness):
     harness["message"].sent_at = datetime(2026, 10, 9, tzinfo=timezone.utc)
     email = _approve(harness)

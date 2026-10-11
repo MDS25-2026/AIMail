@@ -49,7 +49,7 @@ def mailbox(monkeypatch, test_settings):
 
     async def call_agent(path, request, _answer=None):
         state["payloads"].append(json.dumps(request.model_dump(mode="json")))
-        return {"draft": "Dear [PERSON_1], we will call [PHONE_1]. Regards, [PERSON_2]", "confidence": 0.9}
+        return {"draft": "Dear [PERSON_1], we will call [PHONE_1]. Regards, [PERSON_900]", "confidence": 0.9}
 
     async def claim(pk):
         state["claimed"] += 1
@@ -77,13 +77,17 @@ def mailbox(monkeypatch, test_settings):
     async def gemini(_user_id):
         return Provider.GEMINI
 
+    async def no_schedules(_message_ids):
+        return {}
+
     for name, value in (("_load", load), ("_load_with_thread", load_with_thread), ("_owner_name", owner_name),
                         ("retrieve", no_chunks), ("_mark_read", nothing),
                         ("_call_agent", call_agent), ("_claim_send", claim), ("send_reply", send_reply),
                         ("audit", nothing), ("_update_unsent", _true), ("_style_fields", no_style),
                         ("is_learning", _false), ("provider_for", gemini), ("egress_for", no_egress),
                         ("save_egress", nothing), ("request_draft", nothing), ("release_drafting", nothing),
-                        ("suggested_template_id", nothing)):
+                        ("suggested_template_id", nothing), ("states_for", no_schedules),
+                        ("cancel_pending", _false)):
         monkeypatch.setattr(dashboard, name, value)
     monkeypatch.setattr(dashboard.connections, "can_send", can_send)
     return state
@@ -98,6 +102,7 @@ async def _false(*_args, **_kwargs):
 
 
 class _Sent:
+    gmail_id = "g-sent-1"
     message_id = "<m>"
     thread_id = "t1"
 
@@ -117,6 +122,9 @@ class _Session:
 
     def add(self, row):
         self.added = [*getattr(self, "added", []), row]
+
+    async def execute(self, statement):
+        self.executed = [*getattr(self, "executed", []), statement]
 
     async def commit(self):
         return None
@@ -141,14 +149,14 @@ def test_a_refine_with_real_names_typed_in_sends_the_agent_placeholders_only(mai
     payload = json.loads(mailbox["payloads"][0])
     assert "[PERSON_1]" in payload["draft"] and "[PHONE_1]" in payload["instruction"]
     # The owner's own name is a placeholder too, used for the sign-off.
-    assert payload["sign_off"] == "[PERSON_2]" and "[PERSON_2]" in payload["draft"]
+    assert payload["sign_off"] == "[PERSON_900]" and "[PERSON_900]" in payload["draft"]
     _no_secret_in(mailbox["payloads"])
 
 
 def test_a_regenerated_draft_is_asked_for_with_placeholders_only(mailbox):
     asyncio.run(dashboard.regenerate_email(str(mailbox["message"].id), scope=EVERYTHING))
     _no_secret_in(mailbox["payloads"])
-    assert json.loads(mailbox["payloads"][0])["sign_off"] == "[PERSON_2]"
+    assert json.loads(mailbox["payloads"][0])["sign_off"] == "[PERSON_900]"
 
 
 def test_an_approved_reply_goes_out_with_the_real_details_and_is_stored_with_placeholders(mailbox, monkeypatch):
@@ -158,6 +166,19 @@ def test_an_approved_reply_goes_out_with_the_real_details_and_is_stored_with_pla
                                            scope=EVERYTHING))
     assert mailbox["sent"] == ["Dear Aisyah Rahman, we will call 012-345 6789."]
     assert message.draft_reply == "Dear [PERSON_1], we will call [PHONE_1]."
+
+
+def test_a_sent_reply_is_kept_for_the_waiting_list_with_placeholders_only(mailbox, monkeypatch):
+    message = mailbox["message"]
+    session = _Session(message)
+    monkeypatch.setattr(dashboard, "get_sessionmaker", lambda: lambda: session)
+    asyncio.run(dashboard.approve_and_send(str(message.id), "Dear [PERSON_1], could you call 012-345 6789?",
+                                           scope=EVERYTHING, remind=True))
+    inserted = [s.compile().params for s in session.executed if "sent_message" in str(s)]
+    assert len(inserted) == 1
+    assert inserted[0]["body_masked"] == "Dear [PERSON_1], could you call [PHONE_1]?"
+    assert inserted[0]["remind"] is True and inserted[0]["message_id"] == message.id
+    _no_secret_in([inserted[0]["body_masked"]])
 
 
 def test_a_placeholder_nobody_can_fill_stops_the_send_before_anything_is_claimed(mailbox):
@@ -203,8 +224,8 @@ def test_a_template_fills_the_sender_and_owner_as_placeholders(mailbox):
     filled = asyncio.run(dashboard.fill_template(
         str(mailbox["message"].id), _template("Hi {{name}}, regards {{my name}}. {{meeting link}}"),
         scope=EVERYTHING))
-    # The sender's display name is the same person as the body's [PERSON_1], so it gets that number.
-    assert filled == "Hi [PERSON_1], regards [PERSON_2]. {{meeting link}}"
+    # The sender and the owner have fixed numbers, whoever else the thread names.
+    assert filled == "Hi [PERSON_901], regards [PERSON_900]. {{meeting link}}"
     assert mailbox["payloads"] == []  # filling asks no model
 
 
@@ -213,7 +234,7 @@ def test_a_template_adapted_by_the_agent_reaches_it_with_placeholders_only(mailb
     body = "Hi {{name}}, I'll ring Aisyah Rahman on 012-345 6789. {{my name}}"
     asyncio.run(dashboard.adapt_template(str(mailbox["message"].id), _template(body), scope=EVERYTHING))
     payload = json.loads(mailbox["payloads"][0])
-    assert payload["draft"].startswith("Hi [PERSON_1]") and "[PHONE_1]" in payload["draft"]
+    assert payload["draft"].startswith("Hi [PERSON_901]") and "[PHONE_1]" in payload["draft"]
     _no_secret_in(mailbox["payloads"])
 
 

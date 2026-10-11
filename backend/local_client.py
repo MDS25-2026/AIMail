@@ -42,6 +42,9 @@ def _payload(model: str, prompt: str, system: str | None, response_schema: dict 
     }
     if response_schema is not None:
         payload["format"] = response_schema
+    keep_alive = get_settings().local_llm_keep_alive.strip()
+    if keep_alive:
+        payload["keep_alive"] = keep_alive
     return payload
 
 

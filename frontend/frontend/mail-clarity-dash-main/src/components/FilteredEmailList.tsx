@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
+import { ListOrder } from "../lib/listOrder";
 import { useFormat } from "../lib/useFormat";
 import { useEmails } from "../lib/queries";
 import type { Email } from "../types/email";
@@ -17,6 +18,7 @@ type FilteredEmailListProps = {
   filter: (email: Email) => boolean;
   /** Which date this view is about — received for drafts, sent for sent. */
   timestampOf: (email: Email) => string;
+  order?: ListOrder;
 };
 
 /**
@@ -33,14 +35,16 @@ export default function FilteredEmailList({
   emptyHint,
   filter,
   timestampOf,
+  order = ListOrder.NewestFirst,
 }: FilteredEmailListProps) {
   const { t } = useTranslation();
   const format = useFormat();
   const emails = useEmails();
   // Newest first by the list's own time: Sent orders by when each reply went out, not when it arrived.
-  const rows = (emails.data ?? [])
-    .filter(filter)
-    .sort((a, b) => Date.parse(timestampOf(b)) - Date.parse(timestampOf(a)));
+  const rows = (emails.data ?? []).filter(filter).sort((a, b) => {
+    const newestFirst = Date.parse(timestampOf(b)) - Date.parse(timestampOf(a));
+    return order === ListOrder.NewestFirst ? newestFirst : -newestFirst;
+  });
 
   return (
     <section className="relative min-w-0 flex-1 overflow-y-auto bg-surface-muted p-6">

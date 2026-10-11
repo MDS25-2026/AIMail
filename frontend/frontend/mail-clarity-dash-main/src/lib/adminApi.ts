@@ -1,4 +1,5 @@
 import type { AdminIdentity, AuditEvent, FlaggedDraft, Overview } from "../types/admin";
+import type { QuietHours } from "../types/settings";
 import { BACKEND_URL } from "./api/config";
 import { ApiError, ApiErrorCode, apiErrorFrom } from "./api/errors";
 
@@ -61,6 +62,19 @@ export const fetchOverview = (days: number) => getJson<Overview>(`/overview?days
 export const fetchFlagged = () => getJson<FlaggedDraft[]>("/flagged");
 export const fetchAudit = (failuresOnly: boolean) =>
   getJson<AuditEvent[]>(`/audit?limit=100&failures_only=${failuresOnly}`);
+
+export const fetchCompanyQuietHours = () => getJson<QuietHours>("/quiet-hours");
+
+/** The company default; each user can still set their own in Settings. */
+export async function saveCompanyQuietHours(hours: QuietHours): Promise<QuietHours> {
+  const res = await send("/quiet-hours", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...ADMIN_HEADER },
+    body: JSON.stringify(hours),
+  });
+  if (!res.ok) throw await adminErrorFrom(res, "PUT /admin/quiet-hours");
+  return res.json();
+}
 
 export async function signIn(email: string, password: string): Promise<AdminIdentity> {
   const res = await send("/session", {

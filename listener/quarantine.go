@@ -39,6 +39,8 @@ const (
 type releasePatch struct {
 	SenderVerdict
 	MaskedContent
+	// Set at release as at ingest, so an email quarantined while Presidio was down still gets its floor.
+	SlaPriority SLAPriority `json:"sla_priority,omitempty"`
 }
 
 type quarantinedRow struct {
@@ -204,7 +206,8 @@ func remaskOne(ctx context.Context, srv *gmail.Service, row quarantinedRow) bool
 		recordFailure(ctx, row, reasonMaskingIncomplete)
 		return true
 	}
-	release := releasePatch{SenderVerdict: senderVerdict(msg.Payload.Headers), MaskedContent: content}
+	release := releasePatch{SenderVerdict: senderVerdict(msg.Payload.Headers), MaskedContent: content,
+		SlaPriority: ClassifySLA(content.Subject, content.BodyMasked, time.Now().UTC())}
 	if err := supabasePatch(ctx, "messages", messageFilter(row.UserID, row.GmailMessageID), release); err != nil {
 		// Counted like any failure: a PATCH that always fails would otherwise re-read and re-OCR
 		// the attachments every pass, forever.

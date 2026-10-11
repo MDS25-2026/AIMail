@@ -2,7 +2,7 @@
 import { act, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
-import { deferred, stubFetch, type StubReply } from "../../test/fetchStub";
+import { deferred, stubFetch, writes, type StubReply } from "../../test/fetchStub";
 import { emailFixture } from "../../test/emailFixture";
 import { renderHookWithProviders } from "../../test/render";
 import type { Email } from "../../types/email";
@@ -70,7 +70,7 @@ describe("sending a draft that still has redaction markers", () => {
       kind: ConfirmKind.SendMarkers,
       markerCount: 1,
     });
-    expect(calls).toEqual([]);
+    expect(writes(calls)).toEqual([]);
   });
 
   test("typing over every marker withdraws the question", () => {
@@ -88,11 +88,14 @@ describe("sending a draft that still has redaction markers", () => {
     act(() => result.current.send());
     act(() => result.current.setDraft("Dear [Redacted], thanks again."));
     act(() => result.current.status.onConfirm());
-    expect(calls).toEqual([]); // the undo window runs first
+    expect(writes(calls)).toEqual([]); // the undo window runs first
     act(() => vi.advanceTimersByTime(5_000));
     vi.useRealTimers();
-    await waitFor(() => expect(calls).toHaveLength(1));
-    expect(calls[0].body).toEqual({ draft: "Dear [Redacted], thanks again." });
+    await waitFor(() => expect(writes(calls)).toHaveLength(1));
+    expect(writes(calls)[0].body).toEqual({
+      draft: "Dear [Redacted], thanks again.",
+      remindIfNoReply: false,
+    });
     expect(result.current.status.pendingConfirm).toBeNull();
   });
 });
@@ -121,7 +124,7 @@ describe("a sent reply is final (#172)", () => {
     expect(result.current.isDraftLocked).toBe(true);
     expect(result.current.isBusy).toBe(false);
     act(() => result.current.regenerate());
-    expect(calls).toEqual([]);
+    expect(writes(calls)).toEqual([]);
   });
 
   test("an unsent draft that nothing is changing stays editable", () => {
@@ -146,7 +149,53 @@ describe("the undo window", () => {
     act(() => result.current.undoSend());
     act(() => vi.advanceTimersByTime(6_000));
     expect(result.current.undoCountdown).toBeNull();
-    expect(calls).toEqual([]);
+    expect(writes(calls)).toEqual([]);
+  });
+
+  test("opening another email during the countdown sends the approved reply now, not never", async () => {
+    vi.useFakeTimers();
+    const calls = stubFetch({
+      "POST /emails/a/send": { body: { ...first, sentAt: "2026-10-08T00:00:00Z" } },
+    });
+    const { result, rerender } = renderWorkflow(first);
+    act(() => result.current.send());
+    rerender(second);
+    expect(result.current.undoCountdown).toBeNull();
+    await vi.waitFor(() =>
+      expect(writes(calls)).toEqual([
+        {
+          method: "POST",
+          path: "/emails/a/send",
+          body: { draft: "Draft for A", remindIfNoReply: false },
+        },
+      ]),
+    );
+  });
+
+  test("leaving the page during the countdown still sends the approved reply", async () => {
+    vi.useFakeTimers();
+    const calls = stubFetch({
+      "POST /emails/a/send": { body: { ...first, sentAt: "2026-10-08T00:00:00Z" } },
+    });
+    const { result, unmount } = renderWorkflow(first);
+    act(() => result.current.send());
+    unmount();
+    await vi.waitFor(() =>
+      expect(writes(calls).map((call) => call.path)).toEqual(["/emails/a/send"]),
+    );
+  });
+
+  test("a question left open cannot act once the draft is counting down", () => {
+    vi.useFakeTimers();
+    const calls = stubFetch({});
+    const { result } = renderWorkflow(first);
+    act(() => result.current.setDraft("My edit"));
+    act(() => result.current.regenerate());
+    expect(result.current.status.pendingConfirm?.kind).toBe(ConfirmKind.ReplaceEdits);
+    act(() => result.current.send());
+    expect(result.current.status.pendingConfirm).toBeNull();
+    act(() => result.current.status.onConfirm());
+    expect(writes(calls)).toEqual([]);
   });
 });
 
@@ -163,7 +212,7 @@ describe("send anyway (#145)", () => {
     expect(result.current.status.pendingConfirm?.kind).toBe(ConfirmKind.SendMarkers);
     act(() => result.current.status.onConfirm());
     expect(result.current.undoCountdown).toBe(5);
-    expect(calls).toEqual([]);
+    expect(writes(calls)).toEqual([]);
   });
 
   test("the checks after a confirmed warning still run: the tone warning comes next", () => {
@@ -338,7 +387,7 @@ describe("saved reply templates", () => {
     expect(result.current.unfilledBlanks).toEqual([]);
     act(() => result.current.send());
     expect(result.current.undoCountdown).not.toBeNull();
-    expect(calls).toHaveLength(0);
+    expect(writes(calls)).toHaveLength(0);
     vi.useRealTimers();
   });
 
@@ -350,8 +399,122 @@ describe("saved reply templates", () => {
     await act(async () => {
       await result.current.draftFromTemplate("tpl-1");
     });
-    expect(calls[0].body).toEqual({ emailId: "t", tone: "professional" });
+    expect(writes(calls)[0].body).toEqual({ emailId: "t", tone: "professional" });
     rerender(adapted);
     expect(result.current.draft).toBe("Adapted for Aisyah Rahman");
+  });
+});
+
+describe("quiet hours and send later", () => {
+  const QUIET = {
+    company: {
+      start: "21:00:00",
+      end: "08:00:00",
+      weekendDays: [6, 7],
+      timezone: "Asia/Kuala_Lumpur",
+    },
+    personal: null,
+    effective: {
+      start: "21:00:00",
+      end: "08:00:00",
+      weekendDays: [6, 7],
+      timezone: "Asia/Kuala_Lumpur",
+    },
+  };
+  const late = emailFixture({
+    id: "q",
+    draftReply: "Thanks, see you then.",
+    senderUtcOffsetMinutes: 480,
+  });
+  afterEach(() => vi.useRealTimers());
+
+  // The guard can only ask once the reader's quiet hours have arrived.
+  async function quietHoursLoaded(calls: { path: string }[]) {
+    await waitFor(() =>
+      expect(calls.some((call) => call.path === "/settings/quiet-hours")).toBe(true),
+    );
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  }
+
+  test("sending at 11:40pm their time suggests their 8am, and choosing it schedules the reply", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-07T15:40:00Z")); // Tue 23:40 in Kuala Lumpur
+    const calls = stubFetch({
+      "GET /settings/quiet-hours": { body: QUIET },
+      "POST /emails/q/schedule": { body: { ...late, scheduledFor: "2026-10-08T00:00:00Z" } },
+    });
+    const { result } = renderWorkflow(late);
+    await quietHoursLoaded(calls);
+    act(() => result.current.send());
+    expect(result.current.status.pendingConfirm?.kind).toBe(ConfirmKind.QuietHours);
+    expect(result.current.status.pendingConfirm?.quiet?.sendAt.toISOString()).toBe(
+      "2026-10-08T00:00:00.000Z",
+    );
+    await act(async () => result.current.status.onSendAtSuggestion());
+    await waitFor(() => expect(writes(calls)).toHaveLength(1));
+    expect(writes(calls)[0].body).toEqual({
+      draft: "Thanks, see you then.",
+      sendAt: "2026-10-08T00:00:00.000Z",
+    });
+  });
+
+  test("sending now anyway still goes through the undo window", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-07T15:40:00Z"));
+    const calls = stubFetch({ "GET /settings/quiet-hours": { body: QUIET } });
+    const { result } = renderWorkflow(late);
+    await quietHoursLoaded(calls);
+    act(() => result.current.send());
+    expect(result.current.status.pendingConfirm?.kind).toBe(ConfirmKind.QuietHours);
+    act(() => result.current.status.onConfirm());
+    expect(result.current.undoCountdown).toBe(5);
+    expect(writes(calls)).toEqual([]);
+  });
+
+  test("Send later runs the same content checks as Send before holding the reply", async () => {
+    const placeholder = emailFixture({ id: "p", draftReply: "Regards, [Your Name]" });
+    const calls = stubFetch({
+      "POST /emails/p/schedule": { body: { ...placeholder, scheduledFor: "2026-10-09T01:00:00Z" } },
+    });
+    const { result } = renderWorkflow(placeholder);
+    act(() => result.current.schedule(new Date("2026-10-09T01:00:00Z")));
+    expect(result.current.status.pendingConfirm?.kind).toBe(ConfirmKind.SendTemplates);
+    expect(writes(calls)).toEqual([]);
+    act(() => result.current.status.onConfirm());
+    await waitFor(() => expect(writes(calls)).toHaveLength(1));
+    expect(writes(calls)[0].body).toEqual({
+      draft: "Regards, [Your Name]",
+      sendAt: "2026-10-09T01:00:00.000Z",
+    });
+  });
+
+  test("a scheduled reply is locked until it is cancelled", async () => {
+    const scheduled = { ...late, scheduledFor: "2026-10-08T00:00:00Z" };
+    const calls = stubFetch({ "DELETE /emails/q/schedule": { body: late } });
+    const { result } = renderWorkflow(scheduled);
+    expect(result.current.isDraftLocked).toBe(true);
+    act(() => result.current.send());
+    expect(writes(calls)).toEqual([]);
+    act(() => result.current.cancelSchedule());
+    await waitFor(() => expect(writes(calls)).toHaveLength(1));
+    expect(writes(calls)[0].method).toBe("DELETE");
+  });
+});
+
+describe("remind me if they don't reply", () => {
+  test("is sent with the reply, and remembered per email", async () => {
+    vi.useFakeTimers();
+    const email = emailFixture({ id: "r", draftReply: "Thanks, noted." });
+    const calls = stubFetch({ "POST /emails/r/send": { body: email } });
+    const { result } = renderWorkflow(email);
+    act(() => result.current.setRemindIfNoReply(true));
+    expect(result.current.remindIfNoReply).toBe(true);
+    act(() => result.current.send());
+    act(() => vi.advanceTimersByTime(5_000));
+    vi.useRealTimers();
+    await waitFor(() => expect(writes(calls)).toHaveLength(1));
+    expect(writes(calls)[0].body).toEqual({ draft: "Thanks, noted.", remindIfNoReply: true });
   });
 });

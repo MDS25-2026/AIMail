@@ -14,6 +14,8 @@ export const en = {
     audit: "Audit Trail",
     settings: "Settings",
     admin: "Admin",
+    scheduled: "Scheduled",
+    todo: "To-do",
   },
   languages: { en: "English", ms: "Bahasa Melayu", zh: "中文" },
   inbox: {
@@ -47,6 +49,7 @@ export const en = {
     personal: "Personal",
   },
   detail: {
+    backToInbox: "Back to inbox",
     fromAt: "{{sender}} · {{when}}",
     empty: "Select an email to see the AI draft",
     email: "Email",
@@ -265,7 +268,7 @@ export const en = {
     egressCaught_other: "({{count}} details masked at the last check)",
     provider: {
       gemini: "Google Gemini",
-      local: "your company's own model",
+      local: "AIMail's private model",
     },
     purpose: {
       route: "Sorting",
@@ -358,6 +361,7 @@ export const en = {
       no_template: "Not sent: no message written",
       stale: "Not sent: couldn't go out in time",
       user_replied: "Not sent: you replied first",
+      reply_scheduled: "Not sent: your own reply is scheduled",
       cooldown: "Not sent: they had one recently",
       daily_cap: "Not sent: daily limit reached",
       no_reply_needed: "Not sent: email didn't need a reply",
@@ -379,7 +383,7 @@ export const en = {
     },
     title: "Your writing style",
     intro:
-      "Tell AIMail how you write, or show it. Drafts follow your style. Names, numbers and addresses are hidden before anything is saved, and no AI is trained on your email.",
+      "Tell AIMail how you write, or show it. Drafts follow your style. Names, numbers and addresses are hidden before anything is saved, and your email never trains an AI for anyone else.",
     loadFailed: "Couldn't load your writing style.",
     describe: "Describe how you write",
     describePlaceholder: 'Warm but brief, no jargon, close with "Thanks,"',
@@ -399,7 +403,7 @@ export const en = {
     },
     learn: "Learn from the replies I send",
     learnHint:
-      "Off unless you switch it on. AIMail notices habits you repeat at least 3 times, such as your greeting or words you always change, and lists them here. It also keeps each reply, with personal details hidden, so a later draft for a similar email can reuse how you answered.",
+      "Off unless you switch it on. AIMail notices habits you repeat at least 3 times, such as your greeting or words you always change, and lists them here. It also keeps each reply, with personal details hidden, so a later draft for a similar email can reuse how you answered. Later, these replies may also train a model that writes only for you; they are never mixed with anyone else's.",
     nothingYet: "Nothing learned yet. A habit shows up after you use it in 3 replies.",
     evidence_one: "In {{count}} of your last {{outOf}} replies",
     evidence_other: "In {{count}} of your last {{outOf}} replies",
@@ -427,23 +431,28 @@ export const en = {
       "Google has stopped AIMail's access to your Gmail, so new emails aren't arriving and replies can't be sent. Test access lasts 7 days.",
     signIn: "Sign in again",
   },
+  privateOffer: {
+    title: "Draft on AIMail's private model?",
+    turnOn: "Turn on",
+    notNow: "Not now",
+    later: "You can change this any time in Settings.",
+  },
   privateMode: {
     notSetUp:
       "Private mode is on, but this AIMail has no private model set up, so your emails can't be drafted here. Switch it off to draft with Gemini.",
     title: "Private mode",
-    switch: "Keep my email inside the company",
+    switch: "Draft on AIMail's private model",
     intro:
-      "Your emails are drafted, checked, refined and translated by {{model}}, running on your company's own computer. Nothing from your inbox is sent to Google.",
-    on: "Private mode is on. New drafts stay in the company.",
+      "Drafted on AIMail's private model ({{model}}). Never sent to Google or Anthropic, and only ever used for your own replies. Checks, refines, translations and Ask AIMail use it too.",
+    on: "Private mode is on. New drafts use the private model.",
     off: "Private mode is off. Drafts use Google's Gemini.",
     failed: "Couldn't change Private mode. Try again in a moment.",
     notes: {
       search:
-        "Your documents and earlier replies are searched on the company's computer too, so drafts can still quote them.",
+        "Your documents and earlier replies are searched with the private model too, so drafts can still quote them.",
       noSearch:
         "This AIMail has no private search set up, so drafts in Private mode won't quote your documents or earlier replies.",
       n2: "Drafts take a little longer, and the AI's own check is less strict, so read each draft before you send it.",
-      n3: "Ask AIMail still uses Google.",
     },
   },
   scanReading: {
@@ -452,12 +461,12 @@ export const en = {
       "Scanned pages and photos in your emails are read on this computer first, and details like names and IC numbers are blacked out.",
     local: "Read on this computer only",
     localHint:
-      "Scans never go to Google. AIMail uses the text it read here, so a messy scan may be read less well.",
+      "Scan images never go to Google. AIMail uses the text it read here, with details hidden like the rest of the email, so a messy scan may be read less well.",
     checked: "Check first, then let Gemini read the clear pages",
     checkedHint:
       "A model on this computer looks for signatures, faces and stamps and keeps those pages here. In our tests it missed about 1 in 10, so a signature or stamp can occasionally reach Google.",
     notSetUp: "Checking isn't set up on this AIMail, so scans can only be read on this computer.",
-    privateNote: "In Private mode, scans always stay on this computer.",
+    privateNote: "In Private mode, scan images never go to Google.",
     saved: "Saved.",
     failed: "Couldn't change how scans are read. Try again in a moment.",
   },
@@ -508,6 +517,95 @@ export const en = {
     drafting: "Drafting…",
     fillBlanks_one: "Fill in {{blanks}} before sending.",
     fillBlanks_other: "Fill in {{blanks}} before sending.",
+  },
+  schedule: {
+    sendLater: "Send later",
+    scheduling: "Scheduling…",
+    tomorrow: "Tomorrow, 9am",
+    monday: "Monday, 9am",
+    pickTime: "Pick a time",
+    scheduleAt: "Schedule",
+    scheduledFor: "Scheduled for {{when}}. It won't go out if they reply first.",
+    cancel: "Cancel",
+    cancelled: {
+      you_replied: "You already replied in this thread, so the scheduled reply wasn't sent.",
+      they_replied:
+        "They replied before your scheduled send, so it wasn't sent. Review before sending.",
+      too_late:
+        "Your scheduled reply couldn't go out on time, so it wasn't sent. Review before sending.",
+      refused: "Your scheduled reply couldn't be sent when it was due. Review it before sending.",
+    },
+  },
+  snooze: {
+    snooze: "Snooze",
+    snoozing: "Snoozing…",
+    until: "Snoozed until {{when}}",
+    wake: "Bring back now",
+    laterToday: "Later today",
+    tomorrow: "Tomorrow, 9am",
+    nextWeek: "Next week",
+    quietEnd: "When quiet hours end",
+    failed: "Couldn't snooze it. Try again in a moment.",
+  },
+  quietHours: {
+    title: "Quiet hours",
+    intro:
+      "When you reply late, AIMail suggests sending at the start of the recipient's day instead. It never stops a send.",
+    useMine: "Use my own quiet hours",
+    following: "Following your company's quiet hours: {{from}} to {{to}}.",
+    from: "From",
+    to: "To",
+    timezone: "Time zone",
+    weekend: "Quiet all day",
+    weekendHint:
+      "Kelantan, Terengganu and Kedah rest Friday and Saturday; most states Saturday and Sunday.",
+    sameTimes: "Start and end need to be different times.",
+    save: "Save",
+    saving: "Saving…",
+    saved: "Saved.",
+    failed: "Couldn't save quiet hours. Try again in a moment.",
+  },
+  scheduled: {
+    heading: "Scheduled",
+    description: "Replies held to go out later. Open one to cancel it.",
+    label: "scheduled replies",
+    emptyTitle: "Nothing scheduled",
+    emptyHint: "Choose Send later on a draft and it will wait here.",
+  },
+  todo: {
+    draftFollowUp: "Draft follow-up",
+    drafting: "Drafting…",
+    sendFollowUp: "Send follow-up",
+    sendingFollowUp: "Sending…",
+    cancelFollowUp: "Cancel",
+    followUpLabel: "Follow-up to send",
+    followUpFailed: "Couldn't draft or send the follow-up. Try again in a moment.",
+    heading: "To-do",
+    description: "What needs you, in one place. Nothing here is sent or changed without you.",
+    countLabel_one: "{{count}} thing needs you",
+    countLabel_other: "{{count}} things need you",
+    needsAction: "Needs your action",
+    needsActionHint: "Emails that ask something of you.",
+    needsReview: "Needs your review",
+    needsReviewHint: "Drafts the AI's own check was unsure of.",
+    flagged: "Flagged for review before sending",
+    waiting: "Waiting for their reply",
+    waitingAfter: "Show a reply here after",
+    workingDays_one: "{{count}} working day",
+    workingDays_other: "{{count}} working days",
+    nothingWaiting: "No reply of yours is waiting too long for an answer.",
+    sentAgo_one: "Sent {{when}}, {{count}} working day without an answer",
+    sentAgo_other: "Sent {{when}}, {{count}} working days without an answer",
+    openHere: "Open",
+    openInGmail: "Open in Gmail",
+    notWaiting: "Not waiting",
+    unsentDrafts: "Drafts you haven't sent",
+    unsentDraftsHint: "Ready for over a day.",
+    allDrafts: "See all drafts",
+    nothing: "Nothing here.",
+    noReplyNeeded: "No reply needed",
+    failed: "Couldn't do that. Try again in a moment.",
+    remindMe: "Remind me if they don't reply",
   },
   account: {
     title: "Account",
@@ -642,6 +740,9 @@ export const en = {
     unknown: "Unknown",
     needsAttention: "needs attention",
     loading: "admin data",
+    quietHours: "Company quiet hours",
+    quietHoursHint:
+      "When people are told it is late for the recipient. Each person can set their own in Settings.",
   },
   audit: {
     shortHash: "{{head}}…{{tail}}",
@@ -689,6 +790,7 @@ export const en = {
       generate_draft: "Draft written",
       refine_draft: "Draft refined",
       approve_and_send: "Reply approved and sent",
+      follow_up_sent: "Follow-up sent",
       send_outcome_unknown: "Send outcome unknown",
       confirm_sender: "Sender confirmed",
       translate_email: "Email translated",
@@ -736,6 +838,8 @@ export const en = {
       send: "The reply was not sent. Your draft is unchanged, so try again in a moment.",
       template:
         "Couldn't draft from the template. Your text is unchanged, so try again in a moment.",
+      schedule: "Couldn't schedule the reply. Your draft is unchanged, so try again in a moment.",
+      cancelSchedule: "Couldn't cancel it. It is still scheduled, so try again in a moment.",
     },
     replaceEdits: "A new draft will replace the changes you typed.",
     replaceConfirm: "Replace my changes",
@@ -750,6 +854,12 @@ export const en = {
     sendTemplates_other:
       "This reply still has {{count}} bracketed gaps, such as [Your Name]. The recipient will see them exactly like that.",
     toneWarning: "Your draft may have an unprofessional tone. Send anyway?",
+    quietHours: {
+      them: "It's {{now}} for them. Send at {{sendAt}} their time instead?",
+      you: "It's {{now}} your time. Send at {{sendAt}} instead?",
+      sendLater: "Send at {{time}}",
+      sendNow: "Send now",
+    },
   },
   signIn: {
     google: "Sign in with Google",
@@ -814,6 +924,10 @@ export const en = {
       "This sender failed authentication. Check the sender before drafting or sending.",
     masking_pending:
       "Personal details are still being hidden in this email, so it can't be used yet.",
+    follow_up_stale:
+      "They have replied, or this reply was answered or set aside since the list loaded. Nothing was sent.",
+    follow_up_unavailable:
+      "This reply was sent from Gmail, so AIMail can't write its follow-up. Open it in Gmail instead.",
     already_sent: "This reply has already been sent.",
     send_in_progress:
       "This reply is already being sent. Wait a moment, then check whether it went.",
@@ -840,6 +954,7 @@ export const en = {
     masking_unavailable:
       "Couldn't hide personal details right now, so nothing was saved. Try again in a moment.",
     too_many_templates: "You already have 50 saved replies. Delete one first.",
+    time_out_of_range: "Pick a time in the future, within the next 60 days.",
     too_many_examples: "You already have 3 examples. Remove one first.",
     empty: "There's nothing to save.",
     too_long: "That text is too long.",
@@ -895,17 +1010,25 @@ export const en = {
       description:
         "AIMail drafts replies to your work email, hides personal details before any AI sees them, and sends nothing without your approval.",
     },
+    scheduled: { title: "AIMail scheduled", description: "Replies held to go out later." },
+    todo: {
+      title: "AIMail to-do",
+      description: "What needs you: actions, reviews, replies still waiting.",
+    },
   },
   assistant: {
+    open: "Open inbox assistant",
+    close: "Close inbox assistant",
+    send: "Ask",
     title: "Inbox Assistant",
     groundedBadge: "[Grounded Q&A]",
     privacyNotice:
-      "[PRIVACY PRESERVED] Sensitive details are masked before AI processing and restored locally on your device.",
+      "Personal details are masked before the AI reads your emails, and AIMail fills them back in after it answers. Its earlier answers are never sent back to the AI.",
     askInbox: "Ask your inbox",
     askInboxHint:
       "Ask natural language questions about your email correspondence and company policies.",
     searching: "Searching inbox & synthesizing answer…",
-    restoredNotice: "[Personal details restored locally]",
+    restoredNotice: "[Personal details filled back in by AIMail]",
     sources_one: "{{count}} source",
     sources_other: "{{count}} sources",
     sourcesBreakdown: "({{emails}} emails, {{docs}} docs)",
@@ -943,6 +1066,8 @@ export const en = {
     refined: "Draft refined",
     sent: "Reply sent",
     translated: "Translation ready",
+    scheduled: "Reply scheduled",
+    scheduleCancelled: "Scheduled reply cancelled",
   },
 } as const;
 

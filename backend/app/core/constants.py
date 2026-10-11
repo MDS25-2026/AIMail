@@ -79,3 +79,10 @@ MAX_TEMPLATE_TRIGGERS = 10
 MAX_TEMPLATE_TRIGGER_CHARS = 40
 # Where "today" is read for a template's {{today}}: the company's, not the server's, calendar day.
 TEMPLATE_TIMEZONE = "Asia/Kuala_Lumpur"
+
+# Send later and snooze (specs/features/quiet-hours-send-later.md).
+SCHEDULED_SEND_POLL_SECONDS = 30
+# A send the worker missed by more than this is cancelled rather than sent late into quiet hours.
+SCHEDULED_SEND_LATE_MINUTES = 60
+# How far ahead a reply can be scheduled or an email snoozed.
+MAX_SCHEDULE_AHEAD_DAYS = 60

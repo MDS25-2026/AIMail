@@ -71,7 +71,7 @@ export default function EmailBody({ email }: { email: Email }) {
             aria-pressed={isShowingTranslation}
             disabled={translation.isFetching}
             onClick={() => setIsShowingTranslation((value) => !value)}
-            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-brand hover:bg-brand-soft disabled:text-fg-subtle"
+            className="inline-flex min-h-11 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-brand hover:bg-brand-soft disabled:text-fg-subtle md:min-h-0"
           >
             <Languages aria-hidden className="size-3.5" />
             {translation.isFetching
@@ -135,7 +135,7 @@ export default function EmailBody({ email }: { email: Email }) {
           aria-expanded={isExpanded}
           aria-controls={bodyId}
           onClick={() => setIsExpanded((value) => !value)}
-          className="mt-1 text-xs font-medium text-brand hover:text-brand-strong"
+          className="mt-1 min-h-11 text-xs font-medium text-brand hover:text-brand-strong md:min-h-0"
         >
           {isExpanded ? t("emailBody.showLess") : t("emailBody.showFull")}
         </button>

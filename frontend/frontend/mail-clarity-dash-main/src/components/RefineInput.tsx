@@ -58,7 +58,7 @@ export default function RefineInput({
             type="button"
             disabled={disabled}
             onClick={() => void onRefine(t(suggestion)).catch(() => undefined)}
-            className="rounded-full border border-line bg-surface px-2.5 py-1 text-xs text-fg-body hover:bg-surface-muted disabled:cursor-not-allowed disabled:text-fg-subtle"
+            className="min-h-11 rounded-full border border-line bg-surface px-2.5 py-1 text-xs md:min-h-0 text-fg-body hover:bg-surface-muted disabled:cursor-not-allowed disabled:text-fg-subtle"
           >
             {t(suggestion)}
           </button>

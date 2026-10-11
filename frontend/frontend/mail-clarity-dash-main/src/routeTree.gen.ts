@@ -15,9 +15,11 @@ import { Route as AuditRouteImport } from './routes/audit'
 import { Route as DraftsRouteImport } from './routes/drafts'
 import { Route as ExtensionRouteImport } from './routes/extension'
 import { Route as KnowledgeRouteImport } from './routes/knowledge'
+import { Route as ScheduledRouteImport } from './routes/scheduled'
 import { Route as SentRouteImport } from './routes/sent'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SigninRouteImport } from './routes/signin'
+import { Route as TodoRouteImport } from './routes/todo'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -49,6 +51,11 @@ const KnowledgeRoute = KnowledgeRouteImport.update({
   path: '/knowledge',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ScheduledRoute = ScheduledRouteImport.update({
+  id: '/scheduled',
+  path: '/scheduled',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SentRoute = SentRouteImport.update({
   id: '/sent',
   path: '/sent',
@@ -64,6 +71,11 @@ const SigninRoute = SigninRouteImport.update({
   path: '/signin',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TodoRoute = TodoRouteImport.update({
+  id: '/todo',
+  path: '/todo',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -72,9 +84,11 @@ export interface FileRoutesByFullPath {
   '/drafts': typeof DraftsRoute
   '/extension': typeof ExtensionRoute
   '/knowledge': typeof KnowledgeRoute
+  '/scheduled': typeof ScheduledRoute
   '/sent': typeof SentRoute
   '/settings': typeof SettingsRoute
   '/signin': typeof SigninRoute
+  '/todo': typeof TodoRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -83,9 +97,11 @@ export interface FileRoutesByTo {
   '/drafts': typeof DraftsRoute
   '/extension': typeof ExtensionRoute
   '/knowledge': typeof KnowledgeRoute
+  '/scheduled': typeof ScheduledRoute
   '/sent': typeof SentRoute
   '/settings': typeof SettingsRoute
   '/signin': typeof SigninRoute
+  '/todo': typeof TodoRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -95,9 +111,11 @@ export interface FileRoutesById {
   '/drafts': typeof DraftsRoute
   '/extension': typeof ExtensionRoute
   '/knowledge': typeof KnowledgeRoute
+  '/scheduled': typeof ScheduledRoute
   '/sent': typeof SentRoute
   '/settings': typeof SettingsRoute
   '/signin': typeof SigninRoute
+  '/todo': typeof TodoRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -108,9 +126,11 @@ export interface FileRouteTypes {
     | '/drafts'
     | '/extension'
     | '/knowledge'
+    | '/scheduled'
     | '/sent'
     | '/settings'
     | '/signin'
+    | '/todo'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -119,9 +139,11 @@ export interface FileRouteTypes {
     | '/drafts'
     | '/extension'
     | '/knowledge'
+    | '/scheduled'
     | '/sent'
     | '/settings'
     | '/signin'
+    | '/todo'
   id:
     | '__root__'
     | '/'
@@ -130,9 +152,11 @@ export interface FileRouteTypes {
     | '/drafts'
     | '/extension'
     | '/knowledge'
+    | '/scheduled'
     | '/sent'
     | '/settings'
     | '/signin'
+    | '/todo'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -142,9 +166,11 @@ export interface RootRouteChildren {
   DraftsRoute: typeof DraftsRoute
   ExtensionRoute: typeof ExtensionRoute
   KnowledgeRoute: typeof KnowledgeRoute
+  ScheduledRoute: typeof ScheduledRoute
   SentRoute: typeof SentRoute
   SettingsRoute: typeof SettingsRoute
   SigninRoute: typeof SigninRoute
+  TodoRoute: typeof TodoRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -191,6 +217,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof KnowledgeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/scheduled': {
+      id: '/scheduled'
+      path: '/scheduled'
+      fullPath: '/scheduled'
+      preLoaderRoute: typeof ScheduledRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sent': {
       id: '/sent'
       path: '/sent'
@@ -212,6 +245,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SigninRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/todo': {
+      id: '/todo'
+      path: '/todo'
+      fullPath: '/todo'
+      preLoaderRoute: typeof TodoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -222,9 +262,11 @@ const rootRouteChildren: RootRouteChildren = {
   DraftsRoute: DraftsRoute,
   ExtensionRoute: ExtensionRoute,
   KnowledgeRoute: KnowledgeRoute,
+  ScheduledRoute: ScheduledRoute,
   SentRoute: SentRoute,
   SettingsRoute: SettingsRoute,
   SigninRoute: SigninRoute,
+  TodoRoute: TodoRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
