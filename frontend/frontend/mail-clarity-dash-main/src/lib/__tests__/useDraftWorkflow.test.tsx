@@ -59,6 +59,28 @@ describe("switching emails mid-request", () => {
   });
 });
 
+test("a failure on one email is kept while another email is busy, and shows on return", async () => {
+  const refineA = deferred<StubReply>();
+  stubFetch({
+    "POST /emails/a/refine": () => refineA.promise,
+    "POST /emails/b/regenerate": { body: { ...second, draftReply: "New B" } },
+  });
+  const { result, rerender } = renderWorkflow(first);
+  let refining: Promise<void> = Promise.resolve();
+  act(() => {
+    refining = result.current.refine("Shorter").catch(() => undefined);
+  });
+  rerender(second);
+  act(() => result.current.regenerate());
+  await act(async () => {
+    refineA.resolve({ status: 502, body: { error: { code: "agent_unavailable" } } });
+    await refining;
+  });
+  rerender(first);
+  // The regenerate on B started after A's refine, but it no longer hides A's failure.
+  expect(result.current.status.failure).not.toBeNull();
+});
+
 describe("sending a draft that still has redaction markers", () => {
   const marked = emailFixture({ id: "m", draftReply: "Dear [Redacted], thanks." });
 
