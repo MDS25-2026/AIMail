@@ -427,6 +427,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/emails/{message_id}/unread": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark Unread Route */
+        post: operations["mark_unread_route_emails__message_id__unread_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/holding-replies": {
         parameters: {
             query?: never;
@@ -1083,6 +1100,8 @@ export interface components {
             quantities: components["schemas"]["QuantityView"][];
             /** Replyto */
             replyTo?: string | null;
+            /** Reviewreasons */
+            reviewReasons?: components["schemas"]["ReviewReason"][];
             /** Schedulecancelled */
             scheduleCancelled?: ("they_replied" | "you_replied" | "too_late" | "refused") | null;
             /** Scheduledfor */
@@ -1426,6 +1445,18 @@ export interface components {
          * @enum {string}
          */
         ReplyScope: "needs_reply" | "all";
+        /**
+         * ReviewCode
+         * @description Why a draft needs a person, as a stable code the dashboard words in each language.
+         * @enum {string}
+         */
+        ReviewCode: "no_reply" | "no_draft" | "phishing_link" | "not_grounded" | "pii_found" | "pii_scan_unavailable" | "figures_not_in_source" | "critic_unavailable" | "grounding_failed" | "does_not_address" | "incomplete" | "refine_rounds" | "repair_stopped" | "low_confidence" | "unknown";
+        /** ReviewReason */
+        ReviewReason: {
+            code: components["schemas"]["ReviewCode"];
+            /** Items */
+            items?: string[];
+        };
         /**
          * ScanReading
          * @description Values of user_preferences.scan_reading (migration 0036); the listener mirrors them.
@@ -2261,7 +2292,9 @@ export interface operations {
     };
     email_detail_route_emails__message_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                markRead?: boolean;
+            };
             header?: never;
             path: {
                 message_id: string;
@@ -2639,6 +2672,35 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["TranslateResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_unread_route_emails__message_id__unread_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

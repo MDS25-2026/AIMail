@@ -42,10 +42,32 @@ export enum MaskingStatus {
   Abandoned = "abandoned",
 }
 
-/** Below this the draft is flagged "review recommended". */
-export const CRITIC_CONFIDENCE_THRESHOLD = 0.8;
+/** Why a draft needs a person (backend app/agent_contract.py ReviewCode). */
+export enum ReviewCode {
+  NoReply = "no_reply",
+  NoDraft = "no_draft",
+  PhishingLink = "phishing_link",
+  NotGrounded = "not_grounded",
+  PiiFound = "pii_found",
+  PiiScanUnavailable = "pii_scan_unavailable",
+  FiguresNotInSource = "figures_not_in_source",
+  CriticUnavailable = "critic_unavailable",
+  GroundingFailed = "grounding_failed",
+  DoesNotAddress = "does_not_address",
+  Incomplete = "incomplete",
+  RefineRounds = "refine_rounds",
+  RepairStopped = "repair_stopped",
+  LowConfidence = "low_confidence",
+  Unknown = "unknown",
+}
+
+export type ReviewReason = Schemas["ReviewReason"];
+
+/** Below this the agent flags a draft for review: email_agent.py REVIEW_THRESHOLD, shown in Settings. */
+export const CRITIC_CONFIDENCE_THRESHOLD = 0.9;
 
 assertSameValues<`${AuthStatus}`, Schemas["AuthStatus"]>(true);
 assertSameValues<`${MaskingStatus}`, Schemas["DashboardEmail"]["masking"]>(true);
 assertSameValues<Priority, Schemas["DashboardEmail"]["priority"]>(true);
 assertSameValues<Tone, Schemas["Tone"]>(true);
+assertSameValues<`${ReviewCode}`, Schemas["ReviewCode"]>(true);

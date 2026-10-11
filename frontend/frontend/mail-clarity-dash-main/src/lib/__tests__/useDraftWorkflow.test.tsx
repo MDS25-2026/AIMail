@@ -59,6 +59,28 @@ describe("switching emails mid-request", () => {
   });
 });
 
+test("a failure on one email is kept while another email is busy, and shows on return", async () => {
+  const refineA = deferred<StubReply>();
+  stubFetch({
+    "POST /emails/a/refine": () => refineA.promise,
+    "POST /emails/b/regenerate": { body: { ...second, draftReply: "New B" } },
+  });
+  const { result, rerender } = renderWorkflow(first);
+  let refining: Promise<void> = Promise.resolve();
+  act(() => {
+    refining = result.current.refine("Shorter").catch(() => undefined);
+  });
+  rerender(second);
+  act(() => result.current.regenerate());
+  await act(async () => {
+    refineA.resolve({ status: 502, body: { error: { code: "agent_unavailable" } } });
+    await refining;
+  });
+  rerender(first);
+  // The regenerate on B started after A's refine, but it no longer hides A's failure.
+  expect(result.current.status.failure).not.toBeNull();
+});
+
 describe("sending a draft that still has redaction markers", () => {
   const marked = emailFixture({ id: "m", draftReply: "Dear [Redacted], thanks." });
 
@@ -196,6 +218,7 @@ describe("the undo window", () => {
     expect(result.current.status.pendingConfirm).toBeNull();
     act(() => result.current.status.onConfirm());
     expect(writes(calls)).toEqual([]);
+    act(() => result.current.undoSend()); // unmounting with a countdown running sends it, by design
   });
 });
 
@@ -213,6 +236,8 @@ describe("send anyway (#145)", () => {
     act(() => result.current.status.onConfirm());
     expect(result.current.undoCountdown).toBe(5);
     expect(writes(calls)).toEqual([]);
+    // Ends the countdown here: unmounting with one running sends it, by design.
+    act(() => result.current.undoSend());
   });
 
   test("the checks after a confirmed warning still run: the tone warning comes next", () => {
@@ -388,6 +413,7 @@ describe("saved reply templates", () => {
     act(() => result.current.send());
     expect(result.current.undoCountdown).not.toBeNull();
     expect(writes(calls)).toHaveLength(0);
+    act(() => result.current.undoSend()); // unmounting with a countdown running sends it, by design
     vi.useRealTimers();
   });
 
@@ -471,6 +497,8 @@ describe("quiet hours and send later", () => {
     act(() => result.current.status.onConfirm());
     expect(result.current.undoCountdown).toBe(5);
     expect(writes(calls)).toEqual([]);
+    // Ends the countdown here: unmounting with one running sends it, by design.
+    act(() => result.current.undoSend());
   });
 
   test("Send later runs the same content checks as Send before holding the reply", async () => {

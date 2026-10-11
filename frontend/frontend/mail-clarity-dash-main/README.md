@@ -80,11 +80,10 @@ BEHAVIOR
 
    they're easy to wire to a real API later (e.g. onRegenerate, onRefine)
 
- - criticConfidence and piiMasked should be displayed as small indicators (e.g. a badge 
-
-   or icon), since these map to actual project goals (80% critic confidence, PII masking 
-
-   accuracy) and may get asked about later
+ - The AI check badge shows the agent's own verdict ("AI check passed" or "review suggested",
+   with how sure it was) and the reasons below it in words, from `reviewReasons`
+   (specs/features/plain-wording-and-polish.md). The agent flags any draft below 0.9 confidence
+   or with a failed check; personal-detail reasons name the kind of detail, never its value.
 
 STYLE
 

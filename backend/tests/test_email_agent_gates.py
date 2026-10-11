@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import email_agent
+from app.agent_contract import ReviewCode
 from app.core.redaction import has_redaction_marker
 from email_agent import (
     build_review_reasons,
@@ -71,18 +72,19 @@ def test_tone_alone_never_triggers_review():
 
 def test_a_refined_draft_always_reaches_a_human():
     reasons = build_review_reasons(candidate(confidence=1.0), 1)
-    assert any("refine" in r for r in reasons)
+    assert any(r.code == ReviewCode.REFINE_ROUNDS and r.items == ("1",) for r in reasons)
 
 
 def test_pii_finding_triggers_review_even_at_full_confidence():
     reasons = build_review_reasons(candidate(pii=["MY_NRIC"], confidence=1.0), 0)
-    assert any("pii" in r for r in reasons)
+    # The entity type only, never the matched text: the dashboard shows these items.
+    assert any(r.code == ReviewCode.PII_FOUND and r.items == ("MY_NRIC",) for r in reasons)
 
 
 def test_failed_grounding_triggers_review_even_at_full_confidence():
     """The gate the old code could never reach: high self-reported score, failed real check."""
     reasons = build_review_reasons(candidate(grounding_ok=False, confidence=1.0), 0)
-    assert any("grounding" in r for r in reasons)
+    assert any(r.code == ReviewCode.GROUNDING_FAILED for r in reasons)
 
 
 SOURCE = ("Please refund the 18,400.00 difference for invoice INV-2026-0831 within 30 days. "
@@ -125,7 +127,7 @@ def test_single_digits_are_prose_not_facts():
 
 def test_unsupported_figures_reach_the_reviewer():
     reasons = build_review_reasons(candidate(specifics=["60"], confidence=1.0), 0)
-    assert any("not in source" in r for r in reasons)
+    assert any(r.code == ReviewCode.FIGURES_NOT_IN_SOURCE and r.items == ("60",) for r in reasons)
 
 
 ITEMS = ["Confirm the licence count", "Refund the difference", "Send the corrected paperwork"]
@@ -148,12 +150,13 @@ def test_no_unaddressed_items_is_clean():
 def test_unaddressed_requests_are_named_in_the_review_reason():
     """'Incomplete' is not actionable; 'did not address X' is."""
     reasons = build_review_reasons(candidate(unaddressed=["Refund the difference"], confidence=1.0), 0)
-    assert any("Refund the difference" in r for r in reasons)
+    assert any(r.code == ReviewCode.DOES_NOT_ADDRESS and r.items == ("Refund the difference",) for r in reasons)
+    assert any("Refund the difference" in r.text for r in reasons)  # the admin console's text keeps it too
 
 
 def test_boolean_completeness_still_used_when_nothing_was_extracted():
     reasons = build_review_reasons(candidate(completeness=False, confidence=1.0), 0)
-    assert any("everything asked" in r for r in reasons)
+    assert any(r.code == ReviewCode.INCOMPLETE for r in reasons)
 
 
 def test_pathological_numeric_input_stays_linear():
@@ -244,7 +247,7 @@ def _request(rag_context: str = "Refunds take 14 days.") -> email_agent.ProcessE
 
 def test_an_ungrounded_reply_is_a_review_reason():
     reasons = email_agent.input_reasons("Hi", "  ")
-    assert any("not grounded" in reason for reason in reasons)
+    assert any(reason.code == ReviewCode.NOT_GROUNDED for reason in reasons)
 
 
 # ---------- Translation faithfulness ----------

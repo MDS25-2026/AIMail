@@ -62,9 +62,9 @@ export default function EmailBody({ email }: { email: Email }) {
   return (
     <section className="rounded-lg border border-line bg-surface p-4">
       <div className="mb-1 flex items-center justify-between gap-2">
-        <h2 className="text-xs font-medium uppercase tracking-wide text-fg-subtle">
+        <h3 className="text-xs font-medium uppercase tracking-wide text-fg-subtle">
           {t("detail.email")}
-        </h2>
+        </h3>
         {canTranslate || isShowingTranslation ? (
           <button
             type="button"

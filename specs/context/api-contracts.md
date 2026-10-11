@@ -136,6 +136,14 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   last; it is opaque, and one this API did not issue is `422 invalid_request`. Paging is by
   `(created_at, id)`, so no email is skipped or shown twice when new ones arrive. Before this the
   list was the newest 50 and older mail could not be reached.
+- **Mark unread (2026-10-11, `specs/features/plain-wording-and-polish.md`):** `POST
+  /emails/{id}/unread` (`204`, `404` when not the caller's) clears `read_at`. `GET /emails/{id}`
+  marks the email read unless `?markRead=false`, which the dashboard sends while the reader keeps
+  an email they just marked unread open.
+- **Review reasons as codes (2026-10-11):** the agent's `/process-email` and `/refine` add
+  `review_codes: [{code, items}]` beside `review_reasons` (codes in `agent_contract.ReviewCode`;
+  `pii_found` items are entity types only). The email adds `reviewReasons: [{code, items}]`, read
+  from older drafts' text when they have no codes; an unrecognised one is `unknown`.
 - `GET /emails/{id}` (2026-10-08) never writes the draft inside the request. An email with no draft
   yet that may be drafted answers at once with `isDrafting: true` and is queued
   (`messages.draft_requested_at`, migration 0032); the worker's "requested drafts" job, on every
@@ -223,7 +231,7 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   `email_body`, `draft` and `instruction`, and runs the same critic and gates as `/process-email`.
   It answers `{draft, confidence, issues, needs_human_review, grounding_ok, pii_clean, tone_match,
   completeness, pii_findings, unsupported_specifics, unaddressed_requests, review_reasons,
-  model_calls, egress, prompt_version}`, and the backend stores that verdict with the refined draft. The backend masks
+  review_codes, model_calls, egress, prompt_version}`, and the backend stores that verdict with the refined draft. The backend masks
   emails, ICs, passports, card and phone numbers in the typed draft and instruction first (names
   stay), and does the same for `/search` and `/ask` queries (`app/core/typed_text.py`). A refine
   the model refuses answers `422` `draft_refused` through the backend.

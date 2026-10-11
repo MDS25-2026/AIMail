@@ -6,6 +6,7 @@ import logoForLight from "../assets/aimail-logo-dark.png";
 import logoForDark from "../assets/aimail-logo-light.png";
 import { SIGN_IN_URL } from "../lib/api/config";
 import { useSession, useSignOut } from "../lib/queries";
+import { MAIN_CONTENT_ID } from "../lib/useFocusOnNavigate";
 import { useIsReadingEmail } from "../lib/useIsReadingEmail";
 import BottomNav from "./BottomNav";
 import SideNav from "./SideNav";
@@ -19,6 +20,12 @@ export default function AppShell({ children }: { children: ReactNode }) {
     // relative: the containing block for anything absolutely positioned below (sr-only text),
     // so none of it can position against the page and stretch it past the viewport (#96).
     <div className="relative flex h-dvh flex-col overflow-hidden bg-app">
+      <a
+        href={`#${MAIN_CONTENT_ID}`}
+        className="sr-only rounded-md bg-surface px-3 py-2 text-sm font-medium text-brand shadow focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50"
+      >
+        {t("app.skipToContent")}
+      </a>
       <header className="flex items-center justify-between border-b border-line bg-surface px-4 py-3 md:px-6">
         <div className="flex items-center gap-2">
           {/* The wordmark's "mail" is dark on light surfaces and light on dark ones. */}
@@ -43,7 +50,14 @@ export default function AppShell({ children }: { children: ReactNode }) {
         className={`flex min-h-0 flex-1 md:pb-0 ${isReadingEmail ? "" : "pb-[calc(3.5rem+env(safe-area-inset-bottom))]"}`}
       >
         <SideNav />
-        {children}
+        {/* The skip link's target: past the navigation, straight to this page's content. */}
+        <div
+          id={MAIN_CONTENT_ID}
+          tabIndex={-1}
+          className="flex min-h-0 min-w-0 flex-1 focus:outline-none"
+        >
+          {children}
+        </div>
       </main>
       {isReadingEmail ? null : <BottomNav />}
     </div>

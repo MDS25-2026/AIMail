@@ -11,7 +11,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from app.agent_contract import Tone
+from app.agent_contract import ReviewReason, Tone
 from app.db.models import AuthStatus
 
 
@@ -135,6 +135,8 @@ class DashboardEmail(BaseModel):
     # The real details behind this email's, its thread's and its draft's placeholders. Detail
     # responses only; empty on the list and for emails stored before restorable masking.
     details: list[Detail] = Field(default_factory=list)
+    # Why the draft needs a person, as codes the dashboard words in the reader's language.
+    reviewReasons: list[ReviewReason] = Field(default_factory=list)
     # What actually left for a model while working on this email, newest first. Detail responses only.
     egress: list[EgressRecord] = Field(default_factory=list)
     # The reader's saved template whose trigger words and language match this email. Detail only.

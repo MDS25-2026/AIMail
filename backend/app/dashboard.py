@@ -29,6 +29,7 @@ from app.agent_contract import (
     ProcessEmailRequest,
     ProcessEmailResponse,
     RefineResponse,
+    ReviewCode,
     Tone,
     TranslateRequest,
     TranslateResponse,
@@ -91,6 +92,7 @@ from app.rag.errors import EmbeddingError
 from app.rag.retrieve import retrieve
 from app.rag.utils import format_rag_context
 from app.retention import KEEP_FOREVER
+from app.review_reasons import review_reasons
 from app.scheduled_sends import (
     CancelReason,
     ScheduleState,
@@ -245,6 +247,7 @@ def _to_email(
         sources=[Source(**source) for source in message.rag_sources or []],
         piiMasked=bool((message.emails_masked or 0) + (message.phones_masked or 0)),
         criticConfidence=message.critic_confidence or 0.0,
+        reviewReasons=review_reasons(message.critic_checks),
         sentAt=message.sent_at.isoformat() if message.sent_at else None,
         isRead=message.read_at is not None,
         quantities=_quantity_views(message.body_masked or ""),
@@ -452,7 +455,8 @@ def _not_drafted(code: str) -> dict:
     """Stored like an NA route: a human handles it, and the poller stops retrying a failure that
     repeats at temperature 0 and would otherwise spend quota every cycle."""
     return {"category": "NA", "draft": None, "summary": "", "action_items": [],
-            "needs_human_review": True, "review_reasons": [f"no draft: {code}"], NOT_DRAFTED: True}
+            "needs_human_review": True, "review_reasons": [f"no draft: {code}"],
+            "review_codes": [{"code": ReviewCode.NO_DRAFT, "items": []}], NOT_DRAFTED: True}
 
 
 def _source_records(chunks: list[ContextChunk]) -> list[dict]:
@@ -522,6 +526,7 @@ def _review_fields(reviewed: dict) -> dict:
             "completeness": reviewed.get("completeness"),
             "pii_findings": reviewed.get("pii_findings") or [],
             "review_reasons": reviewed.get("review_reasons") or [],
+            "review_codes": reviewed.get("review_codes") or [],
             # Which models answered and how many retries it took; outcomes and ms, no content.
             "model_calls": reviewed.get("model_calls") or [],
             "prompt_version": reviewed.get("prompt_version") or "",
@@ -573,7 +578,29 @@ async def _mark_read(pk: UUID) -> None:
         await session.commit()
 
 
+async def read_email(message_id: str, *, scope: Scope, viewer_id: UUID | None = None) -> DashboardEmail | None:
+    """The email as the reader opens it: opening the detail view is the moment a person reads it."""
+    email = await email_detail(message_id, scope=scope, viewer_id=viewer_id)
+    if email is None:
+        return None
+    await _mark_read(UUID(email.id))
+    return email.model_copy(update={"isRead": True})
+
+
+async def mark_unread(message_id: str, *, scope: Scope) -> bool:
+    """Back to unread, to come back to later. False when it is not the caller's."""
+    try:
+        pk = UUID(message_id)
+    except ValueError:
+        return False
+    async with get_sessionmaker()() as session, session.begin():
+        changed = await session.scalar(update(Message).where(Message.id == pk, scope.where(Message.user_id))
+                                       .values(read_at=None).returning(Message.id))
+    return changed is not None
+
+
 async def email_detail(message_id: str, *, scope: Scope, viewer_id: UUID | None = None) -> DashboardEmail | None:
+    """The email with its draft and thread, read-only: it does not change whether it was read."""
     try:
         pk = UUID(message_id)
     except ValueError:
@@ -586,9 +613,6 @@ async def email_detail(message_id: str, *, scope: Scope, viewer_id: UUID | None 
     # Never drafted here: the request returns at once and the worker drafts it within seconds.
     if is_drafting(message):
         await request_draft(pk)
-    # Opening the detail view is the moment a person actually reads it.
-    await _mark_read(pk)
-    message.read_at = message.read_at or datetime.now(timezone.utc)
     email = _to_email(message, await _policy_for(message), thread=thread, details=details,
                       egress=await egress_for(message.id), schedule=(await states_for([pk])).get(pk))
     # Templates are the viewer's: the original mailbox's unowned rows still get the viewer's.
@@ -612,7 +636,7 @@ async def email_for_thread(
         pk = await session.scalar(stmt)
     if pk is None:
         return None
-    return await email_detail(str(pk), scope=scope, viewer_id=viewer_id)
+    return await read_email(str(pk), scope=scope, viewer_id=viewer_id)
 
 
 async def confirm_sender(message_id: str, *, scope: Scope) -> DashboardEmail | None:

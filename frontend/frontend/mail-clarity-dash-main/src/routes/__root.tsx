@@ -20,6 +20,7 @@ import { Page, pageMeta } from "../lib/pageMeta";
 import { coloursAttribute, SYSTEM_THEME_SCRIPT, Theme } from "../lib/preferences";
 import { readPreferences } from "../lib/readPreferences";
 import { cn } from "../lib/utils";
+import { useFocusOnNavigate } from "../lib/useFocusOnNavigate";
 
 function NotFoundComponent() {
   const { t } = useTranslation();
@@ -146,6 +147,7 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  useFocusOnNavigate();
 
   return (
     <QueryClientProvider client={queryClient}>

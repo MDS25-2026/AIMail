@@ -17,6 +17,7 @@ import {
   useSendFollowUp,
   useTodo,
 } from "../lib/queries";
+import { reviewReasonText } from "../lib/reviewReasons";
 import { checkTone } from "../lib/toneCheck";
 import { useFormat } from "../lib/useFormat";
 import { cn } from "../lib/utils";
@@ -46,7 +47,11 @@ export default function TodoPage() {
             title={t("todo.needsReview")}
             hint={t("todo.needsReviewHint")}
             section={todo.data.needsReview}
-            detail={() => t("todo.flagged")}
+            // The first reason in words; the email view lists them all.
+            detail={(email) => {
+              const [first] = email.reviewReasons ?? [];
+              return first ? reviewReasonText(first, t) : t("todo.flagged");
+            }}
           />
           <EmailSection
             title={t("todo.needsAction")}

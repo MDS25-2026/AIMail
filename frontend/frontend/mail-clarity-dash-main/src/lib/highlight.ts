@@ -8,7 +8,9 @@
 
 const MIN_WORD_LENGTH = 4;
 const MIN_SHARED_WORDS = 3;
-const SENTENCE_BREAK = /(?<=[.!?])\s+/;
+// Chinese ends a sentence with 。！？ and no space after it.
+const SENTENCE_BREAK = /(?<=[.!?])\s+|(?<=[。！？])/;
+const HAN = /\p{Script=Han}/u;
 const WORD = /[\p{L}\p{N}]+/gu;
 const COMMON = new Set([
   "that",
@@ -31,13 +33,44 @@ const COMMON = new Set([
   "about",
   "into",
   "please",
+  // Malay, the same kind of words: they match without meaning the draft used the sentence.
+  "dengan",
+  "untuk",
+  "yang",
+  "akan",
+  "kepada",
+  "adalah",
+  "telah",
+  "boleh",
+  "dalam",
+  "pada",
+  "atau",
+  "juga",
+  "sila",
+  "kami",
+  "anda",
+  "mereka",
+  "tersebut",
+  "terima",
+  "kasih",
 ]);
 
 export type Segment = { text: string; isUsed: boolean };
 
+// Chinese has no spaces between words, so a run of characters is compared in overlapping pairs.
+function characterPairs(run: string): string[] {
+  const characters = [...run];
+  return characters.slice(1).map((character, index) => characters[index] + character);
+}
+
 function contentWords(text: string): Set<string> {
   const words = text.toLowerCase().match(WORD) ?? [];
-  return new Set(words.filter((word) => word.length >= MIN_WORD_LENGTH && !COMMON.has(word)));
+  return new Set(
+    words.flatMap((word) => {
+      if (HAN.test(word)) return characterPairs(word);
+      return word.length >= MIN_WORD_LENGTH && !COMMON.has(word) ? [word] : [];
+    }),
+  );
 }
 
 export function highlightUsed(excerpt: string, draft: string): Segment[] {

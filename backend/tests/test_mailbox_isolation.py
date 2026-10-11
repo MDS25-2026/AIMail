@@ -78,7 +78,13 @@ def seen(monkeypatch, test_settings):
         scopes.append(scope)
         return EmailPage(emails=[])
 
-    for name in ("email_detail", "regenerate_email", "refine_email", "translate_email", "approve_and_send"):
+    async def unread(*_args, scope, **_kwargs):
+        scopes.append(scope)
+        return True
+
+    monkeypatch.setattr("app.main.mark_unread", unread)
+    for name in ("read_email", "email_detail", "regenerate_email", "refine_email", "translate_email",
+                 "approve_and_send"):
         monkeypatch.setattr(f"app.main.{name}", record)
     monkeypatch.setattr("app.main.list_dashboard_emails", listed)
     return scopes
@@ -93,6 +99,8 @@ def _as(user_id: UUID | str, email: str) -> TestClient:
 
 ACTIONS = (
     ("get", "/emails/m1", None),
+    ("get", "/emails/m1?markRead=false", None),
+    ("post", "/emails/m1/unread", None),
     ("post", "/emails/m1/regenerate", {}),
     ("post", "/emails/m1/refine", {"instruction": "shorter", "draft": "Hi"}),
     ("post", "/emails/m1/translate", {"language": "ms"}),

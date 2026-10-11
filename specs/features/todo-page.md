@@ -59,8 +59,8 @@ nothing falls through the cracks between opening emails.
 
 - [x] Given an unsent email with action items, then it is in section 1 with its items.
 - [x] Given an unsent email flagged for review, then it is in section 2.
-- [ ] ... with its reason in plain words. The stored reasons are raw ("confidence 0.6 below 0.8");
-      waits on plain-wording review reasons, epic #138 line 69.
+- [x] ... with its reason in plain words: the first review reason, worded from its code
+      (`plain-wording-and-polish.md`).
 - [x] Given a reply sent through AIMail with *Remind me* ticked, when 3 working days pass with no
       new message in the thread, then it is in section 3.
 - [x] Given a reply sent from Gmail that matches the rules, then the same holds.

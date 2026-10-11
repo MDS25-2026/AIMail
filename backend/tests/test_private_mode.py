@@ -18,6 +18,7 @@ from app.core.providers import Provider
 from app.rag import generate, ingest
 from app.rag import retrieve as retrieve_module
 from model_runtime import ModelError, ModelErrorCode
+from scripts import backfill_message_embeddings as backfill
 from tests.conftest import agent_client
 from tests.test_account import _signed_in, calls  # noqa: F401  (fixture)
 from tests.test_restorable_masking import mailbox  # noqa: F401  (fixture)
@@ -194,3 +195,21 @@ def test_switching_private_mode_on_forgets_the_users_cloud_vectors():
     sql = str(private_mode_routes._forget_cloud_vectors(uuid4()).compile(dialect=postgresql.dialect()))
     assert sql.startswith("DELETE FROM embedding") and "document.user_id" in sql
 
+
+
+def test_the_email_vector_backfill_goes_through_the_gateway_and_is_recorded(monkeypatch):
+    checked, saved = [], []
+
+    async def gateway(texts, *, provider, purpose):
+        checked.append((texts, provider, purpose))
+        return [[0.0]]
+
+    async def save(records, *, user_id, message_id):
+        saved.append((user_id, message_id))
+
+    monkeypatch.setattr(backfill.model_gateway, "embed_documents", gateway)
+    monkeypatch.setattr(backfill, "save_egress", save)
+    message = backfill.Message(id=uuid4(), user_id=uuid4())
+    asyncio.run(backfill._embedded(message, "Invoice for [PERSON_1]"))
+    assert checked == [(["Invoice for [PERSON_1]"], Provider.GEMINI, backfill.INDEX)]
+    assert saved == [(message.user_id, message.id)]

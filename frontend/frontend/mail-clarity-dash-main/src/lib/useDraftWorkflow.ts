@@ -237,9 +237,9 @@ export function useDraftWorkflow(
     }
   }, [emailId, sendNowIfCounting]);
 
-  // Last issued wins: two regenerates for the same email share one cache entry, so a slow first
-  // response could otherwise overwrite a newer one.
-  const requestSeqRef = useRef(0);
+  // Last issued wins, per email: two regenerates for the same email share one cache entry, so a slow
+  // first response could otherwise overwrite a newer one. Another email's request changes nothing here.
+  const requestSeqRef = useRef<Map<string, number>>(new Map());
   const runMutation = async (
     id: string,
     action: DraftAction,
@@ -247,15 +247,18 @@ export function useDraftWorkflow(
     done: string,
     onDone?: () => void,
   ) => {
-    const seq = ++requestSeqRef.current;
-    setFailed(null);
+    const seq = (requestSeqRef.current.get(id) ?? 0) + 1;
+    requestSeqRef.current.set(id, seq);
+    const isLatest = () => requestSeqRef.current.get(id) === seq;
+    // Clears only this email's failure: one showing on another email stays until it is retried.
+    setFailed((current) => (current?.emailId === id ? null : current));
     try {
       await run();
     } catch (error) {
-      if (seq === requestSeqRef.current) setFailed({ emailId: id, value: { action, error } });
+      if (isLatest()) setFailed({ emailId: id, value: { action, error } });
       throw error;
     }
-    if (seq !== requestSeqRef.current) return;
+    if (!isLatest()) return;
     setTypedByEmail((current) => withoutKey(current, id));
     // Any newer draft ends the Refine comparison; a Refine then records its own.
     setRefinedFrom((current) => withoutKey(current, id));

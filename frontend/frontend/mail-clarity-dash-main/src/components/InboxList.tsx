@@ -51,7 +51,7 @@ export default function InboxList({ emails, selectedEmailId, onSelectEmail }: In
       <div className="border-b border-line px-4 py-3">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold text-fg">{t("inbox.heading")}</h2>
+            <h1 className="text-sm font-semibold text-fg">{t("inbox.heading")}</h1>
             <p className="text-xs text-fg-muted">
               {t("inbox.conversations", { count: conversations.length })}
             </p>

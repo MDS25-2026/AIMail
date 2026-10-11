@@ -27,6 +27,31 @@ TONE_PROMPTS: dict[Tone, str] = {
 DEFAULT_TONE_PROMPT = TONE_PROMPTS[Tone.PROFESSIONAL]
 
 
+class ReviewCode(StrEnum):
+    """Why a draft needs a person, as a stable code the dashboard words in each language."""
+
+    NO_REPLY = "no_reply"  # routed as needing no reply
+    NO_DRAFT = "no_draft"  # drafting failed (set by the backend)
+    PHISHING_LINK = "phishing_link"
+    NOT_GROUNDED = "not_grounded"  # no company document found to answer from
+    PII_FOUND = "pii_found"  # items: entity types only, never the matched text
+    PII_SCAN_UNAVAILABLE = "pii_scan_unavailable"  # the draft's privacy scan could not run
+    FIGURES_NOT_IN_SOURCE = "figures_not_in_source"  # items: the figures
+    CRITIC_UNAVAILABLE = "critic_unavailable"
+    GROUNDING_FAILED = "grounding_failed"
+    DOES_NOT_ADDRESS = "does_not_address"  # items: the unanswered points (masked)
+    INCOMPLETE = "incomplete"
+    REFINE_ROUNDS = "refine_rounds"  # items: the number of rounds
+    REPAIR_STOPPED = "repair_stopped"
+    LOW_CONFIDENCE = "low_confidence"
+    UNKNOWN = "unknown"  # a reason stored before codes existed that no pattern recognises
+
+
+class ReviewReason(BaseModel):
+    code: ReviewCode
+    items: list[str] = Field(default_factory=list)
+
+
 class ProcessEmailRequest(BaseModel):
     thread_context: str
     email_body: str
@@ -60,6 +85,8 @@ class ProcessEmailResponse(BaseModel):
     unsupported_specifics: list[str] = Field(default_factory=list)
     unaddressed_requests: list[str] = Field(default_factory=list)
     review_reasons: list[str] = Field(default_factory=list)
+    # The same reasons as codes; the text above stays for the admin console and the audit.
+    review_codes: list[ReviewReason] = Field(default_factory=list)
     # Every model attempt this draft made: model, outcome, milliseconds, provider.
     model_calls: list[dict] = Field(default_factory=list)
     # Every prompt that left for a model (model_gateway.Egress): no text, only what and how much.
@@ -111,6 +138,7 @@ class RefineResponse(BaseModel):
     unsupported_specifics: list[str] = Field(default_factory=list)
     unaddressed_requests: list[str] = Field(default_factory=list)
     review_reasons: list[str] = Field(default_factory=list)
+    review_codes: list[ReviewReason] = Field(default_factory=list)
     model_calls: list[dict] = Field(default_factory=list)
     egress: list[dict] = Field(default_factory=list)
     prompt_version: str = ""

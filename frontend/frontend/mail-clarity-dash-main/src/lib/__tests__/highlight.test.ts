@@ -26,4 +26,30 @@ describe("source highlighting", () => {
       .join(" ");
     expect(joined).toBe(POLICY);
   });
+
+  test("a Chinese passage is split at its full stops and matched without spaces", () => {
+    const policy = "退款将在十四个工作日内处理。超过五百令吉的礼品必须申报。";
+    const used = highlightUsed(policy, "您的退款将在十四个工作日内处理，请耐心等候。")
+      .filter((segment) => segment.isUsed)
+      .map((segment) => segment.text);
+    expect(used).toEqual(["退款将在十四个工作日内处理。"]);
+  });
+
+  test("a Malay sentence the draft draws on is marked", () => {
+    const policy =
+      "Bayaran balik akan diproses dalam tempoh empat belas hari bekerja. Hadiah melebihi RM500 mesti diisytiharkan.";
+    const used = highlightUsed(
+      policy,
+      "Bayaran balik anda akan diproses dalam empat belas hari bekerja.",
+    )
+      .filter((segment) => segment.isUsed)
+      .map((segment) => segment.text);
+    expect(used).toEqual(["Bayaran balik akan diproses dalam tempoh empat belas hari bekerja."]);
+  });
+
+  test("common Malay words alone never make a match", () => {
+    const policy = "Hadiah yang akan diberi kepada kakitangan adalah dengan kelulusan untuk semua.";
+    const draft = "Dengan untuk yang akan kepada adalah telah boleh.";
+    expect(highlightUsed(policy, draft).some((segment) => segment.isUsed)).toBe(false);
+  });
 });

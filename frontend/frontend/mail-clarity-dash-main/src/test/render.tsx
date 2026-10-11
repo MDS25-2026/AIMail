@@ -9,6 +9,8 @@ import { DEFAULT_PREFERENCES, Language } from "../lib/preferences";
 import { createQueryClient } from "../lib/queries";
 import { PreferencesContext, type PreferencesContextValue } from "../lib/usePreferences";
 
+import "./blockNetwork";
+
 // No vitest globals here, so Testing Library cannot register its own cleanup.
 afterEach(() => {
   cleanup();

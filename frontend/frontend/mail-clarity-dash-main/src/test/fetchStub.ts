@@ -1,5 +1,7 @@
 import { vi } from "vitest";
 
+import "./blockNetwork";
+
 /** A canned backend answer; a promise lets a test decide when it lands. */
 export type StubReply = { status?: number; body?: unknown };
 type Handler = StubReply | ((call: StubCall) => StubReply | Promise<StubReply>);

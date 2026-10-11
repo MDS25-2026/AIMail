@@ -2,7 +2,8 @@
 
 Generates gemini-embedding-001 vectors (1536 dims, L2-normalized) for messages
 where embedding IS NULL and body_masked IS NOT NULL.
-Batches requests and commits per batch so interruptions retain progress.
+Embeds each email through the model gateway (last masking check, egress record) and commits
+per batch, so an interruption keeps its progress. Private mode users' emails are left out.
 
 Usage (from backend/): python scripts/backfill_message_embeddings.py
 """
@@ -15,12 +16,25 @@ from sqlalchemy import select
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import model_gateway
+from app.core.providers import Provider
 from app.db.models import Message
 from app.db.session import get_sessionmaker
+from app.egress_log import save_egress
 from app.private_mode import not_private
-from app.rag.embed import embed_documents
+from app.rag.ingest import INDEX
+from model_gateway import track_egress
 
 BATCH_SIZE = 15
+
+
+async def _embedded(message: Message, text: str) -> list[float]:
+    """Through the model gateway, one email at a time: the last masking check runs, and what was
+    sent is recorded against that email and its owner, as for every other model call."""
+    with track_egress() as sent:
+        [vector] = await model_gateway.embed_documents([text], provider=Provider.GEMINI, purpose=INDEX)
+    await save_egress(sent, user_id=message.user_id, message_id=message.id)
+    return vector
 
 
 async def main() -> None:
@@ -48,9 +62,8 @@ async def main() -> None:
             texts = [t if t else "No content" for t in texts]
 
             try:
-                vectors = await embed_documents(texts)
-                for message, vector in zip(batch, vectors, strict=True):
-                    message.embedding = vector
+                for message, text in zip(batch, texts, strict=True):
+                    message.embedding = await _embedded(message, text)
                 await session.commit()
                 filled += len(batch)
                 print(f"  embedded {filled}/{total} messages")

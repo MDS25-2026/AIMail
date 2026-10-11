@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, test } from "vitest";
 
 import { AuditVerification, type AuditTrailEvent } from "../../types/audit";
@@ -40,4 +43,23 @@ describe("audit trail helpers", () => {
     expect(matchesQuery(event, "nothing like it")).toBe(false);
     expect(matchesQuery(event, "  ")).toBe(true);
   });
+});
+
+// The backend's own list of actions, read from its source so a new one cannot ship unnamed.
+const AUDIT_SOURCE = readFileSync(
+  join(__dirname, "../../../../../../backend/app/audit.py"),
+  "utf8",
+);
+const BACKEND_ACTIONS = [...AUDIT_SOURCE.matchAll(/^ {4}[A-Z_]+ = "([a-z_]+)"$/gm)].map(
+  (match) => match[1],
+);
+
+test("every action the backend records has a name, in all three languages", () => {
+  expect(BACKEND_ACTIONS.length).toBeGreaterThan(30);
+  for (const language of [Language.English, Language.Malay, Language.Chinese]) {
+    const { t } = createI18n(language);
+    for (const action of BACKEND_ACTIONS) {
+      expect(actionLabel(action, t), `${language}: ${action}`).not.toBe(action);
+    }
+  }
 });

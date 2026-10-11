@@ -1,5 +1,6 @@
 import {
   type InfiniteData,
+  type QueryClient,
   useInfiniteQuery,
   useMutation,
   useQuery,
@@ -13,6 +14,7 @@ import {
   fetchEmail,
   fetchEmailByThread,
   fetchEmailPage,
+  markUnread,
   refineEmail,
   regenerateEmail,
   scheduleEmail,
@@ -40,32 +42,35 @@ export function useEmails() {
   });
 }
 
+/** One email's read state in the cached inbox list, so the unread marker changes now. */
+function setListReadState(queryClient: QueryClient, emailId: string, isRead: boolean) {
+  queryClient.setQueryData<InfiniteData<EmailPage>>(
+    queryKeys.emails,
+    (inbox) =>
+      inbox && {
+        ...inbox,
+        pages: inbox.pages.map((page) => ({
+          ...page,
+          emails: page.emails.map((item) => (item.id === emailId ? { ...item, isRead } : item)),
+        })),
+      },
+  );
+}
+
 /**
  * One email with its Lane C draft. Idle until something is selected, and keyed by id, so a
  * response for a previously selected email lands in that email's entry, never the one on
  * screen. No refetch on focus: the call marks the email read and is rate limited.
+ * keepUnread: the reader marked it unread, so refreshing it must not mark it read again.
  */
-export function useEmail(emailId: string | null) {
+export function useEmail(emailId: string | null, keepUnread = false) {
   const queryClient = useQueryClient();
   return useQuery({
     queryKey: queryKeys.email(emailId ?? ""),
     // The signal cancels the request when the reader moves to another email before it answers.
     queryFn: async ({ signal }) => {
-      const email = await fetchEmail(emailId ?? "", signal);
-      // Patch the cached list so the unread marker clears now, not at the next refetch.
-      queryClient.setQueryData<InfiniteData<EmailPage>>(
-        queryKeys.emails,
-        (inbox) =>
-          inbox && {
-            ...inbox,
-            pages: inbox.pages.map((page) => ({
-              ...page,
-              emails: page.emails.map((item) =>
-                item.id === email.id ? { ...item, isRead: true } : item,
-              ),
-            })),
-          },
-      );
+      const email = await fetchEmail(emailId ?? "", signal, keepUnread);
+      setListReadState(queryClient, email.id, email.isRead);
       return email;
     },
     enabled: emailId !== null,
@@ -173,6 +178,19 @@ export function useAdaptTemplate() {
 export const useScheduleEmail = () => useDraftMutation(scheduleEmail);
 export const useCancelSchedule = () => useDraftMutation(cancelSchedule);
 export const useSnoozeEmail = () => useDraftMutation(snoozeEmail);
+
+export function useMarkUnread() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: markUnread,
+    onSuccess: (_nothing, emailId) => {
+      setListReadState(queryClient, emailId, false);
+      queryClient.setQueryData<Email>(queryKeys.email(emailId), (email) =>
+        email ? { ...email, isRead: false } : email,
+      );
+    },
+  });
+}
 export const useUnsnoozeEmail = () => useDraftMutation(unsnoozeEmail);
 
 export function useConfirmSender() {
