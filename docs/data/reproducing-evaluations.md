@@ -118,8 +118,7 @@ PRIORITY_MODEL=distilbert ../.venv/bin/python scripts/eval_classifier.py holdout
 - `scripts/label_agreement.py <human.csv> <gemini.csv>`: agreement and kappa between human and
   Gemini labels (the 47.9% / kappa 0.22 diagnostic).
 
-**Epochs differ by entry point.** The script defaults to 5 and `AI_DOCS/priority-classifier.md`
-reports 5; `make distilbert` passes `--epochs 3` unless `EPOCHS` is set. Use 5 to match the report.
+**Epochs:** the script, `make distilbert` and `AI_DOCS/priority-classifier.md` all use 5.
 
 ## 3. Critic and review gate
 
