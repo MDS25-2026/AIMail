@@ -1062,7 +1062,7 @@ export const ms: Translations = {
     private_mode_unavailable:
       "Mod Peribadi dihidupkan, tetapi tiada model peribadi disediakan di sini, jadi tiada apa yang boleh didraf. Matikan Mod Peribadi dalam Tetapan.",
     masking_unavailable:
-      "Tidak dapat menyembunyikan butiran peribadi sekarang, jadi tiada apa yang disimpan. Cuba lagi sebentar lagi.",
+      "Tidak dapat menyembunyikan butiran peribadi sekarang, jadi tiada apa yang disimpan atau dihantar kepada AI. Cuba lagi sebentar lagi.",
     too_many_templates: "Anda sudah ada 50 balasan tersimpan. Buang satu dahulu.",
     time_out_of_range: "Pilih masa akan datang, dalam tempoh 60 hari.",
     too_many_examples: "Anda sudah ada 3 contoh. Buang satu dahulu.",

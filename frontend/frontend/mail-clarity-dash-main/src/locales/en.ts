@@ -1029,7 +1029,7 @@ export const en = {
     private_mode_unavailable:
       "Private mode is on, but no private model is set up here, so nothing can be drafted. Switch Private mode off in Settings.",
     masking_unavailable:
-      "Couldn't hide personal details right now, so nothing was saved. Try again in a moment.",
+      "Couldn't hide personal details right now, so nothing was saved or sent to the AI. Try again in a moment.",
     too_many_templates: "You already have 50 saved replies. Delete one first.",
     time_out_of_range: "Pick a time in the future, within the next 60 days.",
     too_many_examples: "You already have 3 examples. Remove one first.",

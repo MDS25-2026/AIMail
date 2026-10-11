@@ -1,7 +1,7 @@
 """Fixed-format personal details in text a person typed, masked before it reaches a model.
 
-Names stay: users type them on purpose, and masking them would fill every refined draft with
-[Redacted]. The formats are the listener's (listener/main.go maskPII): both pass the shared cases in
+Names are not handled here: app/core/typed_names.py hides them with placeholders for one request and
+puts them back after, so this stays a fast, synchronous floor. The formats are the listener's (listener/main.go maskPII): both pass the shared cases in
 listener/testdata/masking_vectors.json, so the two floors cannot drift apart unnoticed.
 """
 

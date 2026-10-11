@@ -30,6 +30,7 @@ from app.core.errors import DomainError, ErrorCode
 from app.core.ownership import EVERYTHING, Scope
 from app.core.providers import Provider
 from app.core.ratelimit import PostgresCounters
+from app.core.typed_names import TypedNames
 from app.dashboard import SendRejectedError, list_dashboard_emails, snooze_email
 from app.db.migrate import apply_pending, pending
 from app.db.models import (
@@ -459,7 +460,7 @@ def test_a_private_inbox_search_finds_by_words_without_any_model(monkeypatch):
         raise AssertionError("a Private mode inbox search asked a model for a vector")
 
     monkeypatch.setattr(model_gateway, "embed_query", no_model)
-    found, _ = _run(search_messages_hybrid("invoice", 5, scope=Scope(private), provider=Provider.LOCAL))
+    found, _ = _run(search_messages_hybrid("invoice", 5, scope=Scope(private), provider=Provider.LOCAL, names=TypedNames()))
     assert [message.user_id for message in found] == [private]
 
 
@@ -606,7 +607,7 @@ def test_a_search_across_users_on_gemini_leaves_out_private_mode_users(monkeypat
         return []
 
     monkeypatch.setattr(model_gateway, "embed_query", no_vector)
-    found, _ = _run(search_messages_hybrid("invoice", 20, scope=EVERYTHING, provider=Provider.GEMINI))
+    found, _ = _run(search_messages_hybrid("invoice", 20, scope=EVERYTHING, provider=Provider.GEMINI, names=TypedNames()))
     owners = {message.user_id for message in found}
     assert cloud in owners and private not in owners
 

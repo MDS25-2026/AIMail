@@ -225,7 +225,7 @@ def test_a_gemini_failure_reaches_the_caller_as_a_coded_status(monkeypatch, code
     response = agent_client().post("/process-email", json={
         "thread_context": "", "email_body": "Hi", "rag_context": "", "provider": "gemini"})
     assert response.status_code == status
-    assert response.json()["detail"] == code
+    assert response.json()["detail"]["code"] == code
 
 
 # ---------- Signals from the email itself ----------

@@ -79,6 +79,7 @@ from app.core.ratelimit import (
     rate_limit_list,
     rate_limit_send,
 )
+from app.core.typed_names import TypedNames
 from app.core.typed_text import mask_typed_text
 from app.dashboard import (
     approve_and_send,
@@ -219,26 +220,31 @@ async def demo_page() -> FileResponse:
 
 @app.post("/search", dependencies=[Depends(rate_limit_generation), Depends(require_mailbox)])
 async def search(request: SearchRequest, http: Request) -> list[ContextChunk]:
-    # A typed query is embedded, so fixed-format details are masked first; by the user's own provider.
+    # A typed query is embedded, so its details and names are hidden first; by the user's own provider.
     scope = scope_of(http)
     provider = await provider_for(scope.owner_id)
-    with track_egress() as sent:
-        found = await retrieve(mask_typed_text(request.query), request.k, scope=scope, provider=provider)
-    await save_egress(sent, user_id=scope.owner_id, message_id=None)
-    return found
+    query = await TypedNames().hide(mask_typed_text(request.query))
+    try:
+        with track_egress() as sent:
+            return await retrieve(query, request.k, scope=scope, provider=provider)
+    finally:
+        await save_egress(sent, user_id=scope.owner_id, message_id=None)
 
 
 @app.post("/ask", dependencies=[Depends(rate_limit_generation), Depends(require_mailbox)])
 async def ask(request: AskRequest, http: Request) -> AskResponse:
     # Full RAG loop demo: retrieve policy chunks, then generate a grounded answer from them.
-    question = mask_typed_text(request.question)
+    names = TypedNames()
+    question = await names.hide(mask_typed_text(request.question))
     scope = scope_of(http)
     provider = await provider_for(scope.owner_id)
-    with track_egress() as sent:
-        chunks = await retrieve(question, request.k, scope=scope, provider=provider)
-        text = await answer(question, chunks, provider=provider)
-    await save_egress(sent, user_id=scope.owner_id, message_id=None)
-    return AskResponse(answer=text, sources=chunks)
+    try:
+        with track_egress() as sent:
+            chunks = await retrieve(question, request.k, scope=scope, provider=provider)
+            text = await answer(question, chunks, provider=provider)
+    finally:
+        await save_egress(sent, user_id=scope.owner_id, message_id=None)
+    return AskResponse(answer=names.restore(text), sources=chunks)
 
 
 @app.get("/emails", dependencies=[Depends(rate_limit_list)])

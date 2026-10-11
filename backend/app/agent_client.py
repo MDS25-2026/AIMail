@@ -59,3 +59,15 @@ async def call(path: str, request: BaseModel, answer: type[Answer]) -> Answer:
     response = await _post(path, request)
     response.raise_for_status()
     return answer.model_validate(response.json())
+
+
+def refusal_egress(response: httpx.Response) -> list[dict]:
+    """The prompts a refused call had already sent. Only the agent's own {"code", "egress"} detail
+    carries them; FastAPI's validation errors (a list) and anything else carry none."""
+    try:
+        body = response.json()
+    except ValueError:
+        return []
+    detail = body.get("detail") if isinstance(body, dict) else None
+    records = detail.get("egress") if isinstance(detail, dict) else None
+    return records if isinstance(records, list) else []

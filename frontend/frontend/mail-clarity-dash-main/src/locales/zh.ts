@@ -988,7 +988,7 @@ export const zh: Translations = {
     scan_check_unavailable: "这个 AIMail 没有设置检查功能，所以扫描件只能在这台电脑上读取。",
     private_mode_unavailable:
       "私密模式已开启，但这里没有设置私有模型，因此无法起草。请在设置中关闭私密模式。",
-    masking_unavailable: "目前无法隐藏个人信息，因此未保存任何内容。请稍后重试。",
+    masking_unavailable: "目前无法隐藏个人信息，因此未保存任何内容，也未发送给 AI。请稍后重试。",
     too_many_templates: "您已有 50 条保存的回复，请先删除一条。",
     time_out_of_range: "请选择未来 60 天内的时间。",
     too_many_examples: "您已有 3 个示例，请先删除一个。",

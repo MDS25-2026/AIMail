@@ -777,16 +777,16 @@ def flag_fields(reasons: list[Flag]) -> dict:
             "review_codes": [ReviewReason(code=flag.code, items=list(flag.items)) for flag in reasons]}
 
 
-def _unavailable(error: ModelError) -> HTTPException:
-    if error.code in CONTENT_ERRORS:
-        return HTTPException(status_code=_UNPROCESSABLE, detail=str(error.code))
-    return HTTPException(status_code=_STATUS_FOR_ERROR.get(error.code, _SERVICE_UNAVAILABLE),
-                         detail=str(error.code))
+def _unavailable(error: ModelError, egress: list[dict]) -> HTTPException:
+    """The refusal, with the prompts that had already gone so the privacy receipt still lists them."""
+    status = _UNPROCESSABLE if error.code in CONTENT_ERRORS else _STATUS_FOR_ERROR.get(error.code, _SERVICE_UNAVAILABLE)
+    return HTTPException(status_code=status, detail={"code": str(error.code), "egress": egress})
 
 
 @app.post("/process-email", response_model=ProcessEmailResponse)
 async def process_email(req: ProcessEmailRequest) -> ProcessEmailResponse:
     calls: list[dict] = []
+    egress: list[dict] = []
     try:
         with deadline(), track_calls() as calls, track_egress() as egress, using(req.provider):
             response = await _process_email(req)
@@ -795,7 +795,7 @@ async def process_email(req: ProcessEmailRequest) -> ProcessEmailResponse:
         # so they go to the log (outcomes and timings only).
         logger.warning("draft failed with %s after %s", error.code,
                        [(c["model"], c["outcome"], c["ms"]) for c in calls])
-        raise _unavailable(error) from error
+        raise _unavailable(error, egress) from error
     return response.model_copy(update={"model_calls": calls, "egress": egress})
 
 
@@ -889,15 +889,16 @@ Rules:
 @app.post("/translate")
 async def translate(req: TranslateRequest) -> dict:
     """Translate masked text. 422 when the result fails the faithfulness checks."""
+    egress: list[dict] = []
     try:
         with deadline(), track_egress() as egress, using(req.provider):
             translated = await translate_text(req.text, req.language)
     except ModelError as error:
-        raise _unavailable(error) from error
+        raise _unavailable(error, egress) from error
     problems = translation_problems(req.text, translated)
     if problems:
         raise HTTPException(status_code=422, detail={"code": UNFAITHFUL_TRANSLATION,
-                                                     "problems": problems})
+                                                     "problems": problems, "egress": egress})
     return {"language": req.language, "text": translated, "egress": egress}
 
 
@@ -922,12 +923,13 @@ async def refine(req: RefineRequest) -> RefineResponse:
     # The user's own draft is a source too: a figure they typed is theirs, not an invention.
     ctx = DraftContext(thread_context=req.thread_context, rag_context=req.rag_context, email_body=req.email_body,
                        tone=req.tone, action_items=req.action_items, style=style, own_text=req.draft)
+    egress: list[dict] = []
     try:
         with deadline(), track_calls() as calls, track_egress() as egress, using(req.provider):
             revised = await call_llm(system_prompt, user_prompt, max_tokens=DRAFT_MAX_TOKENS, purpose=Stage.REFINE)
             # A critic failure after this point flags the revision for review rather than discarding it.
             candidate = await assess(ctx, revised)
     except ModelError as error:
-        raise _unavailable(error) from error
+        raise _unavailable(error, egress) from error
     reasons = [*input_reasons(req.email_body, req.rag_context), *build_review_reasons(candidate, 0)]
     return RefineResponse(**review_fields(candidate, reasons), model_calls=calls, egress=egress)

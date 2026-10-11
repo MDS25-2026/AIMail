@@ -162,7 +162,8 @@ def test_the_assistants_earlier_answers_never_go_back_to_the_model(monkeypatch) 
     monkeypatch.setattr(inbox_search.model_gateway, "generate", capture)
     history = [ChatMessage(role="user", content="recent emails?"),
                ChatMessage(role="assistant", content="From Aisyah binti Ali, Petronas, Kuantan: an invoice.")]
-    asyncio.run(inbox_search.contextualize_query("what did she want?", history, Provider.GEMINI))
+    questions = inbox_search._questions(history)
+    asyncio.run(inbox_search.contextualize_query("what did she want?", questions, Provider.GEMINI))
     assert "recent emails?" in prompts[0] and "Aisyah" not in prompts[0] and "Petronas" not in prompts[0]
 
 
