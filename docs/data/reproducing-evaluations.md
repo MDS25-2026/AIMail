@@ -71,8 +71,9 @@ It checks that every auditor's rows are complete, computes pairwise Cohen's kapp
 calibration rows, and writes the reconciled labels.
 
 **Do not rerun `scripts/generate_category_dataset.py`** to reproduce a figure. It asks Gemini for
-new emails and overwrites `train.csv`, `holdout_gold.csv` and `holdout_audit.csv`, replacing the
-human audit with an unaudited sheet. It is the record of how the data was made, not a step in
+new emails and would overwrite `train.csv`, `holdout_gold.csv` and `holdout_audit.csv`, replacing the
+human audit with an unaudited sheet; since 2026-10-12 it refuses while any of them exists, unless
+given `--force` (use `--out-dir` for a separate set). It is the record of how the data was made, not a step in
 reproducing the results; Gemini's output is not deterministic.
 
 ## 2. Priority classifier (LOW / MEDIUM / HIGH)

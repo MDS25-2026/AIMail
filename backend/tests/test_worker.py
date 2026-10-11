@@ -43,6 +43,12 @@ def test_the_api_starts_no_background_jobs(monkeypatch):
     started = []
     monkeypatch.setattr(asyncio, "create_task", lambda *a, **k: started.append(a))
 
+    async def columns_fine():
+        return None
+
+    # The column check is database I/O, not a background job; it must not depend on what answers on :5432.
+    monkeypatch.setattr("app.main.check_columns", columns_fine)
+
     async def run():
         async with _lifespan(None):
             pass

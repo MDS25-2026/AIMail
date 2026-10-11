@@ -32,14 +32,9 @@ from pathlib import Path
 import httpx
 from dotenv import load_dotenv
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
-# Load repo-root environment
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-load_dotenv(_REPO_ROOT / ".env")
-
-_API_KEY = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
 _DEFAULT_MODEL = "gemini-3.5-flash"
 _URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
@@ -165,11 +160,12 @@ Return ONLY a JSON array of objects with the structure:
 
 def _generate_batch(client: httpx.Client, category: str, subtopic: str, batch_size: int = 5) -> list[dict]:
     """Call Gemini to generate a batch of structured emails."""
-    if not _API_KEY:
+    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    if not api_key:
         raise RuntimeError("GOOGLE_API_KEY or GEMINI_API_KEY environment variable is missing.")
 
     prompt = _build_prompt(category, subtopic, batch_size)
-    url = _URL_TEMPLATE.format(model=_DEFAULT_MODEL) + f"?key={_API_KEY}"
+    url = _URL_TEMPLATE.format(model=_DEFAULT_MODEL) + f"?key={api_key}"
 
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
@@ -208,17 +204,36 @@ def _generate_batch(client: httpx.Client, category: str, subtopic: str, batch_si
     return []
 
 
+# holdout_audit.csv holds the human audit and holdout_gold.csv the labels reconciled from it; train.csv is
+# what the model learned. Every reported figure comes from these.
+OUTPUT_FILES = ("train.csv", "holdout_gold.csv", "holdout_audit.csv")
+
+
+def refuse_to_overwrite(out_dir: Path) -> None:
+    """Stop before any model call when an output exists; --force is the deliberate way past it."""
+    existing = [name for name in OUTPUT_FILES if (out_dir / name).exists()]
+    if existing:
+        raise SystemExit(f"{', '.join(existing)} already in {out_dir}; the audit and gold set are human work. "
+                         "Use --out-dir for a new set, or --force to overwrite.")
+
+
 def main() -> None:
+    # Here, not at import: a test importing this module must never read the real .env.
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+    load_dotenv(_REPO_ROOT / ".env")
     parser = argparse.ArgumentParser(description="Generate synthetic B2B email taxonomy dataset.")
     parser.add_argument("--train-count", type=int, default=100, help="Train emails per category (default: 100)")
     parser.add_argument("--gold-count", type=int, default=20, help="Holdout gold emails per category (default: 20)")
     parser.add_argument("--model", default=_DEFAULT_MODEL, help="Gemini model name")
     parser.add_argument("--out-dir", default="data/category", help="Output directory")
+    parser.add_argument("--force", action="store_true", help="overwrite existing outputs, the audited gold set included")
     args = parser.parse_args()
 
     total_per_cat = args.train_count + args.gold_count
     out_dir = Path(__file__).resolve().parent.parent / args.out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
+    if not args.force:
+        refuse_to_overwrite(out_dir)
 
     logger.info("Generating dataset: %d train + %d gold per category (%d total per category across 6 categories = %d)",
                 args.train_count, args.gold_count, total_per_cat, total_per_cat * len(CATEGORIES))
