@@ -6,6 +6,14 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-12 — Follow-ups with a lost Gmail outcome are reconciled (migration 0043)
+- Decision: `sent_message.follow_up_outcome_unknown_at` marks a follow-up whose answer from Gmail
+  was lost; the send reconciler settles it like a reply. Additive, nullable column.
+- Why: the claim was kept for good, so a follow-up Gmail never got could not be sent again.
+- Affects: `specs/context/db-schema.md`, `backend/app/send_reconciler.py`, `backend/app/dashboard.py`.
+  Needs `make migrate` on the shared database before the worker runs this code.
+- Status: implemented by veyroxie, 2026-10-12.
+
 ### 2026-10-12 — The token.json mailbox is retired; scripts name an owner
 - Decision: `app/core/mailbox.py` is removed. A row with no owner is visible only to the shared
   script token, connecting hands nothing over, and a send needs an owner (no `token.json` fallback).

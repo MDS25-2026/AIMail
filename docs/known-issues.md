@@ -76,33 +76,18 @@ In `listener/sla.go`:
 - Day differences are cut at midnight UTC (`daysBetween`), not Malaysian time (UTC+8), so an email
   received between 00:00 and 08:00 local time can be a day off.
 
-### A follow-up whose Gmail outcome is unknown keeps its claim — Lane B
-When a follow-up is sent and Gmail's outcome is unknown, the follow-up keeps its claim so it cannot
-be sent twice. The cost is that it is not retried automatically and needs a person to check Gmail.
-
-### Settings writes for a user without a profile row return a generic 500 — Lane B
-A settings write for a signed-in user who has no `user_profile` row fails with an unmapped error
-and the generic 500 response, instead of a typed error code.
-
-### Dismiss and "Not now" write no audit row — Lane B
-Dismissing an email or a waiting reply from the To-do page (`dismiss_email`, `dismiss_waiting` in
-`backend/app/todo.py`) changes state without an `audit_log` entry, unlike snooze
-(`EMAIL_SNOOZED`).
-
 ### Replies sent before #208 cannot be followed up — Lane B
 Replies stored before #208 (fixed placeholder numbers for the owner and the sender) can contain a
 placeholder that no longer resolves, so a follow-up cannot be drafted from them correctly. They
 have not been repaired.
 
-### The egress log misses document indexing and listener OCR — Lanes A/B
-`model_egress` records drafts, refines, translations, `/search` and `/ask`
-(`backend/app/egress_log.py`, `backend/app/main.py`). It has no rows for:
-- document indexing: the upload routes and the worker's embedding pass do not call `save_egress`,
-  although `backend/app/rag/ingest.py` defines an `index` purpose;
+### The egress log misses listener OCR and the background embedding pass — Lanes A/B
+`model_egress` records drafts, refines, translations, `/search`, `/ask` and, since 2026-10-12,
+document indexing at upload. It has no rows for:
 - the listener's attachment reading (OCR and checked scans), which runs in Go and has no writer
-  for this table.
-
-The privacy receipt therefore under-reports what left the machine for those two paths.
+  for this table;
+- the worker's background embedding pass (`embed_pending`), which batches chunks from any owner
+  and only runs for retries and model changes.
 
 ### Training data for the priority classifier is not in git — Lane B
 The category classifier's data, model and results are now tracked (`backend/data/category/`,
@@ -162,6 +147,22 @@ These are not defects — they are trade-offs with reasons, recorded so the reas
 - Fourteen local branches exist, several from earlier team work that may never have merged.
 
 ## Fixed
+
+### A follow-up whose Gmail outcome was unknown kept its claim — Lane B — FIXED 2026-10-12
+It is now marked (`sent_message.follow_up_outcome_unknown_at`, migration 0043) and the reconciler
+asks Gmail: sent, the claim stays; not sent, the claim is released so it can be sent again.
+
+### Settings writes for a user without a profile row returned a generic 500 — Lane B — FIXED 2026-10-12
+A user who signed in without granting Gmail had no `user_profile` row, which every settings table
+points at. Every sign-in now creates the profile (`connections.remember_profile`). Someone who
+signed in that way before the fix needs to sign in once more.
+
+### Dismiss and "Not now" wrote no audit row — Lane B — FIXED 2026-10-12
+`email_dismissed` (with `dismissed: true|false`) and `waiting_dismissed` are audited, like snoozing.
+
+### The dataset generator could overwrite the human-audited gold set — Lane B — FIXED 2026-10-12
+`generate_category_dataset.py` stops before any model call when `train.csv`, `holdout_gold.csv` or
+`holdout_audit.csv` exists, unless run with `--force`. It also no longer loads `.env` when imported.
 
 ### Private mode did not cover unowned rows before the original owner connected — Lane B — FIXED 2026-10-12
 The original `token.json` mailbox and its unowned rows were retired (`app/core/mailbox.py` removed);

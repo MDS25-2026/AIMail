@@ -64,7 +64,7 @@ mailbox. `listener/token.json`, if present, only signs the listener in to Pub/Su
 (see [`listener/README.md`](listener/README.md)).
 
 **Create the tables** (needs `DATABASE_URL`): `make migrate` applies the pending migrations in
-`backend/app/db/migrations/` (42 today) in order and records each in `schema_migrations`.
+`backend/app/db/migrations/` (43 today) in order and records each in `schema_migrations`.
 
 **Start everything:** `make dev` (runs [`dev.sh`](dev.sh)) starts, in one terminal:
 
