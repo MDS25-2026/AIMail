@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import pytest
 
+import model_gateway
 from app.core.ownership import Scope
 from app.core.providers import Provider
 from app.rag import ingest
@@ -72,3 +73,36 @@ def test_a_long_document_is_embedded_in_batches(pipeline):
     pipeline["pieces"] = [Piece(f"Clause {i}.") for i in range(ingest.EMBED_BATCH + 5)]
     _ingest()
     assert pipeline["embedded"] == [ingest.EMBED_BATCH, 5]
+
+
+@pytest.fixture
+def receipts(pipeline, monkeypatch):
+    saved = []
+
+    async def embed(texts, *, provider, purpose):
+        tracking = model_gateway._egress.get()
+        if tracking is not None:
+            tracking.append(model_gateway.Egress(purpose=purpose, provider=provider, chars=1, sha256="x",
+                                                 hidden={}, caught=0))
+        if pipeline.get("fail"):
+            raise EmbeddingError("quota")
+        return [[0.0] for _ in texts]
+
+    async def save(records, *, user_id, message_id):
+        saved.append((len(records), user_id, message_id))
+
+    monkeypatch.setattr(ingest.model_gateway, "embed_documents", embed)
+    monkeypatch.setattr(ingest, "save_egress", save)
+    return saved
+
+
+def test_indexing_a_document_is_on_its_owners_privacy_receipt(receipts):
+    _ingest()
+    assert receipts == [(1, OWNER, None)]
+
+
+def test_a_failed_indexing_still_records_what_was_sent(pipeline, receipts):
+    pipeline["fail"] = True
+    with pytest.raises(EmbeddingError):
+        _ingest()
+    assert receipts == [(1, OWNER, None)]
