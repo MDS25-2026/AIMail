@@ -29,14 +29,15 @@ _HAN_SURNAMES = (
     "游彭胡施沈余卢盧梁赵趙颜顏柯翁魏孙孫戴范方宋邓鄧杜傅侯曹薛丁卓阮马馬董温溫唐蓝藍石蒋蔣古纪紀姚连連"
     "冯馮欧歐程汤湯田康姜白汪邹鄒尤巫黎涂龚龔严嚴韩韓袁金童陆陸夏柳邵钱錢伍"
 )
-_HAN_ADDRESS = "先生|小姐|女士|太太|夫人|老师|老師|医生|醫生|经理|經理|主任|博士|同学|同學|律师|律師|总|總"
+_HAN_ADDRESS = "先生|小姐|女士|太太|夫人|老师|老師|医生|醫生|经理|經理|主任|博士|同学|同學|律师|律師"
 
 _PATTERNS = (
     re.compile(rf"(?:{_CAP}\s+){{0,2}}{_CAP}\s+{_CONNECTOR}\s+{_CAPS}"),
     re.compile(rf"(?<!\w)(?:{_LINEAGE})\s+{_CAPS}"),
     re.compile(rf"(?<!\w)(?:{_GIVEN_LEADS})\s+{_CAPS}"),
     re.compile(rf"(?<!\w)(?:{_CHINESE_SURNAMES})(?!\s+Sri\b)\s+{_CAP}(?:\s+{_CAP})?"),
-    re.compile(r"(?<![\w.])(?:[A-Z]\.\s?){1,2}[A-Z][a-z]{2,}"),
+    # Initials, but not the ones that are times or places ("10 A.M. Monday", "U.S. Bank").
+    re.compile(r"(?<![\w.])(?!(?:A\.\s?M|P\.\s?M|U\.\s?S|U\.\s?K)\.)(?:[A-Z]\.\s?){1,2}[A-Z][a-z]{2,}"),
 )
 _TITLED = re.compile(rf"(?<!\w)(?:{_TITLES})\s+({_CAPS})")
 _HAN_NAME = re.compile(rf"[{_HAN_SURNAMES}][一-鿿]{{0,2}}?(?={_HAN_ADDRESS})")

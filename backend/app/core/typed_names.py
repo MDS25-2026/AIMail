@@ -8,6 +8,7 @@ know are left. The caller puts the names back into whatever the model returns be
 import re
 
 from app.core.name_patterns import find_name_patterns
+from app.core.typed_text import whole_words
 from app.rag.mask import find_people
 
 # Past any thread's own numbers, below the owner's and the sender's fixed 900 and 901.
@@ -17,15 +18,6 @@ LAST_TYPED_NUMBER = 899
 OVERFLOW_MARKER = "[Redacted]"
 
 AgentValue = str | int | float | bool | None | list["AgentValue"] | dict[str, "AgentValue"]
-
-
-_HAN = re.compile(r"[\u4e00-\u9fff]")
-
-
-def _whole_words(name: str) -> re.Pattern[str]:
-    words = r"\s+".join(map(re.escape, name.split()))
-    # Chinese has no spaces between words, so a name written in characters is matched as it stands.
-    return re.compile(words if _HAN.search(name) else rf"(?<!\w){words}(?!\w)", re.IGNORECASE)
 
 
 class TypedNames:
@@ -40,7 +32,7 @@ class TypedNames:
         found = {name.strip() for name in [*await find_people(text), *find_name_patterns(text)] if name.strip()}
         # Longest first, so "Aisyah binti Ali" is one name before "Ali" can match inside it.
         for name in sorted(found, key=len, reverse=True):
-            text = _whole_words(name).sub(self._placeholder(name), text)
+            text = re.sub(whole_words(name), self._placeholder(name), text, flags=re.IGNORECASE)
         return text
 
     def restore(self, text: str) -> str:

@@ -18,7 +18,7 @@ from uuid import UUID
 from app.core import sealed_box
 from app.core.config import get_settings
 from app.core.redaction import PLACEHOLDER
-from app.core.typed_text import mask_typed_text
+from app.core.typed_text import mask_typed_text, whole_words
 
 logger = logging.getLogger(__name__)
 
@@ -166,8 +166,7 @@ class ThreadMap:
         for placeholder, value in known:
             kind = DetailKind(PLACEHOLDER.fullmatch(placeholder).group(1))
             flags = re.IGNORECASE if kind in _WORDLIKE else 0
-            pattern = r"(?<!\w)" + r"\s+".join(map(re.escape, value.split())) + r"(?!\w)"
-            text = re.sub(pattern, placeholder, text, flags=flags)
+            text = re.sub(whole_words(value), placeholder, text, flags=flags)
         return text
 
     def for_model(self, typed: str) -> str:

@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -93,6 +94,37 @@ def test_a_refine_sends_a_new_typed_name_as_a_placeholder_and_stores_it_back(mai
                                        scope=EVERYTHING))
     assert NEW_NAME not in mailbox["payloads"][0] and "[PERSON_800]" in mailbox["payloads"][0]
     assert message.draft_reply == f"Dear [PERSON_1], I have copied {NEW_NAME}."
+
+
+def test_a_name_put_back_into_stored_action_items_is_hidden_again_on_the_next_refine(mailbox, monkeypatch):  # noqa: F811
+    _finds(monkeypatch, NEW_NAME)
+    mailbox["message"].action_items = [f"Call {NEW_NAME} back"]
+    asyncio.run(dashboard.refine_email(str(mailbox["message"].id), "Shorter", "Dear [PERSON_1],", scope=EVERYTHING))
+    payload = json.loads(mailbox["payloads"][0])
+    assert NEW_NAME not in mailbox["payloads"][0] and payload["action_items"] == ["Call [PERSON_800] back"]
+
+
+def test_a_template_variable_is_never_touched_by_the_name_check(monkeypatch):
+    _finds(monkeypatch, "Customer Name", NEW_NAME)
+    sent = []
+
+    async def call_agent(path, request, _answer=None):
+        sent.append(request.text)
+        return {"language": "ms", "text": request.text.replace("Dear", "Kepada"), "egress": []}
+
+    async def nothing(*_args, **_kwargs):
+        return None
+
+    async def gemini(_user_id):
+        return "gemini"
+
+    monkeypatch.setattr(dashboard, "_call_agent", call_agent)
+    monkeypatch.setattr(dashboard, "save_egress", nothing)
+    monkeypatch.setattr(dashboard, "provider_for", gemini)
+    template = SimpleNamespace(body=f"Dear {{{{Customer Name}}}}, {NEW_NAME} will call.", user_id=None, language="en")
+    translated = asyncio.run(dashboard.translate_template(template, dashboard.Language.MS))
+    assert NEW_NAME not in sent[0] and "Customer Name" not in sent[0]
+    assert translated == f"Kepada {{{{Customer Name}}}}, {NEW_NAME} will call."
 
 
 def test_a_reply_refined_with_a_new_name_still_sends_with_that_name(mailbox, monkeypatch):  # noqa: F811

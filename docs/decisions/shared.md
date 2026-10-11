@@ -6,6 +6,19 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-12 — Typed names are hidden; the agent's refusals carry egress records
+- Decision: a name typed into Refine, Search, Ask AIMail, the inbox assistant or template
+  translation becomes a `[PERSON_800+]` placeholder for that request only (Presidio plus Malaysian
+  name rules) and goes back into the answer; the request is refused if Presidio is down. This
+  replaces the 2026-10-04 choice that "names stay". The agent's error detail changes from a code
+  string to `{"code", "egress"}` so the backend can record prompts sent before a failure.
+- Why: the privacy notice could not honestly say typed text is masked, and the receipt
+  under-reported failed calls.
+- Affects: Lane C (`email_agent.py` `_unavailable`; Hanif to review), Lane B (`app/dashboard.py`,
+  `app/main.py`, `app/inbox_search.py`, `app/core/typed_names.py`, `app/core/name_patterns.py`),
+  the dashboard's `masking_unavailable` wording, `specs/features/privacy-gaps.md`.
+- Status: implemented by veyroxie, 2026-10-12 (PR #215).
+
 ### 2026-10-11 — Review reasons travel as codes from the agent
 - Decision: `email_agent.py` emits a `ReviewCode` with each review reason (`review_codes`), beside
   the unchanged text. The dashboard words the codes in each language; drafts stored before this

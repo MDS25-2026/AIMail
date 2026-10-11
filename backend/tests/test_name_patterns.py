@@ -36,6 +36,10 @@ def test_a_malaysian_name_is_found(text, name):
     "Send it to the Maybank branch in Kuala Lumpur.",
     "The refund of RM 450 is approved for Friday.",
     "Please confirm the meeting time.",
+    "Move it to 10 A.M. Monday.",
+    "Call at 5 P.M. Friday.",
+    "The U.S. Bank wire arrived.",
+    "黄金总额已经确认。",
 ])
 def test_ordinary_text_has_no_name(text):
     assert find_name_patterns(text) == []

@@ -65,6 +65,11 @@ send is the backend calling the Gmail API directly, with the owner's own Google 
   Gemini), caches + pre-generates drafts, exposes REST for the dashboard, and sends approved
   replies via the Gmail API. Background jobs (drafting, embedding, holding replies, scheduled
   sends, retention, send reconciliation) run in a separate worker process, `python -m app.worker`.
+  - **Masking what people type:** uploaded documents, and text typed into Refine, Search, Ask
+    AIMail, the inbox assistant and template translation, go through Presidio before any model
+    sees them; names typed become placeholders for that request only. The backend refuses rather
+    than send unmasked text, so it needs Presidio reachable too, not only the listener
+    ([`features/privacy-gaps.md`](features/privacy-gaps.md)).
   - **Per-user mailboxes:** every email and document query is scoped to its owner
     (`backend/app/core/ownership.py`; [`features/per-user-mailboxes.md`](features/per-user-mailboxes.md)).
   - **Private mode:** a user's emails are drafted, refined and translated by the company's local

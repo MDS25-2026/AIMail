@@ -15,6 +15,8 @@ them fill in a detail the AI never saw without leaving the draft.
   - "What stayed with you": each placeholder and its real value, from the sealed vault
     (restorable-masking.md). With "Hide details" on, values show as their kind only;
   - a line saying the thread, policy passages and writing style go the same way, masked.
+  - Each model call's egress record (`model_egress`) is kept even when the call failed after its
+    prompt left (2026-10-12, `privacy-gaps.md`).
 - **Hidden-detail chips:** under the draft, one chip per detail that will not be filled in at
   send: a redaction marker (`[Redacted]`, `(hidden)`, `(name)`) or a placeholder with no known
   value. Tapping one explains it and takes the real value, which replaces that one spot.

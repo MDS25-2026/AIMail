@@ -107,6 +107,16 @@ def _mask_email_match(match: re.Match[str], *, preserve_business: bool = False) 
     return "[EMAIL_REDACTED]"
 
 
+_HAN = re.compile(r"[\u4e00-\u9fff]")
+
+
+def whole_words(value: str) -> str:
+    """A pattern for the value as whole words, any run of spaces between them. Chinese has no spaces
+    between words, so a value written in characters is matched wherever it stands."""
+    words = r"\s+".join(map(re.escape, value.split()))
+    return words if _HAN.search(value) else rf"(?<!\w){words}(?!\w)"
+
+
 def mask_typed_text(text: str, *, preserve_business_emails: bool = False) -> str:
     """Strip link queries; replace emails, ICs, passports, card and phone numbers; leave everything else."""
     text = strip_link_queries(text)

@@ -892,7 +892,8 @@ async def _refine(
         tone=TONE_PROMPTS[tone],
         thread_context=await names.hide(thread_context(message, thread, details)),
         rag_context=_stored_rag_context(message),
-        action_items=message.action_items or [],
+        # Stored with any typed name put back, so hidden again before it leaves.
+        action_items=[await names.hide(item) for item in message.action_items or []],
         sign_off=details.owner or "",
         provider=await provider_for(message.user_id),
         **await _style_fields(message),
@@ -1055,7 +1056,9 @@ async def translate_template(template: ReplyTemplate, language: Language) -> str
     marker the user retypes, and a name goes back in after translation.
     """
     names = TypedNames()
-    protected, variables = protect_variables(await names.hide(mask_typed_text(template.body)))
+    # Variables first, so a name check can never touch the inside of a {{variable}}.
+    protected, variables = protect_variables(mask_typed_text(template.body))
+    protected = await names.hide(protected)
     if len(protected) > MAX_TRANSLATE_CHARS:
         raise TranslationError(ErrorCode.TOO_LARGE, "template too long to translate")
     try:

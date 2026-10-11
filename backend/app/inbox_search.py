@@ -265,7 +265,9 @@ async def search_messages_hybrid(
     )
 
     search_query = names.restore(search_query)
-    cleaned_words = extract_sender_candidates(search_query)
+    # The typed names too: a rewritten follow-up may not carry their placeholders back intact.
+    typed = " ".join(names.names.values())
+    cleaned_words = list(dict.fromkeys([*extract_sender_candidates(search_query), *extract_sender_candidates(typed)]))
 
     async with get_sessionmaker()() as session:
         # 1. Full-Text Search (Keyword Rank)

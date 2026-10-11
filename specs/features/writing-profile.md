@@ -37,7 +37,8 @@ One "Your writing style" card in Settings with three independent parts. Any mix 
   email and the reply as one searchable item, so a later draft for a similar email can see how the
   user answered before. It is found by the same search as documents (Gemini vectors normally,
   local ones in Private mode) and shown in the draft's sources as "Your earlier reply". Only sends
-  made while the switch is on are stored. It never appears in the document library.
+  made while the switch is on are stored. It never appears in the document library. Each one is
+  deleted 365 days after it was stored (`app/retention.py`, 2026-10-12).
 - **Masked before storage:** every description, example and learned habit is masked before it is
   stored, and only the masked text is kept. The card shows exactly that text ("What the AI sees").
 

@@ -83,7 +83,7 @@ Migrations are plain SQL in `backend/app/db/migrations/`, applied by `scripts/mi
 |---------|----------|---------------|
 | Google Gemini | agent stages (default `gemini-3.5-flash-lite`, optional fallback), embeddings (`gemini-embedding-001`), `/ask` (`gemini-2.5-flash`) | `GEMINI_AGENT_MODEL`, `GEMINI_FALLBACK_MODEL`, `GEMINI_CHAT_MODEL`; constants in `backend/gemini_client.py` and `backend/app/core/constants.py` |
 | Ollama (Private mode) | local drafting, embeddings and scan checks on the company's machine | `LOCAL_LLM_URL`, `LOCAL_LLM_MODEL`, `LOCAL_EMBEDDING_MODEL`, `LOCAL_VISION_MODEL`; no model is set by default ([`../features/local-model.md`](../features/local-model.md)) |
-| Microsoft Presidio | NER masking in the listener; the agent's draft PII scan | analyzer :5001, anonymizer :5002, digest-pinned in [`docker-compose.yml`](../../docker-compose.yml) |
+| Microsoft Presidio | NER masking in the listener; the backend's document masking and typed-name check; the agent's draft PII scan | analyzer :5001, anonymizer :5002, digest-pinned in [`docker-compose.yml`](../../docker-compose.yml) |
 
 Orchestration is direct HTTP calls with `asyncio` fan-out; no LangChain or LangGraph
 ([`../../docs/adr/0002-orchestration-framework.md`](../../docs/adr/0002-orchestration-framework.md)).
