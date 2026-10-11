@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     environment: Environment = Environment.DEV
     # Needed by the backend and scripts, not the agent; checked where the engine is created.
     database_url: str = ""
+    # scripts/backup.py: where dumps go (outside the repo) and how many are kept.
+    backup_dir: str = "~/aimail-backups"
+    backup_keep: int = 7
     # One Google AI key for everything: the backend's embeddings and the agent's drafting.
     google_api_key: str = ""
     # The agent (:8001) accepts only requests carrying this; empty means loopback-only dev use.
