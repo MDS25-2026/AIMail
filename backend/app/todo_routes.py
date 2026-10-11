@@ -40,22 +40,28 @@ async def get_todo(request: Request) -> Todo:
              dependencies=[Depends(require_mailbox)])
 async def dismiss(message_id: UUID, request: Request) -> None:
     """No reply needed: out of the to-do lists, still in the inbox."""
-    if not await dismiss_email(scope_of(request), message_id, is_dismissed=True):
+    scope = scope_of(request)
+    if not await dismiss_email(scope, message_id, is_dismissed=True):
         raise DomainError(ErrorCode.NOT_FOUND)
+    await audit(AuditAction.EMAIL_DISMISSED, user_id=scope.owner_id, message=message_id, dismissed=True)
 
 
 @router.delete("/emails/{message_id}/dismiss", status_code=status.HTTP_204_NO_CONTENT,
                dependencies=[Depends(require_mailbox)])
 async def undismiss(message_id: UUID, request: Request) -> None:
-    if not await dismiss_email(scope_of(request), message_id, is_dismissed=False):
+    scope = scope_of(request)
+    if not await dismiss_email(scope, message_id, is_dismissed=False):
         raise DomainError(ErrorCode.NOT_FOUND)
+    await audit(AuditAction.EMAIL_DISMISSED, user_id=scope.owner_id, message=message_id, dismissed=False)
 
 
 @router.post("/todo/waiting/{sent_id}/dismiss", status_code=status.HTTP_204_NO_CONTENT,
              dependencies=[Depends(require_mailbox)])
 async def not_waiting(sent_id: UUID, request: Request) -> None:
-    if not await dismiss_waiting(scope_of(request), sent_id):
+    scope = scope_of(request)
+    if not await dismiss_waiting(scope, sent_id):
         raise DomainError(ErrorCode.NOT_FOUND)
+    await audit(AuditAction.WAITING_DISMISSED, user_id=scope.owner_id, sent=sent_id)
 
 
 @router.post("/todo/waiting/{sent_id}/follow-up",

@@ -26,6 +26,8 @@ const NAMED_ACTIONS = [
   "send_scheduled",
   "scheduled_send_cancelled",
   "email_snoozed",
+  "email_dismissed",
+  "waiting_dismissed",
   "quiet_hours",
   "todo_settings",
   "holding_reply_settings",

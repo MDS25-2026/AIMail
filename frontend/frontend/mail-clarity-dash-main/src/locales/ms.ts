@@ -861,6 +861,8 @@ export const ms: Translations = {
       send_scheduled: "Balasan dijadualkan",
       scheduled_send_cancelled: "Balasan berjadual dibatalkan",
       email_snoozed: "E-mel ditunda",
+      email_dismissed: "E-mel ditanda tidak perlu dibalas",
+      waiting_dismissed: "Berhenti menunggu balasan",
       quiet_hours: "Waktu senyap ditukar",
       todo_settings: "Tetapan tugasan ditukar",
       holding_reply_settings: "Tetapan balasan sementara ditukar",
