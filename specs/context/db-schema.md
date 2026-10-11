@@ -83,8 +83,10 @@ policies.
   mailbox). The global `messages_gmail_message_id_key` stays until every listener upserts on the
   new key; step 5 drops it.
 - Index `messages_user_created_idx (user_id, created_at DESC)` serves each user's inbox.
-- **NULL owner** means the original single mailbox (`app/core/mailbox.py`). Those rows are visible
-  only to that mailbox's account, and move to it (`user_id` set) when it connects with Google.
+- **NULL owner** was the original single mailbox, retired 2026-10-12 once every row had an owner.
+  A row with no owner is now visible only to a script holding the shared token; no user sees it.
+  `audit_log`, `model_egress` (script searches) and the company-default `quiet_hours` row still
+  have NULL owners on purpose.
 
 ### Restorable masking: messages.pii_vault (migration 0018)
 
@@ -240,6 +242,7 @@ lowercased.
 - [x] `messages.sender_utc_offset_minutes` (from the sender's Date header) and `messages.snoozed_until`; `quiet_hours` (the row with no user is the company default, one row per user overrides it; RLS on); `scheduled_send` (`message_id`, `user_id`, masked `draft`, `send_at`, `sent_at`, `cancelled_reason`; one waiting row per email; RLS on) ([`../features/quiet-hours-send-later.md`](../features/quiet-hours-send-later.md), migration 0039).
 - [x] `sent_message` (the user's sent replies, masked, no recipient address; unique `gmail_id` and `message_id`; RLS on; deleted after 90 days), `messages.dismissed_at`, `user_preferences.waiting_days` ([`../features/todo-page.md`](../features/todo-page.md), migration 0040).
 - [x] `sent_message.followed_up_at` — the send claim for a follow-up to that reply ([`../features/todo-page.md`](../features/todo-page.md), migration 0042).
+- [x] `sent_message.follow_up_outcome_unknown_at` — set when Gmail's answer to a follow-up was lost; the reconciler asks Gmail and releases the claim if it never went (`backend/app/send_reconciler.py`, migration 0043).
 - [x] `reply_template` — `id`, `user_id` (FK, cascade), `title`, `body`, `language` (en/ms/zh), `trigger_keywords text[]`, `last_used_at`, `created_at`, `updated_at`; RLS on; erased with the account ([`../features/reply-templates.md`](../features/reply-templates.md), migration 0038).
 - [x] `user_preferences.scan_reading` — `local` (default) or `checked`: whether scanned attachment images may reach Gemini after the local vision check ([`../features/signature-detection.md`](../features/signature-detection.md), migration 0036).
 - [x] `messages.auth_status` (`pass` / `spoof_detected` / `sender_confirmed`), and on `audit_log`: `user_id` (FK, set null), `prev_hash`, `current_hash`, `chain_seq` (unique), filled by the `trg_compute_audit_hash` trigger with `audit_row_hash()` ([`../features/sender-verification-and-audit.md`](../features/sender-verification-and-audit.md), migration 0024, replacing PR #161's 0019/0020).

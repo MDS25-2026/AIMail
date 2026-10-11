@@ -835,6 +835,8 @@ export const en = {
       send_scheduled: "Reply scheduled",
       scheduled_send_cancelled: "Scheduled reply cancelled",
       email_snoozed: "Email snoozed",
+      email_dismissed: "Email marked as no reply needed",
+      waiting_dismissed: "Stopped waiting for a reply",
       quiet_hours: "Quiet hours changed",
       todo_settings: "To-do settings changed",
       holding_reply_settings: "Holding reply settings changed",

@@ -71,8 +71,9 @@ It checks that every auditor's rows are complete, computes pairwise Cohen's kapp
 calibration rows, and writes the reconciled labels.
 
 **Do not rerun `scripts/generate_category_dataset.py`** to reproduce a figure. It asks Gemini for
-new emails and overwrites `train.csv`, `holdout_gold.csv` and `holdout_audit.csv`, replacing the
-human audit with an unaudited sheet. It is the record of how the data was made, not a step in
+new emails and would overwrite `train.csv`, `holdout_gold.csv` and `holdout_audit.csv`, replacing the
+human audit with an unaudited sheet; since 2026-10-12 it refuses while any of them exists, unless
+given `--force` (use `--out-dir` for a separate set). It is the record of how the data was made, not a step in
 reproducing the results; Gemini's output is not deterministic.
 
 ## 2. Priority classifier (LOW / MEDIUM / HIGH)
@@ -174,18 +175,18 @@ rate falls below 0.9. It runs in `make check`.
 **Live rerun:**
 
 ```bash
-# ingest the corpus; scripts/ingest.py stores it unowned
-../.venv/bin/python scripts/ingest.py data/policies/hlib-code-of-conduct.pdf "HLIB Code of Conduct and Ethics"
-../.venv/bin/python scripts/ingest.py data/policies/genting-code-of-conduct.pdf "Genting Malaysia Code of Conduct and Ethics"
-# report at the recorded cutoff (omit --owner to search unowned documents)
-../.venv/bin/python scripts/eval_retrieval.py --set eval/retrieval/v0.json
+# ingest the corpus into one account (a signed-in user's email)
+../.venv/bin/python scripts/ingest.py data/policies/hlib-code-of-conduct.pdf --owner you@example.com --title "HLIB Code of Conduct and Ethics"
+../.venv/bin/python scripts/ingest.py data/policies/genting-code-of-conduct.pdf --owner you@example.com --title "Genting Malaysia Code of Conduct and Ethics"
+# report at the recorded cutoff, searching that account's documents
+../.venv/bin/python scripts/eval_retrieval.py --owner you@example.com --set eval/retrieval/v0.json
 # v1 needs the Lumora handbook ingested instead (not in the repo, see above)
-../.venv/bin/python scripts/ingest.py "<path>/Lumora Works Employee Handbook 2026.pdf" "Lumora Works Employee Handbook 2026"
-../.venv/bin/python scripts/eval_retrieval.py --set eval/retrieval/v1.json --provider local
+../.venv/bin/python scripts/ingest.py "<path>/Lumora Works Employee Handbook 2026.pdf" --owner you@example.com --title "Lumora Works Employee Handbook 2026"
+../.venv/bin/python scripts/eval_retrieval.py --owner you@example.com --set eval/retrieval/v1.json --provider local
 ```
 
-Use `--owner <uuid>` when the corpus was uploaded through the dashboard by a signed-in user, since
-`ingest.py` stores documents without an owner. `--provider local` needs `LOCAL_EMBEDDING_MODEL` on
+`--owner` is the sign-in email of the account that holds the corpus, whether it was ingested with
+`ingest.py` or uploaded through the dashboard (`make eval OWNER=you@example.com` does the same). `--provider local` needs `LOCAL_EMBEDDING_MODEL` on
 Ollama. `--reformulate` measures query reformulation.
 
 `--calibrate` (or `make calibrate`) **overwrites the tracked** `eval/retrieval/<set>.<provider>.scores.json`

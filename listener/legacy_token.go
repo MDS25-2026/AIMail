@@ -1,7 +1,8 @@
 package main
 
-// The original token.json mailbox (per-user-mailboxes.md). It is optional: connected users need
-// neither file, so a service started without them, or with no terminal to sign in on, runs without it.
+// The token.json account, kept only to sign the listener in to Pub/Sub on a developer's machine. Its
+// mailbox is no longer watched (retired 2026-10-12, per-user-mailboxes.md): every mailbox is a
+// connected user's. Without the file, Pub/Sub uses Application Default Credentials instead.
 
 import (
 	"context"
@@ -30,12 +31,12 @@ var errNoTerminal = errors.New("no token.json and no terminal to sign in on")
 func legacyTokenSource(ctx context.Context) oauth2.TokenSource {
 	config, err := legacyOAuthConfig()
 	if err != nil {
-		log.Printf("token.json mailbox skipped: %v", err)
+		log.Printf("no token.json for Pub/Sub: %v", err)
 		return nil
 	}
 	tok, err := legacyToken(ctx, config)
 	if err != nil {
-		log.Printf("token.json mailbox skipped: %v", err)
+		log.Printf("no token.json for Pub/Sub: %v", err)
 		return nil
 	}
 	return config.TokenSource(ctx, tok)
@@ -126,17 +127,4 @@ func pubsubOptions(legacy oauth2.TokenSource) []option.ClientOption {
 		return nil
 	}
 	return []option.ClientOption{option.WithTokenSource(legacy)}
-}
-
-// startLegacyMailbox watches the token.json mailbox when this run has its token.
-func startLegacyMailbox(ctx context.Context, legacy oauth2.TokenSource) {
-	if legacy == nil {
-		return
-	}
-	srv, err := gmail.NewService(ctx, option.WithTokenSource(legacy))
-	if err != nil {
-		log.Printf("token.json mailbox not started: %v", err)
-		return
-	}
-	startTokenFileMailbox(ctx, srv)
 }

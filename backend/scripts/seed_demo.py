@@ -2,11 +2,12 @@
 
 Usage (from backend/, needs a live DB + GOOGLE_API_KEY):
 
-    python scripts/seed_demo.py
+    python scripts/seed_demo.py --owner you@example.com
 
 Idempotent: replaces the demo document on re-run. Sample text only, no real PII.
 """
 
+import argparse
 import asyncio
 import sys
 from pathlib import Path
@@ -16,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from sqlalchemy import select
 
 from app.core.constants import EMBEDDING_TAG
+from app.core.ownership import scope_of_email
 from app.db.models import Chunk, Document, Embedding
 from app.db.session import get_sessionmaker
 from app.rag.chunk import estimate_tokens
@@ -50,15 +52,21 @@ _SNIPPETS = [
 ]
 
 
-async def main() -> None:
+async def main(owner: str) -> None:
+    try:
+        scope = await scope_of_email(owner)
+    except LookupError as exc:
+        raise SystemExit(str(exc)) from exc
     vectors = await embed_documents(_SNIPPETS)
     sessionmaker = get_sessionmaker()
     async with sessionmaker() as session, session.begin():
-        existing = await session.scalar(select(Document).where(Document.source == _SOURCE))
+        existing = await session.scalar(select(Document).where(Document.source == _SOURCE,
+                                                               scope.where(Document.user_id)))
         if existing:
             await session.delete(existing)
             await session.flush()
-        document = Document(source=_SOURCE, title="Employee Handbook (demo)", doc_type="policy")
+        document = Document(source=_SOURCE, title="Employee Handbook (demo)", doc_type="policy",
+                            user_id=scope.owner_id)
         session.add(document)
         await session.flush()
         for idx, (text, vector) in enumerate(zip(_SNIPPETS, vectors, strict=True)):
@@ -68,8 +76,10 @@ async def main() -> None:
             session.add(chunk)
             await session.flush()
             session.add(Embedding(chunk_id=chunk.id, embedding=vector, model_name=EMBEDDING_TAG))
-    print(f"seeded {len(_SNIPPETS)} policy chunks under {_SOURCE}")
+    print(f"seeded {len(_SNIPPETS)} policy chunks under {_SOURCE} for {owner}")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--owner", required=True, help="sign-in email of the account the handbook belongs to")
+    asyncio.run(main(parser.parse_args().owner))

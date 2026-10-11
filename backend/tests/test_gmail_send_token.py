@@ -6,11 +6,14 @@ hour, so the refresh belongs behind a cache — provided a revoked token still r
 """
 
 import asyncio
+from uuid import UUID
 
 import httpx
 import pytest
 
 from app import gmail_send
+
+OWNER = UUID("aaaaaaaa-0000-4000-8000-000000000001")
 
 
 @pytest.fixture(autouse=True)
@@ -22,11 +25,10 @@ def _clear_cache():
 
 @pytest.fixture
 def fake_creds(monkeypatch):
-    monkeypatch.setattr(
-        gmail_send,
-        "_load_creds",
-        lambda: ({"client_id": "id", "client_secret": "secret"}, {"refresh_token": "refresh"}),
-    )
+    async def grant(_owner_id):
+        return {"client_id": "id", "client_secret": "secret", "refresh_token": "refresh"}
+
+    monkeypatch.setattr(gmail_send, "_refresh_grant", grant)
 
 
 def _client(handler: httpx.MockTransport) -> httpx.AsyncClient:
@@ -42,7 +44,7 @@ def test_the_token_is_fetched_once_and_reused(fake_creds):
 
     async def run() -> tuple[str, str]:
         async with _client(httpx.MockTransport(handle)) as client:
-            return await gmail_send._access_token(client, None), await gmail_send._access_token(client, None)
+            return await gmail_send._access_token(client, OWNER), await gmail_send._access_token(client, OWNER)
 
     first, second = asyncio.run(run())
 
@@ -59,9 +61,9 @@ def test_an_expired_token_is_refreshed(fake_creds):
 
     async def run() -> None:
         async with _client(httpx.MockTransport(handle)) as client:
-            await gmail_send._access_token(client, None)
+            await gmail_send._access_token(client, OWNER)
             # expires_in of 1s is inside the safety margin, so this must not reuse it.
-            await gmail_send._access_token(client, None)
+            await gmail_send._access_token(client, OWNER)
 
     asyncio.run(run())
 
@@ -88,6 +90,6 @@ def test_a_revoked_token_costs_one_retry_not_every_send(fake_creds, monkeypatch)
         gmail_send.httpx, "AsyncClient", lambda **kw: real_client(transport=transport)
     )
 
-    asyncio.run(gmail_send.send_reply(None, "a@b.com", "Subject", "Body", owner_id=None))
+    asyncio.run(gmail_send.send_reply(None, "a@b.com", "Subject", "Body", owner_id=OWNER))
 
     assert len([p for p in seen if p.endswith("/send")]) == 2, "should retry exactly once"

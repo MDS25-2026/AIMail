@@ -44,8 +44,9 @@ Do this before any containment step that deletes data.
      rebuilt.
 2. **Never run `scripts/simulate_tamper.py` during an incident.** It disables the append-only
    trigger and edits a row to test the check; on a live system it destroys evidence.
-3. **Take a database snapshot** before changing anything: a Supabase backup or a `pg_dump` of the
-   affected tables, stored encrypted and access-limited. Note where it is in the register.
+3. **Take a database snapshot** before changing anything: `make backup` (a `pg_dump` of the public
+   schema into `BACKUP_DIR`, private to the user who runs it), or a Supabase backup. Copy it out of the
+   rotation folder first, or a later run will prune it. Note where it is in the register.
 4. **Keep the logs** of the backend, the agent and the listener for the period in question.
 5. **Query, do not change.** Useful read-only sources:
    - `audit_log`: who did what and when (`action`, `detail`, `user_id`, `created_at`).
@@ -122,12 +123,13 @@ Work out, and write in the register:
    with a `user_id` as either erased or retained, and `backend/tests/test_erasure.py` fails if a new
    owned table is in neither list. `audit_log` is retained on purpose: its rows keep an opaque user
    id and, since 2026-10-08, structured fields with no address or body; older rows are free text.
-   Erasure matches rows by `user_id`, so unowned rows (`user_id` NULL) from the original mailbox are
-   not erased by deleting that owner's account unless they were handed over on connect.
-2. **Backups.** The repository configures no backups; they are whatever the Supabase project
-   provides. Check the Supabase project settings for what exists and how long it is kept. Erasure
-   does not reach backups: after any restore, run the erasures again for every account deleted
-   since the backup was taken.
+   Since 2026-10-12 every email and document has an owner, so erasure reaches all of them.
+2. **Backups.** `make backup` (`backend/scripts/backup.py`) dumps the public schema with `pg_dump` 17
+   and keeps the newest `BACKUP_KEEP` (7) dumps in `BACKUP_DIR`. Nothing schedules it yet. It does not
+   include the `auth` schema (Supabase sign-in accounts), which only Supabase's own backups cover.
+   To restore: create the `vector` extension in an empty Postgres 17, then
+   `pg_restore --no-owner --no-privileges -d <database> <dump>`. Erasure does not reach a dump:
+   after any restore, run the erasures again for every account deleted since the dump was taken.
 
 ## 7. Close
 

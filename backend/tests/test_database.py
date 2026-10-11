@@ -213,11 +213,13 @@ def test_the_worker_classifies_an_email_once_and_stores_it():
 
 
 def test_a_re_upload_swaps_in_the_new_chunks_with_their_vectors_in_one_go():
-    owner = Scope(owner_id=None)
+    owner = Scope(owner_id=uuid4())
     source = f"upload://{uuid4()}.pdf"
     vector = [1.0] + [0.0] * (EMBEDDING_DIM - 1)
 
     async def upload_twice():
+        async with get_sessionmaker()() as session, session.begin():
+            session.add(UserProfile(id=owner.owner_id, email=f"{owner.owner_id}@example.com"))
         await store_chunks(source, "Leave", [Piece("Old clause.")], scope=owner, doc_type=DocType.POLICY,
                            vectors=[vector])
         await store_chunks(source, "Leave", [Piece("New clause."), Piece("Second clause.")], scope=owner,

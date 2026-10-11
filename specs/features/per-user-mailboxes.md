@@ -3,7 +3,7 @@
 - **Status:** steps 1 to 5 built 2026-10-05 (step 5, disconnect and delete account, below)
 - **Owner:** veyroxie; Lane A (JiaJun) for the listener part
 - **Related:** [ADR 0005](../../docs/adr/0005-dashboard-google-sign-in.md) "Stage 2", [google-sign-in.md](./google-sign-in.md), gap-plan epic #138
-- **Last updated:** 2026-10-05
+- **Last updated:** 2026-10-12 (`app/core/mailbox.py` retired, step 5)
 
 ## Goal
 
@@ -211,6 +211,10 @@ A code audit of every single-mailbox assumption found these, each checked in cod
    fatal. Rows carry `user_id`; duplicates are judged per mailbox (`on_conflict=user_id,gmail_message_id`).
    Interim: Pub/Sub still authenticates as the `token.json` account (finding 4).
 5. ~~Disconnect flow and its UI~~ done 2026-10-05 (see "Disconnect and delete account"; checked
-   live with throwaway accounts). Still open: backfill and delete `app/core/mailbox.py`. Also: drop the global
+   live with throwaway accounts). `app/core/mailbox.py` retired 2026-10-12, once a count showed every
+   email, document, sent reply and scheduled send had an owner: a row with no owner is now visible
+   only to a script, connecting hands nothing over, a send needs an owner, scripts name one
+   (`make ingest OWNER=<email>`), and the listener no longer watches the `token.json` mailbox (the
+   file only signs in to Pub/Sub). Also: drop the global
    `messages_gmail_message_id_key`; the admin console to counts only (finding 5, decided
    2026-10-04); fair per-user throughput (finding 7); Pub/Sub on a service account (finding 4).

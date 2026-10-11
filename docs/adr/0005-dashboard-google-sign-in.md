@@ -42,7 +42,8 @@ stays, server-side only, for scripts and tests; it is never in the browser again
   which address its own login belongs to (`app/core/mailbox.py`); a signed-in user whose verified
   email matches it sees and acts on its mail, anyone else sees an empty inbox and gets 404 for any
   email id. `MAILBOX_OWNER_EMAIL` is only a fallback if Gmail cannot be reached. Scripts using the
-  shared token see everything.
+  shared token see everything. (Update 2026-10-12: stage 1 is retired; `app/core/mailbox.py` and
+  `MAILBOX_OWNER_EMAIL` are gone, and every user connects their own Gmail as in stage 2.)
 
 ## Stage 2: each user's own Gmail
 

@@ -6,7 +6,7 @@ from uuid import uuid4
 
 from app import dashboard
 from app.db.models import Message
-from app.personalisation import Policy
+from app.personalisation import DEFAULT_POLICY, Policy
 from tests.conftest import REAL_POLICY_FOR
 
 
@@ -33,14 +33,5 @@ def test_the_detail_view_uses_the_owners_rules(test_settings, monkeypatch):
     assert asked == [owner] and policy.sender_rules == {"boss@corp.com": 2}
 
 
-def test_an_unowned_email_uses_the_original_mailboxs_rules_as_the_list_does(test_settings, monkeypatch):
-    asked = []
-
-    async def by_email(_session, email):
-        asked.append(email)
-        return Policy()
-
-    monkeypatch.setattr(dashboard, "load_policy", by_email)
-    monkeypatch.setattr(dashboard.mailbox, "owner", lambda: "owner@corp.com")
-    asyncio.run(REAL_POLICY_FOR(_message(user_id=None)))
-    assert asked == ["owner@corp.com"]
+def test_an_unowned_email_seen_by_a_script_gets_the_neutral_rules_as_the_list_does(test_settings):
+    assert asyncio.run(REAL_POLICY_FOR(_message(user_id=None))) == DEFAULT_POLICY

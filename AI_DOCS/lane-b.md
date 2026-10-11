@@ -68,7 +68,7 @@ READ    question -> [Gemini embed] -> query vector -> cosine search -> top-k pas
 ```bash
 cd backend
 ../.venv/bin/python scripts/apply_migration.py      # create tables (first run)
-../.venv/bin/python scripts/ingest.py <pdf> "Title" # ingest a policy PDF
+../.venv/bin/python scripts/ingest.py <pdf> --owner <email> --title "Title"  # ingest a policy PDF
 ../.venv/bin/uvicorn app.main:app --reload          # backend at :8000
 ../.venv/bin/pytest                                 # tests
 cd ../frontend && npm run dev                        # frontend at :3000

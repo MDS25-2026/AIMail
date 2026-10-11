@@ -40,7 +40,16 @@ def client(monkeypatch, test_settings):
                         ("TOKEN_ENCRYPTION_KEY", "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=")):
         monkeypatch.setenv(name, value)
     get_settings.cache_clear()
+    monkeypatch.setattr(connections, "remember_profile", _remembered)
+    PROFILES.clear()
     return TestClient(app)
+
+
+PROFILES: list[tuple[str, str, str]] = []
+
+
+async def _remembered(session):
+    PROFILES.append((session.user_id, session.email, session.full_name))
 
 
 def _supabase_answers(monkeypatch, body: dict):
@@ -100,6 +109,23 @@ def test_unticking_gmail_read_on_googles_screen_stores_nothing_but_still_signs_i
     assert stored == []
 
 
+def test_signing_in_without_gmail_still_creates_the_profile_settings_belong_to(client, monkeypatch, stored):
+    _supabase_answers(monkeypatch, _session())
+    _callback(client)
+    assert stored == [] and PROFILES == [(USER_ID, "new.user@gmail.com", "New User")]
+
+
+def test_a_profile_that_cannot_be_saved_never_blocks_sign_in(client, monkeypatch, caplog):
+    async def broken(_session):
+        raise connections.ConnectionStoreError("database down")
+
+    monkeypatch.setattr(connections, "remember_profile", broken)
+    _supabase_answers(monkeypatch, _session())
+    caplog.set_level("WARNING")
+    assert _callback(client).headers["location"] == "http://localhost:8090"
+    assert "could not save the profile" in caplog.text
+
+
 def test_no_refresh_token_stores_nothing_and_logs_which_fields_came_back(client, monkeypatch, stored, caplog):
     _supabase_answers(monkeypatch, _session())
     caplog.set_level("WARNING")
@@ -147,56 +173,22 @@ class _RecordingSession:
 
     async def execute(self, statement):
         self.statements.append(str(statement))
-        # The handover first asks for unowned vaults to re-seal; nothing else reads rows.
         return _Rows(self.vault_rows if str(statement).startswith("SELECT") else [])
 
 
-def _stored_statements(monkeypatch, email: str, owner: str) -> list[str]:
+def _stored_statements(monkeypatch, email: str) -> list[str]:
     session = _RecordingSession()
     monkeypatch.setattr(connections, "get_sessionmaker", lambda: lambda: session)
-    monkeypatch.setattr(connections.mailbox, "owner", lambda: owner)
     asyncio.run(connections.store_connection(USER_ID, email, "1//refresh", [GMAIL_READ], "New User"))
     return session.statements
 
 
-def test_the_original_mailbox_connecting_takes_over_its_unowned_mail_documents_and_sends(client, monkeypatch):
-    statements = _stored_statements(monkeypatch, "Owner@Gmail.com", "owner@gmail.com")
-    handed_over = {s.split()[1] for s in statements if s.startswith("UPDATE") and "user_id IS NULL" in s}
-    # Its waiting replies and held sends too; never quiet hours, whose unowned row is the company's.
-    assert handed_over == {"messages", "document", "sent_message", "scheduled_send"}
-
-
-def test_handed_over_mail_keeps_its_details_readable(client, monkeypatch):
-    from uuid import UUID
-
-    from app.core import vault
-
-    monkeypatch.setenv("PII_VAULT_KEY", "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=")
-    get_settings.cache_clear()
-    sealed = vault.seal_vault({"[PERSON_1]": "Aisyah"}, None, "gm-1")
-    session = _RecordingSession(vault_rows=[("row-1", "gm-1", sealed)])
-    updates = []
-    original = session.execute
-
-    async def execute(statement):
-        if str(statement).startswith("UPDATE messages SET pii_vault"):
-            updates.append(statement.compile().params["pii_vault"])
-        return await original(statement)
-
-    session.execute = execute
-    monkeypatch.setattr(connections, "get_sessionmaker", lambda: lambda: session)
-    monkeypatch.setattr(connections.mailbox, "owner", lambda: "owner@gmail.com")
-    asyncio.run(connections.store_connection(USER_ID, "owner@gmail.com", "1//refresh", [GMAIL_READ], ""))
-    assert len(updates) == 1
-    assert vault.open_vault(updates[0], UUID(USER_ID), "gm-1") == {"[PERSON_1]": "Aisyah"}
-
-
-def test_anyone_else_connecting_never_touches_unowned_rows(client, monkeypatch):
-    statements = _stored_statements(monkeypatch, "new.user@gmail.com", "owner@gmail.com")
-    assert not [s for s in statements if s.startswith("UPDATE")]
+def test_connecting_never_takes_over_unowned_rows_even_as_the_retired_mailboxs_address(client, monkeypatch):
+    for email in ("owner@gmail.com", "new.user@gmail.com"):
+        assert not [s for s in _stored_statements(monkeypatch, email) if s.startswith("UPDATE")]
 
 
 def test_the_google_account_name_becomes_the_profile_name_without_replacing_one_already_set(client, monkeypatch):
-    statements = _stored_statements(monkeypatch, "new.user@gmail.com", "owner@gmail.com")
+    statements = _stored_statements(monkeypatch, "new.user@gmail.com")
     profile = next(s for s in statements if "INSERT INTO user_profile" in s)
     assert "coalesce(user_profile.display_name, excluded.display_name)" in profile

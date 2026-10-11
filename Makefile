@@ -4,7 +4,7 @@
 VENV := .venv/bin
 .DEFAULT_GOAL := help
 
-.PHONY: help api-types api-types-check check go-check test lint typecheck hooks dev backend worker agent web test-reader migrate seed ingest eval eval-reform baseline backfill generate ml-deps distilbert eval-classifier label eval-critic latency extension
+.PHONY: help api-types api-types-check check go-check test lint typecheck hooks dev backend worker agent web test-reader migrate backup seed ingest eval eval-reform baseline backfill generate ml-deps distilbert eval-classifier label eval-critic latency extension
 
 help:  ## list targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  make %-12s %s\n", $$1, $$2}'
@@ -73,21 +73,24 @@ test-reader:  ## attachment reader tests, inside its image against the real OCR 
 migrate:  ## apply every pending migration in order (schema_migrations records what ran)
 	cd backend && ../$(VENV)/python scripts/migrate.py
 
-seed:  ## load sample policy chunks
-	cd backend && ../$(VENV)/python scripts/seed_demo.py
+backup:  ## dump the database to BACKUP_DIR (default ~/aimail-backups), keeping the newest BACKUP_KEEP
+	cd backend && ../$(VENV)/python scripts/backup.py
 
-ingest:  ## ingest a policy PDF: make ingest PDF=path.pdf TITLE="Name"
-	cd backend && ../$(VENV)/python scripts/ingest.py "$(PDF)" "$(TITLE)"
+seed:  ## load sample policy chunks for one account: make seed OWNER=you@example.com
+	cd backend && ../$(VENV)/python scripts/seed_demo.py --owner "$(OWNER)"
+
+ingest:  ## ingest a policy PDF for one account: make ingest PDF=path.pdf OWNER=you@example.com [TITLE="Name"]
+	cd backend && ../$(VENV)/python scripts/ingest.py "$(PDF)" --owner "$(OWNER)" --title "$(TITLE)"
 
 SET ?= eval/retrieval/v0.json
-eval:  ## retrieval eval at today's cutoff: make eval [SET=eval/retrieval/v1.json OWNER=<uuid> PROVIDER=local]
-	cd backend && ../$(VENV)/python scripts/eval_retrieval.py --set $(SET) $(if $(OWNER),--owner $(OWNER)) $(if $(PROVIDER),--provider $(PROVIDER))
+eval:  ## retrieval eval at today's cutoff: make eval OWNER=you@example.com [SET=eval/retrieval/v0.json PROVIDER=local]
+	cd backend && ../$(VENV)/python scripts/eval_retrieval.py --set $(SET) --owner "$(OWNER)" $(if $(PROVIDER),--provider $(PROVIDER))
 
 eval-reform:  ## retrieval eval with query reformulation (S5), same options as eval
-	cd backend && ../$(VENV)/python scripts/eval_retrieval.py --set $(SET) $(if $(OWNER),--owner $(OWNER)) $(if $(PROVIDER),--provider $(PROVIDER)) --reformulate
+	cd backend && ../$(VENV)/python scripts/eval_retrieval.py --set $(SET) --owner "$(OWNER)" $(if $(PROVIDER),--provider $(PROVIDER)) --reformulate
 
 calibrate:  ## re-measure the retrieval cutoff and record it, same options as eval
-	cd backend && ../$(VENV)/python scripts/eval_retrieval.py --set $(SET) $(if $(OWNER),--owner $(OWNER)) $(if $(PROVIDER),--provider $(PROVIDER)) --calibrate
+	cd backend && ../$(VENV)/python scripts/eval_retrieval.py --set $(SET) --owner "$(OWNER)" $(if $(PROVIDER),--provider $(PROVIDER)) --calibrate
 
 TEXT ?= text
 LABEL ?= label

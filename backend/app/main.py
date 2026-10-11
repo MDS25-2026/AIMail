@@ -40,7 +40,6 @@ from app.contracts import (
     DashboardEmail,
     EmailPage,
 )
-from app.core import mailbox
 from app.core.auth import (
     principal_of,
     require_auth,
@@ -71,6 +70,7 @@ from app.core.errors import (
 from app.core.health import database_answers, health_router
 from app.core.logging_setup import configure_logging
 from app.core.middleware import request_context
+from app.core.ownership import Scope
 from app.core.providers import Provider
 from app.core.ratelimit import (
     rate_limit_detail,
@@ -131,7 +131,6 @@ configure_logging()
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """The API runs no background jobs: they live in the worker (app/worker.py)."""
     await check_columns()
-    await mailbox.resolve_owner()
     yield
     await agent_client.close()
 
@@ -257,7 +256,7 @@ async def emails(request: Request, cursor: str | None = None,
     if scope is None:
         return EmailPage(emails=[])
     after = decode_cursor(cursor) if cursor else None
-    return await list_dashboard_emails(scope, principal.email or mailbox.owner(), limit, after)
+    return await list_dashboard_emails(scope, principal.email or "", limit, after)
 
 
 @app.get("/emails/{message_id}", dependencies=[Depends(rate_limit_detail), Depends(require_mailbox)])
@@ -455,11 +454,18 @@ async def get_document(document_id: UUID, request: Request) -> DocumentDetail:
     return doc
 
 
+def _owner_scope(request: Request) -> Scope:
+    """A new document needs an owner: a script holding the shared token has none (make ingest OWNER=)."""
+    scope = scope_of(request)
+    if scope.is_everything:
+        raise DomainError(ErrorCode.ACCOUNT_ONLY, "a document needs an owner; use make ingest OWNER=<email>")
+    return scope
+
+
 @app.post("/documents", dependencies=[Depends(rate_limit_ingest), Depends(require_mailbox)])
 async def add_document(request: DocumentRequest, http: Request) -> dict[str, int]:
     # Interim persist path: paste text -> chunk/embed/store.
-    count = await ingest_text(f"paste://{request.title}", request.title, request.text,
-                              scope=scope_of(http).owner_of_new_rows())
+    count = await ingest_text(f"paste://{request.title}", request.title, request.text, scope=_owner_scope(http))
     return {"chunks": count}
 
 
@@ -493,11 +499,11 @@ async def upload_document(file: UploadFile, request: Request) -> dict[str, int]:
     data = await _read_capped(file)
     if not data.startswith(PDF_MAGIC):
         raise DomainError(ErrorCode.NOT_PDF, "the .pdf extension does not match the contents")
+    scope = _owner_scope(request)  # before the costly PDF extraction
     try:
         # CPU-bound: off the event loop, so one large PDF does not stall every other request.
         text = await asyncio.to_thread(extract_pdf_bytes, data)
     except Exception as exc:
         raise DomainError(ErrorCode.UNREADABLE_PDF) from exc
-    count = await ingest_text(f"upload://{filename}", filename, text,
-                              scope=scope_of(request).owner_of_new_rows())
+    count = await ingest_text(f"upload://{filename}", filename, text, scope=scope)
     return {"chunks": count}

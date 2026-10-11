@@ -15,7 +15,7 @@ pytest                                # offline logic tests (no DB / network)
 
 # with DATABASE_URL + GOOGLE_API_KEY set in the repo-root .env:
 make migrate                          # (from repo root) create all tables
-make seed                             # load sample policy chunks
+make seed OWNER=you@example.com       # load sample policy chunks into your account
 uvicorn app.main:app --reload         # dashboard API + retrieval on http://localhost:8000
 ```
 
@@ -64,7 +64,7 @@ Defined in the repo-root [`../.env.example`](../.env.example). Expected keys:
 - `EMAIL_AGENT_URL` — where the backend calls Lane C (default `http://localhost:8001`)
 - `PRIORITY_MODEL` — `baseline` (TF-IDF) or `distilbert` (fine-tuned); selects which predictor
   `backfill_importance.py` uses
-- `MAILBOX_OWNER_EMAIL` — keys the per-user policy layer; blank falls back to neutral defaults
+- `BACKUP_DIR`, `BACKUP_KEEP` — where `make backup` writes dumps and how many it keeps
 
 ## Folder structure
 

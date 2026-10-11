@@ -102,4 +102,4 @@ make web        # :8090  dashboard
 cd listener && go run .   # Lane A (needs credentials.json + token.json + shared .env)
 ```
 
-First-time DB setup: `make migrate` then `make seed`. See the root `README.md` for details.
+First-time DB setup: `make migrate` then `make seed OWNER=<your sign-in email>`. See the root `README.md` for details.

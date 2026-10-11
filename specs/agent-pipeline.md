@@ -53,7 +53,7 @@ caller that forgets it fails instead of defaulting to the cloud.
 
 - The backend picks it per user with `provider_for`
   ([`../backend/app/private_mode.py`](../backend/app/private_mode.py)): the user's stored
-  `draft_provider`, or Gemini for rows with no owner.
+  `draft_provider`, or Gemini when the row has no owner (only a script can reach one).
 - The agent sets it once per request (`using()`), and every stage goes to the same provider.
 - `LOCAL` calls Ollama's `/api/chat` at `LOCAL_LLM_URL` (default `http://localhost:11434`) with
   `LOCAL_LLM_MODEL` ([`../backend/local_client.py`](../backend/local_client.py)). It never falls back

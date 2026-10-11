@@ -80,6 +80,7 @@ Nothing matched an email address, phone, IC or passport number.
 
 ## Not in this change
 
-- **Backups.** The database runs Postgres 17 and the installed `pg_dump` is 16, which refuses to dump
-  a newer server. A backup script needs `pg_dump` 17; waiting on the owner's choice of how to get it.
+- **Backups** were added 2026-10-12 in a follow-up: `make backup` runs `pg_dump` 17 from a pinned
+  `postgres:17` image (the installed client is 16, which refuses a newer server) and keeps the
+  newest 7 dumps outside the repo.
 - **Email content retention** stays off until hosting (`MESSAGE_CONTENT_RETENTION_DAYS`).

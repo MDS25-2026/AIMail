@@ -6,6 +6,29 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-12 — Follow-ups with a lost Gmail outcome are reconciled (migration 0043)
+- Decision: `sent_message.follow_up_outcome_unknown_at` marks a follow-up whose answer from Gmail
+  was lost; the send reconciler settles it like a reply. Additive, nullable column.
+- Why: the claim was kept for good, so a follow-up Gmail never got could not be sent again.
+- Affects: `specs/context/db-schema.md`, `backend/app/send_reconciler.py`, `backend/app/dashboard.py`.
+  Needs `make migrate` on the shared database before the worker runs this code.
+- Status: implemented by veyroxie, 2026-10-12.
+
+### 2026-10-12 — The token.json mailbox is retired; scripts name an owner
+- Decision: `app/core/mailbox.py` is removed. A row with no owner is visible only to the shared
+  script token, connecting hands nothing over, and a send needs an owner (no `token.json` fallback).
+  `POST /documents` and `/documents/upload` answer `403 account_only` for the script token;
+  `make ingest`, `make seed` and `make eval` take `OWNER=<email>`. The listener stops watching the
+  `token.json` mailbox and keeps the file only to sign in to Pub/Sub until hosting moves it to a
+  service account. `MAILBOX_OWNER_EMAIL`, `GMAIL_TOKEN_PATH` and `GMAIL_CREDENTIALS_PATH` are gone
+  from the backend.
+- Why: every email, document, sent reply and scheduled send already had an owner (counted
+  2026-10-12), and `make ingest` was filing documents where no user could see them.
+- Affects: Lane A (`listener/main.go`, `listener/legacy_token.go`; JiaJun to review), Lane B
+  (`app/core/ownership.py`, `app/connections.py`, `app/gmail_send.py`, `app/main.py`, scripts),
+  `specs/context/api-contracts.md`, `specs/context/db-schema.md`.
+- Status: implemented by veyroxie, 2026-10-12.
+
 ### 2026-10-12 — Typed names are hidden; the agent's refusals carry egress records
 - Decision: a name typed into Refine, Search, Ask AIMail, the inbox assistant or template
   translation becomes a `[PERSON_800+]` placeholder for that request only (Presidio plus Malaysian

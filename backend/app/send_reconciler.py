@@ -17,7 +17,7 @@ from sqlalchemy import Select, func, select, update
 
 from app import gmail_send
 from app.audit import AuditAction, audit
-from app.db.models import HoldingReply, Message
+from app.db.models import HoldingReply, Message, SentMessage
 from app.db.session import get_sessionmaker
 
 logger = logging.getLogger(__name__)
@@ -67,6 +67,24 @@ async def _settle_holding_reply(reply: HoldingReply, thread_id: str) -> None:
                 outcome=SENT if found else NOT_SENT)
 
 
+async def mark_follow_up_unknown(sent_id: UUID) -> None:
+    async with get_sessionmaker()() as session, session.begin():
+        await session.execute(update(SentMessage).where(SentMessage.id == sent_id)
+                              .values(follow_up_outcome_unknown_at=func.now()))
+
+
+async def _settle_follow_up(sent: SentMessage) -> None:
+    """Gmail has it: the claim stays and the listener's Sent watch records it. Gmail does not: the claim goes."""
+    found = await _ask_gmail(sent.thread_id, sent.followed_up_at, sent.user_id)
+    settled = {"follow_up_outcome_unknown_at": None} if found else {
+        "followed_up_at": None, "follow_up_outcome_unknown_at": None}
+    async with get_sessionmaker()() as session, session.begin():
+        await session.execute(update(SentMessage).where(SentMessage.id == sent.id,
+                                                        SentMessage.follow_up_outcome_unknown_at.is_not(None))
+                              .values(**settled))
+    await audit(AuditAction.SEND_RECONCILED, user_id=sent.user_id, sent=sent.id, outcome=SENT if found else NOT_SENT)
+
+
 def _unknown_replies() -> Select:
     """Only sends the send path marked unknown: an old sent row with no message id stays sent."""
     return select(Message).where(Message.send_outcome_unknown_at < func.now() - UNCONFIRMED_AFTER,
@@ -79,21 +97,30 @@ def _unknown_holding_replies() -> Select:
                    HoldingReply.sent_message_id.is_(None), Message.thread_id.is_not(None)).limit(BATCH))
 
 
-async def _unconfirmed() -> tuple[list[Message], list[tuple[HoldingReply, str]]]:
+def _unknown_follow_ups() -> Select:
+    return select(SentMessage).where(SentMessage.follow_up_outcome_unknown_at < func.now() - UNCONFIRMED_AFTER,
+                                     SentMessage.followed_up_at.is_not(None),
+                                     SentMessage.thread_id.is_not(None)).limit(BATCH)
+
+
+async def _unconfirmed() -> tuple[list[Message], list[tuple[HoldingReply, str]], list[SentMessage]]:
     async with get_sessionmaker()() as session:
         replies = (await session.scalars(_unknown_replies())).all()
         holding = (await session.execute(_unknown_holding_replies())).all()
-    return list(replies), [(reply, thread_id) for reply, thread_id in holding]
+        follow_ups = (await session.scalars(_unknown_follow_ups())).all()
+    return list(replies), [(reply, thread_id) for reply, thread_id in holding], list(follow_ups)
 
 
 async def reconcile_sends() -> int:
     """Sends settled; one Gmail failure skips that row until the next pass."""
-    replies, holding = await _unconfirmed()
+    replies, holding, follow_ups = await _unconfirmed()
     settled = 0
     for message in replies:
         settled += await _guarded(_settle_reply(message), message.id)
     for reply, thread_id in holding:
         settled += await _guarded(_settle_holding_reply(reply, thread_id), reply.id)
+    for sent in follow_ups:
+        settled += await _guarded(_settle_follow_up(sent), sent.id)
     return settled
 
 

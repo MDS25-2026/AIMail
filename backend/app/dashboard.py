@@ -47,7 +47,6 @@ from app.contracts import (
     Source,
     ThreadMessage,
 )
-from app.core import mailbox
 from app.core.config import get_settings
 from app.core.constants import MAX_SCHEDULE_AHEAD_DAYS, TEMPLATE_TIMEZONE
 from app.core.cursor import Cursor
@@ -103,7 +102,7 @@ from app.scheduled_sends import (
     states_for,
     waiting_send_exists,
 )
-from app.send_reconciler import mark_outcome_unknown
+from app.send_reconciler import mark_follow_up_unknown, mark_outcome_unknown
 from app.template_store import suggested_template_id
 from app.templates import (
     fill_variables,
@@ -210,9 +209,9 @@ def is_drafting(message: Message) -> bool:
 
 async def _policy_for(message: Message) -> Policy:
     """The owner's priority rules, as the inbox list applies them, so a priority never changes on opening."""
+    if message.user_id is None:
+        return DEFAULT_POLICY  # a row with no owner, seen only by a script, as the list shows it
     async with get_sessionmaker()() as session:
-        if message.user_id is None:
-            return await load_policy(session, mailbox.owner())  # the original mailbox, as the list does
         return await load_policy_for_user(session, message.user_id)
 
 
@@ -625,7 +624,7 @@ async def email_detail(message_id: str, *, scope: Scope, viewer_id: UUID | None 
         await request_draft(pk)
     email = _to_email(message, await _policy_for(message), thread=thread, details=details,
                       egress=await egress_for(message.id), schedule=(await states_for([pk])).get(pk))
-    # Templates are the viewer's: the original mailbox's unowned rows still get the viewer's.
+    # Templates are the viewer's; a script, which has no viewer, gets the owner's.
     email.suggestedTemplateId = await suggested_template_id(
         viewer_id or message.user_id, f"{message.subject or ''}\n{message.body_masked or ''}")
     return email
@@ -1240,7 +1239,8 @@ async def send_follow_up(sent_id: str, draft: str, *, scope: Scope) -> bool:
         gmail = await send_reply(answered.gmail_message_id, answered.from_addr or "", answered.subject or "",
                                  reply.sent, owner_id=answered.user_id)
     except SendOutcomeUnknownError:
-        # The claim stays: Gmail may have sent it, and the listener's Sent watch records it if so.
+        # The claim stays: Gmail may have sent it. The reconciler asks Gmail later and releases it if not.
+        await mark_follow_up_unknown(sent.id)
         await audit(AuditAction.SEND_OUTCOME_UNKNOWN, user_id=answered.user_id, success=False, sent=sent_id)
         raise
     except SendError:

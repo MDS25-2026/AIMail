@@ -464,30 +464,6 @@ func supabaseInsert(ctx context.Context, table string, row interface{}, onConfli
 	return nil
 }
 
-// startTokenFileMailbox watches the original token.json mailbox, unless its account has connected
-// with Google, in which case that connection already serves it. A failure is logged, not fatal:
-// every connected user's mailbox still works without it.
-func startTokenFileMailbox(ctx context.Context, srv *gmail.Service) {
-	profile, err := srv.Users.GetProfile("me").Context(ctx).Do()
-	if err != nil {
-		log.Printf("token.json mailbox not started: %v", err)
-		writeAuditLog(ctx, "", actionSetupWatch, auditFields{fieldStage: stageProfile, fieldErrorKind: errorKind(err)}, false)
-		return
-	}
-	if existing := lookupMailbox(profile.EmailAddress); existing != nil {
-		log.Printf("token.json mailbox is connected as user %s; using the connection", existing.ownerID)
-		return
-	}
-	mb := &mailbox{email: strings.ToLower(profile.EmailAddress), srv: srv}
-	if err := watchMailbox(ctx, mb); err != nil {
-		log.Printf("token.json mailbox not started: %v", err)
-		writeAuditLog(ctx, "", actionSetupWatch, auditFields{fieldStage: stageWatch, fieldErrorKind: errorKind(err)}, false)
-		return
-	}
-	registerMailbox(mb)
-	writeAuditLog(ctx, "", actionSetupWatch, nil, true)
-}
-
 // Gmail expires a watch after roughly seven days. #83: nothing renewed it, so a listener left
 // running for a week stopped receiving mail with no error and no log line — restarting masked it
 // during development, which is why it went unnoticed.
@@ -889,10 +865,9 @@ func main() {
 	health := startHealthServer(getEnvOrDefault(healthAddrEnv, defaultHealthAddr))
 	defer stopHealthServer(health)
 
-	// 1. Watch every connected user's mailbox, then the token.json one unless it is among them.
+	// 1. Watch every connected user's mailbox. token.json, when present, only signs in to Pub/Sub.
 	legacy := legacyTokenSource(ctx)
 	syncConnections(ctx)
-	startLegacyMailbox(ctx, legacy)
 	go syncConnectionsPeriodically(ctx)
 	// #83: keep the watches alive. Gmail expires them after about a week.
 	go renewWatchPeriodically(ctx)

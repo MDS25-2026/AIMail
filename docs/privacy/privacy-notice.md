@@ -110,7 +110,9 @@ removed at that limit too, if it is shorter.
   style, saved replies, settings and your sign-in.
 - **Audit records stay** after deletion. They keep an internal id that no longer links to an
   account, and no email content.
-- **Backups.** Deleted data can remain in database backups until those backups expire.
+- **Backups.** A copy of the database is kept for recovery; only the newest 7 copies are kept, so
+  deleted data can remain in a copy until it is replaced. Sign-in accounts themselves (held by
+  Supabase) are not in these copies.
 - You can also remove AIMail's access yourself in your Google account, under Security >
   Third-party access. That stops access but does not delete what AIMail already stored.
 
@@ -120,13 +122,14 @@ Not part of the notice. Sources for each statement, as of 2026-10-11:
 
 - Retention: `backend/app/retention.py` and `backend/app/vault_retention.py`, run daily by
   `backend/app/worker.py`. `VAULT_RETENTION_DAYS` defaults to 30; `MESSAGE_CONTENT_RETENTION_DAYS`
-  defaults to 0 (kept). No policy expires `document` rows of type sent reply or `style_example`
-  rows taken from sends; erasure removes them.
+  defaults to 0 (kept). Past replies (`document` rows of type `sent_reply`) expire after 365 days;
+  chosen style examples stay until removed or erased.
 - Erasure: `backend/app/erasure.py` (`RULES`, `RETAINED`), called by `backend/app/account.py`.
-  It matches rows by `user_id`, so unowned rows (`user_id` NULL) are not erased until they are
-  handed over on connect (`backend/app/connections.py`).
-- Typed text: `details.for_model` in `backend/app/dashboard.py` (refine) and `mask_typed_text`
-  (`/search`, `/ask`, inbox search).
+  It matches rows by `user_id`; since 2026-10-12 every email and document has an owner.
+- Backups: `make backup` (`backend/scripts/backup.py`) dumps the public schema to `BACKUP_DIR` and
+  keeps the newest `BACKUP_KEEP` (7). The `auth` schema (Supabase sign-in accounts) is not in it.
+- Typed text: `details.for_model` plus `TypedNames` (`backend/app/core/typed_names.py`) in refine,
+  `/search`, `/ask`, inbox search and template translation.
 - Audit rows: since 2026-10-08 they hold structured fields with no address or body
   (`listener/audit.go`); rows written before that date are free text and were not reviewed for
   personal content.

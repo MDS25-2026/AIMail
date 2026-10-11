@@ -814,6 +814,8 @@ export const zh: Translations = {
       send_scheduled: "回复已安排",
       scheduled_send_cancelled: "已安排的回复已取消",
       email_snoozed: "邮件已稍后提醒",
+      email_dismissed: "邮件已标记为无需回复",
+      waiting_dismissed: "已不再等待回复",
       quiet_hours: "免打扰时段已更改",
       todo_settings: "待办设置已更改",
       holding_reply_settings: "自动暂复设置已更改",

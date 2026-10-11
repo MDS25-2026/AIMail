@@ -20,6 +20,7 @@ from app.db.models import (
     UserPreferences,
 )
 from app.db.session import get_sessionmaker
+from app.egress_log import save_egress
 from app.private_mode import provider_for
 from app.rag.chunk import (
     SECTION_KEY,
@@ -62,7 +63,12 @@ async def ingest_text(
         return 0
     # Embedded before the swap: a failure here leaves the earlier copy searchable, rather than
     # replacing it with chunks that no search can find until the background pass catches up.
-    vectors = await _gemini_vectors(scope.owner_id, pieces)
+    try:
+        with model_gateway.track_egress() as sent:
+            vectors = await _gemini_vectors(scope.owner_id, pieces)
+    finally:
+        # On the owner's privacy receipt, a failed batch included: what went before the failure is recorded.
+        await save_egress(sent, user_id=scope.owner_id, message_id=None)
     await store_chunks(source, title, pieces, scope=scope, doc_type=doc_type, vectors=vectors)
     await embed_pending_locally_logged()
     return len(pieces)
