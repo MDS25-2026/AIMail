@@ -14,7 +14,7 @@ os.environ["AIMAIL_ENV_FILE"] = ""  # before any app import reads settings
 import pytest
 from fastapi.testclient import TestClient
 
-from app import dashboard
+from app import connections, dashboard
 from app.core import typed_names
 from app.core.config import get_settings
 from app.core.ratelimit import MemoryCounters, all_limiters
@@ -48,6 +48,16 @@ def no_typed_names(monkeypatch):
         return []
 
     monkeypatch.setattr(typed_names, "find_people", none_found)
+
+
+@pytest.fixture(autouse=True)
+def no_profile_writes(monkeypatch):
+    """Sign-in saves a profile; no test reaches a database that way. tests/test_mailbox_connect.py checks it."""
+
+    async def saved(_session):
+        return None
+
+    monkeypatch.setattr(connections, "remember_profile", saved)
 
 
 @pytest.fixture(autouse=True)
