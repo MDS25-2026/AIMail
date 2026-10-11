@@ -104,9 +104,9 @@ function DetailHeader({ email, onBack, onMarkUnread }: DetailHeaderProps) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-2">
           {onBack ? <BackToInbox onBack={onBack} /> : null}
-          <h1 className="min-w-0 break-words text-base font-semibold text-fg">
+          <h2 className="min-w-0 break-words text-base font-semibold text-fg">
             <WithDetails text={email.subject} />
-          </h1>
+          </h2>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           {email.authStatus === AuthStatus.SpoofDetected ? (

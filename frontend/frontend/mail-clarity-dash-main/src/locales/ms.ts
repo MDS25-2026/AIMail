@@ -4,6 +4,7 @@ import type { Translations } from "./en";
  *  the _one and _other keys carry the same text. */
 export const ms: Translations = {
   app: {
+    skipToContent: "Langkau ke kandungan",
     name: "AIMail",
     tagline: "Pembantu peti masuk AI",
     extensionPreview: "Pratonton panel sambungan",

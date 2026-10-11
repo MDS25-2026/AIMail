@@ -3,7 +3,12 @@ import type { Translations } from "./en";
 /** Simplified Chinese. Needs review by a native speaker before release. Chinese has one plural
  *  form, so the _one and _other keys carry the same text. */
 export const zh: Translations = {
-  app: { name: "AIMail", tagline: "AI 收件箱助手", extensionPreview: "扩展面板预览" },
+  app: {
+    skipToContent: "跳到主要内容",
+    name: "AIMail",
+    tagline: "AI 收件箱助手",
+    extensionPreview: "扩展面板预览",
+  },
   nav: {
     label: "主导航",
     inbox: "收件箱",

@@ -1,6 +1,7 @@
 /** English, the master locale. ms.ts and zh.ts must match its shape: the compiler checks it. */
 export const en = {
   app: {
+    skipToContent: "Skip to content",
     name: "AIMail",
     tagline: "AI inbox assistant",
     extensionPreview: "Extension panel preview",
