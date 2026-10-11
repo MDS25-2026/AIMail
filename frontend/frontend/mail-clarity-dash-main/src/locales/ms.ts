@@ -98,6 +98,12 @@ export const ms: Translations = {
     suggestionDirect: "Jadikan lebih terus",
     suggestionDeadline: "Tambah tarikh akhir",
   },
+  errorPage: {
+    title: "Halaman ini tidak dapat dimuatkan",
+    body: "Sesuatu tidak kena di pihak kami. Cuba muat semula, atau kembali ke halaman utama.",
+    retry: "Cuba lagi",
+    home: "Ke halaman utama",
+  },
   review: {
     heading: "Sebab untuk menyemak draf ini",
     pass: "Semakan AI lulus · {{percent}}% pasti",

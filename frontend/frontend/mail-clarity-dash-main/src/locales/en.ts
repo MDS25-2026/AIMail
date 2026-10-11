@@ -93,6 +93,12 @@ export const en = {
     suggestionDirect: "Make it more direct",
     suggestionDeadline: "Add a deadline",
   },
+  errorPage: {
+    title: "This page didn't load",
+    body: "Something went wrong on our end. You can try refreshing or head back home.",
+    retry: "Try again",
+    home: "Go home",
+  },
   review: {
     heading: "Why to check this draft",
     pass: "AI check passed · {{percent}}% sure",

@@ -92,6 +92,12 @@ export const zh: Translations = {
     suggestionDirect: "更直接一些",
     suggestionDeadline: "加上截止日期",
   },
+  errorPage: {
+    title: "此页面未能加载",
+    body: "我们这边出了点问题。您可以刷新页面，或返回首页。",
+    retry: "重试",
+    home: "返回首页",
+  },
   review: {
     heading: "需要检查此草稿的原因",
     pass: "AI 检查通过 · {{percent}}% 把握",
