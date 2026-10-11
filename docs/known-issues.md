@@ -168,6 +168,23 @@ These are not defects — they are trade-offs with reasons, recorded so the reas
 
 ## Fixed
 
+### Names a person typed reached the model as typed — Lane B — FIXED 2026-10-12 (#215)
+Refine instructions and drafts, Search, Ask AIMail, the inbox assistant, template translation and
+earlier replies quoted as thread context masked only fixed formats. A new name now becomes a
+`[PERSON_800+]` placeholder for one request (Presidio plus Malaysian name rules,
+`backend/app/core/typed_names.py`, `backend/app/core/name_patterns.py`) and goes back into the answer.
+Remaining limit: names in no recognisable form can still be missed by the English model.
+
+### The privacy receipt dropped prompts from failed calls — Lanes B/C — FIXED 2026-10-12 (#215)
+The agent returned egress records only on success, and the backend saved a draft's retrieval record
+only after the agent answered. Refusals now carry `{"code", "egress"}` and every failure path saves
+them; Search and Ask save in a `finally`.
+
+### Past replies kept for style learning never expired — Lane B — FIXED 2026-10-12 (#215)
+`document` rows of type `sent_reply` now expire after 365 days (`backend/app/retention.py`).
+Style examples stay until the user removes them, because each one was chosen or pasted by the user.
+
+
 ### Page scrolls past the app into empty space — Lane D — FIXED 2026-09-29 (#96)
 
 **Cause, measured:** each unread inbox row carried an `sr-only` "(unread)" label, and Tailwind's

@@ -87,7 +87,9 @@ and in the backend (retrieval embeddings, `/ask`). See
   is masked and logged as a warning; it should always catch 0.
 - **Egress records.** Each call appends an `Egress` record: purpose (the `Stage`), provider,
   character count, SHA-256 of the prompt, counts of each placeholder kind, and how many details
-  the last net caught. No text is kept. The agent returns them as `egress`; the backend stores
+  the last net caught. No text is kept. The agent returns them as `egress`, and on a refusal
+  inside the error detail (`{"code", "egress"}`, `_unavailable`), so a call that failed after its
+  prompt left is still recorded (`agent_client.refusal_egress`). The backend stores
   them in `model_egress` (`save_egress`, [`../backend/app/egress_log.py`](../backend/app/egress_log.py))
   for the privacy receipt ([`features/privacy-receipt.md`](features/privacy-receipt.md)).
 
@@ -217,7 +219,9 @@ repaired draft goes to review. The review bar (0.9) sits above the repair bar (0
 ## Refine and translate
 
 **`POST /refine`** (`refine`, backend `_refine`). The user's instruction and edited draft are passed
-through `details.for_model` before they leave. The agent makes one `REFINE` call, then runs
+through `details.for_model`, then any new name is swapped for a `[PERSON_800+]` placeholder that
+lives for this request only (`app/core/typed_names.py`); the names go back into the revision before
+it is stored ([`features/privacy-gaps.md`](features/privacy-gaps.md)). The agent makes one `REFINE` call, then runs
 `assess` and the same review reasons with `attempts = 0`. There is no repair loop. The user's draft
 counts as a source for the figures check. Agent 422 becomes `DRAFT_REFUSED`, anything else
 `AGENT_UNAVAILABLE`.

@@ -58,9 +58,13 @@ Exceptions you should know about:
   redacted. The local check misses about 1 in 10 signatures, faces and stamps, and text the local
   reader could not see is not redacted.
 - **What you type yourself.** When you refine a draft, edit it, search or ask a question, AIMail
-  hides fixed-format details (email addresses, phone numbers, IC numbers, card numbers) and puts
-  details it already knows back into placeholders, but a name you type that it has not seen before
-  is sent as you typed it.
+  hides fixed-format details (email addresses, phone numbers, IC numbers, card numbers), puts
+  details it already knows back into placeholders, and hides any other name it finds, putting it
+  back into the answer before you see it. Names are found by an English model plus rules for
+  Malaysian name forms (bin and binti, a/l and a/p, anak, Chinese surnames, titles such as Encik or
+  Datuk). Some names, especially Malay or Chinese names written without those forms, can still be
+  missed and sent as you typed them. If the name check cannot run, AIMail refuses the request
+  rather than send the text.
 - **Search.** To find matching passages, the masked text of your documents and emails is turned
   into numbers (embeddings) by Gemini, unless you use Private mode.
 
@@ -87,10 +91,11 @@ A daily job removes data on these schedules:
 | Masked copies of replies you sent | 90 days |
 | Recipients of automatic holding replies | 60 days |
 | Finished or cancelled "send later" items | 30 days |
-| Egress records | 365 days |
+| Egress records (including calls that failed after the text was sent) | 365 days |
 | Rate-limit counters | 1 day |
 | Masked email content (body, preview, summary, draft) | Until your organisation sets a limit; by default it is kept |
-| Past replies and style examples kept for learning your style | Until you disconnect Gmail or delete your account |
+| Past replies kept for learning your style | 365 days, or sooner if you disconnect Gmail or delete your account |
+| Style examples you chose or pasted in Settings | Until you remove them, disconnect Gmail (chosen sent replies) or delete your account |
 | Audit records | Kept; they hold no email content |
 
 If a limit is set for email content, the copies of sent replies and finished "send later" items are
@@ -105,9 +110,6 @@ removed at that limit too, if it is shorter.
   style, saved replies, settings and your sign-in.
 - **Audit records stay** after deletion. They keep an internal id that no longer links to an
   account, and no email content.
-- **Mail stored before you connected your own Gmail.** If your account is the owner of the original
-  shared mailbox and you never connected Gmail, that mail is not yet linked to your account and is
-  not removed by account deletion. Ask the contact below to remove it.
 - **Backups.** Deleted data can remain in database backups until those backups expire.
 - You can also remove AIMail's access yourself in your Google account, under Security >
   Third-party access. That stops access but does not delete what AIMail already stored.
