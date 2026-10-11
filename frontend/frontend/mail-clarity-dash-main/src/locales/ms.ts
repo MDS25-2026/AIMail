@@ -44,6 +44,9 @@ export const ms: Translations = {
     filterEmptyAny: "Tiada e-mel sepadan dengan penapis ini.",
     categoryFilterLabel: "Tapis mengikut kategori",
     categoryFilterAll: "Semua kategori",
+    sortLabel: "Susun peti masuk",
+    sortUrgent: "Paling mendesak dahulu",
+    sortNewest: "Terbaharu dahulu",
   },
   priority: { critical: "Kritikal", high: "Segera", medium: "Sederhana", low: "Rendah" },
   category: {

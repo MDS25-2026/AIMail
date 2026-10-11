@@ -7,7 +7,9 @@ import {
   filterByCategory,
   filterByPriority,
   PRIORITIES,
+  sortConversations,
   type CategoryFilter,
+  type InboxSort,
   type PriorityFilter,
 } from "../lib/inboxFilter";
 import { inboxKeyHandler } from "../lib/inboxKeys";
@@ -28,9 +30,10 @@ export default function InboxList({ emails, selectedEmailId, onSelectEmail }: In
   // Filtering never touches the selection: an email the filter hides stays open in the detail panel.
   const [priority, setPriority] = useState<PriorityFilter>("all");
   const [category, setCategory] = useState<CategoryFilter>("all");
-  const conversations = filterByCategory(
-    filterByPriority(groupByThread(emails), priority),
-    category,
+  const [sort, setSort] = useState<InboxSort>("urgent");
+  const conversations = sortConversations(
+    filterByCategory(filterByPriority(groupByThread(emails), priority), category),
+    sort,
   );
   const isFiltered = priority !== "all" || category !== "all";
 
@@ -46,10 +49,25 @@ export default function InboxList({ emails, selectedEmailId, onSelectEmail }: In
   return (
     <div className="flex h-full flex-col">
       <div className="border-b border-line px-4 py-3">
-        <h1 className="text-sm font-semibold text-fg">{t("inbox.heading")}</h1>
-        <p className="text-xs text-fg-muted">
-          {t("inbox.conversations", { count: conversations.length })}
-        </p>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h1 className="text-sm font-semibold text-fg">{t("inbox.heading")}</h1>
+            <p className="text-xs text-fg-muted">
+              {t("inbox.conversations", { count: conversations.length })}
+            </p>
+          </div>
+          <label className="shrink-0">
+            <span className="sr-only">{t("inbox.sortLabel")}</span>
+            <select
+              value={sort}
+              onChange={(event) => setSort(event.target.value as InboxSort)}
+              className={cn(field({ size: "sm" }), "text-xs")}
+            >
+              <option value="urgent">{t("inbox.sortUrgent")}</option>
+              <option value="newest">{t("inbox.sortNewest")}</option>
+            </select>
+          </label>
+        </div>
         <div className="mt-2 flex gap-2">
           <label className="min-w-0 flex-1">
             <span className="sr-only">{t("inbox.filterLabel")}</span>

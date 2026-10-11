@@ -19,6 +19,15 @@ export function filterByPriority(
   return conversations.filter(({ email }) => email.priority === filter);
 }
 
+export type InboxSort = "urgent" | "newest";
+
+/** "urgent": most urgent first, by the row's email like the filter (#142). The list arrives newest
+ *  first and the sort is stable, so each tier stays newest first. */
+export function sortConversations(conversations: Conversation[], sort: InboxSort): Conversation[] {
+  if (sort === "newest") return conversations;
+  return [...conversations].sort((a, b) => RANK[a.email.priority] - RANK[b.email.priority]);
+}
+
 // Same trick as RANK: a new category fails to compile until it has a place in the filter.
 const CATEGORY_ORDER: Record<EmailCategory, number> = {
   client: 0,
