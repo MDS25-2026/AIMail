@@ -578,7 +578,29 @@ async def _mark_read(pk: UUID) -> None:
         await session.commit()
 
 
+async def read_email(message_id: str, *, scope: Scope, viewer_id: UUID | None = None) -> DashboardEmail | None:
+    """The email as the reader opens it: opening the detail view is the moment a person reads it."""
+    email = await email_detail(message_id, scope=scope, viewer_id=viewer_id)
+    if email is None:
+        return None
+    await _mark_read(UUID(email.id))
+    return email.model_copy(update={"isRead": True})
+
+
+async def mark_unread(message_id: str, *, scope: Scope) -> bool:
+    """Back to unread, to come back to later. False when it is not the caller's."""
+    try:
+        pk = UUID(message_id)
+    except ValueError:
+        return False
+    async with get_sessionmaker()() as session, session.begin():
+        changed = await session.scalar(update(Message).where(Message.id == pk, scope.where(Message.user_id))
+                                       .values(read_at=None).returning(Message.id))
+    return changed is not None
+
+
 async def email_detail(message_id: str, *, scope: Scope, viewer_id: UUID | None = None) -> DashboardEmail | None:
+    """The email with its draft and thread, read-only: it does not change whether it was read."""
     try:
         pk = UUID(message_id)
     except ValueError:
@@ -591,9 +613,6 @@ async def email_detail(message_id: str, *, scope: Scope, viewer_id: UUID | None 
     # Never drafted here: the request returns at once and the worker drafts it within seconds.
     if is_drafting(message):
         await request_draft(pk)
-    # Opening the detail view is the moment a person actually reads it.
-    await _mark_read(pk)
-    message.read_at = message.read_at or datetime.now(timezone.utc)
     email = _to_email(message, await _policy_for(message), thread=thread, details=details,
                       egress=await egress_for(message.id), schedule=(await states_for([pk])).get(pk))
     # Templates are the viewer's: the original mailbox's unowned rows still get the viewer's.
@@ -617,7 +636,7 @@ async def email_for_thread(
         pk = await session.scalar(stmt)
     if pk is None:
         return None
-    return await email_detail(str(pk), scope=scope, viewer_id=viewer_id)
+    return await read_email(str(pk), scope=scope, viewer_id=viewer_id)
 
 
 async def confirm_sender(message_id: str, *, scope: Scope) -> DashboardEmail | None:

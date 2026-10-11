@@ -6,6 +6,16 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-11 — Review reasons travel as codes from the agent
+- Decision: `email_agent.py` emits a `ReviewCode` with each review reason (`review_codes`), beside
+  the unchanged text. The dashboard words the codes in each language; drafts stored before this
+  are read from their text in one place (`app/review_reasons.py`). A Presidio scan that could not
+  run is its own code, no longer reported as personal details found.
+- Why: the dashboard showed "Critic 72%" and no reasons; parsing the agent's text would break
+  whenever a reason is reworded.
+- Affects: Lane C (`email_agent.py`, `agent_contract.py`; Hanif to review), `backend/app`, the
+  dashboard (Lane D), `specs/features/plain-wording-and-polish.md`.
+
 ### 2026-10-11 — Audit of everything since #168: what changed across lanes
 - Decision: fixes from a full audit of #177 to #210, in PR #211. Cross-lane ones:
   - **Listener (Lane A):** the baseline moves only after a catch-up has stored its mail, and only an

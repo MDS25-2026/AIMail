@@ -631,3 +631,23 @@ def test_a_follow_up_is_refused_once_the_reply_is_no_longer_waiting(gmail_and_ag
         _run(scenario())
     assert refused.value.code == ErrorCode.FOLLOW_UP_STALE
     assert gmail_and_agent == []
+
+
+def test_marked_unread_stays_unread_while_the_open_view_refreshes(monkeypatch):
+    async def no_templates(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(dashboard, "suggested_template_id", no_templates)
+    pk = uuid4()
+
+    async def scenario():
+        async with get_sessionmaker()() as session, session.begin():
+            session.add(Message(id=pk, gmail_message_id=f"ur-{uuid4()}", subject="Invoice", body_masked="Hi",
+                                masking_status=MaskingStatus.COMPLETE, generated_at=datetime.now(timezone.utc)))
+        opened = await dashboard.read_email(str(pk), scope=EVERYTHING)
+        await dashboard.mark_unread(str(pk), scope=EVERYTHING)
+        refreshed = await dashboard.email_detail(str(pk), scope=EVERYTHING)
+        is_read_after = await _scalar(f"SELECT read_at IS NOT NULL FROM messages WHERE id = '{pk}'")
+        return opened.isRead, refreshed.isRead, is_read_after
+
+    assert _run(scenario()) == (True, False, False)

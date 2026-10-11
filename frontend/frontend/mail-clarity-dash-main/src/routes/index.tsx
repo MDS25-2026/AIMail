@@ -9,7 +9,7 @@ import AppShell from "../components/AppShell";
 import { PageEmpty, PageError, PageLoading } from "../components/PageState";
 import PrivateModeOffer from "../components/PrivateModeOffer";
 import { Page, pageMeta } from "../lib/pageMeta";
-import { useEmail, useEmails, useSession } from "../lib/queries";
+import { useEmail, useEmails, useMarkUnread, useSession } from "../lib/queries";
 import { useDebouncedValue } from "../lib/useDebouncedValue";
 import { useDraftWorkflow } from "../lib/useDraftWorkflow";
 import { useIsDesktop } from "../lib/useIsDesktop";
@@ -41,6 +41,8 @@ function DashboardPage() {
   const emails = useEmails();
   const session = useSession();
   const [userSelectedId, setUserSelectedId] = useState<string | null>(null);
+  // The email the reader marked unread; fetched without marking it read until they open another.
+  const [keptUnreadId, setKeptUnreadId] = useState<string | null>(null);
 
   // Derive selected email from URL search params, explicit selection, or first inbox email
   const isDesktop = useIsDesktop();
@@ -51,7 +53,11 @@ function DashboardPage() {
   const selectedEmailId = requestedId ?? userSelectedId ?? firstEmailId;
   // Opened once the selection settles, so stepping through with J/K doesn't fetch (and mark read) every row.
   const openedEmailId = useDebouncedValue(selectedEmailId, SELECTION_SETTLE_MS);
-  const selected = useEmail(openedEmailId);
+  const selected = useEmail(
+    openedEmailId,
+    openedEmailId !== null && openedEmailId === keptUnreadId,
+  );
+  const markUnread = useMarkUnread();
   // Never a previous email's detail while the selection settles.
   const detail = selected.data?.id === selectedEmailId ? selected.data : undefined;
 
@@ -63,6 +69,7 @@ function DashboardPage() {
 
   const handleSelectEmail = (id: string) => {
     setUserSelectedId(id);
+    setKeptUnreadId(null);
     void navigate({
       to: "/",
       search: { email: id },
@@ -137,7 +144,17 @@ function DashboardPage() {
         <section
           className={`min-h-0 min-w-0 flex-1 bg-surface-muted md:block ${requestedId ? "block" : "hidden"}`}
         >
-          <EmailDetailPanel email={email} workflow={workflow} onBack={backToInbox} />
+          <EmailDetailPanel
+            email={email}
+            workflow={workflow}
+            onBack={backToInbox}
+            onMarkUnread={(id) => {
+              setKeptUnreadId(id);
+              markUnread.mutate(id);
+              // On a phone it is back to the list, as in any mail app; a desktop keeps it open.
+              if (!isDesktop) backToInbox();
+            }}
+          />
         </section>
       </>
     </AppShell>

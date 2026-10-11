@@ -87,6 +87,8 @@ from app.dashboard import (
     email_detail,
     email_for_thread,
     list_dashboard_emails,
+    mark_unread,
+    read_email,
     refine_email,
     regenerate_email,
     schedule_email,
@@ -253,10 +255,19 @@ async def emails(request: Request, cursor: str | None = None,
 
 
 @app.get("/emails/{message_id}", dependencies=[Depends(rate_limit_detail), Depends(require_mailbox)])
-async def email_detail_route(message_id: str, request: Request) -> DashboardEmail:
-    # Detail view: adds Lane C generation (retrieve + /process-email) for one opened email.
-    email = await email_detail(message_id, scope=scope_of(request), viewer_id=principal_of(request).user_id)
+async def email_detail_route(message_id: str, request: Request, markRead: bool = True) -> DashboardEmail:
+    # markRead=false: the reader just marked it unread, so refreshing the open view must not undo that.
+    scope, viewer = scope_of(request), principal_of(request).user_id
+    email = (await read_email(message_id, scope=scope, viewer_id=viewer) if markRead
+             else await email_detail(message_id, scope=scope, viewer_id=viewer))
     return _found(email)
+
+
+@app.post("/emails/{message_id}/unread", status_code=status.HTTP_204_NO_CONTENT,
+          dependencies=[Depends(require_mailbox)])
+async def mark_unread_route(message_id: str, request: Request) -> None:
+    if not await mark_unread(message_id, scope=scope_of(request)):
+        raise DomainError(ErrorCode.NOT_FOUND)
 
 
 # Gmail thread ids are 16 hex digits; bounded so the path never carries anything else.
