@@ -7,5 +7,6 @@ export * from "./emails";
 export * from "./profile";
 export * from "./session";
 export * from "./settings";
+export * from "./status";
 export * from "./templates";
 export * from "./todo";

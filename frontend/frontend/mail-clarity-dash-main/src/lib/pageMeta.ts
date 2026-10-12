@@ -17,6 +17,7 @@ export enum Page {
   Admin = "admin",
   Extension = "extension",
   SignIn = "signin",
+  Status = "status",
 }
 
 // head() runs outside React; a cached translator per language is only read, so sharing it is safe.

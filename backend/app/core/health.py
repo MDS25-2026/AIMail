@@ -18,6 +18,8 @@ from app.core.config import get_settings
 from app.db.session import get_engine
 
 HEALTH_PATHS = frozenset({"/healthz", "/readyz"})
+# The public status page's data (app/service_status.py); like the probes, it needs no sign-in.
+STATUS_PATH = "/service-status"
 # A probe runs every few seconds; a slow database is reported as not ready, not waited on.
 CHECK_TIMEOUT_SECONDS = 2.0
 _UNAVAILABLE = 503

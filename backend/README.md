@@ -33,7 +33,9 @@ docker run --env-file .env aimail-backend python scripts/migrate.py             
 ```
 
 Probes: `GET /healthz` (process up) and `GET /readyz` (database and Presidio reachable for the API, a
-model configured for the agent). Logs are JSON in the image (`LOG_FORMAT=json`).
+model configured for the agent). `GET /service-status` (public, cached 15 s) feeds the dashboard's
+`/status` page: backend, database, masking, drafting and listener as ok, degraded or down. Logs are JSON
+in the image (`LOG_FORMAT=json`).
 
 ## Key dependencies
 

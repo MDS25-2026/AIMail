@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { ShieldCheck } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -120,9 +120,12 @@ function LandingPage() {
       </main>
 
       <footer className="border-t border-line">
-        <p className="mx-auto max-w-6xl px-4 py-6 text-xs text-fg-subtle sm:px-6">
-          {t("landing.footer")}
-        </p>
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-6 text-xs text-fg-subtle sm:px-6">
+          <p>{t("landing.footer")}</p>
+          <Link to="/status" className="font-medium text-fg-muted underline hover:text-fg">
+            {t("landing.statusLink")}
+          </Link>
+        </div>
       </footer>
     </div>
   );

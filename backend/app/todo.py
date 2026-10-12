@@ -7,15 +7,16 @@ with its full count; "No reply needed" and "Not waiting" take an item out.
 
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel
-from sqlalchemy import ColumnElement, and_, case, func, select, update
+from sqlalchemy import ColumnElement, and_, case, func, or_, select, update
 from sqlalchemy.dialects.postgresql import distinct_on, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.contracts import DashboardEmail
 from app.core.ownership import Scope
-from app.dashboard import inbox_row
+from app.dashboard import inbox_row, thread_rows
 from app.db.models import (
     AuthStatus,
     MaskingStatus,
@@ -31,6 +32,8 @@ from app.waiting import asks_something, working_days_since
 SECTION_LIMIT = 50
 DRAFT_REMINDER_AFTER = timedelta(hours=24)
 DEFAULT_WAITING_DAYS = 3
+# Most urgent first; within a priority, the longest waiting first.
+PRIORITY_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 
 
 class TodoSection(BaseModel):
@@ -57,6 +60,8 @@ class Todo(BaseModel):
     waiting: list[WaitingReply]
     waitingDays: int
     count: int
+    # Sent, dismissed, not waited on or followed up since midnight in the reader's time zone.
+    doneToday: int = 0
 
 
 def _open(scope: Scope) -> list[ColumnElement[bool]]:
@@ -64,7 +69,9 @@ def _open(scope: Scope) -> list[ColumnElement[bool]]:
     # Newsletters and notifications filled the lists with "no reply needed" rows (test run T19).
     return [scope.where(Message.user_id), Message.sent_at.is_(None), Message.dismissed_at.is_(None),
             Message.masking_status == MaskingStatus.COMPLETE,
-            Message.auth_status.is_distinct_from(AuthStatus.SPOOF_DETECTED), Message.is_automated.is_(False)]
+            Message.auth_status.is_distinct_from(AuthStatus.SPOOF_DETECTED), Message.is_automated.is_(False),
+            # Remind me later: back on the list when the snooze is due.
+            or_(Message.snoozed_until.is_(None), Message.snoozed_until <= func.now())]
 
 
 def _action_count() -> ColumnElement[int]:
@@ -89,12 +96,25 @@ def _sections() -> dict[str, list[ColumnElement[bool]]]:
     }
 
 
-async def _section(session: AsyncSession, scope: Scope, conditions: list, policy: Policy) -> TodoSection:
+async def _section_rows(session: AsyncSession, scope: Scope, conditions: list) -> tuple[list[Message], int]:
     where = [*_open(scope), *conditions]
     rows = (await session.scalars(select(Message).where(*where).order_by(Message.created_at.desc())
                                   .limit(SECTION_LIMIT))).all()
     total = await session.scalar(select(func.count()).select_from(Message).where(*where))
-    return TodoSection(emails=[inbox_row(message, policy) for message in rows], total=total or 0)
+    return list(rows), total or 0
+
+
+async def _sections_with_rows(session: AsyncSession, scope: Scope, policy: Policy) -> dict[str, TodoSection]:
+    """All three lists' rows built together: one thread query and one name lookup between them."""
+    found = {name: await _section_rows(session, scope, conditions) for name, conditions in _sections().items()}
+    rows = await thread_rows(session, [message for messages, _ in found.values() for message in messages], policy)
+    by_id = {row.id: row for row in rows}
+    return {name: TodoSection(emails=by_urgency([by_id[str(m.id)] for m in messages]), total=total)
+            for name, (messages, total) in found.items()}
+
+
+def by_urgency(emails: list[DashboardEmail]) -> list[DashboardEmail]:
+    return sorted(emails, key=lambda email: (PRIORITY_RANK[email.priority], email.timestamp))
 
 
 async def _latest_inbound(session: AsyncSession, scope: Scope, thread_ids: list[str]) -> dict[str, Message]:
@@ -139,17 +159,31 @@ async def _waiting_days(session: AsyncSession, user_id: UUID | None) -> int:
     return days or DEFAULT_WAITING_DAYS
 
 
+def _start_of_today(timezone_name: str) -> datetime:
+    now = datetime.now(ZoneInfo(timezone_name))
+    return now.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+
+
+async def _done_since(session: AsyncSession, scope: Scope, since: datetime) -> int:
+    """From live columns, not the audit log, so an undone dismissal no longer counts."""
+    emails = await session.scalar(select(func.count()).select_from(Message).where(
+        scope.where(Message.user_id), or_(Message.sent_at >= since, Message.dismissed_at >= since)))
+    replies = await session.scalar(select(func.count()).select_from(SentMessage).where(
+        scope.where(SentMessage.user_id), or_(SentMessage.dismissed_at >= since, SentMessage.followed_up_at >= since)))
+    return (emails or 0) + (replies or 0)
+
+
 async def todo_for(scope: Scope, policy_email: str) -> Todo:
     quiet = (await settings_for(scope.owner_id)).effective if scope.owner_id else await company_default()
     async with get_sessionmaker()() as session:
         policy = await load_policy(session, policy_email)
-        sections = {name: await _section(session, scope, conditions, policy)
-                    for name, conditions in _sections().items()}
+        sections = await _sections_with_rows(session, scope, policy)
         waiting_days = await _waiting_days(session, scope.owner_id)
         waiting = await _waiting(session, scope, waiting_days, quiet, policy)
+        done_today = await _done_since(session, scope, _start_of_today(quiet.timezone))
     # The lists never share an email, so their totals add up to distinct emails.
     count = sum(section.total for section in sections.values()) + len(waiting)
-    return Todo(**sections, waiting=waiting, waitingDays=waiting_days, count=count)
+    return Todo(**sections, waiting=waiting, waitingDays=waiting_days, count=count, doneToday=done_today)
 
 
 async def dismiss_email(scope: Scope, message_id: UUID, is_dismissed: bool) -> bool:
@@ -161,12 +195,12 @@ async def dismiss_email(scope: Scope, message_id: UUID, is_dismissed: bool) -> b
     return changed is not None
 
 
-async def dismiss_waiting(scope: Scope, sent_id: UUID) -> bool:
-    """Not waiting: this reply leaves the waiting list."""
+async def dismiss_waiting(scope: Scope, sent_id: UUID, is_dismissed: bool) -> bool:
+    """Not waiting: this reply leaves the waiting list; undone, it comes back."""
     async with get_sessionmaker()() as session, session.begin():
         changed = await session.scalar(
             update(SentMessage).where(SentMessage.id == sent_id, scope.where(SentMessage.user_id))
-            .values(dismissed_at=func.now()).returning(SentMessage.id))
+            .values(dismissed_at=func.now() if is_dismissed else None).returning(SentMessage.id))
     return changed is not None
 
 

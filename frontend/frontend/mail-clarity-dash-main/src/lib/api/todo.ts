@@ -7,9 +7,19 @@ export const fetchTodo = () => request<Todo>("/todo");
 export const dismissEmail = (emailId: string) =>
   request<void>(`/emails/${encodeURIComponent(emailId)}/dismiss`, { method: HttpMethod.Post });
 
+/** Undo for No reply needed. */
+export const undismissEmail = (emailId: string) =>
+  request<void>(`/emails/${encodeURIComponent(emailId)}/dismiss`, { method: HttpMethod.Delete });
+
 /** Not waiting: the reply leaves the waiting list. */
 export const notWaiting = (sentId: string) =>
   request<void>(`/todo/waiting/${encodeURIComponent(sentId)}/dismiss`, { method: HttpMethod.Post });
+
+/** Undo for Not waiting. */
+export const waitingAgain = (sentId: string) =>
+  request<void>(`/todo/waiting/${encodeURIComponent(sentId)}/dismiss`, {
+    method: HttpMethod.Delete,
+  });
 
 /** A follow-up to an unanswered reply sent through AIMail, in placeholder form like any draft. */
 export const draftFollowUp = (sentId: string) =>

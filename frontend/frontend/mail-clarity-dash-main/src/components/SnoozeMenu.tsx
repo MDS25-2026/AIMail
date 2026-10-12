@@ -2,16 +2,12 @@ import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { errorMessage } from "../lib/api/errors";
-import { useQuietHours, useSnoozeEmail, useUnsnoozeEmail } from "../lib/queries";
-import { nextHourHere, nextMondayHere, nextQuietEnd, zoneOffsetMinutes } from "../lib/quietHours";
+import { useSnoozeEmail, useUnsnoozeEmail } from "../lib/queries";
 import { useFormat } from "../lib/useFormat";
+import { useSnoozeChoices } from "../lib/useSnoozeChoices";
 import type { Email } from "../types/email";
 import { InlineAlert } from "./InlineMessages";
 import { button } from "./variants";
-
-const LATER_TODAY_HOURS = 3;
-const MORNING_HOUR = 9;
-const MS_PER_HOUR = 3_600_000;
 
 /** Snooze (specs/features/quiet-hours-send-later.md): out of the inbox, back unread when due. */
 export default function SnoozeMenu({ email }: { email: Email }) {
@@ -21,7 +17,7 @@ export default function SnoozeMenu({ email }: { email: Email }) {
   const [isOpen, setIsOpen] = useState(false);
   const snooze = useSnoozeEmail();
   const unsnooze = useUnsnoozeEmail();
-  const quietHours = useQuietHours();
+  const choices = useSnoozeChoices();
   const error = snooze.error ?? unsnooze.error;
   const isSnoozed =
     email.snoozedUntil !== null &&
@@ -44,18 +40,6 @@ export default function SnoozeMenu({ email }: { email: Email }) {
     );
   }
 
-  const now = new Date();
-  const hours = quietHours.data?.effective;
-  const quietEnd = hours ? nextQuietEnd(now, zoneOffsetMinutes(hours.timezone, now), hours) : null;
-  const choices = [
-    {
-      label: t("snooze.laterToday"),
-      at: new Date(now.getTime() + LATER_TODAY_HOURS * MS_PER_HOUR),
-    },
-    { label: t("snooze.tomorrow"), at: nextHourHere(now, MORNING_HOUR, 1) },
-    { label: t("snooze.nextWeek"), at: nextMondayHere(now, MORNING_HOUR) },
-    ...(quietEnd ? [{ label: t("snooze.quietEnd"), at: quietEnd }] : []),
-  ];
   return (
     <div className="relative">
       <button

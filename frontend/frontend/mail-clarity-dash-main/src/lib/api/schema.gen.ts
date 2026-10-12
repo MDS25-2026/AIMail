@@ -610,6 +610,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/service-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Service Status */
+        get: operations["service_status_service_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/settings/holding-reply": {
         parameters: {
             query?: never;
@@ -867,7 +884,11 @@ export interface paths {
         put?: never;
         /** Not Waiting */
         post: operations["not_waiting_todo_waiting__sent_id__dismiss_post"];
-        delete?: never;
+        /**
+         * Waiting Again
+         * @description Undo for Not waiting.
+         */
+        delete: operations["waiting_again_todo_waiting__sent_id__dismiss_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1374,6 +1395,19 @@ export interface components {
             /** Value */
             value: number;
         };
+        /**
+         * PartState
+         * @enum {string}
+         */
+        PartState: "ok" | "degraded" | "down";
+        /** Parts */
+        Parts: {
+            backend: components["schemas"]["PartState"];
+            database: components["schemas"]["PartState"];
+            drafting: components["schemas"]["PartState"];
+            listener: components["schemas"]["PartState"];
+            masking: components["schemas"]["PartState"];
+        };
         /** PrivateModeBody */
         PrivateModeBody: {
             /** Enabled */
@@ -1521,6 +1555,12 @@ export interface components {
              * @default false
              */
             remindIfNoReply: boolean;
+        };
+        /** ServiceStatus */
+        ServiceStatus: {
+            /** Checkedat */
+            checkedAt: string;
+            parts: components["schemas"]["Parts"];
         };
         /** SessionInfo */
         SessionInfo: {
@@ -1689,6 +1729,11 @@ export interface components {
         Todo: {
             /** Count */
             count: number;
+            /**
+             * Donetoday
+             * @default 0
+             */
+            doneToday: number;
             needsAction: components["schemas"]["TodoSection"];
             needsReview: components["schemas"]["TodoSection"];
             unsentDrafts: components["schemas"]["TodoSection"];
@@ -3006,6 +3051,26 @@ export interface operations {
             };
         };
     };
+    service_status_service_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceStatus"];
+                };
+            };
+        };
+    };
     get_settings_route_settings_holding_reply_get: {
         parameters: {
             query?: never;
@@ -3552,6 +3617,35 @@ export interface operations {
         };
     };
     not_waiting_todo_waiting__sent_id__dismiss_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    waiting_again_todo_waiting__sent_id__dismiss_delete: {
         parameters: {
             query?: never;
             header?: never;
