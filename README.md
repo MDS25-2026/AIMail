@@ -43,7 +43,10 @@ Each links to its spec in [`specs/features/`](specs/features/).
 - Priority and category, inbox sorted most urgent first, search and Ask AIMail.
 - Send later and quiet hours ([`quiet-hours-send-later.md`](specs/features/quiet-hours-send-later.md)),
   holding replies ([`holding-reply.md`](specs/features/holding-reply.md)), reply templates, and a
-  To-do page of sent replies still waiting for an answer ([`todo-page.md`](specs/features/todo-page.md)).
+  To-do page in tabs, each row with its next step, Undo and Remind me later
+  ([`todo-page.md`](specs/features/todo-page.md),
+  [`todo-redesign-and-status.md`](specs/features/todo-redesign-and-status.md)).
+- A public service status page at `/status`.
 - Sender verification and a hash-chained audit log
   ([`sender-verification-and-audit.md`](specs/features/sender-verification-and-audit.md)).
 - A Chrome side panel in Gmail ([`chrome-extension.md`](specs/features/chrome-extension.md)) and a

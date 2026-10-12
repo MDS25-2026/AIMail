@@ -292,13 +292,38 @@ async def _owner_name(owner_id: UUID | None) -> str:
 async def _details_for(message: Message, thread: list[Message]) -> ThreadMap:
     """The conversation's placeholders and their values, oldest message first, plus the owner's
     name as the sign-off placeholder. Opened per request and never stored or logged."""
+    return _thread_map(message, thread, await _owner_name(message.user_id))
+
+
+def _thread_map(message: Message, thread: list[Message], owner_name: str) -> ThreadMap:
     ordered = sorted([*thread, message], key=lambda m: m.received_at or m.created_at or datetime.min.replace(tzinfo=timezone.utc))
     return build_thread_map(
         [(str(m.id), m.pii_vault, m.user_id, m.gmail_message_id or "",
           f"{m.subject or ''}\n{m.snippet_masked or ''}\n{m.body_masked or ''}") for m in ordered],
-        await _owner_name(message.user_id),
+        owner_name,
         parseaddr(message.from_addr or "")[0],
     )
+
+
+def thread_row(message: Message, thread: list[Message], owner_name: str, policy: Policy) -> DashboardEmail:
+    """A row whose action items, summary and draft can be shown: the AI wrote them in the thread's numbering."""
+    return _to_email(message, policy, details=_thread_map(message, thread, owner_name))
+
+
+async def thread_rows(session: AsyncSession, messages: list[Message], policy: Policy) -> list[DashboardEmail]:
+    """thread_row for many emails, with one query for all their threads and one name per owner."""
+    thread_ids = {m.thread_id for m in messages if m.thread_id}
+    others = (await session.scalars(select(Message).where(
+        Message.thread_id.in_(thread_ids), Message.user_id.in_({m.user_id for m in messages}),
+        Message.masking_status == MaskingStatus.COMPLETE))).all() if thread_ids else []
+    by_thread: dict[tuple[UUID | None, str], list[Message]] = {}
+    for other in others:
+        by_thread.setdefault((other.user_id, other.thread_id), []).append(other)
+    owners = {m.user_id for m in messages if m.user_id}
+    owner_names = dict((await session.execute(select(UserProfile.id, UserProfile.display_name)
+                                              .where(UserProfile.id.in_(owners)))).tuples().all()) if owners else {}
+    return [thread_row(m, [o for o in by_thread.get((m.user_id, m.thread_id), []) if o.id != m.id],
+                       owner_names.get(m.user_id) or "", policy) for m in messages]
 
 
 async def _thread_for(message: Message) -> list[Message]:
@@ -334,7 +359,8 @@ def inbox_row(message: Message, policy: Policy, schedule: ScheduleState | None =
 
 
 def _own_details(message: Message) -> ThreadMap:
-    """One email's details in its own numbering, for its row: subject, preview and action items."""
+    """One email's details in its own numbering, for its row's subject and preview. Not for the action
+    items, summary or draft: the AI wrote those in the thread's numbering (thread_row)."""
     text = "\n".join([message.subject or "", message.snippet_masked or "", *(message.action_items or [])])
     return build_thread_map(
         [(str(message.id), message.pii_vault, message.user_id, message.gmail_message_id or "", text)], ""

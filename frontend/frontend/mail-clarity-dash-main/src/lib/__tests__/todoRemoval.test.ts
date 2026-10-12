@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import { emailFixture } from "../../test/emailFixture";
 import type { Todo, WaitingReply } from "../../types/todo";
-import { withoutEmail, withoutWaiting } from "../queries/todo";
+import { handled, withoutEmail, withoutWaiting } from "../queries/todo";
 
 const waitingReply = (id: string): WaitingReply => ({
   id,
@@ -21,6 +21,7 @@ const todo = (): Todo => ({
   waiting: [waitingReply("w1")],
   waitingDays: 3,
   count: 8,
+  doneToday: 2,
 });
 
 describe("removing a row at once", () => {
@@ -38,5 +39,13 @@ describe("removing a row at once", () => {
     const after = withoutWaiting(todo(), "w1");
     expect(after.waiting).toEqual([]);
     expect(after.count).toBe(7);
+  });
+
+  test("a handled row counts towards done today at once", () => {
+    expect(handled(todo(), withoutEmail(todo(), "a")).doneToday).toBe(3);
+  });
+
+  test("nothing removed, nothing counted as done", () => {
+    expect(handled(todo(), withoutEmail(todo(), "missing")).doneToday).toBe(2);
   });
 });

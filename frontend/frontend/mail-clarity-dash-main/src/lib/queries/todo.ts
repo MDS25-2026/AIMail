@@ -1,5 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query";
 
+import { snoozeEmail, unsnoozeEmail } from "../api/emails";
 import {
   dismissEmail,
   draftFollowUp,
@@ -7,6 +8,8 @@ import {
   notWaiting,
   saveWaitingDays,
   sendFollowUp,
+  undismissEmail,
+  waitingAgain,
 } from "../api/todo";
 import type { Todo, TodoSection } from "../../types/todo";
 import { queryKeys } from "./keys";
@@ -54,29 +57,67 @@ export function withoutWaiting(todo: Todo, sentId: string): Todo {
   return { ...todo, waiting, count: todo.count - (todo.waiting.length - waiting.length) };
 }
 
+/** Handled, so it counts towards "done today" at once; Remind me later is not done, only moved. */
+export const handled = (todo: Todo, after: Todo): Todo =>
+  after.count < todo.count ? { ...after, doneToday: todo.doneToday + 1 } : after;
+
 /** The row goes at once; on a slow host waiting for the server and a reload felt like lag. */
-function useInstantRemoval(
-  mutationFn: (id: string) => Promise<void>,
-  remove: (todo: Todo, id: string) => Todo,
+function useInstantRemoval<TVariables>(
+  mutationFn: (variables: TVariables) => Promise<unknown>,
+  remove: (todo: Todo, variables: TVariables) => Todo,
+  alsoChanged: readonly QueryKey[] = [],
 ) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn,
-    onMutate: async (id: string) => {
+    onMutate: async (variables: TVariables) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.todo });
       const before = queryClient.getQueryData<Todo>(queryKeys.todo);
-      if (before) queryClient.setQueryData(queryKeys.todo, remove(before, id));
+      if (before) queryClient.setQueryData(queryKeys.todo, remove(before, variables));
       return { before };
     },
-    onError: (_error, _id, context) => {
+    onError: (_error, _variables, context) => {
       if (context?.before) queryClient.setQueryData(queryKeys.todo, context.before);
     },
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: queryKeys.todo }),
+    onSettled: () => {
+      for (const queryKey of [queryKeys.todo, ...alsoChanged]) {
+        void queryClient.invalidateQueries({ queryKey });
+      }
+    },
   });
 }
 
-export const useDismissEmail = () => useInstantRemoval(dismissEmail, withoutEmail);
-export const useNotWaiting = () => useInstantRemoval(notWaiting, withoutWaiting);
+export const useDismissEmail = () =>
+  useInstantRemoval(dismissEmail, (todo, emailId: string) =>
+    handled(todo, withoutEmail(todo, emailId)),
+  );
+export const useNotWaiting = () =>
+  useInstantRemoval(notWaiting, (todo, sentId: string) =>
+    handled(todo, withoutWaiting(todo, sentId)),
+  );
+export const useRemindLater = () =>
+  // A snoozed email also leaves the inbox list, which would otherwise show it until its next refresh.
+  useInstantRemoval(
+    snoozeEmail,
+    (todo, { emailId }: { emailId: string; until: Date }) => withoutEmail(todo, emailId),
+    [queryKeys.emails],
+  );
+
+/** The undos: the row comes back with the refetch, since only the server knows where it sorts. */
+function useUndo<TVariables>(mutationFn: (variables: TVariables) => Promise<unknown>) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn,
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.todo });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.emails });
+    },
+  });
+}
+
+export const useUndismissEmail = () => useUndo(undismissEmail);
+export const useWaitingAgain = () => useUndo(waitingAgain);
+export const useWakeEmail = () => useUndo(unsnoozeEmail);
 export const useSaveWaitingDays = () => useTodoMutation(saveWaitingDays);
 export const useSendFollowUp = () => useTodoMutation(sendFollowUp);
 
