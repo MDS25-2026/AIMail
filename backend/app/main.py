@@ -118,6 +118,7 @@ from app.rag.mask import DocumentMaskingError
 from app.rag.retrieve import ContextChunk, retrieve
 from app.scan_reading_routes import router as scan_reading_router
 from app.search_routes import router as search_router
+from app.service_status import router as service_status_router
 from app.sign_in import router as sign_in_router
 from app.template_routes import router as template_router
 from app.todo_routes import router as todo_router
@@ -140,6 +141,7 @@ app.middleware("http")(request_context)
 # Its own app, so the shared token never applies there: admin is a Supabase session (ADR 0004).
 app.mount(ADMIN_PREFIX, admin_app)
 app.include_router(health_router({"database": database_answers, "presidio": presidio_answers}))
+app.include_router(service_status_router)
 app.include_router(sign_in_router)
 app.include_router(account_router)
 app.include_router(holding_reply_router)

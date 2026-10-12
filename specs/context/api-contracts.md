@@ -88,6 +88,11 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   (`422 time_out_of_range`); snooze does not hide an email with a waiting send.
 - **Readable emails (2026-10-12, `specs/features/readable-emails.md`):** the email gains
   `hasUnreadAttachment`; `threadContext` also lists the owner's replies sent from Gmail itself.
+- **To-do redesign and status (2026-10-12, `specs/features/todo-redesign-and-status.md`):** `GET /todo`
+  gains `doneToday` and leaves out snoozed emails. `DELETE /todo/waiting/{id}/dismiss` (204) undoes
+  *Not waiting*. `GET /service-status` (public, cached 15 s, always 200) returns `{checkedAt, parts:
+  {backend, database, masking, drafting, listener}}`, each `ok` | `degraded` | `down`. `/healthz` and
+  `/readyz` are unchanged.
 - **Drafting skips (2026-10-12, `specs/features/drafting-skips.md`):** the email gains `isAutomated`;
   `senderUtcOffsetMinutes` is null for automated mail and for a `+0000` offset. A model call for a Private
   mode owner on a server with no private model answers `409 private_model_unavailable`; an automated

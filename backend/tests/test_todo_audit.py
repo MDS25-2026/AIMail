@@ -34,7 +34,17 @@ def test_dismissing_an_email_and_bringing_it_back_are_both_audited(api_client, a
     assert audited[0][1]["message"] == email
 
 
-def test_not_waiting_on_a_reply_is_audited(api_client, audited):
+def test_not_waiting_and_its_undo_are_both_audited(api_client, audited):
     sent = uuid4()
     assert api_client.post(f"/todo/waiting/{sent}/dismiss", headers=AUTH_HEADERS).status_code == 204
-    assert audited == [(AuditAction.WAITING_DISMISSED, {"user_id": None, "sent": sent})]
+    assert api_client.delete(f"/todo/waiting/{sent}/dismiss", headers=AUTH_HEADERS).status_code == 204
+    assert audited == [(AuditAction.WAITING_DISMISSED, {"user_id": None, "sent": sent, "dismissed": True}),
+                       (AuditAction.WAITING_DISMISSED, {"user_id": None, "sent": sent, "dismissed": False})]
+
+
+def test_undoing_not_waiting_on_someone_elses_reply_is_not_found(api_client, monkeypatch):
+    async def unchanged(*_args, **_kwargs):
+        return False
+
+    monkeypatch.setattr(todo_routes, "dismiss_waiting", unchanged)
+    assert api_client.delete(f"/todo/waiting/{uuid4()}/dismiss", headers=AUTH_HEADERS).status_code == 404

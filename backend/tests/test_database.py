@@ -402,7 +402,7 @@ def test_the_todo_lists_what_needs_the_reader_and_what_is_still_waiting():
                              sent("D", 0, "Could you call me?")])
         scope = Scope(owner_id=owner)
         before = await todo.todo_for(scope, f"{owner}@example.com")
-        await todo.dismiss_waiting(scope, waiting.id)
+        await todo.dismiss_waiting(scope, waiting.id, is_dismissed=True)
         await todo.dismiss_email(scope, acting.id, is_dismissed=True)
         assert not await todo.dismiss_email(Scope(owner_id=uuid4()), acting.id, is_dismissed=True)
         after = await todo.todo_for(scope, f"{owner}@example.com")

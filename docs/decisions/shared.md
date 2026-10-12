@@ -20,6 +20,18 @@ here when their change crosses a lane boundary. Schema and public contracts are 
   flag), Lane D (body folding, links, the email view's top bar; Han to review), `render.yaml`.
 - Status: accepted (spec `specs/features/readable-emails.md`)
 
+### 2026-10-12 — A public status route, separate from /readyz
+
+- Decision: `GET /service-status` reports backend, database, masking, drafting and listener as
+  `ok` / `degraded` / `down` for a public `/status` page; `/healthz` and `/readyz` are unchanged.
+  `GET /todo` gains `doneToday`, and `DELETE /todo/waiting/{id}/dismiss` undoes *Not waiting*.
+- Why: `/readyz` means "ready for traffic"; a stale listener or stopped agent must not mark the
+  backend unready. The listener's state reads `mailbox_connection.watch_expires_at`, which only the
+  listener writes (daily renewal), so no schema change; `updated_at` is also stamped by sign-in.
+- Why not a heartbeat table: a migration for a coarse signal the existing column already gives.
+- Affects: Lane B (routes), Lane D (pages), Lane A (read only: the column the listener writes).
+- Status: accepted (spec `specs/features/todo-redesign-and-status.md`)
+
 ### 2026-10-12 — The listener runs on Render; Pub/Sub signs in with a service account
 - Decision: `aimail-listener` runs as a Render background worker. Pub/Sub uses a service account
   (Subscriber role) through Application Default Credentials instead of the developer's `token.json`; the

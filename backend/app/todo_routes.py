@@ -59,9 +59,19 @@ async def undismiss(message_id: UUID, request: Request) -> None:
              dependencies=[Depends(require_mailbox)])
 async def not_waiting(sent_id: UUID, request: Request) -> None:
     scope = scope_of(request)
-    if not await dismiss_waiting(scope, sent_id):
+    if not await dismiss_waiting(scope, sent_id, is_dismissed=True):
         raise DomainError(ErrorCode.NOT_FOUND)
-    await audit(AuditAction.WAITING_DISMISSED, user_id=scope.owner_id, sent=sent_id)
+    await audit(AuditAction.WAITING_DISMISSED, user_id=scope.owner_id, sent=sent_id, dismissed=True)
+
+
+@router.delete("/todo/waiting/{sent_id}/dismiss", status_code=status.HTTP_204_NO_CONTENT,
+               dependencies=[Depends(require_mailbox)])
+async def waiting_again(sent_id: UUID, request: Request) -> None:
+    """Undo for Not waiting."""
+    scope = scope_of(request)
+    if not await dismiss_waiting(scope, sent_id, is_dismissed=False):
+        raise DomainError(ErrorCode.NOT_FOUND)
+    await audit(AuditAction.WAITING_DISMISSED, user_id=scope.owner_id, sent=sent_id, dismissed=False)
 
 
 @router.post("/todo/waiting/{sent_id}/follow-up",

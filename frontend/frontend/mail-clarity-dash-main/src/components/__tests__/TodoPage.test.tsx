@@ -26,48 +26,108 @@ vi.mock("../AppShell", () => ({
 const { t } = createI18n(Language.English);
 const empty = { emails: [], total: 0 };
 
-test("each section lists what needs the reader, and No reply needed takes an email out", async () => {
+function todoBody(overrides: Record<string, unknown> = {}) {
+  return {
+    needsAction: empty,
+    needsReview: empty,
+    unsentDrafts: empty,
+    waiting: [],
+    waitingDays: 3,
+    count: 0,
+    doneToday: 0,
+    ...overrides,
+  };
+}
+
+const Page = () => <TodoPage onTab={() => undefined} />;
+
+const openMenu = async () =>
+  userEvent.click(await screen.findByRole("button", { name: t("todo.moreActions") }));
+
+test("a row says the next step with the real name, and No reply needed offers Undo", async () => {
   const acting = emailFixture({
     id: "a1",
     subject: "Invoice for [PERSON_1]",
-    actionItems: ["Pay by Friday"],
+    actionItems: ["Pay by Friday", "Send the PO"],
     details: [{ placeholder: "[PERSON_1]", value: "Aisyah Rahman", kind: "PERSON" }],
   });
   const calls = stubFetch({
-    "GET /todo": {
-      body: {
-        needsAction: { emails: [acting], total: 1 },
-        needsReview: empty,
-        unsentDrafts: empty,
-        waiting: [
-          {
-            id: "w1",
-            subject: "Re: PO",
-            sentAt: "2026-10-01T02:00:00Z",
-            threadId: "18f2a",
-            workingDays: 4,
-            email: null,
-            canFollowUp: false,
-          },
-        ],
-        waitingDays: 3,
-        count: 2,
-      },
-    },
+    "GET /todo": { body: todoBody({ needsAction: { emails: [acting], total: 1 }, count: 1 }) },
     "POST /emails/a1/dismiss": { status: 204 },
+    "DELETE /emails/a1/dismiss": { status: 204 },
   });
-  renderWithProviders(<TodoPage />);
-  expect(await screen.findByText("Pay by Friday")).toBeTruthy();
+  renderWithProviders(<Page />);
+  expect(
+    await screen.findByText(`Pay by Friday ${t("todo.next.more", { count: 1 })}`),
+  ).toBeTruthy();
   // The row's own details: the name, as the inbox shows it, not the placeholder.
   expect(screen.getByText("Aisyah Rahman")).toBeTruthy();
   expect(screen.queryByText(/\[PERSON_1\]/)).toBeNull();
-  expect(screen.getByText("Re: PO")).toBeTruthy();
-  const gmail = screen.getByRole("link", { name: t("todo.openInGmail") });
-  expect(gmail.getAttribute("href")).toContain("#all/18f2a");
-  await userEvent.click(screen.getByRole("button", { name: t("todo.noReplyNeeded") }));
+  await openMenu();
+  await userEvent.click(screen.getByRole("button", { name: t("todo.dismissShort") }));
+  await userEvent.click(await screen.findByRole("button", { name: t("todo.undo") }));
   await vi.waitFor(() =>
-    expect(writes(calls).map((call) => call.path)).toEqual(["/emails/a1/dismiss"]),
+    expect(writes(calls).map((call) => `${call.method} ${call.path}`)).toEqual([
+      "POST /emails/a1/dismiss",
+      "DELETE /emails/a1/dismiss",
+    ]),
   );
+});
+
+test("the tabs show each list's count and open on the first with anything in it", async () => {
+  const review = emailFixture({ id: "r1", reviewReasons: [] });
+  stubFetch({
+    "GET /todo": {
+      body: todoBody({ needsReview: { emails: [review], total: 1 }, count: 1, doneToday: 3 }),
+    },
+  });
+  renderWithProviders(<Page />);
+  const selected = await screen.findByRole("tab", { selected: true });
+  expect(selected.textContent).toContain(t("todo.needsReview"));
+  expect(screen.getAllByRole("tab")).toHaveLength(4);
+  expect(screen.getByText(`Check the draft: ${t("todo.flagged")}`)).toBeTruthy();
+  expect(screen.getByText(t("todo.progress", { done: 3, left: 1 }))).toBeTruthy();
+});
+
+test("five rows show first, and the rest are one click away", async () => {
+  const emails = Array.from({ length: 7 }, (_, index) =>
+    emailFixture({ id: `e${index}`, actionItems: [`Task ${index}`] }),
+  );
+  stubFetch({ "GET /todo": { body: todoBody({ needsAction: { emails, total: 7 }, count: 7 }) } });
+  renderWithProviders(<Page />);
+  await screen.findByText("Task 0");
+  expect(screen.queryByText("Task 6")).toBeNull();
+  await userEvent.click(screen.getByRole("button", { name: t("todo.showRest", { count: 2 }) }));
+  expect(screen.getByText("Task 6")).toBeTruthy();
+});
+
+test("Remind me later snoozes the email and takes it off the list", async () => {
+  const acting = emailFixture({ id: "a1", actionItems: ["Pay by Friday"] });
+  const calls = stubFetch({
+    // As the server does: once snoozed, the email is off the list.
+    "GET /todo": () => ({
+      body: calls.some((each) => each.path.endsWith("/snooze"))
+        ? todoBody()
+        : todoBody({ needsAction: { emails: [acting], total: 1 }, count: 1 }),
+    }),
+    "GET /settings/quiet-hours": { status: 404 },
+    "POST /emails/a1/snooze": { body: acting },
+  });
+  renderWithProviders(<Page />);
+  await openMenu();
+  await userEvent.click(screen.getByRole("button", { name: t("todo.remindLater") }));
+  await userEvent.click(screen.getByRole("button", { name: t("snooze.tomorrow") }));
+  await vi.waitFor(() =>
+    expect(writes(calls).map((call) => call.path)).toEqual(["/emails/a1/snooze"]),
+  );
+  expect(screen.queryByText("Pay by Friday")).toBeNull();
+});
+
+test("with nothing left, the page says all clear and what will appear here", async () => {
+  stubFetch({ "GET /todo": { body: todoBody() } });
+  renderWithProviders(<Page />);
+  expect(await screen.findByText(t("todo.allClearTitle"))).toBeTruthy();
+  expect(screen.queryByRole("tablist")).toBeNull();
 });
 
 test("a reply sent through AIMail gets a follow-up drafted with real names, edited and sent", async () => {
@@ -94,6 +154,7 @@ test("a reply sent through AIMail gets a follow-up drafted with real names, edit
         waiting: [waiting],
         waitingDays: 3,
         count: 1,
+        doneToday: 0,
       },
     },
     "POST /todo/waiting/w2/follow-up": {
@@ -104,7 +165,7 @@ test("a reply sent through AIMail gets a follow-up drafted with real names, edit
     },
     "POST /todo/waiting/w2/follow-up/send": { status: 204 },
   });
-  renderWithProviders(<TodoPage />);
+  renderWithProviders(<Page />);
   await userEvent.click(await screen.findByRole("button", { name: t("todo.draftFollowUp") }));
   const editor = await screen.findByLabelText(t("todo.followUpLabel"));
   expect((editor as HTMLTextAreaElement).value).toBe("Hi Aisyah Rahman, just following up.");
@@ -137,10 +198,11 @@ test("a reply sent from Gmail is followed up in Gmail only", async () => {
         ],
         waitingDays: 3,
         count: 1,
+        doneToday: 0,
       },
     },
   });
-  renderWithProviders(<TodoPage />);
+  renderWithProviders(<Page />);
   expect(await screen.findByRole("link", { name: t("todo.openInGmail") })).toBeTruthy();
   expect(screen.queryByRole("button", { name: t("todo.draftFollowUp") })).toBeNull();
 });
@@ -164,6 +226,7 @@ test("a follow-up with text left for the reader asks once, then sends anyway", a
         waiting: [waiting],
         waitingDays: 3,
         count: 1,
+        doneToday: 0,
       },
     },
     "POST /todo/waiting/w4/follow-up": {
@@ -171,7 +234,7 @@ test("a follow-up with text left for the reader asks once, then sends anyway", a
     },
     "POST /todo/waiting/w4/follow-up/send": { status: 204 },
   });
-  renderWithProviders(<TodoPage />);
+  renderWithProviders(<Page />);
   await userEvent.click(await screen.findByRole("button", { name: t("todo.draftFollowUp") }));
   await userEvent.click(await screen.findByRole("button", { name: t("todo.sendFollowUp") }));
   expect(screen.getByRole("alert").textContent).toBe(t("draftStatus.sendTemplates", { count: 1 }));
@@ -193,13 +256,15 @@ test("dismissing takes the row out at once, and puts it back if the server refus
         waiting: [],
         waitingDays: 3,
         count: 1,
+        doneToday: 0,
       },
     },
     "POST /emails/a1/dismiss": () => answer.promise,
   });
-  renderWithProviders(<TodoPage />);
+  renderWithProviders(<Page />);
   expect(await screen.findByText("Pay by Friday")).toBeTruthy();
-  await userEvent.click(screen.getByRole("button", { name: t("todo.noReplyNeeded") }));
+  await openMenu();
+  await userEvent.click(screen.getByRole("button", { name: t("todo.dismissShort") }));
   // Gone while the server is still thinking.
   expect(screen.queryByText("Pay by Friday")).toBeNull();
   answer.resolve({ status: 500 });
