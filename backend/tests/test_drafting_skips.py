@@ -9,9 +9,11 @@ from sqlalchemy.dialects import postgresql
 from app import email_policy, private_mode
 from app.core.config import get_settings
 from app.core.errors import DomainError, ErrorCode
+from app.core.ownership import Scope
 from app.core.providers import Provider
 from app.db.models import MaskingStatus, Message
 from app.email_policy import Action, refusal_for
+from app.todo import _open
 
 
 def _sql(clause) -> str:
@@ -63,3 +65,8 @@ def test_the_recipients_local_time_is_only_offered_for_a_person_with_a_real_offs
     from app.dashboard import _sender_offset
 
     assert _sender_offset(_email(sender_utc_offset_minutes=offset, is_automated=automated)) == shown
+
+
+def test_the_todo_lists_leave_out_automated_mail():
+    where = " ".join(str(condition.compile(dialect=postgresql.dialect())) for condition in _open(Scope(owner_id=uuid4())))
+    assert "messages.is_automated IS false" in where

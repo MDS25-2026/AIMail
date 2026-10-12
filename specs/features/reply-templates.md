@@ -132,3 +132,8 @@ Changes go into `specs/context/db-schema.md` in the same PR.
   variable as a `[VAR_n]` marker, and refuses a translation that lost one.
 - 2026-10-11: AI filling of `{{invoice number}}` and the like depends on the model; it is not
   covered by an offline test and is the one criterion left to check by hand.
+- 2026-10-12: With no saved reply yet, the draft shows "No saved replies yet. Add one in Settings"
+  instead of nothing (test run T15: the tester couldn't find templates). The link opens Settings in a
+  new tab, so an edited draft is kept; the list refetches when the tab regains focus. Saving a draft
+  as a template is left out: a draft holds this thread's placeholders, which would name the wrong
+  person on another email.

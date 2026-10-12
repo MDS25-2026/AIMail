@@ -148,6 +148,12 @@ These are not defects — they are trade-offs with reasons, recorded so the reas
 
 ## Fixed
 
+### Test run of 12 Oct: details lost after a change, a vanishing Mark unread, hidden templates, a slow To-do count — Lanes B/D — FIXED 2026-10-12
+Scheduling, cancelling, snoozing or sending returned the email without its thread details, so the
+view's Show details switch disappeared (T14); these now return the whole email. Mark unread is a
+read/unread toggle (T10); the draft says where to add templates when there are none (T15); the To-do
+count drops with the row (T17); automated mail is left out of the To-do lists.
+
 ### Automated emails were drafted for, and a holding reply went out as "Hi (name)," — Lanes A/B/C — FIXED 2026-10-12
 Drafting ignored `is_automated`, the listener missed mail in Gmail's non-primary tabs, Private mode on a
 server with no private model failed as "drafting unavailable", and a holding-reply template's `(name)` was

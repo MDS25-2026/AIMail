@@ -778,13 +778,16 @@ async def approve_and_send(
     if message is None:
         return None
     _require(message, Action.SEND)
-    reply = _outgoing(draft, await _details_for(message, await _thread_for(message)))
+    thread = await _thread_for(message)
+    details = await _details_for(message, thread)
+    reply = _outgoing(draft, details)
     if message.user_id is not None and not await connections.can_send(message.user_id):
         raise SendRejectedError(ErrorCode.SEND_NOT_GRANTED)
     if _is_mid_send(message):
         raise DomainError(ErrorCode.SEND_IN_PROGRESS, f"message {message_id} is being sent by another request")
     if message.sent_at is not None:
-        return _to_email(message, await _policy_for(message))  # sent before this request: answering is idempotent
+        # Sent before this request: answering is idempotent.
+        return _to_email(message, await _policy_for(message), thread=thread, details=details)
     if not await _claim_send(pk):
         # Another request claimed it a moment ago and may still fail; showing "sent" now could be untrue.
         raise DomainError(ErrorCode.SEND_IN_PROGRESS, f"message {message_id} is being sent by another request")
@@ -807,7 +810,7 @@ async def approve_and_send(
                     message=message_id)
         raise
     try:
-        email, stored, is_learning_style = await _record_send(pk, message, reply, sent, remind)
+        stored, is_learning_style = await _record_send(pk, message, reply, sent, remind)
     except SQLAlchemyError:
         return await _sent_but_not_recorded(message, reply, sent)
     if is_learning_style:
@@ -817,11 +820,11 @@ async def approve_and_send(
     if await cancel_pending(pk, CancelReason.SENT_MANUALLY):
         await audit(AuditAction.SCHEDULED_SEND_CANCELLED, user_id=message.user_id, message=message_id,
                     reason=CancelReason.SENT_MANUALLY)
-    return email
+    return _to_email(stored, await _policy_for(stored), thread=thread, details=details)
 
 
 async def _record_send(pk: UUID, message: Message, reply: OutgoingReply, sent: SentReply,
-                       remind: bool | None = None) -> tuple[DashboardEmail, Message, bool]:
+                       remind: bool | None = None) -> tuple[Message, bool]:
     """What was sent, with its audit row in the same transaction; and whether style learning is on."""
     async with get_sessionmaker()() as session:
         stored = await session.get(Message, pk)
@@ -847,7 +850,7 @@ async def _record_send(pk: UUID, message: Message, reply: OutgoingReply, sent: S
             # The listener's copy was masked apart, with other placeholder numbers: ours shares the vault.
             "remind": remind, "message_id": pk, "body_masked": reply.stored, "subject": stored.subject or ""}))
         await session.commit()
-        return _to_email(stored, await _policy_for(stored)), stored, is_learning_style
+        return stored, is_learning_style
 
 
 async def _sent_but_not_recorded(message: Message, reply: OutgoingReply, sent: SentReply) -> DashboardEmail:
@@ -1099,7 +1102,10 @@ def _check_ahead(when: datetime) -> datetime:
 
 
 async def _with_schedule(message: Message) -> DashboardEmail:
-    return _to_email(message, await _policy_for(message), schedule=(await states_for([message.id])).get(message.id))
+    # The whole email, as opening it gives: the view replaces its copy, and a bare one lost Show details.
+    thread = await _thread_for(message)
+    return _to_email(message, await _policy_for(message), thread=thread, details=await _details_for(message, thread),
+                     schedule=(await states_for([message.id])).get(message.id))
 
 
 async def schedule_email(message_id: str, draft: str, send_at: datetime, *, scope: Scope) -> DashboardEmail | None:

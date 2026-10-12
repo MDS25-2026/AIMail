@@ -57,6 +57,7 @@ export const zh: Translations = {
   },
   detail: {
     markUnread: "标为未读",
+    markRead: "标为已读",
     backToInbox: "返回收件箱",
     fromAt: "{{sender}} · {{when}}",
     empty: "选择一封邮件以查看 AI 草稿",
@@ -497,6 +498,9 @@ export const zh: Translations = {
     failed: "无法更改扫描件的读取方式。请稍后再试。",
   },
   templates: {
+    noneYet: "还没有保存的回复。",
+    addInSettings: "在设置中添加",
+    opensInNewTab: "（在新标签页中打开）",
     title: "保存的回复",
     intro: "您经常重复写的回复。可在任何草稿中使用，原样插入或根据邮件改写。",
     loadFailed: "无法加载您保存的回复。",

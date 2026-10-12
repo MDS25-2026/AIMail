@@ -31,37 +31,52 @@ function useTodoMutation<TVariables, TResult>(
   });
 }
 
-function withoutEmail(todo: Todo, emailId: string): Todo {
+// Exported for tests; the nav badge reads count, so it drops with the row, not after the refetch.
+export function withoutEmail(todo: Todo, emailId: string): Todo {
   const drop = (section: TodoSection): TodoSection => {
     const emails = section.emails.filter((email) => email.id !== emailId);
     return { emails, total: section.total - (section.emails.length - emails.length) };
   };
-  return {
-    ...todo,
+  const sections = {
     needsAction: drop(todo.needsAction),
     needsReview: drop(todo.needsReview),
     unsentDrafts: drop(todo.unsentDrafts),
   };
+  const removed = (["needsAction", "needsReview", "unsentDrafts"] as const).reduce(
+    (sum, key) => sum + todo[key].total - sections[key].total,
+    0,
+  );
+  return { ...todo, ...sections, count: todo.count - removed };
+}
+
+export function withoutWaiting(todo: Todo, sentId: string): Todo {
+  const waiting = todo.waiting.filter((reply) => reply.id !== sentId);
+  return { ...todo, waiting, count: todo.count - (todo.waiting.length - waiting.length) };
 }
 
 /** The row goes at once; on a slow host waiting for the server and a reload felt like lag. */
-export function useDismissEmail() {
+function useInstantRemoval(
+  mutationFn: (id: string) => Promise<void>,
+  remove: (todo: Todo, id: string) => Todo,
+) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: dismissEmail,
-    onMutate: async (emailId: string) => {
+    mutationFn,
+    onMutate: async (id: string) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.todo });
       const before = queryClient.getQueryData<Todo>(queryKeys.todo);
-      if (before) queryClient.setQueryData(queryKeys.todo, withoutEmail(before, emailId));
+      if (before) queryClient.setQueryData(queryKeys.todo, remove(before, id));
       return { before };
     },
-    onError: (_error, _emailId, context) => {
+    onError: (_error, _id, context) => {
       if (context?.before) queryClient.setQueryData(queryKeys.todo, context.before);
     },
     onSettled: () => void queryClient.invalidateQueries({ queryKey: queryKeys.todo }),
   });
 }
-export const useNotWaiting = () => useTodoMutation(notWaiting);
+
+export const useDismissEmail = () => useInstantRemoval(dismissEmail, withoutEmail);
+export const useNotWaiting = () => useInstantRemoval(notWaiting, withoutWaiting);
 export const useSaveWaitingDays = () => useTodoMutation(saveWaitingDays);
 export const useSendFollowUp = () => useTodoMutation(sendFollowUp);
 

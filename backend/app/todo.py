@@ -60,10 +60,11 @@ class Todo(BaseModel):
 
 
 def _open(scope: Scope) -> list[ColumnElement[bool]]:
-    """Unsent, readable, not dismissed and not a spoof: what can still be acted on."""
+    """Unsent, readable, not dismissed, not a spoof and written by a person: what can still be acted on."""
+    # Newsletters and notifications filled the lists with "no reply needed" rows (test run T19).
     return [scope.where(Message.user_id), Message.sent_at.is_(None), Message.dismissed_at.is_(None),
             Message.masking_status == MaskingStatus.COMPLETE,
-            Message.auth_status.is_distinct_from(AuthStatus.SPOOF_DETECTED)]
+            Message.auth_status.is_distinct_from(AuthStatus.SPOOF_DETECTED), Message.is_automated.is_(False)]
 
 
 def _action_count() -> ColumnElement[int]:

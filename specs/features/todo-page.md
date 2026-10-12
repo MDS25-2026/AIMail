@@ -144,6 +144,10 @@ Changes go into `specs/context/db-schema.md` in the same PR.
   unsent draft (owner). Rationale: one email fit all three, and the page should read as one list
   of things to do. The count is then distinct emails (79 on 2026-10-11, where the three overlapping
   totals summed to 151).
+- 2026-10-12: Automated mail (`is_automated`: mailing lists, no-reply senders, Gmail's non-primary
+  tabs) is left out of every section; it filled the lists with notifications (test run). Dismissing a
+  row or *Not waiting* lowers the nav badge's count at once, with the row, and both come back if the
+  server refuses (test run T17).
 - 2026-10-11: The *Remind me* box forces tracking; unticked, the rules decide. Rationale: one copy
   of the rules (Python), none in TypeScript.
 - 2026-10-11: The listener's Sent path is separate from the inbox path and never fails a
