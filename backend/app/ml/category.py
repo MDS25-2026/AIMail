@@ -21,11 +21,12 @@ except ImportError:
 import logging
 from functools import lru_cache
 from pathlib import Path
-
-import joblib
-from sklearn.pipeline import Pipeline
+from typing import TYPE_CHECKING
 
 from app.ml.clean import clean_email_text
+
+if TYPE_CHECKING:
+    from sklearn.pipeline import Pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -52,12 +53,15 @@ CATEGORY_DISPLAY_NAMES: dict[EmailCategory, str] = {
 
 
 @lru_cache(maxsize=1)
-def _load_model() -> Pipeline | None:
+def _load_model() -> "Pipeline | None":
     """Loaded once. A missing artifact is logged once here, not swallowed on every email."""
     if not _MODEL_PATH.exists():
         logger.error("category model missing at %s: every email falls back to internal; "
                      "train it with scripts/train_category_classifier.py", _MODEL_PATH)
         return None
+    # Imported here: the API imports this module only for EmailCategory, and scikit-learn costs ~170 MB.
+    import joblib
+
     return joblib.load(_MODEL_PATH)
 
 
