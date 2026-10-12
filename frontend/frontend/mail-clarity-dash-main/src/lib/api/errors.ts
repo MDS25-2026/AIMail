@@ -72,6 +72,8 @@ export enum ApiErrorCode {
   Unknown = "unknown",
   // Client-side: the demo mailbox (src/demo) does not cover this call.
   NotInDemo = "not_in_demo",
+  // Client-side: the demo's AI answers are prepared for the refine suggestions only.
+  DemoSuggestionsOnly = "demo_suggestions_only",
 }
 
 /** Every failed backend call. `message` is for logs only; the reader sees errorMessage(). */
