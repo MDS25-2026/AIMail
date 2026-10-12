@@ -50,6 +50,8 @@ class ErrorCode(StrEnum):
     FOLLOW_UP_STALE = "follow_up_stale"
     MASKING_PENDING = "masking_pending"
     SENDER_UNVERIFIED = "sender_unverified"
+    AUTOMATED_EMAIL = "automated_email"
+    PRIVATE_MODEL_UNAVAILABLE = "private_model_unavailable"
     DRAFT_REFUSED = "draft_refused"
     AGENT_UNAVAILABLE = "agent_unavailable"
     REDACTION_MARKERS = "redaction_markers"
@@ -117,6 +119,8 @@ _STATUS: dict[ErrorCode, int] = {
     ErrorCode.FOLLOW_UP_STALE: status.HTTP_409_CONFLICT,
     ErrorCode.MASKING_PENDING: status.HTTP_409_CONFLICT,
     ErrorCode.SENDER_UNVERIFIED: status.HTTP_409_CONFLICT,
+    ErrorCode.AUTOMATED_EMAIL: status.HTTP_409_CONFLICT,
+    ErrorCode.PRIVATE_MODEL_UNAVAILABLE: status.HTTP_409_CONFLICT,
     ErrorCode.GOOGLE_ACCESS_EXPIRED: status.HTTP_409_CONFLICT,
     ErrorCode.PRIVATE_MODE_UNAVAILABLE: status.HTTP_409_CONFLICT,
     ErrorCode.SCAN_CHECK_UNAVAILABLE: status.HTTP_409_CONFLICT,

@@ -190,7 +190,7 @@ def captured_query(monkeypatch):
 
     monkeypatch.setattr("app.main.retrieve", retrieve)
     monkeypatch.setattr("app.main.answer", answer)
-    monkeypatch.setattr("app.main.provider_for", gemini)
+    monkeypatch.setattr("app.main.model_for", gemini)
     return seen
 
 

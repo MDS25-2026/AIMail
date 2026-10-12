@@ -10,6 +10,7 @@ from uuid import UUID
 from sqlalchemy import ColumnElement, or_, select
 
 from app.core.config import get_settings
+from app.core.errors import DomainError, ErrorCode
 from app.core.providers import Provider
 from app.db.models import UserPreferences
 from app.db.session import get_sessionmaker
@@ -27,6 +28,15 @@ async def provider_for(user_id: UUID | None) -> Provider:
         chosen = await session.scalar(select(UserPreferences.draft_provider)
                                       .where(UserPreferences.user_id == user_id))
     return Provider(chosen or Provider.GEMINI)
+
+
+async def model_for(user_id: UUID | None) -> Provider:
+    """The provider a model call for this owner uses. Private mode on a server with no private model is
+    refused, never quietly sent to Gemini instead: that would break the promise the setting makes."""
+    provider = await provider_for(user_id)
+    if provider == Provider.LOCAL and not is_offered():
+        raise DomainError(ErrorCode.PRIVATE_MODEL_UNAVAILABLE)
+    return provider
 
 
 def not_private(user_column: ColumnElement) -> ColumnElement[bool]:

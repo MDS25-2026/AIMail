@@ -116,6 +116,11 @@ def test_the_template_is_filled_in_locally_with_the_senders_name_and_return_date
     assert render("{return_date}回来", Language.ZH, "a@x.com", date(2026, 10, 15)) == "2026年10月15日回来"
 
 
+@pytest.mark.parametrize("typed", ["(name)", "[name]", "<name>", "{{name}}", "(Name)"])
+def test_the_ways_people_type_the_name_field_are_all_filled_in(typed):
+    assert render(f"Hi {typed}, noted.", Language.EN, "Aisyah Rahman <a@x.com>", None) == "Hi Aisyah Rahman, noted."
+
+
 def test_a_sender_with_no_display_name_gets_a_plain_greeting_never_their_address():
     assert render("Hi {name},", Language.EN, "aisyah@client.com", None) == "Hi there,"
     assert render("Salam {name},", Language.MS, "<aisyah@client.com>", None) == "Salam tuan/puan,"
@@ -258,3 +263,17 @@ def test_what_goes_out_is_exactly_the_users_words_marked_as_an_auto_reply(world,
     body, headers = world["sent"][0]
     assert body == "Hi Aisyah Rahman, I'll reply tomorrow."
     assert headers["Auto-Submitted"] == "auto-replied"
+
+
+def test_a_holding_reply_still_holding_a_marker_is_cancelled_never_sent(world, monkeypatch):
+    cancelled = []
+
+    async def cancel(reply_id, reason, owner_id):
+        cancelled.append(reason)
+
+    monkeypatch.setattr(scheduler, "_cancel", cancel)
+    due = _due()
+    due.settings.templates = {"en": "Hi {name}, (hidden) will call you."}
+    asyncio.run(scheduler._send(due))
+    assert world["sent"] == [] and cancelled == [scheduler.Refusal.UNFILLED_FIELD]
+

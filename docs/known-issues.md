@@ -148,6 +148,11 @@ These are not defects — they are trade-offs with reasons, recorded so the reas
 
 ## Fixed
 
+### Automated emails were drafted for, and a holding reply went out as "Hi (name)," — Lanes A/B/C — FIXED 2026-10-12
+Drafting ignored `is_automated`, the listener missed mail in Gmail's non-primary tabs, Private mode on a
+server with no private model failed as "drafting unavailable", and a holding-reply template's `(name)` was
+never filled. See `specs/features/drafting-skips.md`.
+
 ### A follow-up whose Gmail outcome was unknown kept its claim — Lane B — FIXED 2026-10-12
 It is now marked (`sent_message.follow_up_outcome_unknown_at`, migration 0043) and the reconciler
 asks Gmail: sent, the claim stays; not sent, the claim is released so it can be sent again.

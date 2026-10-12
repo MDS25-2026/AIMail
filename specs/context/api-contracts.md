@@ -86,6 +86,11 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   `senderUtcOffsetMinutes`, `scheduledFor`, `scheduleCancelled` (`they_replied` | `you_replied` |
   `too_late` | `refused`), `snoozedUntil`. A send time past the email's vault retention is refused
   (`422 time_out_of_range`); snooze does not hide an email with a waiting send.
+- **Drafting skips (2026-10-12, `specs/features/drafting-skips.md`):** the email gains `isAutomated`;
+  `senderUtcOffsetMinutes` is null for automated mail and for a `+0000` offset. A model call for a Private
+  mode owner on a server with no private model answers `409 private_model_unavailable`; an automated
+  email is refused an automatic draft with `automated_email` (Regenerate still drafts it). A cancelled
+  holding reply can carry `unfilled_field`.
 - **To-do (2026-10-11, `specs/features/todo-page.md`):** `GET /todo` returns `{needsAction,
   needsReview, unsentDrafts: {emails, total}, waiting: [{id, subject, sentAt, threadId, workingDays,
   email, canFollowUp}], waitingDays, count}` (each list the newest 50; an email is in one list only).

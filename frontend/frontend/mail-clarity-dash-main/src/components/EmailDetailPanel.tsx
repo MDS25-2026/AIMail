@@ -1,4 +1,4 @@
-import { ArrowLeft, ShieldAlert } from "lucide-react";
+import { ArrowLeft, Bot, ShieldAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { splitAround } from "../lib/conversations";
@@ -142,6 +142,15 @@ function DraftSection({ email, workflow }: { email: Email; workflow: DraftWorkfl
   const format = useFormat();
   return (
     <section className="space-y-4 rounded-lg border border-line bg-surface p-4">
+      {email.isAutomated && !email.draftReply ? (
+        <p
+          role="status"
+          className="flex gap-2 rounded-md border border-line bg-surface-muted px-3 py-2 text-xs text-fg-body"
+        >
+          <Bot aria-hidden className="mt-0.5 size-4 shrink-0 text-fg-muted" />
+          {t("draftStatus.automatedNotice")}
+        </p>
+      ) : null}
       <DraftReplyEditor email={email} workflow={workflow} />
       <TemplatePicker key={`templates-${email.id}`} email={email} workflow={workflow} />
       <HiddenDetailChips

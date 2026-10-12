@@ -416,6 +416,7 @@ export const ms: Translations = {
       not_correspondent: "Tidak dihantar: anda belum pernah menghubungi mereka",
       no_thread: "Tidak dihantar: tidak dapat menyemak perbualan",
       cancelled_by_user: "Tidak dihantar: anda membatalkannya",
+      unfilled_field: "Tidak dihantar: mesej masih ada (name) atau medan lain yang belum diisi",
       other: "Tidak dihantar",
     },
   },
@@ -913,6 +914,8 @@ export const ms: Translations = {
     },
   },
   draftStatus: {
+    automatedNotice:
+      "Ini kelihatan seperti e-mel automatik (surat berita atau pemberitahuan), jadi AIMail tidak menulis draf. Gunakan Jana semula jika anda tetap mahukannya.",
     generating: "Sedang menulis draf. Ini boleh mengambil masa sehingga 20 saat.",
     loadFailed:
       "Versi terkini e-mel ini tidak dapat dimuatkan, jadi anda sedang melihat pratonton peti masuk.",
@@ -1113,6 +1116,10 @@ export const ms: Translations = {
     generic: "Ada masalah. Cuba lagi sebentar lagi.",
     network: "Tidak dapat menghubungi AIMail. Semak sambungan anda dan cuba lagi.",
     signed_out: "Sesi anda telah tamat. Log masuk semula untuk meneruskan.",
+    automated_email:
+      "Ini kelihatan seperti e-mel automatik, jadi AIMail tidak menulis draf untuknya. Gunakan Jana semula jika anda mahukannya.",
+    private_model_unavailable:
+      "Mod Peribadi dihidupkan, tetapi pelayan ini tiada model peribadi, jadi tiada apa boleh didraf. Matikan Mod Peribadi dalam Tetapan untuk mendraf dengan Gemini.",
     sender_unverified:
       "Kami tidak dapat mengesahkan e-mel ini benar-benar daripada pengirim ini. Semak pengirim sebelum mendraf atau menghantar.",
     masking_pending:

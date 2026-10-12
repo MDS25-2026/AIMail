@@ -1069,6 +1069,11 @@ export interface components {
             /** Id */
             id: string;
             /**
+             * Isautomated
+             * @default false
+             */
+            isAutomated: boolean;
+            /**
              * Isdrafting
              * @default false
              */

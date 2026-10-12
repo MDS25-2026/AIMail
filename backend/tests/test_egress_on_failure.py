@@ -61,7 +61,7 @@ def test_a_failed_draft_keeps_the_search_and_the_agents_records(monkeypatch):
         return {}
 
     for name, value in (("retrieve", searched), ("_call_agent", refused), ("save_egress", save),
-                        ("provider_for", gemini), ("_style_fields", no_style)):
+                        ("model_for", gemini), ("_style_fields", no_style)):
         monkeypatch.setattr(dashboard, name, value)
     result = asyncio.run(dashboard._generate(message, dashboard.Tone.PROFESSIONAL, [],
                                              dashboard.ThreadMap()))

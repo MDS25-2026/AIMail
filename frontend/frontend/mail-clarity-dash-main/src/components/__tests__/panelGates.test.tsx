@@ -69,3 +69,14 @@ describe.each(PANELS)("%s", (_name, Panel) => {
     expect(screen.getByRole("button", { name: t("receipt.open") })).toBeTruthy();
   });
 });
+
+test("an automated email with no draft says why, and keeps the draft box for a draft on request", () => {
+  renderWithProviders(<InboxPanel email={emailFixture({ isAutomated: true, draftReply: "" })} />);
+  expect(screen.getByText(t("draftStatus.automatedNotice"))).toBeTruthy();
+  expect(draftBox()).toBeTruthy();
+});
+
+test("a person's email never shows the automated notice", () => {
+  renderWithProviders(<InboxPanel email={emailFixture({ isAutomated: false, draftReply: "" })} />);
+  expect(screen.queryByText(t("draftStatus.automatedNotice"))).toBeNull();
+});

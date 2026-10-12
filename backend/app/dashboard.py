@@ -87,7 +87,7 @@ from app.personalisation import (
     load_policy_for_user,
 )
 from app.plain_text import plain_text
-from app.private_mode import provider_for
+from app.private_mode import model_for
 from app.rag.errors import EmbeddingError
 from app.rag.mask import DocumentMaskingError
 from app.rag.retrieve import retrieve
@@ -257,11 +257,24 @@ def _to_email(
         threadId=message.thread_id,
         details=[Detail(**detail) for detail in details.details()],
         egress=[_egress_view(row) for row in egress or []],
-        senderUtcOffsetMinutes=message.sender_utc_offset_minutes,
+        senderUtcOffsetMinutes=_sender_offset(message),
+        isAutomated=bool(message.is_automated),
         scheduledFor=schedule.send_at.isoformat() if schedule.send_at else None,
         scheduleCancelled=schedule.cancelled,
         snoozedUntil=message.snoozed_until.isoformat() if message.snoozed_until else None,
     )
+
+
+# +0000 is what mail servers stamp, not where a person is; an automated sender is no person at all.
+UTC_STAMP_MINUTES = 0
+
+
+def _sender_offset(message: Message) -> int | None:
+    """The sender's UTC offset, or None when it says nothing about where a person is."""
+    offset = message.sender_utc_offset_minutes
+    if message.is_automated or offset == UTC_STAMP_MINUTES:
+        return None
+    return offset
 
 
 def _egress_view(row: ModelEgress) -> EgressRecord:
@@ -476,7 +489,7 @@ async def _generate(message: Message, tone: Tone, thread: list[Message], details
     searched: list[dict] = []
     refused: list[dict] = []
     try:
-        provider = await provider_for(message.user_id)
+        provider = await model_for(message.user_id)
         with track_egress() as searched:
             chunks = await retrieve(message.body_masked or "", k=5, scope=Scope(owner_id=message.user_id),
                                     provider=provider)
@@ -894,7 +907,7 @@ async def _refine(
         # Stored with any typed name put back, so hidden again before it leaves.
         action_items=[await names.hide(item) for item in message.action_items or []],
         sign_off=details.owner or "",
-        provider=await provider_for(message.user_id),
+        provider=await model_for(message.user_id),
         **await _style_fields(message),
     )
     try:
@@ -966,7 +979,7 @@ async def translate_email(message_id: str, language: str, *, scope: Scope) -> di
         raise TranslationError(ErrorCode.TOO_LARGE, "email too long to translate")
     try:
         translated = await _call_agent("/translate", TranslateRequest(
-            text=text, language=language, provider=await provider_for(message.user_id)), TranslateResponse)
+            text=text, language=language, provider=await model_for(message.user_id)), TranslateResponse)
     except httpx.HTTPStatusError as exc:
         await save_egress(agent_client.refusal_egress(exc.response), user_id=message.user_id, message_id=message.id)
         await audit(AuditAction.TRANSLATE_EMAIL, user_id=message.user_id, success=False,
@@ -1062,7 +1075,7 @@ async def translate_template(template: ReplyTemplate, language: Language) -> str
         raise TranslationError(ErrorCode.TOO_LARGE, "template too long to translate")
     try:
         translated = await _call_agent("/translate", TranslateRequest(
-            text=protected, language=language, provider=await provider_for(template.user_id)), TranslateResponse)
+            text=protected, language=language, provider=await model_for(template.user_id)), TranslateResponse)
     except httpx.HTTPStatusError as exc:
         await save_egress(agent_client.refusal_egress(exc.response), user_id=template.user_id, message_id=None)
         raise TranslationError(_translation_refusal(exc.response)) from exc

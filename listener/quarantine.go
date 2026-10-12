@@ -206,7 +206,7 @@ func remaskOne(ctx context.Context, srv *gmail.Service, row quarantinedRow) bool
 		recordFailure(ctx, row, reasonMaskingIncomplete)
 		return true
 	}
-	release := releasePatch{SenderVerdict: senderVerdict(msg.Payload.Headers), MaskedContent: content,
+	release := releasePatch{SenderVerdict: senderVerdict(msg.Payload.Headers, msg.LabelIds), MaskedContent: content,
 		SlaPriority: ClassifySLA(content.Subject, content.BodyMasked, time.Now().UTC())}
 	if err := supabasePatch(ctx, "messages", messageFilter(row.UserID, row.GmailMessageID), release); err != nil {
 		// Counted like any failure: a PATCH that always fails would otherwise re-read and re-OCR

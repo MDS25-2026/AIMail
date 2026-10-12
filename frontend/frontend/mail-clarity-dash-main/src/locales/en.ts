@@ -403,6 +403,7 @@ export const en = {
       not_correspondent: "Not sent: you haven't written to them before",
       no_thread: "Not sent: couldn't check the conversation",
       cancelled_by_user: "Not sent: you cancelled it",
+      unfilled_field: "Not sent: the message still had (name) or another unfilled field",
       other: "Not sent",
     },
   },
@@ -887,6 +888,8 @@ export const en = {
     },
   },
   draftStatus: {
+    automatedNotice:
+      "This looks like an automated email (a newsletter or notification), so AIMail didn't write a draft. Use Regenerate if you want one anyway.",
     generating: "Writing a draft. This can take up to 20 seconds.",
     loadFailed:
       "Couldn't load the latest version of this email, so you're seeing the inbox preview.",
@@ -1077,6 +1080,10 @@ export const en = {
     generic: "Something went wrong. Try again in a moment.",
     network: "Couldn't reach AIMail. Check your connection and try again.",
     signed_out: "Your session has ended. Sign in again to continue.",
+    automated_email:
+      "This looks like an automated email, so AIMail didn't write a draft for it. Use Regenerate if you want one.",
+    private_model_unavailable:
+      "Private mode is on, but this server has no private model, so nothing can be drafted. Switch Private mode off in Settings to draft with Gemini.",
     sender_unverified:
       "We couldn't confirm this email really came from this sender. Check the sender before drafting or sending.",
     masking_pending:

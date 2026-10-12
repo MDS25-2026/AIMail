@@ -35,13 +35,13 @@ func senderFacts(msg *gmail.Message) SenderFacts {
 		ReplyTo:                headerValue(headers, "Reply-To"),
 		ReceivedAt:             time.Now().UTC(),
 		SenderUTCOffsetMinutes: utcOffsetMinutes(headerValue(headers, "Date")),
-		SenderVerdict:          senderVerdict(headers),
+		SenderVerdict:          senderVerdict(headers, msg.LabelIds),
 		ThreadIdentity:         threadIdentity(msg),
 	}
 }
 
-func senderVerdict(headers []*gmail.MessagePartHeader) SenderVerdict {
-	return SenderVerdict{AuthStatus: parseAuthStatus(headers), IsAutomated: isAutomated(headers)}
+func senderVerdict(headers []*gmail.MessagePartHeader, labels []string) SenderVerdict {
+	return SenderVerdict{AuthStatus: parseAuthStatus(headers), IsAutomated: isAutomated(headers, labels)}
 }
 
 // utcOffsetMinutes reads the zone of an RFC 5322 date: "Tue, 7 Oct 2026 23:40:00 +0800" gives 480.
