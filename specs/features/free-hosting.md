@@ -82,3 +82,18 @@ TCP (`--protocol http2`) helped but did not stop it. With billing set up:
   `http://<its internal address>/analyze` and `PRESIDIO_USER`/`PRESIDIO_PASSWORD` stay empty on Render.
 - The laptop still runs the listener with its own local Presidio. `make tunnel` stays as the free fallback.
 
+## The listener moves to Render (2026-10-12)
+
+- `aimail-listener` is a background worker (Starter) from `listener/Dockerfile`, which already builds
+  without `credentials.json` or `token.json`. With no token file, Pub/Sub signs in through Application
+  Default Credentials: a service account's JSON key uploaded as a Render Secret File (`pubsub-sa.json`,
+  mounted at `/etc/secrets/`), named by `GOOGLE_APPLICATION_CREDENTIALS`.
+- The service account needs only **Pub/Sub Subscriber** on the subscription. Gmail's own publisher
+  (`gmail-api-push@system.gserviceaccount.com`) already publishes to the topic, and each mailbox's watch
+  is set with that user's own Google connection.
+- The shared values (Supabase, both keys, the Google OAuth client, the Gemini key, the Presidio address)
+  are copied from `aimail-backend` with `fromService`, so the two can never disagree about a key.
+- It masks with the private `aimail-presidio`. The attachment reader is not deployed: attachments are
+  skipped, as the listener already does when the reader is unreachable, so attachment text is not read.
+- Only one listener may run. Stop the laptop's once the worker is up.
+

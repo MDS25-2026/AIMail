@@ -1,7 +1,8 @@
 # Render Blueprint (specs/features/free-hosting.md): one web service runs the agent on loopback and the API
 # with the worker, and Presidio runs as a private service no one outside Render can reach. Secrets are
 # filled in Render's dashboard (sync: false), never here. Migrations run from a developer machine with
-# `make migrate`. The listener stays on the laptop, with its own local Presidio.
+# `make migrate`. The listener runs as a background worker; only one listener may run, so stop the
+# laptop's once this one is up.
 services:
   - type: web
     name: aimail-backend
@@ -70,3 +71,40 @@ services:
     envVars:
       - key: PORT
         value: 3000
+
+  # Pulls Gmail's notifications from Pub/Sub, masks each email and stores it. No port: a worker.
+  - type: worker
+    name: aimail-listener
+    runtime: docker
+    plan: starter
+    region: singapore
+    dockerfilePath: ./listener/Dockerfile
+    dockerContext: ./listener
+    envVars:
+      # Pub/Sub signs in as a service account: upload its JSON key as a Secret File named pubsub-sa.json.
+      - key: GOOGLE_APPLICATION_CREDENTIALS
+        value: /etc/secrets/pubsub-sa.json
+      - key: GCP_PROJECT_ID
+        sync: false
+      - key: PUBSUB_TOPIC
+        sync: false
+      - key: PUBSUB_SUBSCRIPTION
+        sync: false
+      # The same values as the backend's, copied from it so they can never drift apart.
+      - key: SUPABASE_URL
+        fromService: { type: web, name: aimail-backend, envVarKey: SUPABASE_URL }
+      - key: SUPABASE_SERVICE_KEY
+        fromService: { type: web, name: aimail-backend, envVarKey: SUPABASE_SERVICE_KEY }
+      - key: TOKEN_ENCRYPTION_KEY
+        fromService: { type: web, name: aimail-backend, envVarKey: TOKEN_ENCRYPTION_KEY }
+      - key: PII_VAULT_KEY
+        fromService: { type: web, name: aimail-backend, envVarKey: PII_VAULT_KEY }
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        fromService: { type: web, name: aimail-backend, envVarKey: GOOGLE_OAUTH_CLIENT_ID }
+      - key: GOOGLE_OAUTH_CLIENT_SECRET
+        fromService: { type: web, name: aimail-backend, envVarKey: GOOGLE_OAUTH_CLIENT_SECRET }
+      - key: GOOGLE_API_KEY
+        fromService: { type: web, name: aimail-backend, envVarKey: GOOGLE_API_KEY }
+      - key: PRESIDIO_ANALYZER_URL
+        fromService: { type: web, name: aimail-backend, envVarKey: PRESIDIO_ANALYZER_URL }
+
