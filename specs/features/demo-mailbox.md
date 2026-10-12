@@ -1,6 +1,6 @@
 # Demo mailbox: try AIMail without signing in
 
-- **Status:** draft
+- **Status:** in progress (first slice: switch, entry and exit, four emails, pretend Send)
 - **Owner:** HyperByte12263 (Han, Lane D)
 - **Related issue:** #227
 - **Last updated:** 2026-10-12
@@ -91,6 +91,8 @@ None. Demo changes live in memory for the tab; the demo flag lives in `sessionSt
 
 - **Storage blocked** (private mode, strict settings): the flag falls back to memory, so the demo
   still works until reload.
+- **Back on the landing page** (browser Back, or typing `/signin`): the visitor is out of the demo,
+  and its emails are cleared from memory. The landing page is the front door, never part of the demo.
 - **Signed-in visitor clicks a demo link:** demo mode only starts from the button; a signed-in
   visitor never sees it on `/signin`, and the real session is untouched.
 - **Server render:** the page is server-rendered but loads data only in the browser. The banner
@@ -98,6 +100,8 @@ None. Demo changes live in memory for the tab; the demo flag lives in `sessionSt
 - **New endpoints added later:** an unknown path answers "Not available in the demo", never a
   network call. A test lists every path the dashboard calls and checks each is handled or refused.
 - **Polling** (session, inbox): answered locally, so it costs nothing.
+- **Answers that land too fast:** demo answers wait 150 ms, as a network call would. Answered at
+  once, the session landed before the page finished hydrating and React reported a mismatch.
 
 ## Security & privacy notes
 
@@ -124,5 +128,10 @@ None. Demo changes live in memory for the tab; the demo flag lives in `sessionSt
 - Keep demo data in typed `.ts` files under `src/demo/data/`, one file per area (emails, todo,
   audit, templates, documents, settings), so content can be reviewed separately from logic.
 - Route matching: a small table of `{ method, pattern, handler }`, not a chain of `if`s.
+- Entering and leaving go through `useDemoSwitch()` in `lib/queries/session.ts`, which also empties
+  the query cache, so demo emails never sit beside a real mailbox's.
+- Build order: (1) switch, guard, entry, banner, four emails, pretend Send and snooze/schedule;
+  (2) the rest of the emails and the prepared AI answers; (3) To-do, Audit, Templates, Knowledge
+  and Settings data. Until (3), those pages say "Not available in the demo".
 - Prepared AI answers: keyed by email id and action (`refine`, `regenerate:<tone>`,
   `translate:<lang>`); a missing one answers `NotInDemo`.

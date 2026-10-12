@@ -1,3 +1,5 @@
+import { isDemo } from "../../demo/mode";
+import { demoRequest } from "../../demo/request";
 import { BACKEND_URL } from "./config";
 import { ApiError, ApiErrorCode, apiErrorFrom } from "./errors";
 
@@ -87,6 +89,8 @@ async function readBody(res: Response) {
 
 /** Every dashboard call: the HttpOnly session cookie, never a token, and one ApiError on failure. */
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  // The demo mailbox answers every call itself; nothing reaches the backend (#227).
+  if (isDemo()) return demoRequest<T>(path, options);
   const endpoint = `${options.method ?? HttpMethod.Get} ${path.split("?")[0]}`;
   const res = await sendSignedIn(path, options, endpoint);
   if (!res.ok) throw await apiErrorFrom(res, endpoint);

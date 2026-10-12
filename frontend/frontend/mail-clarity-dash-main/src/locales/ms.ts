@@ -485,6 +485,12 @@ export const ms: Translations = {
       "Google telah menghentikan akses AIMail ke Gmail anda, jadi e-mel baharu tidak masuk dan balasan tidak boleh dihantar. Akses ujian bertahan 7 hari.",
     signIn: "Log masuk semula",
   },
+  demo: {
+    try: "Cuba demo",
+    banner: "Peti mel demo: e-mel ini rekaan, dan tiada apa-apa dihantar.",
+    signIn: "Log masuk dengan Google",
+    leave: "Keluar demo",
+  },
   privateOffer: {
     title: "Draf dengan model peribadi AIMail?",
     turnOn: "Hidupkan",
@@ -1214,6 +1220,8 @@ export const ms: Translations = {
     empty: "Tiada apa untuk disimpan.",
     too_long: "Teks itu terlalu panjang.",
     not_found: "Item itu tidak dijumpai. Ia mungkin telah dibuang.",
+    not_in_demo:
+      "Tidak tersedia dalam demo. Log masuk dengan Google untuk menggunakannya pada peti mel anda sendiri.",
     rate_limited: "Terlalu banyak permintaan sekarang. Tunggu seminit dan cuba lagi.",
     too_large: "Fail itu melebihi had 10 MB.",
     not_pdf: "Fail itu ditolak: ia mesti PDF sebenar.",
