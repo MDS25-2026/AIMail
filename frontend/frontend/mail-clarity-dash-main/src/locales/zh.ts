@@ -397,6 +397,7 @@ export const zh: Translations = {
       not_correspondent: "未发送：您之前没有联系过对方",
       no_thread: "未发送：无法检查会话",
       cancelled_by_user: "未发送：您已取消",
+      unfilled_field: "未发送：消息中仍有 (name) 或其他未填写的字段",
       other: "未发送",
     },
   },
@@ -865,6 +866,8 @@ export const zh: Translations = {
     },
   },
   draftStatus: {
+    automatedNotice:
+      "这看起来是自动发送的邮件（新闻简报或通知），所以 AIMail 没有起草回复。如仍需要，请使用“重新生成”。",
     generating: "正在撰写草稿，最多可能需要 20 秒。",
     loadFailed: "无法加载这封邮件的最新版本，当前显示的是收件箱预览。",
     retry: "重试",
@@ -1046,6 +1049,10 @@ export const zh: Translations = {
     generic: "出了点问题，请稍后重试。",
     network: "无法连接 AIMail。请检查网络连接后重试。",
     signed_out: "您的会话已结束。请重新登录以继续。",
+    automated_email:
+      "这看起来是自动发送的邮件，所以 AIMail 没有为它起草回复。如需草稿，请使用“重新生成”。",
+    private_model_unavailable:
+      "私密模式已开启，但此服务器没有私密模型，因此无法起草。请在设置中关闭私密模式，改用 Gemini 起草。",
     sender_unverified: "无法确认此邮件确实来自该发件人。起草或发送前请先核实发件人。",
     masking_pending: "这封邮件中的个人信息仍在隐藏中，暂时无法使用。",
     follow_up_stale: "自列表加载以来，对方已回复，或此回复已被回答或搁置。没有发送任何内容。",

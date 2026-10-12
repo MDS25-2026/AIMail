@@ -24,9 +24,11 @@ from app.core.constants import (
     HOLDING_REPLY_STALE_MINUTES,
 )
 from app.core.language import Language, detect_language
+from app.core.redaction import has_redaction_marker
 from app.db.models import HoldingReply, HoldingReplySettings, Message, UserProfile
 from app.db.session import get_sessionmaker
 from app.holding_reply import (
+    TEMPLATE_FIELD,
     Audience,
     Refusal,
     ReplyScope,
@@ -187,6 +189,10 @@ async def _release(reply_id: UUID) -> None:
 async def _send(due: Due) -> None:
     language = Language(due.reply.language)
     text = render(due.settings.templates[language], language, due.message.from_addr, due.settings.leave_until)
+    # It goes out with no one checking it, so a marker or an unfilled field stops it here.
+    if has_redaction_marker(text) or TEMPLATE_FIELD.search(text):
+        await _cancel(due.reply.id, Refusal.UNFILLED_FIELD, due.reply.user_id)
+        return
     if not await _claim(due):
         return
     try:

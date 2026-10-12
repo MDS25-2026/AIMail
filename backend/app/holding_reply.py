@@ -24,6 +24,10 @@ TEMPLATE_FIELD = re.compile(r"\{([a-z_]*)\}")
 NAME_FIELD = "name"
 RETURN_DATE_FIELD = "return_date"
 KNOWN_FIELDS = frozenset({NAME_FIELD, RETURN_DATE_FIELD})
+# How people actually type a field: (name), [name], <name>, {{name}}. Each is read as {name}; one went
+# out as "Hi (name)," on 2026-10-12 because only the curly form was filled in.
+LOOKALIKE_FIELD = re.compile(r"(?i)\(\s*(name|return_date)\s*\)|\[\s*(name|return_date)\s*\]|<\s*(name|return_date)\s*>"
+                             r"|\{\{\s*(name|return_date)\s*\}\}")
 # What {name} becomes when the sender's From header carries no display name.
 NAME_FALLBACK = {Language.EN: "there", Language.MS: "tuan/puan", Language.ZH: "您"}
 _MALAY_MONTHS = ("Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September",
@@ -76,6 +80,8 @@ class Refusal(StrEnum):
     NOT_CORRESPONDENT = "not_correspondent"
     NO_THREAD = "no_thread"
     CANCELLED_BY_USER = "cancelled_by_user"
+    # The filled-in template still held a marker or a field: never sent unchecked.
+    UNFILLED_FIELD = "unfilled_field"
 
 
 class SettingsBody(BaseModel):
@@ -202,4 +208,5 @@ def render(template: str, language: Language, from_header: str | None, leave_unt
         NAME_FIELD: display_name or NAME_FALLBACK[language],
         RETURN_DATE_FIELD: _format_date(leave_until, language) if leave_until else "",
     }
+    template = LOOKALIKE_FIELD.sub(lambda m: "{" + next(g for g in m.groups() if g).lower() + "}", template)
     return TEMPLATE_FIELD.sub(lambda m: values.get(m.group(1), m.group(0)), template)

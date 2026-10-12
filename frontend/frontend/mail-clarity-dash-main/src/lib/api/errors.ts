@@ -3,6 +3,8 @@ import type { ParseKeys, TFunction } from "i18next";
 /** The backend's error codes (app/core/errors.py ErrorCode), plus the two the client adds. */
 export enum ApiErrorCode {
   SenderUnverified = "sender_unverified",
+  AutomatedEmail = "automated_email",
+  PrivateModelUnavailable = "private_model_unavailable",
   MaskingPending = "masking_pending",
   AlreadySent = "already_sent",
   SendInProgress = "send_in_progress",

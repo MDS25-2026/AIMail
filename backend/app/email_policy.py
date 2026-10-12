@@ -11,6 +11,7 @@ from sqlalchemy import ColumnElement, and_
 
 from app.core.errors import ErrorCode
 from app.db.models import AuthStatus, MaskingStatus, Message
+from app.private_mode import is_offered, not_private
 
 
 class Action(StrEnum):
@@ -37,13 +38,19 @@ def refusal_for(message: Message, action: Action) -> ErrorCode | None:
         return ErrorCode.MASKING_PENDING
     if action in _WRITES_TO_THE_SENDER and message.is_spoofed:
         return ErrorCode.SENDER_UNVERIFIED
+    # Newsletters and notifications get no automatic draft; Regenerate still writes one on request.
+    if action == Action.DRAFT and message.is_automated:
+        return ErrorCode.AUTOMATED_EMAIL
     return None
 
 
 def drafting_filter() -> ColumnElement[bool]:
-    """The rows refusal_for allows Action.DRAFT on, as SQL, for the background drafter."""
-    return and_(
+    """The rows refusal_for allows Action.DRAFT on, as SQL, for the background drafter. Private mode
+    owners are left out where this server has no private model: their drafts could only fail."""
+    allowed = and_(
         Message.sent_at.is_(None),
         Message.masking_status == MaskingStatus.COMPLETE,
         Message.auth_status.is_distinct_from(AuthStatus.SPOOF_DETECTED),
+        Message.is_automated.is_(False),
     )
+    return allowed if is_offered() else and_(allowed, not_private(Message.user_id))

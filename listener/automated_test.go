@@ -26,7 +26,7 @@ func TestAutomatedMailIsRecognised(t *testing.T) {
 		"mailer daemon":      headers("From", "MAILER-DAEMON@mail.example.com"),
 	}
 	for name, h := range cases {
-		if !isAutomated(h) {
+		if !isAutomated(h, nil) {
 			t.Errorf("%s was not recognised as automated", name)
 		}
 	}
@@ -38,8 +38,20 @@ func TestAPersonsEmailIsNotAutomated(t *testing.T) {
 		headers("From", "Reply Team <replyteam@corp.com>", "Auto-Submitted", "no"),
 		headers("From", "Noreen <noreen@corp.com>"),
 	} {
-		if isAutomated(h) {
+		if isAutomated(h, nil) {
 			t.Errorf("a person's email was treated as automated: %v", h[0].Value)
 		}
+	}
+}
+
+func TestGmailsNonPrimaryTabsAreAutomated(t *testing.T) {
+	person := headers("From", "Milanote <hello@milanote.com>")
+	for _, label := range []string{"CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL", "CATEGORY_UPDATES", "CATEGORY_FORUMS"} {
+		if !isAutomated(person, []string{"INBOX", label}) {
+			t.Errorf("mail in %s was not treated as automated", label)
+		}
+	}
+	if isAutomated(person, []string{"INBOX", "CATEGORY_PERSONAL", "IMPORTANT"}) {
+		t.Error("mail in the Primary tab was treated as automated")
 	}
 }

@@ -197,7 +197,7 @@ def test_a_translated_template_that_lost_a_variable_is_refused(monkeypatch):
 
     monkeypatch.setattr(dashboard, "_call_agent", call_agent)
     monkeypatch.setattr(dashboard, "save_egress", nothing)
-    monkeypatch.setattr(dashboard, "provider_for", gemini)
+    monkeypatch.setattr(dashboard, "model_for", gemini)
     with pytest.raises(dashboard.TranslationError) as refused:
         asyncio.run(dashboard.translate_template(_template(body="Hi {{name}}, please come."), Language.MS))
     assert refused.value.code == ErrorCode.TRANSLATION_UNFAITHFUL

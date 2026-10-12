@@ -12,7 +12,7 @@ from app.inbox_search import (
     InboxSearchResponse,
     execute_inbox_search,
 )
-from app.private_mode import provider_for
+from app.private_mode import model_for
 from model_gateway import track_egress
 
 logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ router = APIRouter(prefix="/api/search")
 async def inbox_search_endpoint(request: InboxSearchRequest, http: Request) -> InboxSearchResponse:
     """Natural language search and Q&A over masked emails and policy documents."""
     scope = scope_of(http)
-    provider = await provider_for(scope.owner_id)
+    provider = await model_for(scope.owner_id)
 
     with track_egress() as sent:
         response = await execute_inbox_search(request, scope=scope, provider=provider)

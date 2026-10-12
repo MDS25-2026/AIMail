@@ -96,7 +96,7 @@ def test_a_private_draft_searches_locally_and_asks_for_the_local_model(mailbox, 
         return Provider.LOCAL
 
     monkeypatch.setattr(dashboard, "retrieve", retrieve)
-    monkeypatch.setattr(dashboard, "provider_for", local)
+    monkeypatch.setattr(dashboard, "model_for", local)
     asyncio.run(dashboard.regenerate_email(str(mailbox["message"].id), scope=EVERYTHING))
     payload = json.loads(mailbox["payloads"][0])
     assert payload["provider"] == "local" and searched == [Provider.LOCAL]

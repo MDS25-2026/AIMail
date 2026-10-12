@@ -145,6 +145,9 @@ class DashboardEmail(BaseModel):
     # offset from UTC in minutes, when a held reply goes out, why the last one was called off
     # (until the reader schedules or sends again), and when a snoozed email comes back.
     senderUtcOffsetMinutes: int | None = None
+    # A newsletter or notification (mailing-list headers, a no-reply sender, a Gmail category):
+    # no draft is written for it automatically.
+    isAutomated: bool = False
     scheduledFor: str | None = None
     scheduleCancelled: Literal["they_replied", "you_replied", "too_late", "refused"] | None = None
     snoozedUntil: str | None = None

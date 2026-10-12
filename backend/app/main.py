@@ -99,7 +99,7 @@ from app.dashboard import (
 from app.egress_log import save_egress
 from app.gmail_send import SendError, SendOutcomeUnknownError
 from app.holding_reply_routes import router as holding_reply_router
-from app.private_mode import provider_for
+from app.private_mode import model_for
 from app.private_mode_routes import router as private_mode_router
 from app.quiet_hours_routes import router as quiet_hours_router
 from app.rag.chunk import extract_pdf_bytes
@@ -221,7 +221,7 @@ async def demo_page() -> FileResponse:
 async def search(request: SearchRequest, http: Request) -> list[ContextChunk]:
     # A typed query is embedded, so its details and names are hidden first; by the user's own provider.
     scope = scope_of(http)
-    provider = await provider_for(scope.owner_id)
+    provider = await model_for(scope.owner_id)
     query = await TypedNames().hide(mask_typed_text(request.query))
     try:
         with track_egress() as sent:
@@ -236,7 +236,7 @@ async def ask(request: AskRequest, http: Request) -> AskResponse:
     names = TypedNames()
     question = await names.hide(mask_typed_text(request.question))
     scope = scope_of(http)
-    provider = await provider_for(scope.owner_id)
+    provider = await model_for(scope.owner_id)
     try:
         with track_egress() as sent:
             chunks = await retrieve(question, request.k, scope=scope, provider=provider)

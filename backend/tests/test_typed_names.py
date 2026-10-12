@@ -121,7 +121,7 @@ def test_a_template_variable_is_never_touched_by_the_name_check(monkeypatch):
 
     monkeypatch.setattr(dashboard, "_call_agent", call_agent)
     monkeypatch.setattr(dashboard, "save_egress", nothing)
-    monkeypatch.setattr(dashboard, "provider_for", gemini)
+    monkeypatch.setattr(dashboard, "model_for", gemini)
     template = SimpleNamespace(body=f"Dear {{{{Customer Name}}}}, {NEW_NAME} will call.", user_id=None, language="en")
     translated = asyncio.run(dashboard.translate_template(template, dashboard.Language.MS))
     assert NEW_NAME not in sent[0] and "Customer Name" not in sent[0]

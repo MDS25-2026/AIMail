@@ -84,7 +84,7 @@ def mailbox(monkeypatch, test_settings):
                         ("retrieve", no_chunks), ("_mark_read", nothing),
                         ("_call_agent", call_agent), ("_claim_send", claim), ("send_reply", send_reply),
                         ("audit", nothing), ("_update_unsent", _true), ("_style_fields", no_style),
-                        ("is_learning", _false), ("provider_for", gemini), ("egress_for", no_egress),
+                        ("is_learning", _false), ("model_for", gemini), ("egress_for", no_egress),
                         ("save_egress", nothing), ("request_draft", nothing), ("release_drafting", nothing),
                         ("suggested_template_id", nothing), ("states_for", no_schedules),
                         ("cancel_pending", _false)):

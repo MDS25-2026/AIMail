@@ -15,6 +15,7 @@ export function emailFixture(overrides: Partial<Email> = {}): Email {
     actionItems: [],
     draftReply: "Thanks, the invoice is dated 1 October.",
     tone: "professional",
+    isAutomated: false,
     sources: [],
     piiMasked: true,
     criticConfidence: 0.9,
