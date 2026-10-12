@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
 
+import { leaveDemo, startDemo } from "../../demo/mode";
 import { isSignedOut } from "../api/errors";
 import { deleteAccount, disconnectGmail, fetchSession, signOut } from "../api/session";
 import { queryKeys } from "./keys";
@@ -55,4 +57,22 @@ export function useDeleteAccount(onDeleted: () => void) {
       onDeleted();
     },
   });
+}
+
+/** Into and out of the demo mailbox (#227); its emails are not the reader's, so the cache empties. */
+export function useDemoSwitch() {
+  const queryClient = useQueryClient();
+  return useMemo(
+    () => ({
+      start: () => {
+        startDemo();
+        queryClient.clear();
+      },
+      leave: () => {
+        leaveDemo();
+        queryClient.clear();
+      },
+    }),
+    [queryClient],
+  );
 }

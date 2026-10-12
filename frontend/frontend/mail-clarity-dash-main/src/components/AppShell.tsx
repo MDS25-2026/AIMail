@@ -9,6 +9,7 @@ import { useSession, useSignOut } from "../lib/queries";
 import { MAIN_CONTENT_ID } from "../lib/useFocusOnNavigate";
 import { useIsReadingEmail } from "../lib/useIsReadingEmail";
 import BottomNav from "./BottomNav";
+import DemoBanner from "./DemoBanner";
 import SideNav from "./SideNav";
 import { button } from "./variants";
 
@@ -44,6 +45,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
+      <DemoBanner />
       <ReconnectBanner />
       {/* Room for the phone's bottom bar (3.5rem) and the home indicator below it. */}
       <main

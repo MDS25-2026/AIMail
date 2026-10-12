@@ -1,5 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ShieldCheck } from "lucide-react";
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -12,7 +13,9 @@ import {
   RedactionChip,
 } from "../components/landing/LandingSections";
 import LivePreview from "../components/landing/LivePreview";
+import { isDemo } from "../demo/mode";
 import { SIGN_IN_URL } from "../lib/api/config";
+import { useDemoSwitch } from "../lib/queries";
 import { Page, pageMeta } from "../lib/pageMeta";
 
 // The only error codes the backend sends back here; anything else reads as a plain failure.
@@ -45,10 +48,41 @@ function SignInButton({ className = "" }: { className?: string }) {
   );
 }
 
-/** The front door for signed-out visitors: the product working, why to trust it, one way in. */
+/** The demo mailbox (#227): no sign-in, made-up emails. */
+function TryDemoButton({ className = "" }: { className?: string }) {
+  const { t } = useTranslation();
+  const { start } = useDemoSwitch();
+  const navigate = useNavigate();
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        start();
+        void navigate({ to: "/" });
+      }}
+      className={`inline-flex items-center justify-center rounded-md border px-5 py-2.5 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 ${className}`}
+    >
+      {t("demo.try")}
+    </button>
+  );
+}
+
+// On the way-in colours of the page, and on the brand-coloured closing section.
+const DEMO_ON_PAGE =
+  "border-line-strong bg-surface text-fg hover:bg-surface-muted focus-visible:outline-brand";
+const DEMO_ON_BRAND =
+  "border-on-brand text-on-brand hover:bg-brand-strong focus-visible:outline-surface";
+
+/** The front door for signed-out visitors: the product working, why to trust it, two ways in. */
 function LandingPage() {
   const { t } = useTranslation();
   const { error } = Route.useSearch();
+  const { leave } = useDemoSwitch();
+
+  // Back on the front door means out of the demo, and none of its emails stay in memory.
+  useEffect(() => {
+    if (isDemo()) leave();
+  }, [leave]);
 
   return (
     <div className="min-h-dvh overflow-x-clip bg-app text-fg-body">
@@ -61,6 +95,7 @@ function LandingPage() {
           </p>
           <div className="flex items-center gap-3">
             <LanguageSwitch className="max-sm:hidden" />
+            <TryDemoButton className={`px-4 py-2 max-sm:hidden ${DEMO_ON_PAGE}`} />
             <SignInButton className="px-4 py-2" />
           </div>
         </div>
@@ -90,6 +125,7 @@ function LandingPage() {
             <p className="max-w-xl text-lg text-fg-muted">{t("landing.lede")}</p>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
               <SignInButton className="px-6 py-3 text-base" />
+              <TryDemoButton className={`px-6 py-3 text-base ${DEMO_ON_PAGE}`} />
               <span className="flex items-center gap-1.5 text-xs text-fg-muted">
                 <ShieldCheck aria-hidden className="size-4 shrink-0 text-success" />
                 {t("signIn.privacy")}
@@ -116,6 +152,7 @@ function LandingPage() {
           >
             {t("signIn.google")}
           </a>
+          <TryDemoButton className={`mt-6 ml-3 px-6 py-3 text-base ${DEMO_ON_BRAND}`} />
         </section>
       </main>
 

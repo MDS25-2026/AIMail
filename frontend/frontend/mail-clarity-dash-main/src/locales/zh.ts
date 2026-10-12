@@ -467,6 +467,12 @@ export const zh: Translations = {
       "Google 已停止 AIMail 对您 Gmail 的访问，因此新邮件不会到达，回复也无法发送。测试访问有效期为 7 天。",
     signIn: "重新登录",
   },
+  demo: {
+    try: "试用演示",
+    banner: "演示邮箱：邮件均为虚构，不会发送任何内容。",
+    signIn: "使用 Google 登录",
+    leave: "退出演示",
+  },
   privateOffer: {
     title: "使用 AIMail 的私有模型起草？",
     turnOn: "开启",
@@ -1142,6 +1148,7 @@ export const zh: Translations = {
     empty: "没有可保存的内容。",
     too_long: "文字过长。",
     not_found: "找不到该项目，可能已被删除。",
+    not_in_demo: "演示中不可用。请使用 Google 登录，在您自己的邮箱中使用。",
     rate_limited: "请求过于频繁。请稍等一分钟后重试。",
     too_large: "该文件超过 10 MB 限制。",
     not_pdf: "该文件被拒绝：必须是真正的 PDF。",

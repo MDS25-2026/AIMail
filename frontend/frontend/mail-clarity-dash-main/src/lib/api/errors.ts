@@ -70,6 +70,8 @@ export enum ApiErrorCode {
   // Client-side: the request never reached the backend, or its answer named no code we know.
   Network = "network",
   Unknown = "unknown",
+  // Client-side: the demo mailbox (src/demo) does not cover this call.
+  NotInDemo = "not_in_demo",
 }
 
 /** Every failed backend call. `message` is for logs only; the reader sees errorMessage(). */

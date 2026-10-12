@@ -474,6 +474,12 @@ export const en = {
       "Google has stopped AIMail's access to your Gmail, so new emails aren't arriving and replies can't be sent. Test access lasts 7 days.",
     signIn: "Sign in again",
   },
+  demo: {
+    try: "Try the demo",
+    banner: "Demo mailbox: the emails are made up, and nothing is sent.",
+    signIn: "Sign in with Google",
+    leave: "Leave demo",
+  },
   privateOffer: {
     title: "Draft on AIMail's private model?",
     turnOn: "Turn on",
@@ -1184,6 +1190,7 @@ export const en = {
     empty: "There's nothing to save.",
     too_long: "That text is too long.",
     not_found: "That item couldn't be found. It may have been removed.",
+    not_in_demo: "Not available in the demo. Sign in with Google to use it on your own mailbox.",
     rate_limited: "Too many requests just now. Wait a minute and try again.",
     too_large: "That file is over the 10 MB limit.",
     not_pdf: "That file was rejected: it must be a real PDF.",
