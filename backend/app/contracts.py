@@ -148,6 +148,8 @@ class DashboardEmail(BaseModel):
     # A newsletter or notification (mailing-list headers, a no-reply sender, a Gmail category):
     # no draft is written for it automatically.
     isAutomated: bool = False
+    # An attachment the listener could not read; the email says so instead of staying silent.
+    hasUnreadAttachment: bool = False
     scheduledFor: str | None = None
     scheduleCancelled: Literal["they_replied", "you_replied", "too_late", "refused"] | None = None
     snoozedUntil: str | None = None

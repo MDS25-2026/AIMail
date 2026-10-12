@@ -9,8 +9,8 @@ import { looksLikeHtml, useRenderedBody } from "../lib/useRenderedBody";
 import { usePreferences } from "../lib/usePreferences";
 import { cn } from "../lib/utils";
 import { HTML_BODY_CLASS } from "./MessageBody";
+import PlainBody from "./PlainBody";
 import QuantitiesList from "./QuantitiesList";
-import WithDetails from "./WithDetails";
 
 const TAGS = /<[^>]*>/g;
 // About six lines of body text. Keep in step with max-h-32 on the clipped box below.
@@ -93,9 +93,7 @@ export default function EmailBody({ email }: { email: Email }) {
       <div id={bodyId} className={cn("relative", !isExpanded && "max-h-32 overflow-hidden")}>
         <div ref={contentRef}>
           {translated !== undefined ? (
-            <p lang={language} className="whitespace-pre-wrap text-sm text-fg-body">
-              <WithDetails text={translated} />
-            </p>
+            <PlainBody text={translated} lang={language} />
           ) : sanitized ? (
             <>
               {sanitized.blockedImages > 0 ? (
@@ -117,9 +115,7 @@ export default function EmailBody({ email }: { email: Email }) {
               />
             </>
           ) : (
-            <p className="whitespace-pre-wrap text-sm text-fg-body">
-              <WithDetails text={email.body} />
-            </p>
+            <PlainBody text={email.body} />
           )}
         </div>
         {isOverflowing && !isExpanded ? (

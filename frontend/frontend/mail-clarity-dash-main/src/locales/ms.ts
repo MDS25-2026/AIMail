@@ -58,6 +58,8 @@ export const ms: Translations = {
     personal: "Peribadi",
   },
   detail: {
+    unreadAttachment: "Satu lampiran tidak dapat dibaca, jadi AIMail tidak melihat kandungannya.",
+    openInGmail: "Buka dalam Gmail",
     markUnread: "Tandakan belum dibaca",
     markRead: "Tandakan sudah dibaca",
     backToInbox: "Kembali ke peti masuk",
@@ -160,6 +162,8 @@ export const ms: Translations = {
     approx: "{{written}} ≈ {{converted}}",
   },
   emailBody: {
+    showQuoted: "Tunjuk teks yang dipetik",
+    hideQuoted: "Sembunyikan teks yang dipetik",
     imagesBlocked:
       "Imej jauh disekat, jadi pengirim tidak dapat melihat bila anda membuka e-mel ini.",
     loadImages: "Muatkan imej",
@@ -351,6 +355,8 @@ export const ms: Translations = {
     title: "Balasan sementara",
     intro:
       "Semasa anda tiada, orang yang menghantar e-mel menerima balasan ringkas dalam kata-kata anda sendiri, supaya mereka tahu bila akan dijawab. AI tidak pernah menulis atau mengubahnya.",
+    onlyException:
+      "AIMail tidak pernah menghantar apa-apa tanpa klik anda. Ini satu-satunya pengecualian, dan ia dimatikan melainkan anda menghidupkannya.",
     loadFailed: "Tidak dapat memuatkan tetapan balasan sementara anda.",
     enabled: "Hantar balasan sementara semasa saya tiada",
     when: "Bila",

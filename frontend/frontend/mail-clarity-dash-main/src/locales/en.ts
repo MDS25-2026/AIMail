@@ -53,6 +53,8 @@ export const en = {
     personal: "Personal",
   },
   detail: {
+    unreadAttachment: "An attachment couldn't be read, so AIMail hasn't seen what's in it.",
+    openInGmail: "Open in Gmail",
     markUnread: "Mark unread",
     markRead: "Mark read",
     backToInbox: "Back to inbox",
@@ -153,6 +155,8 @@ export const en = {
     approx: "{{written}} ≈ {{converted}}",
   },
   emailBody: {
+    showQuoted: "Show quoted text",
+    hideQuoted: "Hide quoted text",
     imagesBlocked: "Remote images are blocked, so the sender cannot see when you opened this.",
     loadImages: "Load images",
     showFull: "Show full email",
@@ -339,6 +343,8 @@ export const en = {
     title: "Holding reply",
     intro:
       "While you're away, people who write to you get a short reply in your own words, so they know when to expect an answer. AI never writes or changes it.",
+    onlyException:
+      "AIMail never sends anything without your click. This is the one exception, and it's off unless you switch it on.",
     loadFailed: "Couldn't load your holding reply settings.",
     enabled: "Send a holding reply while I'm away",
     when: "When",

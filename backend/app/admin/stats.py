@@ -60,7 +60,7 @@ async def _audit_rows(session: AsyncSession, since: datetime) -> list[AuditLog]:
     return list((await session.scalars(stmt)).all())
 
 
-def _fields(row: AuditLog) -> dict:
+def audit_fields(row: AuditLog) -> dict:
     try:
         parsed = json.loads(row.detail or "")
     except ValueError:
@@ -68,16 +68,16 @@ def _fields(row: AuditLog) -> dict:
     return parsed if isinstance(parsed, dict) else {}
 
 
-def _is_drop(row: AuditLog) -> bool:
+def is_attachment_drop(row: AuditLog) -> bool:
     return row.action == DROP_ATTACHMENT_ACTION or LEGACY_DROP_WORDING in (row.detail or "")
 
 
 def _is_degraded(row: AuditLog) -> bool:
-    return _fields(row).get("reason") == DEGRADED_REASON or LEGACY_DEGRADED_WORDING in (row.detail or "")
+    return audit_fields(row).get("reason") == DEGRADED_REASON or LEGACY_DEGRADED_WORDING in (row.detail or "")
 
 
 def _withheld(row: AuditLog) -> int:
-    count = _fields(row).get("withheld")
+    count = audit_fields(row).get("withheld")
     if isinstance(count, int):
         return count
     match = _WITHHELD.search(row.detail or "")
@@ -89,12 +89,12 @@ def privacy_counts(rows: list[AuditLog]) -> PrivacyCounts:
         quarantined=sum(1 for r in rows if r.action == "quarantine_message" and r.success),
         released=sum(1 for r in rows if r.action == "remask_message" and r.success),
         degraded_before_fix=sum(1 for r in rows if _is_degraded(r)),
-        attachment_text_dropped=sum(1 for r in rows if _is_drop(r)),
+        attachment_text_dropped=sum(1 for r in rows if is_attachment_drop(r)),
         pages_withheld=sum(_withheld(r) for r in rows),
         attachment_failures=sum(
             1 for r in rows
             if r.action in ("read_attachment", "ocr_attachment") and r.success is False
-            and not _is_drop(r)
+            and not is_attachment_drop(r)
         ),
     )
 

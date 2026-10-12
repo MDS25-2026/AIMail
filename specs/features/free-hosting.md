@@ -93,7 +93,9 @@ TCP (`--protocol http2`) helped but did not stop it. With billing set up:
   is set with that user's own Google connection.
 - The shared values (Supabase, both keys, the Google OAuth client, the Gemini key, the Presidio address)
   are copied from `aimail-backend` with `fromService`, so the two can never disagree about a key.
-- It masks with the private `aimail-presidio`. The attachment reader is not deployed: attachments are
-  skipped, as the listener already does when the reader is unreachable, so attachment text is not read.
+- It masks with the private `aimail-presidio`, and reads attachments with the private
+  `aimail-attachment-reader` (Standard, about 2 GB; added 2026-10-12, before which attachments were
+  skipped). `ATTACHMENT_READER_URL` is that service's internal address plus `/read`; without it the
+  listener skips attachments, as it does whenever the reader is unreachable.
 - Only one listener may run. Stop the laptop's once the worker is up.
 

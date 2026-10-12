@@ -35,6 +35,7 @@ from app.agent_contract import (
     TranslateResponse,
 )
 from app.agent_contract import RefineRequest as AgentRefineRequest
+from app.attachment_notes import has_unread_attachment
 from app.audit import AuditAction, audit, record
 from app.contracts import (
     ContextChunk,
@@ -181,8 +182,9 @@ def _sent_reply(message: Message) -> bool:
 THREAD_SNIPPET_CHARS = 200
 
 
-def _thread_view(thread: list[Message], details: ThreadMap) -> list[ThreadMessage]:
-    """Each message in the thread, with the owner's reply right under the one it answered."""
+def _thread_view(thread: list[Message], details: ThreadMap, sent: list[SentMessage] | None = None) -> list[ThreadMessage]:
+    """Each message in the thread in time order, with the owner's replies: those sent from AIMail right
+    under the one they answered, and those sent from Gmail itself where they fall in time."""
     view: list[ThreadMessage] = []
     for m in thread:
         key = str(m.id)
@@ -198,7 +200,26 @@ def _thread_view(thread: list[Message], details: ThreadMap) -> list[ThreadMessag
                 sender="", snippet=plain_text(reply)[:THREAD_SNIPPET_CHARS], isOwnReply=True, body=reply,
                 timestamp=m.sent_at.isoformat(),
             ))
-    return view
+    for reply in sent or []:
+        body = details.renumber(_sent_key(reply), reply.body_masked or "")
+        view.append(ThreadMessage(sender="", snippet=plain_text(body)[:THREAD_SNIPPET_CHARS], isOwnReply=True,
+                                  body=body, timestamp=reply.sent_at.isoformat()))
+    # Stable, so a reply sent from AIMail stays right under the message it answered.
+    return sorted(view, key=lambda entry: entry.timestamp or "")
+
+
+def _sent_key(reply: SentMessage) -> str:
+    return f"sent:{reply.id}"
+
+
+async def _gmail_replies(message: Message) -> list[SentMessage]:
+    """The owner's replies in this thread sent from Gmail itself; AIMail's own sends are on the message."""
+    if not message.thread_id:
+        return []
+    async with get_sessionmaker()() as session:
+        return list((await session.scalars(select(SentMessage).where(
+            SentMessage.thread_id == message.thread_id, Scope(owner_id=message.user_id).where(SentMessage.user_id),
+            SentMessage.message_id.is_(None)).order_by(SentMessage.sent_at))).all())
 
 
 def is_drafting(message: Message) -> bool:
@@ -222,8 +243,14 @@ def _to_email(
     details: ThreadMap | None = None,
     egress: list[ModelEgress] | None = None,
     schedule: ScheduleState | None = None,
+    sent: list[SentMessage] | None = None,
+    has_unread_attachment: bool = False,
 ) -> DashboardEmail:
     details = details or ThreadMap()
+    # Their placeholders have no stored values: appended after the thread's, so they take new numbers
+    # with none, never another person's (and the numbers drafts already use stay as they are).
+    for reply in sent or []:
+        details.add_message(_sent_key(reply), None, reply.body_masked or "")
     schedule = schedule or ScheduleState()
     key = str(message.id)
     return DashboardEmail(
@@ -239,7 +266,7 @@ def _to_email(
         # Stored by the worker (app/ml/categorise.py); never predicted while the inbox loads.
         category=message.category or EmailCategory.INTERNAL,
         categoryConfidence=message.category_confidence,
-        threadContext=_thread_view(thread or [], details),
+        threadContext=_thread_view(thread or [], details, sent),
         aiSummary=message.ai_summary or "",
         actionItems=message.action_items or [],
         draftReply=message.draft_reply or "",
@@ -259,6 +286,7 @@ def _to_email(
         egress=[_egress_view(row) for row in egress or []],
         senderUtcOffsetMinutes=_sender_offset(message),
         isAutomated=bool(message.is_automated),
+        hasUnreadAttachment=has_unread_attachment,
         scheduledFor=schedule.send_at.isoformat() if schedule.send_at else None,
         scheduleCancelled=schedule.cancelled,
         snoozedUntil=message.snoozed_until.isoformat() if message.snoozed_until else None,
@@ -662,7 +690,8 @@ async def email_detail(message_id: str, *, scope: Scope, viewer_id: UUID | None 
     if is_drafting(message):
         await request_draft(pk)
     email = _to_email(message, await _policy_for(message), thread=thread, details=details,
-                      egress=await egress_for(message.id), schedule=(await states_for([pk])).get(pk))
+                      egress=await egress_for(message.id), schedule=(await states_for([pk])).get(pk),
+                      sent=await _gmail_replies(message), has_unread_attachment=await has_unread_attachment(message))
     # Templates are the viewer's; a script, which has no viewer, gets the owner's.
     email.suggestedTemplateId = await suggested_template_id(
         viewer_id or message.user_id, f"{message.subject or ''}\n{message.body_masked or ''}")
@@ -707,7 +736,8 @@ async def confirm_sender(message_id: str, *, scope: Scope) -> DashboardEmail | N
             ).values(auth_status=AuthStatus.SENDER_CONFIRMED, generation_attempts=0))
             record(session, AuditAction.CONFIRM_SENDER, user_id=message.user_id, message=message_id)
         message.auth_status = AuthStatus.SENDER_CONFIRMED
-    return _to_email(message, await _policy_for(message), thread=thread, details=await _details_for(message, thread))
+    return _to_email(message, await _policy_for(message), thread=thread, details=await _details_for(message, thread),
+                     sent=await _gmail_replies(message))
 
 
 async def regenerate_email(
@@ -730,7 +760,8 @@ async def regenerate_email(
     details = await _details_for(message, thread)
     outcome = await _generate_and_store(message, thread, tone, details)
     _raise_unless_updated(message, outcome)
-    return _to_email(message, await _policy_for(message), thread=thread, details=details)
+    return _to_email(message, await _policy_for(message), thread=thread, details=details,
+                     sent=await _gmail_replies(message))
 
 
 def _raise_unless_updated(message: Message, outcome: GenerationOutcome) -> None:
@@ -813,7 +844,8 @@ async def approve_and_send(
         raise DomainError(ErrorCode.SEND_IN_PROGRESS, f"message {message_id} is being sent by another request")
     if message.sent_at is not None:
         # Sent before this request: answering is idempotent.
-        return _to_email(message, await _policy_for(message), thread=thread, details=details)
+        return _to_email(message, await _policy_for(message), thread=thread, details=details,
+                     sent=await _gmail_replies(message))
     if not await _claim_send(pk):
         # Another request claimed it a moment ago and may still fail; showing "sent" now could be untrue.
         raise DomainError(ErrorCode.SEND_IN_PROGRESS, f"message {message_id} is being sent by another request")
@@ -846,7 +878,8 @@ async def approve_and_send(
     if await cancel_pending(pk, CancelReason.SENT_MANUALLY):
         await audit(AuditAction.SCHEDULED_SEND_CANCELLED, user_id=message.user_id, message=message_id,
                     reason=CancelReason.SENT_MANUALLY)
-    return _to_email(stored, await _policy_for(stored), thread=thread, details=details)
+    return _to_email(stored, await _policy_for(stored), thread=thread, details=details,
+                     sent=await _gmail_replies(stored))
 
 
 async def _record_send(pk: UUID, message: Message, reply: OutgoingReply, sent: SentReply,
@@ -1050,7 +1083,8 @@ async def refine_email(
         setattr(message, column, value)
     await audit(AuditAction.REFINE_DRAFT, user_id=message.user_id, message=message_id,
                 review=message.needs_human_review)
-    return _to_email(message, await _policy_for(message), thread=thread, details=details)
+    return _to_email(message, await _policy_for(message), thread=thread, details=details,
+                     sent=await _gmail_replies(message))
 
 
 ADAPT_INSTRUCTION = (
@@ -1131,7 +1165,7 @@ async def _with_schedule(message: Message) -> DashboardEmail:
     # The whole email, as opening it gives: the view replaces its copy, and a bare one lost Show details.
     thread = await _thread_for(message)
     return _to_email(message, await _policy_for(message), thread=thread, details=await _details_for(message, thread),
-                     schedule=(await states_for([message.id])).get(message.id))
+                     schedule=(await states_for([message.id])).get(message.id), sent=await _gmail_replies(message))
 
 
 async def schedule_email(message_id: str, draft: str, send_at: datetime, *, scope: Scope) -> DashboardEmail | None:

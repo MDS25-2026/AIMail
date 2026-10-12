@@ -1087,6 +1087,11 @@ export interface components {
             draftReply: string;
             /** Egress */
             egress?: components["schemas"]["EgressRecord"][];
+            /**
+             * Hasunreadattachment
+             * @default false
+             */
+            hasUnreadAttachment: boolean;
             /** Id */
             id: string;
             /**

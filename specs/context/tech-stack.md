@@ -104,7 +104,7 @@ separately by whoever offers Private mode.
 | Dashboard | Vercel (Nitro's Vercel preset, detected at build); `/api/*` rewritten to the backend at the edge | `frontend/frontend/mail-clarity-dash-main/nitro.config.ts` |
 | API, worker and agent | One Render web service (Starter) from the backend image, started by `start-render.sh` | `render.yaml`, `backend/start-render.sh`, `backend/app/combined.py` |
 | Presidio for the backend | A private Render service (Standard, 2 GB), same pinned image | `render.yaml` |
-| Listener | A Render background worker (Starter), Pub/Sub through a service account; the attachment reader is not deployed | `render.yaml`, `listener/Dockerfile` |
+| Listener | A Render background worker (Starter), Pub/Sub through a service account; attachments read by a private `aimail-attachment-reader` service (Standard) | `render.yaml`, `listener/Dockerfile`, `listener/attachment-reader/Dockerfile` |
 
 Details and limits: [`../features/free-hosting.md`](../features/free-hosting.md).
 

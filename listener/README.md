@@ -22,7 +22,8 @@ count when a nearby word (bank, jalan, plate...) says what they are. If Presidio
 message is quarantined with no content until it can be masked.
 
 Before masking, every text part of the body is read and converted from the sender's charset to UTF-8,
-HTML is reduced to prose, and Gmail's HTML-escaped snippet is unescaped. Attachments are read by the
+HTML (preferred over the client's auto-made plain text) is parsed into prose that keeps paragraphs,
+lists, data tables and quotes (`htmltext.go`), and Gmail's HTML-escaped snippet is unescaped. Attachments are read by the
 type their bytes show, not the type the sender declared; ones of a type the reader cannot handle are
 counted in the audit log. If Gmail no longer has the history since the last notification (a listener
 down for over a week), the 50 newest inbox messages are checked and the ones not yet stored are ingested;
@@ -73,6 +74,10 @@ Expect `ingesting the mailbox of user ...` for each connected user, then `Listen
 emails on Pub/Sub...`. Send a mail to
 a connected inbox to see it masked and stored. Re-auth by deleting `token.json` and re-running.
 Ctrl+C or SIGTERM stops it cleanly.
+
+`go run . reprocess` re-reads stored emails from Gmail with today's extraction and prints what it would
+change; `go run . reprocess --write` stores it, clearing each email's summary, items, draft and category
+so the worker makes them again (`specs/features/readable-emails.md`). Ask the owner before `--write`.
 
 ## Run as a service
 

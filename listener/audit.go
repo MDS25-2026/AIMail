@@ -68,14 +68,16 @@ const (
 	reasonMaskingIncomplete = "masking_incomplete"
 	reasonStoreFailed       = "store_failed"
 	reasonReleased          = "released"
-	reasonNoPayload         = "no_payload"
-	reasonOverSizeCap       = "over_size_cap"
-	reasonUnsupportedType   = "unsupported_type"
-	reasonTypeMismatch      = "type_mismatch"
-	reasonDisconnected      = "disconnected"
-	reasonHistoryUnusable   = "history_unusable"
-	reasonTooManyAttempts   = "too_many_attempts"
-	reasonPermanentFailure  = "permanent_failure"
+	// Re-read with a newer extraction (reprocess.go, specs/features/readable-emails.md).
+	reasonReprocessed      = "reprocessed"
+	reasonNoPayload        = "no_payload"
+	reasonOverSizeCap      = "over_size_cap"
+	reasonUnsupportedType  = "unsupported_type"
+	reasonTypeMismatch     = "type_mismatch"
+	reasonDisconnected     = "disconnected"
+	reasonHistoryUnusable  = "history_unusable"
+	reasonTooManyAttempts  = "too_many_attempts"
+	reasonPermanentFailure = "permanent_failure"
 )
 
 // Stages name the step that failed.

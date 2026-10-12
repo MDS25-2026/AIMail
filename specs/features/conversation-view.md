@@ -18,8 +18,10 @@ order, with the newest open and ready to reply to.
    with the number of messages beside the sender ("Aisyah (3)"). The row is unread if any message in
    it is. Drafts and Sent keep listing individual emails.
 2. **Detail, the conversation stacked.** Earlier messages sit above the open one as one-line cards
-   (sender, time, first line); clicking one expands its full body. The owner's replies sent from
-   AIMail appear in place as "You", with the time they were sent. The open message is expanded,
+   (sender, time, first line); clicking one expands its full body. The owner's replies appear in
+   place as "You", with the time they were sent: those sent from AIMail under the email they answered,
+   and those sent from Gmail itself where they fall in time (2026-10-12; their hidden details have no
+   stored values, so they show as hidden, never as another person's name). The open message is expanded,
    followed by its draft.
 3. **Restored details** (restorable masking) are highlighted in every expanded message, and Hide
    details applies to all of them.

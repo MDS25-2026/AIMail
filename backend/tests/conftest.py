@@ -41,6 +41,21 @@ def default_priority_policy(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def no_thread_extras(monkeypatch):
+    """The detail view reads replies sent from Gmail and failed attachment reads from the database;
+    unit tests have neither. tests/test_thread_replies.py checks both."""
+
+    async def none(_message):
+        return []
+
+    async def all_read(_message):
+        return False
+
+    monkeypatch.setattr(dashboard, "_gmail_replies", none)
+    monkeypatch.setattr(dashboard, "has_unread_attachment", all_read)
+
+
+@pytest.fixture(autouse=True)
 def no_typed_names(monkeypatch):
     """Typed text finds no names: CI has no Presidio. tests/test_typed_names.py checks the real path."""
 
