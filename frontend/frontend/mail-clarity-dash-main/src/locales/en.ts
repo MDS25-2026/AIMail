@@ -933,42 +933,119 @@ export const en = {
     },
   },
   landing: {
-    headline: "Answer work email faster, without handing your customers' details to AI.",
-    lede: "AIMail drafts replies to your work email. Names, phone numbers and IC numbers are hidden before any AI reads a word, and nothing is sent until you approve it.",
-    whyTitle: "Why teams choose AIMail",
-    pillars: {
-      private: {
-        title: "Private by design",
-        body: "Personal details are hidden on our side before the AI sees anything, attachments included, and kept only encrypted so your reply can still use them. Photos of ID cards never leave at all.",
-      },
-      approve: {
-        title: "You approve every send",
-        body: "AIMail writes the draft; you decide. It warns you about anything left hidden in a reply, and it never sends on its own.",
-      },
-      local: {
-        title: "Built for Malaysian offices",
-        body: "Use it in English, Bahasa Melayu or Chinese, with colours that work for colour-blind readers and a dark mode for late nights.",
-      },
-    },
-    howTitle: "How it works",
-    steps: {
-      arrives: {
-        title: "An email arrives",
-        body: "AIMail picks it up from your Gmail inbox.",
-      },
-      hidden: {
-        title: "Personal details are hidden",
-        body: "Before anything else, names, numbers and addresses are replaced.",
-      },
-      drafted: {
-        title: "A draft is written",
-        body: "Using the conversation and your company's own documents, which it shows you.",
-      },
-      approved: {
-        title: "You review and send",
-        body: "Edit it, refine it, or start over. It goes out only when you say so.",
+    eyebrow: "For teams who handle other people's details",
+    headline: "The AI writes your replies. It never learns who they're for.",
+    lede: "AIMail drafts answers to your work email in Gmail. Names, phone numbers and IC numbers become placeholders before any AI reads a word, and nothing is sent until you approve it.",
+    languageLabel: "Language",
+    preview: {
+      yourView: "What you see",
+      aiView: "What the AI sees",
+      subject: "Refund for order 4471",
+      body: "Hi, this is [name]. Could you refund the RM 450 by Friday? Call me on [phone] if anything is missing.",
+      waiting: "The draft appears here once the details are hidden.",
+      draftTitle: "Draft reply",
+      checkBadge: "AI check passed",
+      sentTitle: "Sent, after you approved it",
+      sentBadge: "Real details put back",
+      draft:
+        "Hi [name], thank you for your patience. Your refund of RM 450 will reach you by Friday. We'll call [phone] if we need anything else.",
+      placeholders: { name: "[Person 1]", email: "[Email 1]", phone: "[Phone 1]" },
+      stages: { arrives: "Arrives", hidden: "Hidden", drafted: "Drafted", sent: "Sent" },
+      stagesLabel: "Steps of the demo",
+      captions: {
+        arrives: "An email arrives in your Gmail, with a name, an address and a phone number.",
+        hidden: "Before any AI reads it, AIMail swaps each detail for a placeholder.",
+        drafted: "The AI drafts a reply from the placeholders, and AIMail checks it.",
+        sent: "You approve it, and the reply goes out with the real details put back.",
       },
     },
+    peek: {
+      title: "Same email. Two views.",
+      body: "You work with the real details. The AI only ever gets placeholders, and they're filled back in when you send.",
+      toggle: "Show what the AI sees",
+    },
+    receipt: {
+      title: "Receipts, not promises.",
+      body: "Every email comes with a privacy receipt: what the AI was given, what stayed with you, and every call made, failed ones included.",
+      heading: "Privacy receipt",
+      lines: {
+        hidden: "Personal details hidden",
+        given: "Given to the AI",
+        givenValue: "Masked text only",
+        kept: "Real details",
+        keptValue: "Encrypted, with you",
+        deleted: "Real details deleted",
+        deletedValue: "Within 30 days",
+        calls: "Calls to the AI",
+        callsValue: "Every one recorded",
+      },
+      points: {
+        typed: "Names you type are hidden too, including forms like bin, binti, a/l and a/p.",
+        photos: "Photos of IC cards are read on our side and never sent.",
+        private: "Prefer no outside AI at all? Private mode drafts on your company's own model.",
+      },
+    },
+    languages: {
+      title: "Bahasa, English, 中文.",
+      body: "Use AIMail in your language, and get each reply drafted in the language the email was written in.",
+      samples: {
+        en: "Hi [name], your refund is on its way.",
+        ms: "Hai [name], bayaran balik anda sedang diproses.",
+        zh: "[name]您好，您的退款正在处理中。",
+      },
+    },
+    featuresTitle: "Built for the inbox you actually have",
+    features: {
+      sources: {
+        title: "Grounded in your documents",
+        body: "Upload your policies and handbooks; each draft shows the passage it used.",
+      },
+      todo: {
+        title: "Who still owes you a reply",
+        body: "One page for emails waiting on you and replies waiting on others, with a follow-up a click away.",
+      },
+      timing: {
+        title: "Kind timing",
+        body: "It tells you when it's 11:40 pm for the recipient, and offers to send at 9 am their time.",
+      },
+      refine: {
+        title: "Refine in plain words",
+        body: '"Shorter", "more formal", "say yes to Friday": the draft changes and is checked again.',
+      },
+      templates: {
+        title: "Your templates, adapted",
+        body: "Save the replies you write often, and AIMail fits them to each email.",
+      },
+      panel: {
+        title: "Right inside Gmail",
+        body: "A side panel shows the draft beside the email you have open.",
+      },
+    },
+    faqTitle: "Questions people ask",
+    faq: {
+      send: {
+        q: "Does AIMail ever send on its own?",
+        a: 'Not a reply. Every reply waits for your approval. The one exception is a holding reply in your own words ("I\'m away until Monday"), and only if you switch it on.',
+      },
+      names: {
+        q: "Does the AI see my customers' names?",
+        a: "No. Names, email addresses, phone numbers and IC numbers are replaced before any AI reads the email, and names you type are hidden too. A name written in an unusual form can occasionally slip through, which is why every email has a receipt showing exactly what was sent.",
+      },
+      which: {
+        q: "Which AI does it use?",
+        a: "Google Gemini, which only ever receives text with the details hidden. In Private mode, your company's own model is used instead.",
+      },
+      delete: {
+        q: "Can I delete my data?",
+        a: "Yes. In Settings you can disconnect Gmail or delete your account, which removes your emails, drafts and settings. The real details behind placeholders are deleted automatically within 30 days.",
+      },
+      languages: {
+        q: "Which languages does it support?",
+        a: "The app is in English, Bahasa Melayu and Chinese, and replies are drafted in the language of the email.",
+      },
+    },
+    ctaTitle: "Your inbox, minus the worry.",
+    ctaBody: "Sign in with Google to connect Gmail. Nothing is sent without you.",
     footer:
       "Signing in with Google lets AIMail read and send your Gmail. AIMail is a final-year project at Monash University Malaysia.",
   },

@@ -962,43 +962,123 @@ export const ms: Translations = {
     },
   },
   landing: {
-    headline:
-      "Balas e-mel kerja dengan lebih pantas, tanpa menyerahkan butiran pelanggan anda kepada AI.",
-    lede: "AIMail mendraf balasan untuk e-mel kerja anda. Nama, nombor telefon dan nombor IC disembunyikan sebelum AI membaca apa-apa, dan tiada apa-apa dihantar sehingga anda meluluskannya.",
-    whyTitle: "Mengapa pasukan memilih AIMail",
-    pillars: {
-      private: {
-        title: "Privasi sejak awal",
-        body: "Butiran peribadi disembunyikan di pihak kami sebelum AI melihat apa-apa, termasuk lampiran, dan hanya disimpan dalam bentuk tersulit supaya balasan anda masih boleh menggunakannya. Gambar kad pengenalan tidak dihantar langsung.",
-      },
-      approve: {
-        title: "Anda meluluskan setiap penghantaran",
-        body: "AIMail menulis draf; anda yang membuat keputusan. Ia memberi amaran tentang butiran tersembunyi yang tertinggal, dan tidak pernah menghantar sendiri.",
-      },
-      local: {
-        title: "Dibina untuk pejabat Malaysia",
-        body: "Gunakan dalam bahasa Inggeris, Bahasa Melayu atau Cina, dengan warna yang sesuai untuk pembaca buta warna dan mod gelap untuk waktu malam.",
-      },
-    },
-    howTitle: "Cara ia berfungsi",
-    steps: {
-      arrives: {
-        title: "E-mel tiba",
-        body: "AIMail mengambilnya dari peti masuk Gmail anda.",
-      },
-      hidden: {
-        title: "Butiran peribadi disembunyikan",
-        body: "Sebelum apa-apa, nama, nombor dan alamat digantikan.",
-      },
-      drafted: {
-        title: "Draf ditulis",
-        body: "Berdasarkan perbualan dan dokumen syarikat anda sendiri, yang ditunjukkan kepada anda.",
-      },
-      approved: {
-        title: "Anda semak dan hantar",
-        body: "Sunting, perhalusi atau mula semula. Ia hanya dihantar apabila anda setuju.",
+    eyebrow: "Untuk pasukan yang mengendalikan butiran orang lain",
+    headline: "AI menulis balasan anda. Ia tidak pernah tahu untuk siapa.",
+    lede: "AIMail mendraf jawapan kepada e-mel kerja anda dalam Gmail. Nama, nombor telefon dan nombor IC ditukar kepada pemegang tempat sebelum mana-mana AI membaca walau sepatah perkataan, dan tiada apa dihantar sehingga anda meluluskannya.",
+    languageLabel: "Bahasa",
+    preview: {
+      yourView: "Apa yang anda lihat",
+      aiView: "Apa yang AI lihat",
+      subject: "Bayaran balik untuk pesanan 4471",
+      body: "Hai, saya [name]. Boleh pulangkan RM 450 itu sebelum Jumaat? Hubungi saya di [phone] jika ada yang kurang.",
+      waiting: "Draf akan muncul di sini selepas butiran disembunyikan.",
+      draftTitle: "Draf balasan",
+      checkBadge: "Semakan AI lulus",
+      sentTitle: "Dihantar, selepas anda meluluskannya",
+      sentBadge: "Butiran sebenar dikembalikan",
+      draft:
+        "Hai [name], terima kasih atas kesabaran anda. Bayaran balik RM 450 anda akan sampai sebelum Jumaat. Kami akan menghubungi [phone] jika memerlukan apa-apa lagi.",
+      placeholders: { name: "[Orang 1]", email: "[E-mel 1]", phone: "[Telefon 1]" },
+      stages: { arrives: "Tiba", hidden: "Disembunyi", drafted: "Didraf", sent: "Dihantar" },
+      stagesLabel: "Langkah demo",
+      captions: {
+        arrives:
+          "Sebuah e-mel tiba dalam Gmail anda, dengan nama, alamat e-mel dan nombor telefon.",
+        hidden:
+          "Sebelum mana-mana AI membacanya, AIMail menukar setiap butiran kepada pemegang tempat.",
+        drafted: "AI mendraf balasan daripada pemegang tempat, dan AIMail menyemaknya.",
+        sent: "Anda meluluskannya, dan balasan dihantar dengan butiran sebenar dikembalikan.",
       },
     },
+    peek: {
+      title: "E-mel yang sama. Dua pandangan.",
+      body: "Anda bekerja dengan butiran sebenar. AI hanya menerima pemegang tempat, dan ia diisi semula apabila anda menghantar.",
+      toggle: "Tunjukkan apa yang AI lihat",
+    },
+    receipt: {
+      title: "Resit, bukan janji.",
+      body: "Setiap e-mel disertakan resit privasi: apa yang diberi kepada AI, apa yang kekal bersama anda, dan setiap panggilan yang dibuat, termasuk yang gagal.",
+      heading: "Resit privasi",
+      lines: {
+        hidden: "Butiran peribadi disembunyikan",
+        given: "Diberi kepada AI",
+        givenValue: "Teks bertopeng sahaja",
+        kept: "Butiran sebenar",
+        keptValue: "Disulitkan, bersama anda",
+        deleted: "Butiran sebenar dipadam",
+        deletedValue: "Dalam masa 30 hari",
+        calls: "Panggilan kepada AI",
+        callsValue: "Setiap satu direkodkan",
+      },
+      points: {
+        typed:
+          "Nama yang anda taip juga disembunyikan, termasuk bentuk seperti bin, binti, a/l dan a/p.",
+        photos: "Gambar kad IC dibaca di pihak kami dan tidak pernah dihantar.",
+        private:
+          "Tidak mahu AI luar langsung? Mod Peribadi mendraf menggunakan model milik syarikat anda sendiri.",
+      },
+    },
+    languages: {
+      title: "Bahasa, English, 中文.",
+      body: "Gunakan AIMail dalam bahasa anda, dan setiap balasan didraf dalam bahasa e-mel itu ditulis.",
+      samples: {
+        en: "Hi [name], your refund is on its way.",
+        ms: "Hai [name], bayaran balik anda sedang diproses.",
+        zh: "[name]您好，您的退款正在处理中。",
+      },
+    },
+    featuresTitle: "Dibina untuk peti masuk anda yang sebenar",
+    features: {
+      sources: {
+        title: "Berasaskan dokumen anda",
+        body: "Muat naik polisi dan buku panduan anda; setiap draf menunjukkan petikan yang digunakannya.",
+      },
+      todo: {
+        title: "Siapa yang masih perlu membalas anda",
+        body: "Satu halaman untuk e-mel yang menunggu anda dan balasan yang menunggu orang lain, dengan susulan hanya satu klik.",
+      },
+      timing: {
+        title: "Masa yang bertimbang rasa",
+        body: "Ia memberitahu anda apabila sudah 11:40 malam bagi penerima, dan menawarkan untuk menghantar pada 9 pagi waktu mereka.",
+      },
+      refine: {
+        title: "Perhalusi dengan kata-kata biasa",
+        body: '"Lebih ringkas", "lebih formal", "setuju untuk Jumaat": draf berubah dan disemak semula.',
+      },
+      templates: {
+        title: "Templat anda, disesuaikan",
+        body: "Simpan balasan yang kerap anda tulis, dan AIMail menyesuaikannya untuk setiap e-mel.",
+      },
+      panel: {
+        title: "Terus di dalam Gmail",
+        body: "Panel sisi menunjukkan draf di sebelah e-mel yang anda buka.",
+      },
+    },
+    faqTitle: "Soalan yang sering ditanya",
+    faq: {
+      send: {
+        q: "Adakah AIMail pernah menghantar dengan sendirinya?",
+        a: 'Bukan balasan. Setiap balasan menunggu kelulusan anda. Satu-satunya pengecualian ialah balasan sementara dalam kata-kata anda sendiri ("Saya bercuti sehingga Isnin"), dan hanya jika anda menghidupkannya.',
+      },
+      names: {
+        q: "Adakah AI melihat nama pelanggan saya?",
+        a: "Tidak. Nama, alamat e-mel, nombor telefon dan nombor IC ditukar sebelum mana-mana AI membaca e-mel itu, dan nama yang anda taip juga disembunyikan. Nama yang ditulis dalam bentuk luar biasa kadangkala boleh terlepas, sebab itu setiap e-mel ada resit yang menunjukkan dengan tepat apa yang dihantar.",
+      },
+      which: {
+        q: "AI mana yang digunakan?",
+        a: "Google Gemini, yang hanya menerima teks dengan butiran disembunyikan. Dalam Mod Peribadi, model milik syarikat anda sendiri digunakan.",
+      },
+      delete: {
+        q: "Bolehkah saya memadam data saya?",
+        a: "Boleh. Dalam Tetapan anda boleh memutuskan sambungan Gmail atau memadam akaun anda, yang membuang e-mel, draf dan tetapan anda. Butiran sebenar di sebalik pemegang tempat dipadam secara automatik dalam masa 30 hari.",
+      },
+      languages: {
+        q: "Bahasa apa yang disokong?",
+        a: "Aplikasi ini dalam bahasa Inggeris, Bahasa Melayu dan Cina, dan balasan didraf dalam bahasa e-mel itu.",
+      },
+    },
+    ctaTitle: "Peti masuk anda, tanpa kerisauan.",
+    ctaBody: "Log masuk dengan Google untuk menyambungkan Gmail. Tiada apa dihantar tanpa anda.",
     footer:
       "Log masuk dengan Google membenarkan AIMail membaca dan menghantar Gmail anda. AIMail ialah projek tahun akhir di Monash University Malaysia.",
   },
