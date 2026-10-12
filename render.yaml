@@ -1,12 +1,13 @@
-# Render Blueprint for the free-tier deployment (specs/features/free-hosting.md): one web service runs the
-# agent on loopback and the API with the worker. Secrets are filled in Render's dashboard (sync: false),
-# never here. Migrations run from a developer machine with `make migrate` (free services have no
-# pre-deploy step). Presidio and the listener stay on the laptop; see the spec.
+# Render Blueprint (specs/features/free-hosting.md): one web service runs the agent on loopback and the API
+# with the worker, and Presidio runs as a private service no one outside Render can reach. Secrets are
+# filled in Render's dashboard (sync: false), never here. Migrations run from a developer machine with
+# `make migrate`. The listener stays on the laptop, with its own local Presidio.
 services:
   - type: web
     name: aimail-backend
     runtime: docker
-    plan: free
+    # Starter (0.5 CPU): on free's 0.1 CPU, startup took a minute and every click lagged.
+    plan: starter
     region: singapore
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
@@ -52,10 +53,20 @@ services:
         sync: false
       - key: ADMIN_ORIGINS
         sync: false
-      # The tunnel address `make tunnel` prints, ending in /analyze; it changes on every start.
+      # http://<aimail-presidio's internal address>/analyze, from that service's page (Connect, Internal).
       - key: PRESIDIO_ANALYZER_URL
         sync: false
-      - key: PRESIDIO_USER
-        sync: false
-      - key: PRESIDIO_PASSWORD
-        sync: false
+
+  # Masks names in typed text and uploads for the backend; needs about 2 GB. Private: reachable only from
+  # services in the same region, so it needs no password.
+  - type: pserv
+    name: aimail-presidio
+    runtime: image
+    plan: standard
+    region: singapore
+    image:
+      # The same pinned image as docker-compose.yml: this image decides what counts as a name.
+      url: mcr.microsoft.com/presidio-analyzer@sha256:286e3fa7f3a7426e775e8564fe1870f1ba8f999d3ab8bbb8cc46a44355d9d6e9
+    envVars:
+      - key: PORT
+        value: 3000

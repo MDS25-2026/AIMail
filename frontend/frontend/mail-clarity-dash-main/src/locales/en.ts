@@ -638,7 +638,7 @@ export const en = {
     unsentDraftsHint: "Ready for over a day.",
     allDrafts: "See all drafts",
     nothing: "Nothing here.",
-    noReplyNeeded: "No reply needed",
+    noReplyNeeded: "Dismiss: no reply needed",
     failed: "Couldn't do that. Try again in a moment.",
     remindMe: "Remind me if they don't reply",
   },
