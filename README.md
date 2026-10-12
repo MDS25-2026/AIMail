@@ -100,6 +100,10 @@ the listener's `go vet`, `gofmt` and `go test -short` (skipped when Go is not in
 `make hooks` makes `git push` run it first. `make help` lists the other targets (eval, ingest,
 classifier training).
 
+**Hosted (free tier):** the dashboard on Vercel, the backend on Render from `render.yaml`, and Presidio
+and the listener on a laptop with `make tunnel`. Setup steps and limits:
+[`specs/features/free-hosting.md`](specs/features/free-hosting.md).
+
 ## Contributing
 
 Branch/PR flow and the spec-first workflow: [`CONTRIBUTING.md`](CONTRIBUTING.md) and

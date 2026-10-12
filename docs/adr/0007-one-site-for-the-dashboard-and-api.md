@@ -1,6 +1,6 @@
 # ADR 0007 — The dashboard and the API are served from one site
 
-- **Status:** Proposed
+- **Status:** Accepted 2026-10-12, with the reverse-proxy alternative (see Update)
 - **Date:** 2026-10-08
 - **Deciders:** veyroxie (proposer); Lane D and infra owners to confirm
 - **Extends:** [ADR 0005](0005-dashboard-google-sign-in.md) (the session lives in HttpOnly cookies)
@@ -52,3 +52,14 @@ on the deployed domain before relying on it.
 
 - The chosen host cannot serve both services under one domain (take the reverse-proxy alternative).
 - A second dashboard origin is added (for example a mobile shell) on another site.
+
+## Update 2026-10-12
+
+The first revisit condition applied: the project has no domain of its own, only the hosts' free
+subdomains (Vercel for the dashboard, Render for the API; [`../../specs/features/free-hosting.md`](../../specs/features/free-hosting.md)).
+So the fallback is used: Vercel rewrites `/api/*` to the backend at its edge (`nitro.config.ts`), the
+browser sees one origin, and the cookies stay host-only and `SameSite=Strict`. One code change was
+needed: cookie paths now carry the public path prefix taken from `BACKEND_PUBLIC_URL`
+(`Settings.cookie_path`), because a cookie scoped to `/auth` is not sent to `/api/auth`. The Chrome side
+panel is built with the absolute `https://<app>.vercel.app/api`; the open question above still applies.
+

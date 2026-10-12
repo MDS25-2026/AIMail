@@ -9,6 +9,7 @@ import pytest
 
 from app import dashboard
 from app.core import typed_names
+from app.core.config import get_settings
 from app.core.ownership import EVERYTHING
 from app.core.typed_names import TypedNames
 from app.rag import mask
@@ -141,3 +142,21 @@ def test_a_refine_is_refused_rather_than_sending_names_when_presidio_is_down(mai
         asyncio.run(dashboard.refine_email(str(mailbox["message"].id), f"Copy {NEW_NAME}", "Dear [PERSON_1],",
                                            scope=EVERYTHING))
     assert mailbox["payloads"] == []
+
+
+def test_a_tunnelled_presidio_gets_basic_auth_and_a_local_one_none(monkeypatch, test_settings):
+    sent = []
+
+    def analyzer(request: httpx.Request) -> httpx.Response:
+        sent.append(request.headers.get("authorization"))
+        return httpx.Response(200, json=[])
+
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr(mask.httpx, "AsyncClient",
+                        lambda **kw: real_client(transport=httpx.MockTransport(analyzer), auth=kw.get("auth")))
+    asyncio.run(mask.find_people("Hello"))
+    monkeypatch.setenv("PRESIDIO_USER", "aimail")
+    monkeypatch.setenv("PRESIDIO_PASSWORD", "not-a-real-password")
+    get_settings.cache_clear()
+    asyncio.run(mask.find_people("Hello"))
+    assert sent[0] is None and sent[1].startswith("Basic ")

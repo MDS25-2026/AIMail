@@ -93,12 +93,8 @@ async def _every(job: Job) -> None:
         await asyncio.sleep(job.every())
 
 
-async def run() -> None:
-    configure_logging()
-    await check_columns()
-    stop = asyncio.Event()
-    for sig in (signal.SIGTERM, signal.SIGINT):
-        asyncio.get_running_loop().add_signal_handler(sig, stop.set)
+async def run_until(stop: asyncio.Event) -> None:
+    """Every job until stop is set; app/combined.py shares the process with the API this way."""
     tasks = [asyncio.create_task(_every(job), name=job.name) for job in jobs()]
     logger.info("worker running: %s", ", ".join(task.get_name() for task in tasks))
     await stop.wait()
@@ -106,6 +102,15 @@ async def run() -> None:
         task.cancel()
     # Awaited, not just cancelled: a job mid-send records its outcome, or its lease and claim expire.
     await asyncio.wait(tasks, timeout=SHUTDOWN_GRACE_SECONDS)
+
+
+async def run() -> None:
+    configure_logging()
+    await check_columns()
+    stop = asyncio.Event()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        asyncio.get_running_loop().add_signal_handler(sig, stop.set)
+    await run_until(stop)
     await agent_client.close()
 
 

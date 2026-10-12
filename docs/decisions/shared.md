@@ -6,6 +6,19 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-12 — Free hosting: Vercel, one Render service, Presidio on the laptop
+- Decision: the dashboard on Vercel rewrites `/api/*` to one free Render web service running the agent
+  (loopback) and the API with the worker in one process (`app/combined.py`, `start-render.sh`).
+  Presidio and the listener stay on a laptop; the backend reaches Presidio through a Cloudflare quick
+  tunnel behind Caddy's basic auth (`PRESIDIO_USER`, `PRESIDIO_PASSWORD`). Cookie paths take the
+  public path prefix from `BACKEND_PUBLIC_URL`. ADR 0007 accepted with its reverse-proxy alternative.
+- Why: the owner chose free tiers first (option A); Render's free tier is one 512 MB web service, and
+  Presidio needs about 2 GB. scikit-learn now loads only when the classifier runs, which halved the
+  API's and the worker's memory; measured at about 260 MB under a 512 MB cap.
+- Affects: Lane D (`nitro.config.ts`; Han to review), Lane C (the agent's Presidio auth; Hanif),
+  `backend/app/sign_in.py`, `backend/app/admin/auth.py`, `docker-compose.yml` (a `tunnel` profile).
+- Status: implemented by veyroxie, 2026-10-12; not yet deployed.
+
 ### 2026-10-12 — Follow-ups with a lost Gmail outcome are reconciled (migration 0043)
 - Decision: `sent_message.follow_up_outcome_unknown_at` marks a follow-up whose answer from Gmail
   was lost; the send reconciler settles it like a reply. Additive, nullable column.

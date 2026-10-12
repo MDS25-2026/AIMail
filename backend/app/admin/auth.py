@@ -99,14 +99,14 @@ async def sign_out(access_token: str) -> None:
 def set_session_cookies(response: Response, session: Session) -> None:
     secure = get_settings().admin_cookie_secure
     response.set_cookie(ACCESS_COOKIE, session.access_token, max_age=session.expires_in,
-                        path=ACCESS_COOKIE_PATH, httponly=True, secure=secure, samesite="strict")
+                        path=get_settings().cookie_path(ACCESS_COOKIE_PATH), httponly=True, secure=secure, samesite="strict")
     response.set_cookie(REFRESH_COOKIE, session.refresh_token, max_age=REFRESH_MAX_AGE_SECONDS,
-                        path=REFRESH_COOKIE_PATH, httponly=True, secure=secure, samesite="strict")
+                        path=get_settings().cookie_path(REFRESH_COOKIE_PATH), httponly=True, secure=secure, samesite="strict")
 
 
 def clear_session_cookies(response: Response) -> None:
     secure = get_settings().admin_cookie_secure
-    response.delete_cookie(ACCESS_COOKIE, path=ACCESS_COOKIE_PATH, httponly=True, secure=secure,
+    response.delete_cookie(ACCESS_COOKIE, path=get_settings().cookie_path(ACCESS_COOKIE_PATH), httponly=True, secure=secure,
                            samesite="strict")
-    response.delete_cookie(REFRESH_COOKIE, path=REFRESH_COOKIE_PATH, httponly=True, secure=secure,
+    response.delete_cookie(REFRESH_COOKIE, path=get_settings().cookie_path(REFRESH_COOKIE_PATH), httponly=True, secure=secure,
                            samesite="strict")

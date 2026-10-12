@@ -74,13 +74,13 @@ def _set_session(response: Response, session: Session) -> None:
     response.set_cookie(SESSION_COOKIE, session.access_token, max_age=session.expires_in, path="/",
                         httponly=True, secure=secure, samesite="strict")
     response.set_cookie(REFRESH_COOKIE, session.refresh_token, max_age=REFRESH_MAX_AGE_SECONDS,
-                        path=REFRESH_PATH, httponly=True, secure=secure, samesite="strict")
+                        path=get_settings().cookie_path(REFRESH_PATH), httponly=True, secure=secure, samesite="strict")
 
 
 def clear_session(response: Response) -> None:
     secure = get_settings().admin_cookie_secure
     response.delete_cookie(SESSION_COOKIE, path="/", httponly=True, secure=secure, samesite="strict")
-    response.delete_cookie(REFRESH_COOKIE, path=REFRESH_PATH, httponly=True, secure=secure,
+    response.delete_cookie(REFRESH_COOKIE, path=get_settings().cookie_path(REFRESH_PATH), httponly=True, secure=secure,
                            samesite="strict")
 
 
@@ -111,7 +111,7 @@ async def start_google_sign_in() -> RedirectResponse:
     })
     response = RedirectResponse(f"{base}/authorize?{query}", status_code=status.HTTP_302_FOUND)
     # Lax, not Strict: the callback arrives as a cross-site redirect from Google and Supabase.
-    response.set_cookie(VERIFIER_COOKIE, verifier, max_age=VERIFIER_MAX_AGE_SECONDS, path=VERIFIER_PATH,
+    response.set_cookie(VERIFIER_COOKIE, verifier, max_age=VERIFIER_MAX_AGE_SECONDS, path=get_settings().cookie_path(VERIFIER_PATH),
                         httponly=True, secure=get_settings().admin_cookie_secure, samesite="lax")
     return response
 
@@ -148,7 +148,7 @@ async def finish_google_sign_in(
     await connections.connect_mailbox(session)
     response = RedirectResponse(get_settings().dashboard_url, status_code=status.HTTP_303_SEE_OTHER)
     _set_session(response, session)
-    response.delete_cookie(VERIFIER_COOKIE, path=VERIFIER_PATH)
+    response.delete_cookie(VERIFIER_COOKIE, path=get_settings().cookie_path(VERIFIER_PATH))
     return response
 
 
