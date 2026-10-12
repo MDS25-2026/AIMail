@@ -43,6 +43,10 @@ of a type rather than the first, and `getBody` (`listener/main.go`) prefers `tex
 `htmlToText` otherwise. No stored-data re-measurement has been done since, and rows written before
 these changes have not been rewritten, so this stays open until the stored rows are checked again.
 
+**Update 2026-10-12:** the listener now parses HTML into prose (`listener/htmltext.go`) and prefers it
+over text/plain (`specs/features/readable-emails.md`). `go run . reprocess` rewrites stored rows; its dry
+run counts 245 to change, waiting on the owner's yes. Closes once that has run and the rows are checked.
+
 ### The category classifier is below its macro-F1 gate — Lane B
 On the 120-email human-audited gold set (`backend/data/category/holdout_gold.csv`) the classifier
 scores macro-F1 **0.8435**, below its 0.85 gate (`f1_gate_passed: false` in

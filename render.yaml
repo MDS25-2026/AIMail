@@ -72,6 +72,16 @@ services:
       - key: PORT
         value: 3000
 
+  # Reads PDF and image attachments for the listener: text from PDFs, and scans hidden-then-read. Its
+  # spaCy model alone is about 800 MB, so it needs about 2 GB. Private, like Presidio: no password needed.
+  - type: pserv
+    name: aimail-attachment-reader
+    runtime: docker
+    plan: standard
+    region: singapore
+    dockerfilePath: ./listener/attachment-reader/Dockerfile
+    dockerContext: ./listener/attachment-reader
+
   # Pulls Gmail's notifications from Pub/Sub, masks each email and stores it. No port: a worker.
   - type: worker
     name: aimail-listener
@@ -107,4 +117,8 @@ services:
         fromService: { type: web, name: aimail-backend, envVarKey: GOOGLE_API_KEY }
       - key: PRESIDIO_ANALYZER_URL
         fromService: { type: web, name: aimail-backend, envVarKey: PRESIDIO_ANALYZER_URL }
+      # http://<aimail-attachment-reader's internal address>/read, from that service's page (Connect,
+      # Internal). Without it every attachment is skipped.
+      - key: ATTACHMENT_READER_URL
+        sync: false
 

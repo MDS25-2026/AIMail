@@ -5,12 +5,17 @@ its own. When the other person writes back, the thread shows both sides, and the
 next reply knows what was already said.
 """
 
+import asyncio
+import json
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
+import pytest
+
+from app import attachment_notes
 from app.core.vault import ThreadMap
-from app.dashboard import _thread_view, thread_context
-from app.db.models import Message
+from app.dashboard import _thread_view, _to_email, thread_context
+from app.db.models import AuditLog, Message, SentMessage
 
 T0 = datetime(2026, 10, 5, 7, 0, tzinfo=timezone.utc)
 
@@ -54,3 +59,60 @@ def test_each_message_in_the_conversation_carries_its_full_body_and_time():
     assert view[0].body == "Can I claim the course fee?" and view[0].timestamp == T0.isoformat()
     assert view[1].isOwnReply and view[1].body == "Hi [PERSON_1], yes."
     assert view[1].timestamp == (T0 + timedelta(minutes=5)).isoformat()
+
+
+# ---------- Replies sent from Gmail itself (specs/features/readable-emails.md) ----------
+
+def _gmail_reply(minutes: int, body: str) -> SentMessage:
+    return SentMessage(id=uuid4(), sent_at=T0 + timedelta(minutes=minutes), body_masked=body, thread_id="t1")
+
+
+def test_a_reply_sent_from_gmail_appears_where_it_falls_in_time():
+    view = _thread_view([_message(0, "Can I claim it?"), _message(20, "And the hotel?")], ThreadMap(),
+                        [_gmail_reply(10, "Yes, within 14 days.")])
+    assert [(m.isOwnReply, m.snippet) for m in view] == [
+        (False, "Can I claim it?"), (True, "Yes, within 14 days."), (False, "And the hotel?")]
+
+
+def test_a_gmail_replys_hidden_name_never_takes_another_persons_name():
+    message = _message(0, "Hi, I'm [PERSON_1].", subject="Claim", gmail_message_id="gm-1")
+    details = ThreadMap()
+    details.add_message(str(message.id), {"[PERSON_1]": "Aisyah"}, "Hi, I'm [PERSON_1].")
+    # In its own numbering, [PERSON_1] is someone else entirely; it has no stored value.
+    email = _to_email(message, details=details, sent=[_gmail_reply(5, "Thanks [PERSON_1]")])
+    reply = next(entry for entry in email.threadContext if entry.isOwnReply)
+    values = {detail.placeholder: detail.value for detail in email.details}
+    assert "[PERSON_1]" not in reply.body
+    assert values == {"[PERSON_1]": "Aisyah"}
+
+
+# ---------- An attachment the listener could not read ----------
+
+class _Rows:
+    def __init__(self, rows):
+        self.rows = rows
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_exc):
+        return False
+
+    async def scalars(self, _statement):
+        return type("Result", (), {"all": lambda _self: self.rows})()
+
+
+def _audit(action: str, fields: dict, success: bool = False) -> AuditLog:
+    return AuditLog(action=action, detail=json.dumps(fields), success=success)
+
+
+@pytest.mark.parametrize(("rows", "expected"), [
+    ([_audit("ocr_attachment", {"gmail_message_id": "gm-1", "stage": "read_locally"})], True),
+    ([_audit("drop_attachment_text", {"gmail_message_id": "gm-1"})], False),
+    ([_audit("ocr_attachment", {"gmail_message_id": "gm-10", "stage": "read_locally"})], False),
+    ([], False),
+])
+def test_an_email_says_when_an_attachment_could_not_be_read(monkeypatch, rows, expected):
+    monkeypatch.setattr(attachment_notes, "get_sessionmaker", lambda: lambda: _Rows(rows))
+    message = Message(id=uuid4(), gmail_message_id="gm-1")
+    assert asyncio.run(attachment_notes.has_unread_attachment(message)) is expected

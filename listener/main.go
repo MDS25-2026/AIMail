@@ -809,54 +809,31 @@ func maskMessage(ctx context.Context, srv *gmail.Service, msg *gmail.Message, ow
 	}, true
 }
 
-// getBody prefers the text/html part so the dashboard can render the email like a normal inbox;
-// it falls back to text/plain, then to a single-part body.
-// getBody returns the message body as plain prose. text/plain is preferred over text/html
-// because it needs no conversion; HTML is stripped rather than stored raw.
-//
-// This is a masking control, not formatting. Presidio's NER scores a name by its sentence
-// context, and a name sitting immediately after markup ("<p dir=\"ltr\">Priya has...") scores
-// below threshold and survives masking — the same name in prose is caught. Storing raw HTML
-// silently degraded name and location recall on every HTML email, which is nearly all of them.
+// getBody returns the message body as plain prose (specs/features/readable-emails.md). The HTML part
+// comes first: Gmail's text/plain is hard-wrapped at 76 characters and Outlook's turns bold into
+// *text* and links into <url>. htmlToText parses it into sentences, never leaving a name next to
+// markup, which is what lowers Presidio's score for it and let names survive masking before.
 func getBody(part *gmail.MessagePart) string {
-	if plain := collectParts(part, "text/plain"); plain != "" {
-		return plain
-	}
 	if markup := collectParts(part, "text/html"); markup != "" {
 		return htmlToText(markup)
 	}
+	if plain := collectParts(part, "text/plain"); plain != "" {
+		return plain
+	}
 	return decodePart(part)
-}
-
-var (
-	// script/style hold code, not prose: drop their contents rather than leaving CSS in the body.
-	htmlDropRegex  = regexp.MustCompile(`(?is)<(script|style)[^>]*>.*?</(script|style)>`)
-	htmlBreakRegex = regexp.MustCompile(`(?i)<(br\s*/?|/p|/div|/tr|/li|/h[1-6])>`)
-	htmlTagRegex   = regexp.MustCompile(`<[^>]*>`)
-	// A link's target is kept as text: stripping tags would otherwise erase the only sign that a
-	// "verify your account" email points somewhere, which the agent's phishing check reads.
-	htmlLinkRegex  = regexp.MustCompile(`(?is)<a\b[^>]*\bhref\s*=\s*["'](https?://[^"'\s]+)["'][^>]*>(.*?)</a>`)
-	blankLineRegex = regexp.MustCompile(`\n{3,}`)
-)
-
-// htmlToText reduces email HTML to prose. Deliberately regex-based rather than a full parser:
-// the goal is feeding clean sentences to the masker, not faithful rendering, and a parser would
-// add a dependency for no gain here. Block-closing tags become newlines so sentences do not run
-// together, which would confuse NER as much as the tags did.
-func htmlToText(markup string) string {
-	text := htmlDropRegex.ReplaceAllString(markup, " ")
-	text = htmlLinkRegex.ReplaceAllString(text, "$2 ($1)")
-	text = htmlBreakRegex.ReplaceAllString(text, "\n")
-	text = htmlTagRegex.ReplaceAllString(text, "")
-	text = html.UnescapeString(text)
-	text = blankLineRegex.ReplaceAllString(text, "\n\n")
-	return strings.TrimSpace(text)
 }
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	loadEnvironment()
+	// A one-off job, not the listener: re-read stored emails with today's extraction.
+	if len(os.Args) > 1 && os.Args[1] == "reprocess" {
+		if err := runReprocess(ctx, os.Args[2:]); err != nil {
+			log.Fatalf("reprocess: %v", err)
+		}
+		return
+	}
 	cfg, err := loadPubSubConfig()
 	if err != nil {
 		log.Fatalf("listener not started: %v", err)
