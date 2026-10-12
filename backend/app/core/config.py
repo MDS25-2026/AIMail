@@ -10,7 +10,7 @@ from functools import lru_cache
 from pathlib import Path
 from urllib.parse import urlparse
 
-from pydantic import model_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.core.constants import (
@@ -144,6 +144,12 @@ class Settings(BaseSettings):
             "postgresql://", "postgresql+asyncpg://", 1
         )
 
+
+    @field_validator("*", mode="before")
+    @classmethod
+    def _strip(cls, value: object) -> object:
+        """A value pasted into a host's dashboard often brings a space or newline; one broke sign-in."""
+        return value.strip() if isinstance(value, str) else value
 
     @model_validator(mode="after")
     def _deployed_settings_are_safe(self) -> "Settings":

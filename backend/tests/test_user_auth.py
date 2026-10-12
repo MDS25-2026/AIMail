@@ -258,3 +258,11 @@ def test_the_dashboard_may_save_settings_with_put(client):
         "Access-Control-Request-Headers": "content-type,x-aimail-client"})
     assert response.status_code == 200
     assert "PUT" in response.headers.get("access-control-allow-methods", "")
+
+
+def test_a_setting_pasted_with_spaces_or_a_newline_still_works(client, monkeypatch):
+    monkeypatch.setenv("BACKEND_PUBLIC_URL", "  https://aimail.vercel.app/api\n")
+    get_settings.cache_clear()
+    response = client.get("/auth/google/start", follow_redirects=False)
+    assert parse_qs(urlparse(response.headers["location"]).query)["redirect_to"] == [
+        "https://aimail.vercel.app/api/auth/callback"]
