@@ -934,6 +934,7 @@ export const en = {
   },
   landing: {
     eyebrow: "For teams who handle other people's details",
+    tagline: "Private AI replies for Malaysian teams",
     headline: "The AI writes your replies. It never learns who they're for.",
     lede: "AIMail drafts answers to your work email in Gmail. Names, phone numbers and IC numbers become placeholders before any AI reads a word, and nothing is sent until you approve it.",
     languageLabel: "Language",
@@ -1162,7 +1163,7 @@ export const en = {
       description: "Condensed AIMail side panel with AI summary, action items and draft reply.",
     },
     signin: {
-      title: "AIMail: private email assistant",
+      title: "AIMail: private AI replies for Malaysian teams",
       description:
         "AIMail drafts replies to your work email, hides personal details before any AI sees them, and sends nothing without your approval.",
     },

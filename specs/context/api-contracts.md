@@ -242,8 +242,8 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   [`../features/llm-resilience.md`](../features/llm-resilience.md).
 - Probes (2026-10-08, `app/core/health.py`): the backend and the agent answer `GET /healthz`
   (`200 {"status": "ok"}` while the process serves) and `GET /readyz` (`200` once ready, else `503`
-  with `{"status": "failed", "checks": {"<name>": "failed"}}`; the backend checks its database, the
-  agent that a model is configured, without calling one). Neither needs a session or the agent token,
+  with `{"status": "failed", "checks": {"<name>": "failed"}}`; the backend checks its database and
+  Presidio (since 2026-10-12), the agent that a model is configured, without calling one). Neither needs a session or the agent token,
   and neither is in the OpenAPI schema. The listener's own probes are on `:8095`.
 - The Lane C agent (`:8001`) carries no token of its own and is bound to `127.0.0.1`; it is
   reachable only by the backend on the same host.

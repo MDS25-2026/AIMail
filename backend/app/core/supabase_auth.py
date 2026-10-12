@@ -24,7 +24,8 @@ JWKS_REFETCH_SECONDS = 60
 # applies to expiry, by the same few seconds.
 CLOCK_SKEW_SECONDS = 30
 SUPABASE_TIMEOUT_SECONDS = 10.0
-INVALID_GRANT_STATUSES = (400, 401, 403, 422)
+# 404 is a code Supabase has no flow for: expired, used twice, or from another sign-in. The user's to retry.
+INVALID_GRANT_STATUSES = (400, 401, 403, 404, 422)
 
 # Tests swap this for httpx.MockTransport.
 transport: httpx.AsyncBaseTransport | None = None

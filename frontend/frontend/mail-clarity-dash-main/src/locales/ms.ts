@@ -963,6 +963,7 @@ export const ms: Translations = {
   },
   landing: {
     eyebrow: "Untuk pasukan yang mengendalikan butiran orang lain",
+    tagline: "Balasan AI peribadi untuk pasukan Malaysia",
     headline: "AI menulis balasan anda. Ia tidak pernah tahu untuk siapa.",
     lede: "AIMail mendraf jawapan kepada e-mel kerja anda dalam Gmail. Nama, nombor telefon dan nombor IC ditukar kepada pemegang tempat sebelum mana-mana AI membaca walau sepatah perkataan, dan tiada apa dihantar sehingga anda meluluskannya.",
     languageLabel: "Bahasa",
@@ -1208,7 +1209,7 @@ export const ms: Translations = {
         "Panel sisi AIMail yang ringkas dengan ringkasan AI, item tindakan dan draf balasan.",
     },
     signin: {
-      title: "AIMail: pembantu e-mel peribadi",
+      title: "AIMail: balasan AI peribadi untuk pasukan Malaysia",
       description:
         "AIMail mendraf balasan untuk e-mel kerja anda, menyembunyikan butiran peribadi sebelum AI melihatnya, dan tidak menghantar apa-apa tanpa kelulusan anda.",
     },
