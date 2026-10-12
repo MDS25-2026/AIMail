@@ -3,3 +3,6 @@ export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost
 
 /** Where "Sign in with Google" starts; the backend runs the flow and sets the session cookie. */
 export const SIGN_IN_URL = `${BACKEND_URL}/auth/google/start`;
+
+/** The public status page's data: no sign-in, no mailbox data, so even the demo asks the real backend. */
+export const SERVICE_STATUS_PATH = "/service-status";

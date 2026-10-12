@@ -77,7 +77,8 @@ describe("demo mode (#227)", () => {
     const outcomes: string[] = [];
     for (const [file, module] of Object.entries(API_MODULES)) {
       for (const [name, fn] of Object.entries(module)) {
-        if (typeof fn !== "function") continue;
+        // The one call allowed out: public and mailbox-free (tested on its own below).
+        if (typeof fn !== "function" || fn === status.fetchServiceStatus) continue;
         startDemo(); // Sign out leaves the demo, so each call starts in it again.
         try {
           await settle(
@@ -93,6 +94,15 @@ describe("demo mode (#227)", () => {
     }
     expect(outcomes.length).toBeGreaterThan(40);
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  test("the status page asks the real backend, so the demo never reads as every part down", async () => {
+    const parts = { backend: "ok", database: "ok", masking: "ok", drafting: "ok", listener: "ok" };
+    fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify({ checkedAt: "now", parts })));
+    const answer = await status.fetchServiceStatus();
+    expect(answer.parts.masking).toBe("ok");
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(String(fetchSpy.mock.calls[0][0])).toMatch(/\/service-status$/);
   });
 
   test("the inbox opens with the demo emails and a demo account", async () => {

@@ -22,7 +22,9 @@ straight away, so that I can see what it does without an account or my own email
 - **Entry:** a **Try the demo** button beside Sign in with Google on the landing page (`/signin`):
   in the hero, the header and the closing call to action. It turns demo mode on and opens the inbox.
 - **Demo mode answers every dashboard call itself.** `request()` in `lib/api/client.ts` hands the
-  call to `src/demo/` instead of `fetch`, so no page changes and nothing reaches the backend.
+  call to `src/demo/` instead of `fetch`, so no page changes and nothing reaches the backend. The one
+  exception is `GET /service-status` (the public `/status` page): it needs no sign-in and carries no
+  mailbox data, and refusing it made every part read "Not working" (2026-10-13).
 - **Demo data, bundled and fictional** (made-up Malaysian companies and people):
   - About 12 emails across critical, urgent, medium and low; all six categories; English, Malay
     and Chinese; a few threads with more than one message.
@@ -105,8 +107,9 @@ None. Demo changes live in memory for the tab; the demo flag lives in `sessionSt
 
 ## Security & privacy notes
 
-- Demo mode never sends cookies or requests, so it cannot reach anyone's real data, and it does not
-  weaken sign-in for real users: the backend is unchanged.
+- Demo mode never sends a mailbox request, so it cannot reach anyone's real data, and it does not
+  weaken sign-in for real users: the backend is unchanged. Its only call out is the public status
+  check, which answers the same for everyone.
 - All demo content is invented. Placeholders show masking as the real flow does; the "real" values
   behind them are invented too.
 - No model is called, so the public demo cannot run up Gemini costs or be used as a free AI.
