@@ -28,6 +28,14 @@ laptop: listener (Pub/Sub pull) ──► Supabase ◄── Render
   workspace: one always-on service. `backend/start-render.sh` runs the agent on loopback, the
   worker, and the API, and exits when any of them exits so Render restarts the lot. The agent stays
   on 127.0.0.1 and still requires `AGENT_TOKEN`, which a deployed environment must set anyway.
+- **0.1 CPU, found on the first deploys (2026-10-12).** Render's health check timed out: the worker's
+  category model (scikit-learn) loaded and ran on the event loop it shares with the API, so `/healthz`
+  stalled, and both processes starting at once split the CPU. The model now loads and runs in a thread
+  (`app/ml/categorise.py`), and `start-render.sh` starts the agent only once the API answers. Measured
+  locally at `--cpus=0.1 --memory=512m` with 40 emails waiting: first healthy answer after about 48 s
+  (98 s before), and no failed probe after it.
+- **Settings are stripped of spaces and newlines** (`Settings._strip`): a leading space pasted into
+  Render's `BACKEND_PUBLIC_URL` sent sign-in back to Supabase's default address.
 - **Presidio on the laptop.** It needs about 2 GB. The backend refuses Refine, Search, Ask and
   uploads without it, and the agent's draft scan reports "scan unavailable". It is reached through
   a Cloudflare quick tunnel (no account; a new `trycloudflare.com` address each start) with Caddy in
