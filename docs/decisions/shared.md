@@ -6,6 +6,15 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-12 — The listener runs on Render; Pub/Sub signs in with a service account
+- Decision: `aimail-listener` runs as a Render background worker. Pub/Sub uses a service account
+  (Subscriber role) through Application Default Credentials instead of the developer's `token.json`; the
+  shared secrets are copied from `aimail-backend` in the Blueprint. The attachment reader is not deployed
+  yet, so attachments are skipped there.
+- Why: the owner asked to stop depending on a laptop for new mail before the final presentation.
+- Affects: Lane A (JiaJun to review; no listener code changed), `render.yaml`, `specs/features/free-hosting.md`.
+- Status: implemented by veyroxie, 2026-10-12; needs the service account and its key from the owner.
+
 ### 2026-10-12 — Free hosting: Vercel, one Render service, Presidio on the laptop
 - Decision: the dashboard on Vercel rewrites `/api/*` to one free Render web service running the agent
   (loopback) and the API with the worker in one process (`app/combined.py`, `start-render.sh`).
