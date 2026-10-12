@@ -32,8 +32,8 @@ docker run --env-file .env -e APP=email_agent:app -e PORT=8001 aimail-backend   
 docker run --env-file .env aimail-backend python scripts/migrate.py                      # migrations
 ```
 
-Probes: `GET /healthz` (process up) and `GET /readyz` (database reachable for the API, a model
-configured for the agent). Logs are JSON in the image (`LOG_FORMAT=json`).
+Probes: `GET /healthz` (process up) and `GET /readyz` (database and Presidio reachable for the API, a
+model configured for the agent). Logs are JSON in the image (`LOG_FORMAT=json`).
 
 ## Key dependencies
 

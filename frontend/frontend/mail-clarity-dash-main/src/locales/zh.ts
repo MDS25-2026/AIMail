@@ -907,6 +907,7 @@ export const zh: Translations = {
   },
   landing: {
     eyebrow: "为经手他人资料的团队而设",
+    tagline: "为马来西亚团队打造的私密 AI 回复",
     headline: "AI 为您撰写回复，却永远不知道回复给谁。",
     lede: "AIMail 在 Gmail 中为您的工作邮件起草回复。在任何 AI 读到一个字之前，姓名、电话号码和身份证号码都会被替换为占位符；未经您批准，任何邮件都不会发出。",
     languageLabel: "语言",
@@ -1117,7 +1118,7 @@ export const zh: Translations = {
       description: "精简的 AIMail 侧边栏，含 AI 摘要、待办事项和草稿回复。",
     },
     signin: {
-      title: "AIMail：私密邮件助手",
+      title: "AIMail：为马来西亚团队打造的私密 AI 回复",
       description:
         "AIMail 为您的工作邮件起草回复，在任何 AI 看到之前隐藏个人信息，未经您批准不会发送任何内容。",
     },

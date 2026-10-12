@@ -8,6 +8,7 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from enum import StrEnum
 
+import httpx
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
@@ -37,6 +38,18 @@ async def database_answers() -> bool:
     except (SQLAlchemyError, OSError, TimeoutError):
         return False
     return True
+
+
+async def presidio_answers() -> bool:
+    """The backend refuses Refine, Search and uploads without Presidio, so it is part of being ready."""
+    settings = get_settings()
+    body = {"text": "ready", "language": "en"}
+    try:
+        async with httpx.AsyncClient(timeout=CHECK_TIMEOUT_SECONDS, auth=settings.presidio_auth) as client:
+            response = await client.post(settings.presidio_analyzer_url, json=body)
+    except httpx.HTTPError:
+        return False
+    return response.is_success
 
 
 async def model_configured() -> bool:

@@ -54,7 +54,11 @@ function LandingPage() {
     <div className="min-h-dvh overflow-x-clip bg-app text-fg-body">
       <header className="sticky top-0 z-10 border-b border-line bg-surface/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-          <span className="text-lg font-semibold tracking-tight text-fg">{t("app.name")}</span>
+          {/* The descriptor sets this AIMail apart from other apps with a similar name. */}
+          <p className="flex items-baseline gap-2">
+            <span className="text-lg font-semibold tracking-tight text-fg">{t("app.name")}</span>
+            <span className="text-xs text-fg-muted max-md:hidden">{t("landing.tagline")}</span>
+          </p>
           <div className="flex items-center gap-3">
             <LanguageSwitch className="max-sm:hidden" />
             <SignInButton className="px-4 py-2" />

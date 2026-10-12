@@ -52,3 +52,28 @@ def test_a_json_log_line_carries_the_same_fields_as_text():
     line = json.loads(JsonFormatter().format(record))
     assert line | {"time": ""} == {"time": "", "level": "WARNING", "request_id": "r1", "logger": "app.x",
                                    "message": "draft failed with code"}
+
+
+def test_an_unreachable_presidio_is_a_failed_check_and_a_reachable_one_passes(monkeypatch, test_settings):
+    real_client = health.httpx.AsyncClient
+
+    def answering(status):
+        transport = health.httpx.MockTransport(lambda request: health.httpx.Response(status, json=[]))
+        monkeypatch.setattr(health.httpx, "AsyncClient", lambda **kw: real_client(transport=transport))
+
+    answering(200)
+    assert asyncio.run(health.presidio_answers()) is True
+    answering(401)  # a wrong password on a tunnel is as broken as no Presidio
+    assert asyncio.run(health.presidio_answers()) is False
+
+
+def test_the_backend_reports_presidio_beside_the_database(api_client, monkeypatch):
+    def broken_engine():
+        raise OSError("connection refused")
+
+    real_client = health.httpx.AsyncClient
+    transport = health.httpx.MockTransport(lambda request: health.httpx.Response(200, json=[]))
+    monkeypatch.setattr(health.httpx, "AsyncClient", lambda **kw: real_client(transport=transport))
+    monkeypatch.setattr(health, "get_engine", broken_engine)
+    body = api_client.get("/readyz").json()
+    assert body["checks"] == {"database": "failed", "presidio": "ok"}
