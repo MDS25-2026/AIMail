@@ -701,7 +701,6 @@ export const ms: Translations = {
     unsentDraftsHint: "Sedia lebih daripada sehari.",
     allDrafts: "Lihat semua draf",
     nothing: "Tiada apa-apa di sini.",
-    noReplyNeeded: "Ketepikan: tidak perlu dibalas",
     failed: "Tidak dapat melakukannya. Cuba lagi sebentar lagi.",
     remindMe: "Ingatkan saya jika mereka tidak membalas",
   },

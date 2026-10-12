@@ -40,7 +40,7 @@ function useSecondsSince(time: number): number {
 export default function StatusPage() {
   const { t } = useTranslation();
   const status = useServiceStatus();
-  const seconds = useSecondsSince(status.dataUpdatedAt || status.errorUpdatedAt);
+  const seconds = useSecondsSince(Math.max(status.dataUpdatedAt, status.errorUpdatedAt));
   // No answer at all means the backend is down, and so is everything it was going to report on.
   const stateOf = (part: ServerPart): PartState | null => {
     if (status.isError) return "down";

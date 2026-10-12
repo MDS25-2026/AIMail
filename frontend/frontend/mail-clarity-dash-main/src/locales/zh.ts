@@ -662,7 +662,6 @@ export const zh: Translations = {
     unsentDraftsHint: "已准备好超过一天。",
     allDrafts: "查看所有草稿",
     nothing: "这里没有内容。",
-    noReplyNeeded: "移除：无需回复",
     failed: "操作失败，请稍后再试。",
     remindMe: "如果对方没有回复，提醒我",
   },
