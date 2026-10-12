@@ -7,7 +7,7 @@ import { expect, test, vi } from "vitest";
 import { createI18n } from "../../lib/i18n";
 import { Language } from "../../lib/preferences";
 import { emailFixture } from "../../test/emailFixture";
-import { stubFetch, writes } from "../../test/fetchStub";
+import { deferred, stubFetch, writes } from "../../test/fetchStub";
 import { renderWithProviders } from "../../test/render";
 import TodoPage from "../TodoPage";
 
@@ -179,4 +179,29 @@ test("a follow-up with text left for the reader asks once, then sends anyway", a
   expect(sends()).toHaveLength(0);
   await userEvent.click(screen.getByRole("button", { name: t("draftStatus.sendAnyway") }));
   await vi.waitFor(() => expect(sends()).toHaveLength(1));
+});
+
+test("dismissing takes the row out at once, and puts it back if the server refuses", async () => {
+  const acting = emailFixture({ id: "a1", subject: "Invoice", actionItems: ["Pay by Friday"] });
+  const answer = deferred<{ status: number }>();
+  stubFetch({
+    "GET /todo": {
+      body: {
+        needsAction: { emails: [acting], total: 1 },
+        needsReview: empty,
+        unsentDrafts: empty,
+        waiting: [],
+        waitingDays: 3,
+        count: 1,
+      },
+    },
+    "POST /emails/a1/dismiss": () => answer.promise,
+  });
+  renderWithProviders(<TodoPage />);
+  expect(await screen.findByText("Pay by Friday")).toBeTruthy();
+  await userEvent.click(screen.getByRole("button", { name: t("todo.noReplyNeeded") }));
+  // Gone while the server is still thinking.
+  expect(screen.queryByText("Pay by Friday")).toBeNull();
+  answer.resolve({ status: 500 });
+  expect(await screen.findByText("Pay by Friday")).toBeTruthy();
 });

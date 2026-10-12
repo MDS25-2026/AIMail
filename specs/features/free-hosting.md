@@ -2,7 +2,8 @@
 
 - **Status:** in progress 2026-10-12
 - **Issue:** #150; epic #138 line 92
-- **Decision:** the owner chose option A on 2026-10-12: free tiers first, billing possibly later.
+- **Decision:** the owner chose option A on 2026-10-12: free tiers first. Billing was set up the same day,
+  so the backend moved to Starter and Presidio to a private Render service (see "Paid update").
 
 ## Shape
 
@@ -68,3 +69,16 @@ laptop: listener (Pub/Sub pull) ──► Supabase ◄── Render
 
 - The listener on a host, and a service account for Pub/Sub (needs paid always-on compute).
 - Alerting.
+
+## Paid update (2026-10-12)
+
+The quick tunnel kept dropping: from WSL its QUIC connection timed out every minute or two, and the
+backend then refused Refine, Search and saving the writing style with `masking_unavailable`. HTTP/2 over
+TCP (`--protocol http2`) helped but did not stop it. With billing set up:
+
+- `aimail-backend` moves to the Starter plan (0.5 CPU), which removes the click lag of 0.1 CPU.
+- `aimail-presidio` is a private service (Standard, 2 GB) from the same pinned image. Private services are
+  reachable only inside the region, so it needs no password; `PRESIDIO_ANALYZER_URL` is
+  `http://<its internal address>/analyze` and `PRESIDIO_USER`/`PRESIDIO_PASSWORD` stay empty on Render.
+- The laptop still runs the listener with its own local Presidio. `make tunnel` stays as the free fallback.
+

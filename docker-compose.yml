@@ -89,6 +89,7 @@ services:
     container_name: presidio-tunnel
     <<: *hardened
     mem_limit: 128m
-    command: ["tunnel", "--no-autoupdate", "--url", "http://presidio-gate:8443"]
+    # HTTP/2 over TCP: the default QUIC (UDP) kept timing out behind WSL and home routers.
+    command: ["tunnel", "--no-autoupdate", "--protocol", "http2", "--url", "http://presidio-gate:8443"]
     depends_on:
       - presidio-gate

@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
@@ -120,11 +121,15 @@ function EmailSection({ title, hint, section, detail, footer }: EmailSectionProp
               </DetailsContext.Provider>
               <button
                 type="button"
-                disabled={dismiss.isPending}
                 onClick={() => dismiss.mutate(email.id)}
-                className={button({ size: "xs" })}
+                aria-label={t("todo.noReplyNeeded")}
+                title={t("todo.noReplyNeeded")}
+                className={cn(
+                  button({ intent: "quiet", size: "xs" }),
+                  "min-w-11 px-0 md:size-8 md:min-w-0",
+                )}
               >
-                {t("todo.noReplyNeeded")}
+                <X aria-hidden className="size-4" />
               </button>
             </li>
           ))}
