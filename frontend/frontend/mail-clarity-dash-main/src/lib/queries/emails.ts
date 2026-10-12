@@ -57,6 +57,14 @@ function setListReadState(queryClient: QueryClient, emailId: string, isRead: boo
   );
 }
 
+/** The read state in both the list and the open email, so the marker and the toggle change now. */
+function setReadState(queryClient: QueryClient, emailId: string, isRead: boolean) {
+  setListReadState(queryClient, emailId, isRead);
+  queryClient.setQueryData<Email>(queryKeys.email(emailId), (email) =>
+    email ? { ...email, isRead } : email,
+  );
+}
+
 /**
  * One email with its Lane C draft. Idle until something is selected, and keyed by id, so a
  * response for a previously selected email lands in that email's entry, never the one on
@@ -183,12 +191,18 @@ export function useMarkUnread() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: markUnread,
-    onSuccess: (_nothing, emailId) => {
-      setListReadState(queryClient, emailId, false);
-      queryClient.setQueryData<Email>(queryKeys.email(emailId), (email) =>
-        email ? { ...email, isRead: false } : email,
-      );
-    },
+    onSuccess: (_nothing, emailId) => setReadState(queryClient, emailId, false),
+  });
+}
+
+/** Shown read at once; the server marks it read the way opening it does, so no route of its own. */
+export function useMarkRead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (emailId: string) => fetchEmail(emailId),
+    onMutate: (emailId) => setReadState(queryClient, emailId, true),
+    onSuccess: (email) => queryClient.setQueryData(queryKeys.email(email.id), email),
+    onError: (_error, emailId) => setReadState(queryClient, emailId, false),
   });
 }
 export const useUnsnoozeEmail = () => useDraftMutation(unsnoozeEmail);

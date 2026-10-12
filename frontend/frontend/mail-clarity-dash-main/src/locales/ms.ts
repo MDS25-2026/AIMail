@@ -59,6 +59,7 @@ export const ms: Translations = {
   },
   detail: {
     markUnread: "Tandakan belum dibaca",
+    markRead: "Tandakan sudah dibaca",
     backToInbox: "Kembali ke peti masuk",
     fromAt: "{{sender}} · {{when}}",
     empty: "Pilih e-mel untuk melihat draf AI",
@@ -525,6 +526,9 @@ export const ms: Translations = {
     failed: "Tidak dapat menukar cara imbasan dibaca. Cuba lagi sebentar lagi.",
   },
   templates: {
+    noneYet: "Belum ada balasan tersimpan.",
+    addInSettings: "Tambah dalam Tetapan",
+    opensInNewTab: "(dibuka dalam tab baharu)",
     title: "Balasan tersimpan",
     intro:
       "Balasan yang anda tulis berulang kali. Gunakan dalam mana-mana draf, sebiji-sebiji atau disesuaikan dengan e-mel.",

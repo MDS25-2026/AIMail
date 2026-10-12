@@ -30,12 +30,13 @@ import UseAsExampleButton from "./UseAsExampleButton";
 import WithDetails from "./WithDetails";
 import { button } from "./variants";
 
-/** onBack and onMarkUnread come from the inbox page; the extension panel has neither. */
+/** onBack and the read toggles come from the inbox page; the extension panel has none. */
 type EmailDetailPanelProps = {
   email: Email | null;
   workflow: DraftWorkflow;
   onBack?: () => void;
   onMarkUnread?: (emailId: string) => void;
+  onMarkRead?: (emailId: string) => void;
 };
 
 export default function EmailDetailPanel({
@@ -43,6 +44,7 @@ export default function EmailDetailPanel({
   workflow,
   onBack,
   onMarkUnread,
+  onMarkRead,
 }: EmailDetailPanelProps) {
   const { t } = useTranslation();
   if (!email) {
@@ -58,7 +60,12 @@ export default function EmailDetailPanel({
   if (availability === DraftAvailability.Quarantined) {
     return (
       <div className="relative h-full overflow-y-auto">
-        <DetailHeader email={email} onBack={onBack} onMarkUnread={onMarkUnread} />
+        <DetailHeader
+          email={email}
+          onBack={onBack}
+          onMarkUnread={onMarkUnread}
+          onMarkRead={onMarkRead}
+        />
         <div className="p-6">
           <DraftGate email={email} availability={availability}>
             {null}
@@ -72,7 +79,12 @@ export default function EmailDetailPanel({
   return (
     <DetailsContext.Provider value={detailValues(email.details)}>
       <div className="relative h-full overflow-y-auto">
-        <DetailHeader email={email} onBack={onBack} onMarkUnread={onMarkUnread} />
+        <DetailHeader
+          email={email}
+          onBack={onBack}
+          onMarkUnread={onMarkUnread}
+          onMarkRead={onMarkRead}
+        />
         {/* The end of the draft clears the phone's fixed send bar and the home indicator. */}
         <div className="space-y-4 p-4 pb-[calc(10rem+env(safe-area-inset-bottom))] md:p-6">
           <MissingDetailsNotice email={email} draft={workflow.draft} />
@@ -94,9 +106,10 @@ type DetailHeaderProps = {
   email: Email;
   onBack?: () => void;
   onMarkUnread?: (emailId: string) => void;
+  onMarkRead?: (emailId: string) => void;
 };
 
-function DetailHeader({ email, onBack, onMarkUnread }: DetailHeaderProps) {
+function DetailHeader({ email, onBack, onMarkUnread, onMarkRead }: DetailHeaderProps) {
   const { t } = useTranslation();
   const format = useFormat();
   return (
@@ -115,6 +128,7 @@ function DetailHeader({ email, onBack, onMarkUnread }: DetailHeaderProps) {
               {t("security.spoofBadge")}
             </span>
           ) : null}
+          {/* A toggle, so it stays: one use used to remove it (test run T10). */}
           {onMarkUnread && email.isRead ? (
             <button
               type="button"
@@ -122,6 +136,15 @@ function DetailHeader({ email, onBack, onMarkUnread }: DetailHeaderProps) {
               className={button({ size: "xs" })}
             >
               {t("detail.markUnread")}
+            </button>
+          ) : null}
+          {onMarkRead && !email.isRead ? (
+            <button
+              type="button"
+              onClick={() => onMarkRead(email.id)}
+              className={button({ size: "xs" })}
+            >
+              {t("detail.markRead")}
             </button>
           ) : null}
           <SnoozeMenu key={`snooze-${email.id}`} email={email} />

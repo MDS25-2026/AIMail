@@ -54,6 +54,7 @@ export const en = {
   },
   detail: {
     markUnread: "Mark unread",
+    markRead: "Mark read",
     backToInbox: "Back to inbox",
     fromAt: "{{sender}} · {{when}}",
     empty: "Select an email to see the AI draft",
@@ -507,6 +508,9 @@ export const en = {
     failed: "Couldn't change how scans are read. Try again in a moment.",
   },
   templates: {
+    noneYet: "No saved replies yet.",
+    addInSettings: "Add one in Settings",
+    opensInNewTab: "(opens in a new tab)",
     title: "Saved replies",
     intro:
       "Replies you write again and again. Use one from any draft, word for word or adapted to the email.",

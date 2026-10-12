@@ -22,6 +22,7 @@ import type { Language } from "../lib/preferences";
 import type { Template, TemplateDraft } from "../types/template";
 import ConfirmAction from "./ConfirmAction";
 import { InlineAlert } from "./InlineMessages";
+import { TEMPLATES_SECTION_ID } from "./TemplatePicker";
 import { button, field } from "./variants";
 
 /** The one being written: an existing template's id, or null for a new one or a translated copy. */
@@ -41,7 +42,10 @@ export default function TemplatesCard() {
   const [editing, setEditing] = useState<Editing | null>(null);
 
   return (
-    <section className="space-y-3 rounded-lg border border-line bg-surface p-4">
+    <section
+      id={TEMPLATES_SECTION_ID}
+      className="scroll-mt-6 space-y-3 rounded-lg border border-line bg-surface p-4"
+    >
       <h2 className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">
         {t("templates.title")}
       </h2>

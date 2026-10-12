@@ -9,7 +9,7 @@ import AppShell from "../components/AppShell";
 import { PageEmpty, PageError, PageLoading } from "../components/PageState";
 import PrivateModeOffer from "../components/PrivateModeOffer";
 import { Page, pageMeta } from "../lib/pageMeta";
-import { useEmail, useEmails, useMarkUnread, useSession } from "../lib/queries";
+import { useEmail, useEmails, useMarkRead, useMarkUnread, useSession } from "../lib/queries";
 import { useDebouncedValue } from "../lib/useDebouncedValue";
 import { useDraftWorkflow } from "../lib/useDraftWorkflow";
 import { useIsDesktop } from "../lib/useIsDesktop";
@@ -58,6 +58,7 @@ function DashboardPage() {
     openedEmailId !== null && openedEmailId === keptUnreadId,
   );
   const markUnread = useMarkUnread();
+  const markRead = useMarkRead();
   // Never a previous email's detail while the selection settles.
   const detail = selected.data?.id === selectedEmailId ? selected.data : undefined;
 
@@ -153,6 +154,10 @@ function DashboardPage() {
               markUnread.mutate(id);
               // On a phone it is back to the list, as in any mail app; a desktop keeps it open.
               if (!isDesktop) backToInbox();
+            }}
+            onMarkRead={(id) => {
+              setKeptUnreadId(null);
+              markRead.mutate(id);
             }}
           />
         </section>

@@ -69,9 +69,10 @@ test("inserting over typed changes asks first and keeps them until the reader ag
   expect(editor().value).toBe("AI draft plus mine");
 });
 
-test("nothing shows until the reader has saved a template", async () => {
-  const calls = stubFetch({ "GET /templates": { body: [] } });
+test("with no saved template yet, the draft says where to add one instead of an empty picker", async () => {
+  stubFetch({ "GET /templates": { body: [] } });
   renderWithProviders(<Harness email={EMAIL} />);
-  await vi.waitFor(() => expect(calls.some((call) => call.path === "/templates")).toBe(true));
+  const link = await screen.findByRole("link", { name: new RegExp(t("templates.addInSettings")) });
+  expect(link.getAttribute("href")).toBe("/settings#saved-replies");
   expect(screen.queryByRole("button", { name: t("templates.insert") })).toBeNull();
 });

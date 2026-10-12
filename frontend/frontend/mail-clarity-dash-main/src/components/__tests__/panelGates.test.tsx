@@ -80,3 +80,25 @@ test("a person's email never shows the automated notice", () => {
   renderWithProviders(<InboxPanel email={emailFixture({ isAutomated: false, draftReply: "" })} />);
   expect(screen.queryByText(t("draftStatus.automatedNotice"))).toBeNull();
 });
+
+function ReadTogglePanel({ email }: { email: Email }) {
+  return (
+    <EmailDetailPanel
+      email={email}
+      workflow={useDraftWorkflow(email)}
+      onMarkUnread={() => undefined}
+      onMarkRead={() => undefined}
+    />
+  );
+}
+
+test("an email marked unread offers Mark read, so the toggle never disappears", () => {
+  renderWithProviders(<ReadTogglePanel email={emailFixture({ isRead: false })} />);
+  expect(screen.getByRole("button", { name: t("detail.markRead") })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: t("detail.markUnread") })).toBeNull();
+});
+
+test("a read email offers Mark unread", () => {
+  renderWithProviders(<ReadTogglePanel email={emailFixture({ isRead: true })} />);
+  expect(screen.getByRole("button", { name: t("detail.markUnread") })).toBeTruthy();
+});

@@ -1,3 +1,4 @@
+import { ExternalLink } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -9,16 +10,36 @@ import ConfirmAction from "./ConfirmAction";
 import { InlineAlert } from "./InlineMessages";
 import { button, field } from "./variants";
 
+export const TEMPLATES_SECTION_ID = "saved-replies";
+
 type TemplatePickerProps = { email: Email; workflow: DraftWorkflow };
 
-/** Use a saved reply (specs/features/reply-templates.md); hidden until the reader has saved one. */
+/** Use a saved reply (specs/features/reply-templates.md), or where to make one when there are none. */
 export default function TemplatePicker({ email, workflow }: TemplatePickerProps) {
   const { t } = useTranslation();
   const templates = useTemplates();
   const fill = useFillTemplate();
   const [chosenId, setChosenId] = useState("");
   const list = templates.data ?? [];
-  if (list.length === 0) return null;
+  // Hiding it until one existed left testers unable to find templates at all (test run T15).
+  if (list.length === 0) {
+    return (
+      <p className="text-xs text-fg-muted">
+        {t("templates.noneYet")}{" "}
+        {/* A new tab keeps an edited draft; the list refetches on return, so the picker appears. */}
+        <a
+          href={`/settings#${TEMPLATES_SECTION_ID}`}
+          target="_blank"
+          rel="noopener"
+          className="inline-flex items-center gap-1 font-medium text-brand underline"
+        >
+          {t("templates.addInSettings")}
+          <ExternalLink aria-hidden className="size-3" />
+          <span className="sr-only">{t("templates.opensInNewTab")}</span>
+        </a>
+      </p>
+    );
+  }
 
   const suggested = list.find((template) => template.id === email.suggestedTemplateId);
   const selected = list.find((template) => template.id === chosenId) ?? suggested ?? list[0];

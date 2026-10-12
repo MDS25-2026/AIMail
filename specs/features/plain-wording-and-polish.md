@@ -33,7 +33,9 @@ through.
   confidence in words beside it ("92% sure"), instead of "Critic 72%".
 - **The error page** in the reader's language (from the language cookie), English otherwise.
 - **Mark unread** from the email view and the inbox row; the email stays unread until it is opened
-  again (opening it does not immediately mark it read again).
+  again (opening it does not immediately mark it read again). In the email view it is a toggle:
+  once unread, the same place offers **Mark read**, which marks it read through the usual open-email
+  call (2026-10-12, test run T10: the button used to vanish after one use).
 - **Source highlighting** works for Chinese (sentences end at 。！？ with no space, and matching
   uses character pairs, since Chinese has no spaces between words) and ignores common Malay words.
 - **Accessibility:** a "Skip to content" link, one `h1` per page with headings in order, and focus
