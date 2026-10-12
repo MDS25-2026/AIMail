@@ -6,6 +6,20 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-12 — Readable emails in the listener; the attachment reader on Render
+
+- Decision: the listener parses HTML with `golang.org/x/net/html` (already in the module graph, now
+  direct; owner approved) and prefers it over text/plain. Quotes fold in the dashboard, not in storage.
+  `aimail-attachment-reader` runs as a private Render service (Standard), and the email says when an
+  attachment could not be read. Replies sent from Gmail itself join the conversation view.
+- Why: regex stripping and the clients' auto-made plain text made Gmail and Outlook mail hard to read;
+  attachments were silently skipped on the hosted app.
+- Why not the normaliser: it only sees masked text and handles numbers, units and dates; the HTML exists
+  only in the listener, before masking.
+- Affects: Lane A (`htmltext.go`, `reprocess.go`; JiaJun to review), Lane B (thread view, attachment
+  flag), Lane D (body folding, links, the email view's top bar; Han to review), `render.yaml`.
+- Status: accepted (spec `specs/features/readable-emails.md`)
+
 ### 2026-10-12 — The listener runs on Render; Pub/Sub signs in with a service account
 - Decision: `aimail-listener` runs as a Render background worker. Pub/Sub uses a service account
   (Subscriber role) through Application Default Credentials instead of the developer's `token.json`; the

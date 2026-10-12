@@ -86,6 +86,8 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   `senderUtcOffsetMinutes`, `scheduledFor`, `scheduleCancelled` (`they_replied` | `you_replied` |
   `too_late` | `refused`), `snoozedUntil`. A send time past the email's vault retention is refused
   (`422 time_out_of_range`); snooze does not hide an email with a waiting send.
+- **Readable emails (2026-10-12, `specs/features/readable-emails.md`):** the email gains
+  `hasUnreadAttachment`; `threadContext` also lists the owner's replies sent from Gmail itself.
 - **Drafting skips (2026-10-12, `specs/features/drafting-skips.md`):** the email gains `isAutomated`;
   `senderUtcOffsetMinutes` is null for automated mail and for a `+0000` offset. A model call for a Private
   mode owner on a server with no private model answers `409 private_model_unavailable`; an automated

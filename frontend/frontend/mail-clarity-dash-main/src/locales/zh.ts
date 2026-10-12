@@ -56,6 +56,8 @@ export const zh: Translations = {
     personal: "个人",
   },
   detail: {
+    unreadAttachment: "有一个附件无法读取，因此 AIMail 没有看到其中的内容。",
+    openInGmail: "在 Gmail 中打开",
     markUnread: "标为未读",
     markRead: "标为已读",
     backToInbox: "返回收件箱",
@@ -155,6 +157,8 @@ export const zh: Translations = {
     approx: "{{written}} ≈ {{converted}}",
   },
   emailBody: {
+    showQuoted: "显示引用内容",
+    hideQuoted: "隐藏引用内容",
     imagesBlocked: "已阻止远程图片，发件人无法得知您何时打开了这封邮件。",
     loadImages: "加载图片",
     showFull: "显示完整邮件",
@@ -333,6 +337,8 @@ export const zh: Translations = {
     title: "自动回复",
     intro:
       "您不在时，给您写信的人会收到一条您亲自撰写的简短回复，让他们知道何时会得到答复。AI 从不撰写或修改它。",
+    onlyException:
+      "未经您点击，AIMail 绝不会发送任何内容。这是唯一的例外，除非您开启，否则它一直处于关闭状态。",
     loadFailed: "无法加载您的自动回复设置。",
     enabled: "我不在时发送自动回复",
     when: "何时",

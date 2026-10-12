@@ -85,6 +85,7 @@ export default function HoldingReplyCard() {
           {t("holdingReply.title")}
         </h2>
         <p className="mt-1 text-sm text-fg-muted">{t("holdingReply.intro")}</p>
+        <p className="mt-2 text-sm font-medium text-fg">{t("holdingReply.onlyException")}</p>
       </div>
       {settings.isError ? <InlineAlert>{t("holdingReply.loadFailed")}</InlineAlert> : null}
       {/* The form starts from what was saved and keeps the reader's edits from then on; a save

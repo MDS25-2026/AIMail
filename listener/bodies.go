@@ -19,7 +19,7 @@ func collectParts(part *gmail.MessagePart, mimeType string) string {
 	walk = func(p *gmail.MessagePart) {
 		if p.MimeType == mimeType && p.Filename == "" {
 			if body := decodePart(p); body != "" {
-				bodies = append(bodies, body)
+				bodies = append(bodies, unflowed(p, body))
 			}
 		}
 		for _, sub := range p.Parts {
@@ -47,14 +47,35 @@ func decodePart(part *gmail.MessagePart) string {
 }
 
 func charsetOf(part *gmail.MessagePart) string {
+	return contentTypeParam(part, "charset")
+}
+
+func contentTypeParam(part *gmail.MessagePart, name string) string {
 	for _, header := range part.Headers {
 		if strings.EqualFold(header.Name, "Content-Type") {
 			if _, params, err := mime.ParseMediaType(header.Value); err == nil {
-				return params["charset"]
+				return params[name]
 			}
 		}
 	}
 	return ""
+}
+
+// unflowed joins format=flowed's soft line breaks (RFC 3676): a line ending in a space continues
+// on the next. "-- " is the signature separator, never a soft break.
+func unflowed(part *gmail.MessagePart, body string) string {
+	if !strings.EqualFold(contentTypeParam(part, "format"), "flowed") {
+		return body
+	}
+	var out strings.Builder
+	for _, line := range strings.Split(body, "\n") {
+		line = strings.TrimSuffix(strings.TrimPrefix(line, " "), "\r")
+		out.WriteString(line)
+		if line == "-- " || !strings.HasSuffix(line, " ") {
+			out.WriteString("\n")
+		}
+	}
+	return strings.TrimSuffix(out.String(), "\n")
 }
 
 // toUTF8 converts from the declared charset; an unknown or wrong one still yields valid UTF-8 (bad

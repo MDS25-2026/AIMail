@@ -1,10 +1,11 @@
-import { ArrowLeft, Bot, ShieldAlert } from "lucide-react";
+import { ArrowLeft, Bot, Paperclip, ShieldAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { splitAround } from "../lib/conversations";
 import { detailValues } from "../lib/details";
 import { DetailsContext } from "../lib/detailsContext";
 import { DraftAvailability, draftAvailability } from "../lib/draftAvailability";
+import { gmailThreadUrl } from "../lib/gmailLink";
 import type { DraftWorkflow } from "../lib/useDraftWorkflow";
 import { useFormat } from "../lib/useFormat";
 import { AuthStatus, type Email } from "../types/email";
@@ -66,7 +67,8 @@ export default function EmailDetailPanel({
           onMarkUnread={onMarkUnread}
           onMarkRead={onMarkRead}
         />
-        <div className="p-6">
+        <div className="space-y-4 p-6">
+          <SenderLine email={email} />
           <DraftGate email={email} availability={availability}>
             {null}
           </DraftGate>
@@ -87,9 +89,11 @@ export default function EmailDetailPanel({
         />
         {/* The end of the draft clears the phone's fixed send bar and the home indicator. */}
         <div className="space-y-4 p-4 pb-[calc(10rem+env(safe-area-inset-bottom))] md:p-6">
+          <SenderLine email={email} />
           <MissingDetailsNotice email={email} draft={workflow.draft} />
           <ConversationMessages messages={conversation.earlier} />
           <EmailBody key={email.id} email={email} />
+          {email.hasUnreadAttachment ? <UnreadAttachmentNotice email={email} /> : null}
           <ConversationMessages messages={conversation.later} />
           <AISummaryCard summary={email.aiSummary} />
           <ActionItemsList items={email.actionItems} />
@@ -102,6 +106,37 @@ export default function EmailDetailPanel({
   );
 }
 
+function SenderLine({ email }: { email: Email }) {
+  const { t } = useTranslation();
+  const format = useFormat();
+  return (
+    <p className="text-sm text-fg-muted">
+      {t("detail.fromAt", { sender: email.sender, when: format.timestamp(email.timestamp) })}
+    </p>
+  );
+}
+
+/** Said, not silent: the listener couldn't read an attachment, so the reader opens it in Gmail. */
+function UnreadAttachmentNotice({ email }: { email: Email }) {
+  const { t } = useTranslation();
+  return (
+    <p className="flex flex-wrap items-center gap-2 rounded-md bg-surface-muted px-3 py-2 text-xs text-fg-muted">
+      <Paperclip aria-hidden className="size-3.5 shrink-0" />
+      <span className="min-w-0 flex-1">{t("detail.unreadAttachment")}</span>
+      {email.threadId ? (
+        <a
+          href={gmailThreadUrl(email.threadId)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-brand hover:text-brand-strong"
+        >
+          {t("detail.openInGmail")}
+        </a>
+      ) : null}
+    </p>
+  );
+}
+
 type DetailHeaderProps = {
   email: Email;
   onBack?: () => void;
@@ -111,13 +146,14 @@ type DetailHeaderProps = {
 
 function DetailHeader({ email, onBack, onMarkUnread, onMarkRead }: DetailHeaderProps) {
   const { t } = useTranslation();
-  const format = useFormat();
   return (
-    <header className="border-b border-line bg-surface px-4 py-4 md:px-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-2">
+    // Stays at the top while the email scrolls, so its actions are always in reach; one row, so a
+    // phone keeps room to read between it and the fixed send bar.
+    <header className="sticky top-0 z-20 border-b border-line bg-surface px-4 py-3 md:px-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           {onBack ? <BackToInbox onBack={onBack} /> : null}
-          <h2 className="min-w-0 break-words text-base font-semibold text-fg">
+          <h2 className="min-w-0 truncate text-base font-semibold text-fg" title={email.subject}>
             <WithDetails text={email.subject} />
           </h2>
         </div>
@@ -153,9 +189,6 @@ function DetailHeader({ email, onBack, onMarkUnread, onMarkRead }: DetailHeaderP
           <PriorityBadge priority={email.priority} />
         </div>
       </div>
-      <p className="mt-0.5 text-sm text-fg-muted">
-        {t("detail.fromAt", { sender: email.sender, when: format.timestamp(email.timestamp) })}
-      </p>
     </header>
   );
 }
