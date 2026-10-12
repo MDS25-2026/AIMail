@@ -97,6 +97,16 @@ Every model call goes through `backend/model_gateway.py`. The pipeline itself is
 Linux capabilities and memory caps. The backend and listener each have a Dockerfile; Ollama is run
 separately by whoever offers Private mode.
 
+## Hosting
+
+| Piece | Where | Defined in |
+|-------|-------|------------|
+| Dashboard | Vercel (Nitro's Vercel preset, detected at build); `/api/*` rewritten to the backend at the edge | `frontend/frontend/mail-clarity-dash-main/nitro.config.ts` |
+| API, worker and agent | One free Render web service from the backend image, started by `start-render.sh` | `render.yaml`, `backend/start-render.sh`, `backend/app/combined.py` |
+| Presidio, listener | A laptop; Presidio reached through Caddy (basic auth) and a Cloudflare quick tunnel | `docker-compose.yml` profile `tunnel`, `infra/tunnel/` |
+
+Details and limits: [`../features/free-hosting.md`](../features/free-hosting.md).
+
 ## CI (`.github/workflows/`)
 
 | Workflow | Jobs |

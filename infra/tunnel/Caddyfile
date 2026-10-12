@@ -1,0 +1,8 @@
+# Basic auth in front of Presidio for the backend on Render (specs/features/free-hosting.md).
+# Reached only by the cloudflared container; no port is published on the host.
+:8443 {
+	basic_auth {
+		{$PRESIDIO_USER} {$PRESIDIO_PASSWORD_HASH}
+	}
+	reverse_proxy presidio-analyzer:5001
+}

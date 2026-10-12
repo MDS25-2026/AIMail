@@ -95,6 +95,10 @@ class Settings(BaseSettings):
     dashboard_url: str = "http://localhost:8090"
     # Masks uploaded documents before storage (app/rag/mask.py); shared with the listener and agent.
     presidio_analyzer_url: str = "http://localhost:5001/analyze"
+    # Basic auth for a Presidio reached through a tunnel (specs/features/free-hosting.md). Separate from
+    # the URL on purpose: httpx puts the URL in its error messages, and those are logged.
+    presidio_user: str = ""
+    presidio_password: str = ""
     # Private mode (specs/features/local-model.md): the company's local model; "" = not offered.
     local_llm_model: str = ""
     local_llm_url: str = "http://localhost:11434"
@@ -116,6 +120,15 @@ class Settings(BaseSettings):
     # Secure cookies need HTTPS, except on localhost, which browsers treat as secure. Turn off only
     # to reach the backend over plain HTTP by LAN address.
     admin_cookie_secure: bool = True
+
+    def cookie_path(self, path: str) -> str:
+        """A cookie path as the browser sees it: behind the dashboard's /api rewrite, BACKEND_PUBLIC_URL
+        ends in /api, and a cookie scoped to /auth would never be sent back (free-hosting.md)."""
+        return urlparse(self.backend_public_url).path.rstrip("/") + path
+
+    @property
+    def presidio_auth(self) -> tuple[str, str] | None:
+        return (self.presidio_user, self.presidio_password) if self.presidio_user else None
 
     @property
     def async_database_url(self) -> str:

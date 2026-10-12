@@ -1,0 +1,61 @@
+# Render Blueprint for the free-tier deployment (specs/features/free-hosting.md): one web service runs the
+# agent on loopback and the API with the worker. Secrets are filled in Render's dashboard (sync: false),
+# never here. Migrations run from a developer machine with `make migrate` (free services have no
+# pre-deploy step). Presidio and the listener stay on the laptop; see the spec.
+services:
+  - type: web
+    name: aimail-backend
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    dockerCommand: ./start-render.sh
+    healthCheckPath: /healthz
+    envVars:
+      - key: ENVIRONMENT
+        value: prod
+      # Internal to the service: the API calls the agent on 127.0.0.1.
+      - key: AGENT_TOKEN
+        generateValue: true
+      # For scripts and curl only; never put it in a VITE_ variable.
+      - key: BACKEND_API_TOKEN
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      # Account deletion removes the Supabase sign-in (app/account.py).
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_SECRET
+        sync: false
+      # Must be the same values the laptop's listener uses, or stored connections and vaults will not open.
+      # Use TOKEN_ENCRYPTION_KEYS / PII_VAULT_KEYS instead if the laptop uses keyrings.
+      - key: TOKEN_ENCRYPTION_KEY
+        sync: false
+      - key: PII_VAULT_KEY
+        sync: false
+      # https://<app>.vercel.app/api : the browser reaches the backend through the dashboard's rewrite.
+      - key: BACKEND_PUBLIC_URL
+        sync: false
+      # https://<app>.vercel.app
+      - key: DASHBOARD_URL
+        sync: false
+      - key: FRONTEND_ORIGINS
+        sync: false
+      - key: ADMIN_ORIGINS
+        sync: false
+      # The tunnel address `make tunnel` prints, ending in /analyze; it changes on every start.
+      - key: PRESIDIO_ANALYZER_URL
+        sync: false
+      - key: PRESIDIO_USER
+        sync: false
+      - key: PRESIDIO_PASSWORD
+        sync: false

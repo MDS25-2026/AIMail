@@ -1,6 +1,7 @@
 # The backend and the agent, one image: docker build -t aimail-backend backend/
 #   backend: docker run -p 8000:8000 --env-file <env> aimail-backend
 #   agent:   docker run --env-file <env> -e APP=email_agent:app -e PORT=8001 aimail-backend
+#   Render's free tier, all in one: docker run ... aimail-backend ./start-render.sh (free-hosting.md)
 # Configuration comes from the environment only (AIMAIL_ENV_FILE is empty, so no .env is read). Outside
 # dev, startup refuses a missing AGENT_TOKEN, so the agent cannot be reached without it once it leaves
 # loopback. Apply migrations from the same image: python scripts/migrate.py.
@@ -16,6 +17,7 @@ RUN pip install --no-cache-dir -r requirements.txt -c constraints.txt
 COPY app ./app
 COPY email_agent.py gemini_client.py local_client.py model_gateway.py model_runtime.py ./
 COPY scripts/migrate.py ./scripts/
+COPY start-render.sh ./
 COPY models/category-classifier.joblib ./models/
 RUN useradd --uid 10001 --no-create-home aimail
 USER aimail

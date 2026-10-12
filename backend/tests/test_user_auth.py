@@ -147,6 +147,16 @@ def test_the_session_endpoint_says_whether_a_mailbox_is_connected(client):
 
 # ---------- Signing in with Google ----------
 
+def test_behind_the_dashboards_api_rewrite_the_callback_and_cookie_paths_carry_the_prefix(client, monkeypatch):
+    monkeypatch.setenv("BACKEND_PUBLIC_URL", "https://aimail.vercel.app/api")
+    get_settings.cache_clear()
+    response = client.get("/auth/google/start", follow_redirects=False)
+    assert parse_qs(urlparse(response.headers["location"]).query)["redirect_to"] == [
+        "https://aimail.vercel.app/api/auth/callback"]
+    assert "path=/api/auth" in response.headers["set-cookie"].lower()
+    assert get_settings().cookie_path("/admin") == "/api/admin"
+
+
 def test_starting_sign_in_redirects_to_supabase_with_a_pkce_challenge(client):
     response = client.get("/auth/google/start", follow_redirects=False)
     target = urlparse(response.headers["location"])

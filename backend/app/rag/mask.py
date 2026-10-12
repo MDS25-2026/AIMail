@@ -77,7 +77,7 @@ async def mask_document(text: str, *, profile: MaskProfile) -> str:
     floor = mask_typed_text(text, preserve_business_emails=(profile == MaskProfile.POLICY))
     url = get_settings().presidio_analyzer_url
     try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS) as client:
+        async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS, auth=get_settings().presidio_auth) as client:
             return "".join([await _mask_names(client, url, piece, profile) for piece in _chunks(floor)])
     except (httpx.HTTPError, KeyError, ValueError) as exc:
         raise DocumentMaskingError(str(exc)) from exc
@@ -95,7 +95,7 @@ async def find_people(text: str) -> list[str]:
     url = get_settings().presidio_analyzer_url
     body = {"language": "en", "entities": ["PERSON"], "score_threshold": _SCORE_THRESHOLD}
     try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS) as client:
+        async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS, auth=get_settings().presidio_auth) as client:
             found: list[str] = []
             for piece in _chunks(text):
                 response = await client.post(url, json=body | {"text": piece})

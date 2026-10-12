@@ -476,7 +476,7 @@ async def scan_draft_pii(draft: str) -> list[str]:
     try:
         # Inside the draft's budget, so the dashboard never gives up first and drafts it again.
         async with httpx.AsyncClient(timeout=max(min(PII_SCAN_TIMEOUT_SECONDS, remaining_seconds()),
-                                                 MIN_PII_SCAN_SECONDS)) as client:
+                                                 MIN_PII_SCAN_SECONDS), auth=get_settings().presidio_auth) as client:
             resp = await client.post(get_settings().presidio_analyzer_url, json={
                 "text": draft, "language": "en",
                 "score_threshold": _PII_SCORE_THRESHOLD,

@@ -55,3 +55,22 @@ def test_the_api_starts_no_background_jobs(monkeypatch):
 
     asyncio.run(run())
     assert started == []
+
+
+def test_sharing_a_process_the_jobs_run_until_told_to_stop_then_finish(monkeypatch):
+    passes = []
+
+    async def tick():
+        passes.append(1)
+
+    monkeypatch.setattr(worker, "jobs", lambda: [worker.Job("tick", lambda: 0.01, tick)])
+
+    async def scenario():
+        stop = asyncio.Event()
+        running = asyncio.create_task(worker.run_until(stop))
+        await asyncio.sleep(0.05)
+        stop.set()
+        await asyncio.wait_for(running, timeout=2)
+        return len(passes)
+
+    assert asyncio.run(scenario()) >= 2

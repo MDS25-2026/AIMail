@@ -52,7 +52,7 @@ Each ADR follows the structure used by ADRs 0001 onward:
 | 0004 | [Admin console behind Supabase Auth, tokens in HttpOnly cookies](0004-admin-console-supabase-auth.md) | Accepted |
 | 0005 | [Dashboard sign-in with Google through Supabase](0005-dashboard-google-sign-in.md) | Accepted |
 | 0006 | [Restorable masking: numbered placeholders with an encrypted vault](0006-restorable-masking.md) | Accepted by the owner 2026-10-05 |
-| 0007 | [The dashboard and the API are served from one site](0007-one-site-for-the-dashboard-and-api.md) | Proposed |
+| 0007 | [The dashboard and the API are served from one site](0007-one-site-for-the-dashboard-and-api.md) | Accepted (reverse proxy) |
 
 ## Numbering
 
