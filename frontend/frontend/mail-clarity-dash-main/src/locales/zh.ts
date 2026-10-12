@@ -906,42 +906,119 @@ export const zh: Translations = {
     },
   },
   landing: {
-    headline: "更快回复工作邮件，而无需把客户信息交给 AI。",
-    lede: "AIMail 为您的工作邮件起草回复。在 AI 读取任何内容之前，姓名、电话号码和身份证号码都会被隐藏，未经您批准不会发送任何内容。",
-    whyTitle: "团队为何选择 AIMail",
-    pillars: {
-      private: {
-        title: "从设计上保护隐私",
-        body: "在 AI 看到任何内容之前，我们会先隐藏个人信息，附件也不例外；这些信息仅以加密形式保存，以便您的回复仍可使用。身份证照片根本不会发送出去。",
-      },
-      approve: {
-        title: "每次发送都由您批准",
-        body: "AIMail 撰写草稿，由您决定。若回复中仍留有隐藏信息，它会提醒您，并且从不自行发送。",
-      },
-      local: {
-        title: "为马来西亚办公室打造",
-        body: "支持英文、马来文和中文，配色照顾色盲读者，并提供适合深夜使用的深色模式。",
-      },
-    },
-    howTitle: "运作方式",
-    steps: {
-      arrives: {
-        title: "收到邮件",
-        body: "AIMail 从您的 Gmail 收件箱获取邮件。",
-      },
-      hidden: {
-        title: "隐藏个人信息",
-        body: "首先替换姓名、号码和地址。",
-      },
-      drafted: {
-        title: "撰写草稿",
-        body: "依据对话内容和您公司的文件，并向您展示所用的来源。",
-      },
-      approved: {
-        title: "您审阅并发送",
-        body: "可以编辑、润色或重新生成。只有在您同意后才会发送。",
+    eyebrow: "为经手他人资料的团队而设",
+    headline: "AI 为您撰写回复，却永远不知道回复给谁。",
+    lede: "AIMail 在 Gmail 中为您的工作邮件起草回复。在任何 AI 读到一个字之前，姓名、电话号码和身份证号码都会被替换为占位符；未经您批准，任何邮件都不会发出。",
+    languageLabel: "语言",
+    preview: {
+      yourView: "您看到的",
+      aiView: "AI 看到的",
+      subject: "订单 4471 的退款",
+      body: "您好，我是 [name]。请问能在星期五之前退还 RM 450 吗？如有缺漏，请致电 [phone] 联系我。",
+      waiting: "隐藏资料后，草稿会显示在这里。",
+      draftTitle: "回复草稿",
+      checkBadge: "AI 检查通过",
+      sentTitle: "经您批准后已发送",
+      sentBadge: "已填回真实资料",
+      draft:
+        "[name]您好，感谢您的耐心等候。您的 RM 450 退款将于星期五之前到账。如需其他资料，我们会致电 [phone]。",
+      placeholders: { name: "[人员 1]", email: "[邮箱 1]", phone: "[电话 1]" },
+      stages: { arrives: "收到", hidden: "隐藏", drafted: "起草", sent: "发送" },
+      stagesLabel: "演示步骤",
+      captions: {
+        arrives: "一封邮件到达您的 Gmail，里面有姓名、邮箱地址和电话号码。",
+        hidden: "在任何 AI 读取之前，AIMail 会把每项资料换成占位符。",
+        drafted: "AI 根据占位符起草回复，AIMail 再加以检查。",
+        sent: "您批准后，回复发出时会填回真实资料。",
       },
     },
+    peek: {
+      title: "同一封邮件，两种视角。",
+      body: "您处理的是真实资料。AI 只会收到占位符，发送时再填回真实内容。",
+      toggle: "显示 AI 看到的内容",
+    },
+    receipt: {
+      title: "给您收据，而不是承诺。",
+      body: "每封邮件都附有隐私收据：交给 AI 的内容、留在您这里的内容，以及每一次调用，包括失败的调用。",
+      heading: "隐私收据",
+      lines: {
+        hidden: "已隐藏的个人资料",
+        given: "交给 AI 的内容",
+        givenValue: "仅限已遮蔽的文本",
+        kept: "真实资料",
+        keptValue: "已加密，留在您这里",
+        deleted: "真实资料删除时间",
+        deletedValue: "30 天内",
+        calls: "对 AI 的调用",
+        callsValue: "每一次都有记录",
+      },
+      points: {
+        typed: "您输入的姓名也会被隐藏，包括 bin、binti、a/l、a/p 等形式。",
+        photos: "身份证照片在我们这边读取，绝不会被发送出去。",
+        private: "完全不想使用外部 AI？私密模式使用贵公司自己的模型起草。",
+      },
+    },
+    languages: {
+      title: "Bahasa, English, 中文.",
+      body: "用您的语言使用 AIMail，每封回复都会以原邮件所用的语言起草。",
+      samples: {
+        en: "Hi [name], your refund is on its way.",
+        ms: "Hai [name], bayaran balik anda sedang diproses.",
+        zh: "[name]您好，您的退款正在处理中。",
+      },
+    },
+    featuresTitle: "为您真实的收件箱而打造",
+    features: {
+      sources: {
+        title: "以您的文件为依据",
+        body: "上传您的政策和手册；每份草稿都会显示所引用的段落。",
+      },
+      todo: {
+        title: "谁还欠您一封回复",
+        body: "一个页面列出等您回复的邮件和等别人回复的邮件，一键即可跟进。",
+      },
+      timing: {
+        title: "体贴的发送时间",
+        body: "当收件人那边已是晚上 11:40 时，它会提醒您，并建议在对方时间早上 9 点发送。",
+      },
+      refine: {
+        title: "用日常语言修改",
+        body: "“简短一点”“正式一点”“答应星期五”：草稿随之修改，并重新检查。",
+      },
+      templates: {
+        title: "您的模板，自动调整",
+        body: "保存常写的回复，AIMail 会针对每封邮件进行调整。",
+      },
+      panel: {
+        title: "直接在 Gmail 里使用",
+        body: "侧边栏会在您打开的邮件旁边显示草稿。",
+      },
+    },
+    faqTitle: "常见问题",
+    faq: {
+      send: {
+        q: "AIMail 会自己发送邮件吗？",
+        a: "回复不会。每封回复都要等您批准。唯一的例外是用您自己的话写的暂时回复（“我休假到星期一”），而且只有在您开启后才会发送。",
+      },
+      names: {
+        q: "AI 会看到我客户的姓名吗？",
+        a: "不会。在任何 AI 读取邮件之前，姓名、邮箱地址、电话号码和身份证号码都会被替换，您输入的姓名也会被隐藏。写法特殊的姓名偶尔可能漏掉，所以每封邮件都有收据，准确显示发送了什么。",
+      },
+      which: {
+        q: "使用的是哪一个 AI？",
+        a: "Google Gemini，它只会收到隐藏了资料的文本。在私密模式下，则改用贵公司自己的模型。",
+      },
+      delete: {
+        q: "我可以删除我的数据吗？",
+        a: "可以。在设置中，您可以断开 Gmail 或删除帐户，这会删除您的邮件、草稿和设置。占位符背后的真实资料会在 30 天内自动删除。",
+      },
+      languages: {
+        q: "支持哪些语言？",
+        a: "应用提供英文、马来文和中文，回复会以原邮件的语言起草。",
+      },
+    },
+    ctaTitle: "您的收件箱，从此安心。",
+    ctaBody: "使用 Google 登录以连接 Gmail。未经您同意，任何邮件都不会发出。",
     footer:
       "使用 Google 登录即允许 AIMail 读取和发送您的 Gmail。AIMail 是马来西亚莫纳什大学的毕业项目。",
   },
