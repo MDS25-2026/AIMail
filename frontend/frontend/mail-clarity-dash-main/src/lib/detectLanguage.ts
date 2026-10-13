@@ -41,6 +41,14 @@ function isMixed(minority: number, total: number): boolean {
   return minority >= MIN_MIXED_WORDS && minority / total >= MIN_MIXED_SHARE;
 }
 
+/** The language most of the text is in, or null when there is too little to tell. */
+export function mainLanguage(text: string): Language | null {
+  const { english, malay, hasHan } = count(text);
+  if (hasHan) return Language.Chinese;
+  if (english + malay === 0) return null;
+  return malay > english ? Language.Malay : Language.English;
+}
+
 export function needsTranslation(text: string, reader: Language): boolean {
   const { english, malay, hasHan, hasOther } = count(text);
   if (hasOther) return true;

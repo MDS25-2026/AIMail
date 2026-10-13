@@ -23,6 +23,7 @@ import MissingDetailsNotice from "./MissingDetailsNotice";
 import PriorityBadge from "./PriorityBadge";
 import PrivacyReceipt from "./PrivacyReceipt";
 import RefineInput from "./RefineInput";
+import TranslateDraft from "./TranslateDraft";
 import ScheduleBanner from "./ScheduleBanner";
 import SnoozeMenu from "./SnoozeMenu";
 import SourcesChips from "./SourcesChips";
@@ -217,6 +218,7 @@ function DraftSection({ email, workflow }: { email: Email; workflow: DraftWorkfl
         disabled={workflow.isDraftLocked}
       />
       <SourcesChips key={email.id} sources={email.sources} draft={workflow.draft} />
+      <TranslateDraft key={`translate-${email.id}`} email={email} workflow={workflow} />
       <RefineInput
         onRefine={workflow.refine}
         disabled={workflow.isDraftLocked}

@@ -823,14 +823,26 @@ func getBody(part *gmail.MessagePart) string {
 	return decodePart(part)
 }
 
+var jobs = map[string]func(context.Context, []string) error{
+	"reprocess": runReprocess,
+	"relabel":   runRelabel,
+}
+
+func firstArg() string {
+	if len(os.Args) < 2 {
+		return ""
+	}
+	return os.Args[1]
+}
+
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	loadEnvironment()
-	// A one-off job, not the listener: re-read stored emails with today's extraction.
-	if len(os.Args) > 1 && os.Args[1] == "reprocess" {
-		if err := runReprocess(ctx, os.Args[2:]); err != nil {
-			log.Fatalf("reprocess: %v", err)
+	// One-off jobs, not the listener: re-read stored emails, or re-check which are automated.
+	if job, isJob := jobs[firstArg()]; isJob {
+		if err := job(ctx, os.Args[2:]); err != nil {
+			log.Fatalf("%s: %v", os.Args[1], err)
 		}
 		return
 	}

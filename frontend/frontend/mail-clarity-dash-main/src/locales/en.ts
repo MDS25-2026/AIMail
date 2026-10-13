@@ -20,6 +20,7 @@ export const en = {
   },
   languages: { en: "English", ms: "Bahasa Melayu", zh: "中文" },
   inbox: {
+    youReplied: "You replied",
     heading: "Inbox",
     loadMore: "Show older emails",
     loadingMore: "Loading older emails…",
@@ -94,7 +95,7 @@ export const en = {
     removedLabel: "removed: ",
   },
   refine: {
-    placeholder: "Ask AI to refine reply…",
+    placeholder: "Ask AI to refine reply (any language)…",
     submit: "Refine",
     pending: "Refining…",
     suggestionDirect: "Make it more direct",
@@ -161,6 +162,13 @@ export const en = {
     loadImages: "Load images",
     showFull: "Show full email",
     showLess: "Show less",
+  },
+  writeInMine: {
+    translateTo: "Translate my reply to {{language}}",
+    yourWords: "Your words",
+    check: "Translated by AI with names hidden. Check it before sending.",
+    undo: "Back to my words",
+    failed: "Couldn't translate your reply. Your text is unchanged.",
   },
   translate: {
     action: "Translate to {{language}}",

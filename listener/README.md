@@ -77,7 +77,9 @@ Ctrl+C or SIGTERM stops it cleanly.
 
 `go run . reprocess` re-reads stored emails from Gmail with today's extraction and prints what it would
 change; `go run . reprocess --write` stores it, clearing each email's summary, items, draft and category
-so the worker makes them again (`specs/features/readable-emails.md`). Ask the owner before `--write`.
+so the worker makes them again (`specs/features/readable-emails.md`). `go run . relabel` re-checks which
+stored emails are automated from their labels and headers only (`specs/features/inbox-threads.md`). Ask
+the owner before `--write` on either.
 
 ## Run as a service
 

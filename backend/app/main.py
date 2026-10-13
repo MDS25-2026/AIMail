@@ -94,6 +94,7 @@ from app.dashboard import (
     regenerate_email,
     schedule_email,
     snooze_email,
+    translate_draft,
     translate_email,
 )
 from app.egress_log import save_egress
@@ -349,6 +350,21 @@ async def translate_email_route(
 ) -> TranslateResponse:
     # The masked body in the reader's language; refused (422) if the result is unfaithful.
     return TranslateResponse(**_found(await translate_email(message_id, body.language, scope=scope_of(request))))
+
+
+class TranslateDraftRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=MAX_DRAFT_CHARS)  # the reader's own words, as typed
+
+
+@app.post(
+    "/emails/{message_id}/translate-draft",
+    dependencies=[Depends(rate_limit_generation), Depends(require_mailbox)],
+)
+async def translate_draft_route(
+    message_id: str, body: TranslateDraftRequest, request: Request
+) -> TranslateResponse:
+    # The reader's reply in the email's language, in placeholder form; refused (422) if unfaithful.
+    return TranslateResponse(**_found(await translate_draft(message_id, body.text, scope=scope_of(request))))
 
 
 class SendRequest(BaseModel):

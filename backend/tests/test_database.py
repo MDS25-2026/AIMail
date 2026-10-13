@@ -684,3 +684,59 @@ def test_marked_unread_stays_unread_while_the_open_view_refreshes(monkeypatch):
         return opened.isRead, refreshed.isRead, is_read_after
 
     assert _run(scenario()) == (True, False, False)
+
+
+# ---------- The inbox pages by whole conversations (specs/features/inbox-threads.md) ----------
+
+def test_an_inbox_page_holds_whole_threads_so_none_splits_across_pages():
+    owner = uuid4()
+    base = datetime(2026, 10, 1, tzinfo=timezone.utc)
+
+    def message(thread: str | None, minutes: int) -> Message:
+        return Message(id=uuid4(), user_id=owner, gmail_message_id=f"thr-{uuid4()}", subject="s",
+                       thread_id=thread, masking_status=MaskingStatus.COMPLETE,
+                       created_at=base + timedelta(minutes=minutes), received_at=base + timedelta(minutes=minutes))
+
+    # Thread a: an old email and the newest one; thread b in between; a lone email with no thread.
+    old_a, b, lone, new_a = message("a", 0), message("b", 10), message(None, 20), message("a", 30)
+
+    async def scenario():
+        async with get_sessionmaker()() as session, session.begin():
+            session.add(UserProfile(id=owner, email=f"{owner}@example.com"))
+        async with get_sessionmaker()() as session, session.begin():
+            session.add_all([old_a, b, lone, new_a])
+        scope = Scope(owner_id=owner)
+        first = await list_dashboard_emails(scope, "", 2, None)
+        second = await list_dashboard_emails(scope, "", 2, decode_cursor(first.nextCursor))
+        return first, second
+
+    first, second = _run(scenario())
+    # Page 1: thread a (both emails, the old one included) and the lone email; page 2: thread b only.
+    assert [e.id for e in first.emails] == [str(new_a.id), str(lone.id), str(old_a.id)]
+    assert [e.id for e in second.emails] == [str(b.id)] and second.nextCursor is None
+
+
+def test_a_row_says_you_replied_until_they_write_back():
+    owner = uuid4()
+    base = datetime(2026, 10, 1, tzinfo=timezone.utc)
+
+    def message(minutes: int, **fields) -> Message:
+        return Message(id=uuid4(), user_id=owner, gmail_message_id=f"ans-{uuid4()}", subject="s", thread_id="t",
+                       masking_status=MaskingStatus.COMPLETE, created_at=base + timedelta(minutes=minutes),
+                       received_at=base + timedelta(minutes=minutes), **fields)
+
+    asked, answered_here, written_back = message(0), message(5, sent_at=base + timedelta(minutes=6)), message(40)
+
+    async def scenario():
+        async with get_sessionmaker()() as session, session.begin():
+            session.add(UserProfile(id=owner, email=f"{owner}@example.com"))
+        async with get_sessionmaker()() as session, session.begin():
+            session.add_all([asked, answered_here, written_back])
+            # Answered from Gmail itself after the first email, before they wrote back.
+            session.add(SentMessage(user_id=owner, gmail_id=f"g-{uuid4()}", thread_id="t",
+                                    sent_at=base + timedelta(minutes=20), subject="s", body_masked="ok"))
+        page = await list_dashboard_emails(Scope(owner_id=owner), "", 10, None)
+        return {e.id: e.isAnswered for e in page.emails}
+
+    answered = _run(scenario())
+    assert answered == {str(asked.id): True, str(answered_here.id): True, str(written_back.id): False}

@@ -17,8 +17,8 @@ from zoneinfo import ZoneInfo
 
 import httpx
 from pydantic import BaseModel
-from sqlalchemy import func, or_, select, tuple_, update
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import ColumnElement, Text, cast, func, or_, select, tuple_, update
+from sqlalchemy.dialects.postgresql import distinct_on, insert
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -361,29 +361,66 @@ async def _thread_for(message: Message) -> list[Message]:
         return await _thread_of(session, message)
 
 
+def _thread_key() -> ColumnElement[str]:
+    """A thread's identity; an email with no thread is a thread of its own."""
+    return func.coalesce(Message.thread_id, cast(Message.id, Text))
+
+
 async def list_dashboard_emails(scope: Scope, policy_email: str, limit: int, after: Cursor | None) -> EmailPage:
-    """Newest first, one page; id breaks ties, so two emails stored in the same instant both appear."""
+    """One page of whole conversations, newest first (specs/features/inbox-threads.md). A thread is placed
+    by its newest email and comes with every visible email in it, so it never splits across pages; the
+    browser groups each into one row."""
     # A snoozed email stays out of the inbox until it is due, unless a reply to it is waiting to go
     # out: the Scheduled page reads this list, and it must always reach the Cancel button.
-    statement = select(Message).where(scope.where(Message.user_id), or_(
-        Message.snoozed_until.is_(None), Message.snoozed_until <= func.now(), waiting_send_exists(Message.id)))
+    visible = [scope.where(Message.user_id), or_(
+        Message.snoozed_until.is_(None), Message.snoozed_until <= func.now(), waiting_send_exists(Message.id))]
+    newest = (select(Message.id, Message.created_at, _thread_key().label("key")).where(*visible)
+              .ext(distinct_on(_thread_key())).order_by(_thread_key(), Message.created_at.desc(), Message.id.desc())
+              .subquery())
+    heads = select(newest.c.key, newest.c.created_at, newest.c.id)
     if after:
-        statement = statement.where(tuple_(Message.created_at, Message.id) < (after.created_at, after.row_id))
-    # One extra row says whether another page exists without a count query.
-    statement = statement.order_by(Message.created_at.desc(), Message.id.desc()).limit(limit + 1)
+        heads = heads.where(tuple_(newest.c.created_at, newest.c.id) < (after.created_at, after.row_id))
+    # One extra thread says whether another page exists without a count query; id breaks ties.
+    heads = heads.order_by(newest.c.created_at.desc(), newest.c.id.desc()).limit(limit + 1)
     async with get_sessionmaker()() as session:
-        rows = (await session.scalars(statement)).all()
+        found = (await session.execute(heads)).all()
+        page = found[:limit]
+        rows = (await session.scalars(select(Message).where(*visible, _thread_key().in_([h.key for h in page]))
+                                      .order_by(Message.created_at.desc(), Message.id.desc()))).all() if page else []
         policy = await load_policy(session, policy_email)
-    page = rows[:limit]
-    is_more = len(rows) > limit
-    schedules = await states_for([message.id for message in page])
-    return EmailPage(emails=[inbox_row(message, policy, schedules.get(message.id)) for message in page],
-                     nextCursor=Cursor(page[-1].created_at, page[-1].id).encode() if is_more else None)
+        replied = await _latest_gmail_replies(session, scope, rows)
+    schedules = await states_for([message.id for message in rows])
+    emails = [inbox_row(message, policy, schedules.get(message.id), is_answered=_is_answered(message, replied))
+              for message in rows]
+    last = page[-1] if len(found) > limit else None
+    return EmailPage(emails=emails, nextCursor=Cursor(last.created_at, last.id).encode() if last else None)
 
 
-def inbox_row(message: Message, policy: Policy, schedule: ScheduleState | None = None) -> DashboardEmail:
+async def _latest_gmail_replies(session: AsyncSession, scope: Scope, rows: list[Message]) -> dict[str, datetime]:
+    """When the reader last replied in each thread from Gmail itself."""
+    thread_ids = {m.thread_id for m in rows if m.thread_id}
+    if not thread_ids:
+        return {}
+    found = await session.execute(select(SentMessage.thread_id, func.max(SentMessage.sent_at))
+                                  .where(scope.where(SentMessage.user_id), SentMessage.thread_id.in_(thread_ids))
+                                  .group_by(SentMessage.thread_id))
+    return dict(found.tuples().all())
+
+
+def _is_answered(message: Message, latest_gmail_reply: dict[str, datetime]) -> bool:
+    """Answered from AIMail, or a reply sent from Gmail in its thread after it arrived."""
+    if message.sent_at is not None:
+        return True
+    replied = latest_gmail_reply.get(message.thread_id or "")
+    arrived = message.received_at or message.created_at
+    return replied is not None and arrived is not None and replied > arrived
+
+
+def inbox_row(message: Message, policy: Policy, schedule: ScheduleState | None = None,
+              is_answered: bool = False) -> DashboardEmail:
     """An email as a list shows it: its own subject and preview details, no thread or draft detail."""
-    return _to_email(message, policy, details=_own_details(message), schedule=schedule)
+    email = _to_email(message, policy, details=_own_details(message), schedule=schedule)
+    return email.model_copy(update={"isAnswered": is_answered}) if is_answered else email
 
 
 def _own_details(message: Message) -> ThreadMap:
@@ -1149,6 +1186,44 @@ async def translate_template(template: ReplyTemplate, language: Language) -> str
     if restored is None:
         raise TranslationError(ErrorCode.TRANSLATION_UNFAITHFUL, "a template variable was lost")
     return names.restore(restored)
+
+
+async def translate_draft(message_id: str, text: str, *, scope: Scope) -> dict | None:
+    """A reply the reader wrote in their own language, in the email's language, for them to check and send
+    (specs/features/write-in-my-language.md). Nothing is stored; the send path checks it as any draft.
+
+    Only masked text leaves, as in a refine: known details become their placeholders, new fixed formats
+    are masked, and typed names are hidden and put back after. Returned in placeholder form.
+    """
+    try:
+        pk = UUID(message_id)
+    except ValueError:
+        return None
+    loaded = await _load_with_thread(pk, scope)
+    if loaded is None:
+        return None
+    message, thread = loaded
+    _require(message, Action.REFINE)
+    details = await _details_for(message, thread)
+    language = detect_language(plain_text(message.body_masked or ""))
+    names = TypedNames()
+    masked = await names.hide(details.for_model(text))
+    if len(masked) > MAX_TRANSLATE_CHARS:
+        raise TranslationError(ErrorCode.TOO_LARGE, "reply too long to translate")
+    try:
+        translated = await _call_agent("/translate", TranslateRequest(
+            text=masked, language=language, provider=await model_for(message.user_id)), TranslateResponse)
+    except httpx.HTTPStatusError as exc:
+        await save_egress(agent_client.refusal_egress(exc.response), user_id=message.user_id, message_id=message.id)
+        await audit(AuditAction.TRANSLATE_EMAIL, user_id=message.user_id, success=False, message=message_id,
+                    language=language, draft=True)
+        raise TranslationError(_translation_refusal(exc.response)) from exc
+    except httpx.HTTPError as exc:
+        raise TranslationError(ErrorCode.AGENT_UNAVAILABLE, "agent unreachable") from exc
+    await save_egress(translated.pop("egress", []), user_id=message.user_id, message_id=message.id)
+    await audit(AuditAction.TRANSLATE_EMAIL, user_id=message.user_id, message=message_id, language=language,
+                draft=True)
+    return {"language": language, "text": names.restore(translated["text"])}
 
 
 def _check_ahead(when: datetime) -> datetime:

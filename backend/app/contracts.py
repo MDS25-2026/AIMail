@@ -150,6 +150,8 @@ class DashboardEmail(BaseModel):
     isAutomated: bool = False
     # An attachment the listener could not read; the email says so instead of staying silent.
     hasUnreadAttachment: bool = False
+    # The reader answered it (from AIMail or Gmail); list rows only (specs/features/inbox-threads.md).
+    isAnswered: bool = False
     scheduledFor: str | None = None
     scheduleCancelled: Literal["they_replied", "you_replied", "too_late", "refused"] | None = None
     snoozedUntil: str | None = None

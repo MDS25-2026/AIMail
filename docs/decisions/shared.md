@@ -6,6 +6,18 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-13 — The inbox pages by whole conversations
+
+- Decision: `GET /emails` returns pages of whole threads (placed by their newest visible email, `limit`
+  counting threads) in the same list-of-emails shape, and each email says whether the reader answered it
+  (`isAnswered`).
+- Why: the browser grouped only what it had loaded, so a thread whose older email fell on a later page
+  showed twice.
+- Why not one row per thread in the response: the Sent and Scheduled pages read the same list; the
+  browser's grouping already makes the rows.
+- Affects: Lane B (the list query), Lane D (the "You replied" mark; Han to review).
+- Status: accepted (spec `specs/features/inbox-threads.md`)
+
 ### 2026-10-12 — Readable emails in the listener; the attachment reader on Render
 
 - Decision: the listener parses HTML with `golang.org/x/net/html` (already in the module graph, now

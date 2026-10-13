@@ -1,4 +1,4 @@
-import { ShieldAlert } from "lucide-react";
+import { Reply, ShieldAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { AuthStatus, MaskingStatus, type Email } from "../types/email";
@@ -88,6 +88,13 @@ export default function EmailListItem({
             <div className="flex flex-wrap items-center gap-1.5">
               <PriorityBadge priority={email.priority} />
               <CategoryBadge email={email} />
+              {/* The newest email answered; it goes away when they write back. */}
+              {email.isAnswered ? (
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-fg-muted">
+                  <Reply aria-hidden className="size-3" />
+                  {t("inbox.youReplied")}
+                </span>
+              ) : null}
             </div>
             {email.authStatus === AuthStatus.SpoofDetected ? (
               <span className="flex items-center gap-1 rounded bg-danger-soft px-1.5 py-0.5 text-[11px] font-semibold text-danger">

@@ -92,6 +92,7 @@ const ROUTES: Route[] = [
         sentAt: new Date().toISOString(),
         scheduledFor: null,
         isRead: true,
+        isAnswered: true,
       })),
   },
   {
