@@ -293,7 +293,7 @@ func maskWithPresidio(ctx context.Context, text string, v *detailVault) (string,
 		// cannot fire on an invoice or order number that merely looks card- or IBAN-shaped. SWIFT/BIC
 		// is left out on purpose: it names a bank, which is public, not a person.
 		Entities:         []string{"PERSON", "LOCATION", "ORGANIZATION", "ACCOUNT_NUMBER", "CREDIT_CARD", "IBAN_CODE", "PHONE_NUMBER", "EMAIL_ADDRESS", "MY_POSTCODE", "VEHICLE_PLATE"},
-		AdHocRecognizers: localeRecognizers,
+		AdHocRecognizers: append(append([]presidioRecognizer{}, localeRecognizers...), nameRecognizers...),
 	})
 	if err != nil {
 		return "", fmt.Errorf("marshal analyze request: %w", err)
@@ -306,7 +306,7 @@ func maskWithPresidio(ctx context.Context, text string, v *detailVault) (string,
 	if err := json.Unmarshal(raw, &results); err != nil {
 		return "", fmt.Errorf("decode analyze results: %w", err)
 	}
-	return replaceEntities(text, filterAllowedLocations(text, results), v), nil
+	return replaceEntities(text, nameShapedOnly(text, filterAllowedLocations(text, results)), v), nil
 }
 
 // entityKinds maps Presidio's entity names to placeholder kinds. An unlisted entity is still
