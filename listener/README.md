@@ -20,6 +20,9 @@ PII (names, locations, organizations, account numbers, Malaysian postcodes and c
 found by Microsoft Presidio's analyzer (a local container); account numbers, postcodes and plates only
 count when a nearby word (bank, jalan, plate...) says what they are. If Presidio is unreachable the
 message is quarantined with no content until it can be masked.
+Presidio reads every email as English, so `nameshapes.go` adds Malaysian and Chinese name patterns and
+narrows its name hits to name-shaped words, so Malay prose is not hidden as a person
+(`specs/features/multilingual-masking.md`).
 
 Before masking, every text part of the body is read and converted from the sender's charset to UTF-8,
 HTML (preferred over the client's auto-made plain text) is parsed into prose that keeps paragraphs,
