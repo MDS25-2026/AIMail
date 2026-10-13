@@ -1,6 +1,6 @@
 # Normalisation v2: clean, English-first, then everything else, then translation
 
-- **Status:** stage 1 in progress 2026-10-13
+- **Status:** stage 1 built (PR #234); stage 2 built 2026-10-13
 - **Owner:** veyroxie
 - **Related issue:** #224
 - **Builds on:** `normalisation-layer.md` (numbers, units, dates), `multilingual-masking.md`
@@ -38,14 +38,21 @@ step at it; translate only at the end, for the reader and for the reply.
 
 ## Stage 2: normalise (backend worker; schema change approved 2026-10-13)
 
-- `messages.language` (en, ms, zh, mixed), `subject_en`, `body_en`: the English copy of a non-English
+- `messages.language` (en, ms, zh), `subject_en`, `own_text_en`: the English copy of a non-English
   email, translated from masked text by the request's model (Gemini, or Gemma in Private mode), refused
   when figures or placeholders change; on refusal every step reads the original.
 - Dates and deadlines: Malay and Chinese dates and relative days resolved against the sender's Date
   header and the owner's time zone, filling `deadline_at`.
-- Money and numbers: `RM1.2k`, `satu juta`, Chinese numerals.
-- Malay short forms on the English copy only (`x`, `sy`, `yg`, `dgn`, `tq`); tracking parameters stripped
-  from links.
+- Deadlines read from the English copy, or the original when there is none: a deadline word ("by",
+  "before", "no later than", "due", Malay "sebelum", "paling lewat") then a date, weekday, "tomorrow",
+  "end of day", "noon" or a time; a day with no time is due at 17:00; the earliest after the email was
+  sent wins; one more than 180 days ahead is ignored (a past date rolled to next year).
+- The English copy covers the sender's own text only (`app/normalise/quotes.py`), cut at a paragraph to
+  the agent's limit. A refused translation leaves no copy; an agent outage leaves the email queued.
+- **Cut from stage 2, on purpose:** a money and number reader for `RM1.2k` or Chinese numerals, a Malay
+  short-form dictionary and link tracking stripping. The English copy already reads short forms and
+  numbers correctly, so none of them changes what the later steps see; they can come back if a measured
+  case needs them.
 
 ## Stage 3: everything else reads the English copy
 

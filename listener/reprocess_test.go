@@ -34,7 +34,7 @@ func TestReprocessClearsEverythingWrittenInTheOldNumbering(t *testing.T) {
 	}
 	text := string(patch)
 	for _, cleared := range []string{`"draft_reply":""`, `"ai_summary":""`, `"action_items":[]`, `"category":null`,
-		`"generated_at":null`, `"critic_checks":null`, `"generation_attempts":0`} {
+		`"generated_at":null`, `"critic_checks":null`, `"generation_attempts":0`, `"language":null`, `"own_text_en":null`} {
 		if !strings.Contains(text, cleared) {
 			t.Errorf("%s not in %s", cleared, text)
 		}

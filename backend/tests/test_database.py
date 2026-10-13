@@ -24,6 +24,7 @@ from app import (
     template_store,
     todo,
 )
+from app.agent_contract import TranslateResponse
 from app.audit import AuditAction, audit_row
 from app.core.constants import EMBEDDING_DIM, LOCAL_EMBEDDING_DIM
 from app.core.cursor import decode_cursor
@@ -51,6 +52,7 @@ from app.gmail_send import SendError, SentReply
 from app.inbox_search import search_messages_hybrid
 from app.jobs import claim_requested, request_draft
 from app.ml.categorise import classify_pending
+from app.normalise import pipeline
 from app.private_mode import not_private
 from app.quiet_hours import QuietHoursView
 from app.rag.chunk import Piece
@@ -740,3 +742,41 @@ def test_a_row_says_you_replied_until_they_write_back():
 
     answered = _run(scenario())
     assert answered == {str(asked.id): True, str(answered_here.id): True, str(written_back.id): False}
+
+
+# ---------- Normalisation v2 (specs/features/normalisation-v2.md) ----------
+
+def test_a_malay_email_gets_its_language_an_english_copy_and_a_deadline(monkeypatch):
+    owner = uuid4()
+    sent = datetime(2026, 10, 13, 2, tzinfo=timezone.utc)  # 10:00 in Kuala Lumpur
+
+    async def call(_path, request, _answer):
+        english = {"Permohonan cuti": "Leave request"}.get(request.text, "Please confirm by Friday.")
+        return TranslateResponse(language="en", text=english, egress=[])
+
+    async def gemini(_user_id):
+        return "gemini"
+
+    monkeypatch.setattr(pipeline.agent_client, "call", call)
+    monkeypatch.setattr(pipeline, "provider_for", gemini)
+    malay = Message(id=uuid4(), user_id=owner, gmail_message_id=f"nm-{uuid4()}", subject="Permohonan cuti",
+                    body_masked="Saya ingin memohon cuti. Sila sahkan sebelum Jumaat.\n\nOn Mon, [PERSON_1] wrote:\n> old",
+                    masking_status=MaskingStatus.COMPLETE, received_at=sent, created_at=sent)
+    english = Message(id=uuid4(), user_id=owner, gmail_message_id=f"ne-{uuid4()}", subject="Hello",
+                      body_masked="Thanks, all good.", masking_status=MaskingStatus.COMPLETE,
+                      received_at=sent, created_at=sent)
+
+    async def scenario():
+        async with get_sessionmaker()() as session, session.begin():
+            session.add(UserProfile(id=owner, email=f"{owner}@example.com"))
+        async with get_sessionmaker()() as session, session.begin():
+            session.add_all([malay, english])
+        await pipeline.normalise_pending(limit=50)
+        async with get_sessionmaker()() as session:
+            return [await session.get(Message, m.id) for m in (malay, english)]
+
+    stored_malay, stored_english = _run(scenario())
+    assert (stored_malay.language, stored_malay.subject_en) == ("ms", "Leave request")
+    assert stored_malay.own_text_en == "Please confirm by Friday."
+    assert stored_malay.deadline_at == datetime(2026, 10, 16, 9, tzinfo=timezone.utc)  # Fri 17:00 in KL
+    assert (stored_english.language, stored_english.own_text_en, stored_english.deadline_at) == ("en", None, None)

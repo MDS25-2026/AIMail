@@ -191,6 +191,13 @@ leaves the recipient's client ungrouped. Both mechanisms, or it is not threaded.
 > Provisional — confirm exact names/types against JiaJun's Go structs at the sync. Lane A writes via
 > PostgREST (`SUPABASE_SERVICE_KEY`); Lane B reads via asyncpg (`DATABASE_URL`). Same Supabase project.
 
+### Normalised copy (migration 0044, `specs/features/normalisation-v2.md`)
+
+- `messages.language` (`en`, `ms`, `zh`; NULL until the worker normalises it), `subject_en` and
+  `own_text_en`: an English copy of a non-English email's subject and the sender's own text, masked
+  like the original. Retention clears `own_text_en` with the body; the worker also fills `deadline_at`.
+- Partial index `messages_language_pending_idx` on `created_at` WHERE `language IS NULL`: the queue.
+
 ### Personalisation (Lane B, migration 0007)
 
 Applied **after** the classifier predicts, never inside it — see `backend/app/personalisation.py`.

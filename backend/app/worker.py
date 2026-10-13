@@ -22,6 +22,7 @@ from app.core.logging_setup import configure_logging
 from app.dashboard import generate_pending, generate_requested
 from app.holding_reply_scheduler import schedule_new, send_due
 from app.ml.categorise import classify_pending
+from app.normalise.pipeline import normalise_pending
 from app.rag.embedding_models import check_columns
 from app.rag.ingest import embed_pending, embed_pending_locally
 from app.retention import apply_retention
@@ -43,6 +44,9 @@ RECONCILE_EVERY_SECONDS = 300
 # About a millisecond an email on CPU, so a pass can clear a backlog; new mail is classified within a minute.
 CATEGORY_POLL_SECONDS = 60
 CATEGORIES_PER_PASS = 200
+NORMALISE_POLL_SECONDS = 30
+# Each non-English email is two model calls; a small pass keeps a backlog from hogging the agent.
+NORMALISE_PER_PASS = 20
 
 
 @dataclass(frozen=True)
@@ -70,6 +74,7 @@ def jobs() -> list[Job]:
             lambda: generate_requested(limit=REQUESTED_DRAFTS_PER_PASS)),
         Job("embeddings", lambda: EMBED_POLL_SECONDS, _embeddings),
         Job("categories", lambda: CATEGORY_POLL_SECONDS, lambda: classify_pending(limit=CATEGORIES_PER_PASS)),
+        Job("normalise", lambda: NORMALISE_POLL_SECONDS, lambda: normalise_pending(limit=NORMALISE_PER_PASS)),
         Job("holding replies", lambda: HOLDING_REPLY_POLL_SECONDS, _holding_replies),
         Job("scheduled sends", lambda: SCHEDULED_SEND_POLL_SECONDS, send_scheduled),
         Job("send reconciliation", lambda: RECONCILE_EVERY_SECONDS, reconcile_sends),

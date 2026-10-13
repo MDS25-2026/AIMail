@@ -67,6 +67,11 @@ Exceptions you should know about:
   rather than send the text.
 - **Search.** To find matching passages, the masked text of your documents and emails is turned
   into numbers (embeddings) by Gemini, unless you use Private mode.
+- **An English copy of emails in other languages.** For an email in Malay, Chinese or another
+  language, its masked subject and the sender's own text (not the earlier messages quoted under it)
+  are translated into English once, so sorting, deadlines and drafting work as well as for English
+  mail. The copy is masked like the original, is shown in the privacy receipt, and is deleted with the
+  email's text under the retention rules. In Private mode your own model makes it instead.
 
 Google's handling of data sent to Gemini is governed by Google's terms for the API, not by AIMail.
 
