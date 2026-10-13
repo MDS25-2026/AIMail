@@ -23,6 +23,7 @@ export const ms: Translations = {
   },
   languages: { en: "English", ms: "Bahasa Melayu", zh: "中文" },
   inbox: {
+    youReplied: "Anda telah membalas",
     heading: "Peti masuk",
     loadMore: "Tunjukkan e-mel lebih lama",
     loadingMore: "Memuatkan e-mel lebih lama…",
@@ -99,7 +100,7 @@ export const ms: Translations = {
     removedLabel: "dibuang: ",
   },
   refine: {
-    placeholder: "Minta AI memperhalus balasan…",
+    placeholder: "Minta AI memperhalus balasan (apa-apa bahasa)…",
     submit: "Perhalus",
     pending: "Memperhalus…",
     suggestionDirect: "Jadikan lebih terus",
@@ -169,6 +170,13 @@ export const ms: Translations = {
     loadImages: "Muatkan imej",
     showFull: "Tunjuk e-mel penuh",
     showLess: "Tunjuk kurang",
+  },
+  writeInMine: {
+    translateTo: "Terjemahkan balasan saya ke {{language}}",
+    yourWords: "Kata-kata anda",
+    check: "Diterjemah oleh AI dengan nama disembunyikan. Semak sebelum menghantar.",
+    undo: "Kembali ke kata-kata saya",
+    failed: "Tidak dapat menterjemah balasan anda. Teks anda tidak berubah.",
   },
   translate: {
     action: "Terjemah ke {{language}}",

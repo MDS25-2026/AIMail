@@ -15,7 +15,9 @@ order, with the newest open and ready to reply to.
 ## Behaviour
 
 1. **Inbox, one row per conversation.** Rows sharing a Gmail thread collapse into the newest one,
-   with the number of messages beside the sender ("Aisyah (3)"). The row is unread if any message in
+   with the number of messages beside the sender ("Aisyah (3)"). Each page from the server holds whole
+   threads, so one never splits across pages, and a row the reader answered says "You replied"
+   (2026-10-13, `inbox-threads.md`). The row is unread if any message in
    it is. Drafts and Sent keep listing individual emails.
 2. **Detail, the conversation stacked.** Earlier messages sit above the open one as one-line cards
    (sender, time, first line); clicking one expands its full body. The owner's replies appear in

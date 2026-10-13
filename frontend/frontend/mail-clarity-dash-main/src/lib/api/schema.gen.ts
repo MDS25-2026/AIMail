@@ -427,6 +427,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/emails/{message_id}/translate-draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Translate Draft Route */
+        post: operations["translate_draft_route_emails__message_id__translate_draft_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/emails/{message_id}/unread": {
         parameters: {
             query?: never;
@@ -1094,6 +1111,11 @@ export interface components {
             hasUnreadAttachment: boolean;
             /** Id */
             id: string;
+            /**
+             * Isanswered
+             * @default false
+             */
+            isAnswered: boolean;
             /**
              * Isautomated
              * @default false
@@ -1764,6 +1786,11 @@ export interface components {
          * @enum {string}
          */
         Tone: "professional" | "casual";
+        /** TranslateDraftRequest */
+        TranslateDraftRequest: {
+            /** Text */
+            text: string;
+        };
         /** TranslateRequest */
         TranslateRequest: {
             /**
@@ -2716,6 +2743,41 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["TranslateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TranslateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    translate_draft_route_emails__message_id__translate_draft_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TranslateDraftRequest"];
             };
         };
         responses: {

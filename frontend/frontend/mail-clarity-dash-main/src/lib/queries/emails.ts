@@ -20,6 +20,7 @@ import {
   scheduleEmail,
   sendEmail,
   snoozeEmail,
+  translateDraft,
   translateEmail,
   unsnoozeEmail,
 } from "../api/emails";
@@ -113,6 +114,13 @@ export function useSeededEmail(initial: Email) {
  * Keyed by email and language and never stale, so switching between original and translation
  * costs one model call. No retry: a 422 means the text failed its faithfulness checks.
  */
+/** The reader's reply, written in their language, in the email's language; nothing is stored. */
+export const useTranslateDraft = () =>
+  useMutation({
+    mutationFn: ({ emailId, text }: { emailId: string; text: string }) =>
+      translateDraft(emailId, text),
+  });
+
 export function useEmailTranslation(emailId: string, language: string, isRequested: boolean) {
   return useQuery({
     queryKey: queryKeys.translation(emailId, language),

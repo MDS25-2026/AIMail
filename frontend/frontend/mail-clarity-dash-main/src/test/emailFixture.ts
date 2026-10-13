@@ -17,6 +17,7 @@ export function emailFixture(overrides: Partial<Email> = {}): Email {
     tone: "professional",
     isAutomated: false,
     hasUnreadAttachment: false,
+    isAnswered: false,
     sources: [],
     piiMasked: true,
     criticConfidence: 0.9,

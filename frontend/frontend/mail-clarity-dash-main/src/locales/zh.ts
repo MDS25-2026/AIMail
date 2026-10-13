@@ -23,6 +23,7 @@ export const zh: Translations = {
   },
   languages: { en: "English", ms: "Bahasa Melayu", zh: "中文" },
   inbox: {
+    youReplied: "您已回复",
     heading: "收件箱",
     loadMore: "显示更早的邮件",
     loadingMore: "正在加载更早的邮件…",
@@ -97,7 +98,7 @@ export const zh: Translations = {
     removedLabel: "删除：",
   },
   refine: {
-    placeholder: "让 AI 优化回复…",
+    placeholder: "让 AI 优化回复（任何语言均可）…",
     submit: "优化",
     pending: "正在优化…",
     suggestionDirect: "更直接一些",
@@ -163,6 +164,13 @@ export const zh: Translations = {
     loadImages: "加载图片",
     showFull: "显示完整邮件",
     showLess: "收起",
+  },
+  writeInMine: {
+    translateTo: "将我的回复翻译成{{language}}",
+    yourWords: "您写的内容",
+    check: "由 AI 翻译，姓名已隐藏。发送前请检查。",
+    undo: "恢复为我写的内容",
+    failed: "无法翻译您的回复，您的文字未作更改。",
   },
   translate: {
     action: "翻译成{{language}}",

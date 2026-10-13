@@ -73,7 +73,7 @@ func runReprocess(ctx context.Context, args []string) error {
 			log.Printf("mailbox of user %s not reprocessed: %v", connection.UserID, err)
 		}
 	}
-	printTotals(totals, *isWrite)
+	printTotals("reprocess", totals, *isWrite)
 	return nil
 }
 
@@ -194,12 +194,12 @@ func reprocessOne(ctx context.Context, ownerID string, row reprocessRow, srv *gm
 	return "changed"
 }
 
-func printTotals(totals map[string]int, isWrite bool) {
+func printTotals(job string, totals map[string]int, isWrite bool) {
 	mode := "dry run: nothing was written"
 	if isWrite {
 		mode = "written"
 	}
-	fmt.Printf("reprocess (%s)\n", mode)
+	fmt.Printf("%s (%s)\n", job, mode)
 	for reason, count := range totals {
 		fmt.Printf("  %-45s %d\n", reason, count)
 	}

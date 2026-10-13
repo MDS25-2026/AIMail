@@ -86,6 +86,12 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   `senderUtcOffsetMinutes`, `scheduledFor`, `scheduleCancelled` (`they_replied` | `you_replied` |
   `too_late` | `refused`), `snoozedUntil`. A send time past the email's vault retention is refused
   (`422 time_out_of_range`); snooze does not hide an email with a waiting send.
+- **Write in my language (2026-10-13, `specs/features/write-in-my-language.md`):**
+  `POST /emails/{id}/translate-draft` `{text}` returns `{language, text}`, the reader's reply in the
+  email's language in placeholder form; nothing is stored.
+- **Inbox threads (2026-10-13, `specs/features/inbox-threads.md`):** each `GET /emails` page holds whole
+  threads, placed by their newest visible email; `limit` counts threads; the cursor is the last thread's
+  newest email. The email gains `isAnswered` (list rows).
 - **Readable emails (2026-10-12, `specs/features/readable-emails.md`):** the email gains
   `hasUnreadAttachment`; `threadContext` also lists the owner's replies sent from Gmail itself.
 - **To-do redesign and status (2026-10-12, `specs/features/todo-redesign-and-status.md`):** `GET /todo`

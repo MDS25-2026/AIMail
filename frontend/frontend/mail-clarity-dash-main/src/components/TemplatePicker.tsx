@@ -45,7 +45,7 @@ export default function TemplatePicker({ email, workflow }: TemplatePickerProps)
   const selected = list.find((template) => template.id === chosenId) ?? suggested ?? list[0];
   const insert = async () => {
     const { text } = await fill.mutateAsync({ templateId: selected.id, emailId: email.id });
-    workflow.insertTemplate(text);
+    workflow.insertText(text);
   };
   const isDisabled = workflow.isDraftLocked || fill.isPending;
 

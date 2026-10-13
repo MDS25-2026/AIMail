@@ -43,6 +43,7 @@ function demoEmail(email: Partial<Email> & Pick<Email, "id" | "subject" | "body"
     tone: "professional",
     isAutomated: false,
     hasUnreadAttachment: false,
+    isAnswered: false,
     sources: [],
     piiMasked: true,
     criticConfidence: 0.95,

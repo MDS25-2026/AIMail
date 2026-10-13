@@ -85,8 +85,8 @@ export type DraftWorkflow = {
   send: () => void;
   /** Draft from template: the agent rewrites a saved template for this email. */
   draftFromTemplate: (templateId: string) => Promise<void>;
-  /** Insert: a filled template (placeholders and all) replaces the text in the editor. */
-  insertTemplate: (filled: string) => void;
+  /** Text in placeholder form (a filled template, a translated reply) replaces the editor's, names shown. */
+  insertText: (filled: string) => void;
   /** The reader typed something the stored draft does not have; replacing it loses that. */
   hasUnsavedEdits: boolean;
   /** A saved template's {{blanks}} still in the draft; it cannot be sent until they are filled. */
@@ -481,7 +481,7 @@ export function useDraftWorkflow(
   };
 
   // Shown the way the editor shows the stored draft: real details, unless the reader hid them.
-  const insertTemplate = (filled: string) =>
+  const insertText = (filled: string) =>
     setDraft(isHidingDetails ? filled : restoreDetails(filled, detailValues(email?.details)));
 
   return {
@@ -489,7 +489,7 @@ export function useDraftWorkflow(
     tone,
     setDraft,
     draftFromTemplate,
-    insertTemplate,
+    insertText,
     hasUnsavedEdits: hasUnsavedEdits(typedDraft, serverDraft),
     unfilledBlanks,
     schedule,

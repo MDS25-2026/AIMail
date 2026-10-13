@@ -395,7 +395,7 @@ describe("saved reply templates", () => {
 
   test("an inserted template shows the sender's real name, as the editor shows the stored draft", () => {
     const { result } = renderWorkflow(withDetails);
-    act(() => result.current.insertTemplate("Hi [PERSON_3], thanks."));
+    act(() => result.current.insertText("Hi [PERSON_3], thanks."));
     expect(result.current.draft).toBe("Hi Aisyah Rahman, thanks.");
     expect(result.current.hasUnsavedEdits).toBe(true);
   });

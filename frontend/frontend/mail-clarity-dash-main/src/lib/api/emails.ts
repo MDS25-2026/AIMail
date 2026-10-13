@@ -38,6 +38,13 @@ export const refineEmail = (id: string, instruction: string, draft: string, tone
   });
 
 /** The masked body in another language. 422 means the translation failed its faithfulness checks. */
+/** The reader's own words in the email's language, in placeholder form; nothing is stored. */
+export const translateDraft = (id: string, text: string) =>
+  request<Translation>(emailPath(id, "/translate-draft"), {
+    method: HttpMethod.Post,
+    json: { text },
+  });
+
 export const translateEmail = (id: string, language: string) =>
   request<Translation>(emailPath(id, "/translate"), {
     method: HttpMethod.Post,
