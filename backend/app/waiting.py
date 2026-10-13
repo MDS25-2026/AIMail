@@ -9,14 +9,7 @@ import re
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-# Where the quoted email begins: "> " lines, or the header a mail client writes above it.
-_QUOTE_START = re.compile(
-    r"^(?:>|-{2,}\s*Original Message|From:\s|On .*wrote:\s*$|Pada .*(?:menulis|tulis):\s*$|.*写道[:：]\s*$)",
-    re.IGNORECASE,
-)
-# A client may wrap "On Tue, 7 Oct 2026, Aisyah <a@b.c>" and "wrote:" over two lines.
-_WRAPPED_HEADER_START = re.compile(r"^(?:On|Pada)\s", re.IGNORECASE)
-_HEADER_END = re.compile(r"(?:wrote|menulis|tulis):\s*$|写道[:：]\s*$", re.IGNORECASE)
+from app.normalise.quotes import own_text
 
 _QUESTION_MARKS = ("?", "？")
 _REQUEST = re.compile(
@@ -24,19 +17,6 @@ _REQUEST = re.compile(
     r"would you|kindly|boleh|sila|mohon|tolong|maklumkan)\b|请|能否|是否|可否|麻烦",
     re.IGNORECASE,
 )
-
-
-def own_text(body: str) -> str:
-    """The part of a sent reply the user wrote, without the email quoted beneath it."""
-    lines = body.splitlines()
-    for index, line in enumerate(lines):
-        if _QUOTE_START.match(line.strip()):
-            return "\n".join(lines[:index])
-        is_wrapped_header = (_HEADER_END.search(line.strip()) and index > 0
-                             and _WRAPPED_HEADER_START.match(lines[index - 1].strip()))
-        if is_wrapped_header:
-            return "\n".join(lines[:index - 1])
-    return body
 
 
 def asks_something(body: str) -> bool:

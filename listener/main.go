@@ -263,7 +263,7 @@ func filterAllowedLocations(text string, results []presidioResult) []presidioRes
 // chunked: an email address cut across two pieces would match in neither. NER is, because one
 // Presidio call on a long body or a 20-page PDF can outrun presidioClient's timeout.
 func maskText(ctx context.Context, text string, v *detailVault) (masked string, emailsMasked, phonesMasked int, degraded bool) {
-	masked, emailsMasked, phonesMasked = maskPII(text, v)
+	masked, emailsMasked, phonesMasked = maskPII(cleanText(text), v)
 	var pieces []string
 	for _, chunk := range chunkText(masked, nerChunkChars) {
 		piece, err := maskWithPresidio(ctx, chunk, v)
