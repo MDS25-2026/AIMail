@@ -111,6 +111,11 @@ def apply_policy(message: Message, policy: Policy) -> str:
         if keyword and keyword in haystack:
             return _LABELS[priority]
 
+    # Newsletters and notifications: low unless the user ranked them, or the SLA floor made them critical
+    # (specs/features/automated-priority.md). They showed as the unscored placeholder, Medium.
+    if message.is_automated:
+        return _LABELS[_LOW]
+
     # Deterministic SLA rule (e.g. LOW for newsletters or HIGH/MEDIUM for explicit dates)
     # when no explicit user-specific sender or keyword override exists.
     if sla in ("high", "medium", "low"):

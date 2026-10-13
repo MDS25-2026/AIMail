@@ -80,3 +80,22 @@ def test_sender_rule_overrides_non_critical_sla():
     # Specific sender rule can promote a newsletter or demote non-critical SLA.
     policy = Policy(sender_rules={"boss@corp.com": 2})
     assert apply_policy(_message(from_addr="The Boss <boss@corp.com>", sla_priority="LOW", importance=0), policy) == "high"
+
+
+# ---------- Automated mail (specs/features/automated-priority.md) ----------
+
+def test_a_newsletter_with_no_score_is_low_not_the_medium_placeholder():
+    assert apply_policy(_message(is_automated=True), Policy()) == "low"
+
+
+def test_an_automated_alert_the_sla_rules_call_critical_stays_critical():
+    assert apply_policy(_message(is_automated=True, sla_priority="CRITICAL"), Policy()) == "critical"
+
+
+def test_a_user_can_still_rank_an_automated_sender_high():
+    policy = Policy(sender_rules={"alerts@bank.example": 2})
+    assert apply_policy(_message(is_automated=True, from_addr="Bank <alerts@bank.example>"), policy) == "high"
+
+
+def test_mail_from_a_person_is_untouched():
+    assert apply_policy(_message(is_automated=False, importance=2), Policy()) == "high"
