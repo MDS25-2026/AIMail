@@ -12,6 +12,12 @@ import * as status from "../../lib/api/status";
 import * as templates from "../../lib/api/templates";
 import * as todo from "../../lib/api/todo";
 import { placeholderPattern } from "../../lib/masking";
+import { needsTranslation } from "../../lib/detectLanguage";
+import { Language } from "../../lib/preferences";
+import { en } from "../../locales/en";
+import { ms } from "../../locales/ms";
+import { zh } from "../../locales/zh";
+import { DEMO_ANSWERS, DEMO_CONFIRMED_DRAFTS } from "../data/answers";
 import { demoEmails } from "../data/emails";
 import { isDemo, leaveDemo, startDemo } from "../mode";
 import { resetDemo } from "../request";
@@ -43,6 +49,9 @@ const ANY_ARGUMENT = {
   language: "ms",
 };
 
+// The only ways a demo call may fail: never a network error or a sign-out.
+const REFUSALS = [ApiErrorCode.NotInDemo, ApiErrorCode.DemoSuggestionsOnly, ApiErrorCode.NotFound];
+
 let fetchSpy: ReturnType<typeof vi.fn>;
 
 /** A demo call's answer, without waiting out its network-like pause in real time. */
@@ -51,7 +60,7 @@ async function settle<T>(call: Promise<T>): Promise<T> {
     (value) => ({ value }),
     (error: unknown) => ({ error }),
   );
-  await vi.advanceTimersByTimeAsync(1_000);
+  await vi.advanceTimersByTimeAsync(2_000);
   const settled = await outcome;
   if ("error" in settled) throw settled.error;
   return settled.value;
@@ -88,7 +97,7 @@ describe("demo mode (#227)", () => {
         } catch (error) {
           const code = error instanceof ApiError ? error.code : String(error);
           outcomes.push(`${file}.${name}: ${code}`);
-          expect([ApiErrorCode.NotInDemo, ApiErrorCode.NotFound]).toContain(code);
+          expect(REFUSALS).toContain(code);
         }
       }
     }
@@ -155,5 +164,86 @@ describe("outside demo mode", () => {
     leaveDemo();
     await settle(emails.fetchEmailPage().catch(() => undefined));
     expect(fetchSpy).toHaveBeenCalled();
+  });
+});
+
+describe("the AI's prepared answers (#227)", () => {
+  test("Regenerate in the other tone gives that tone's draft, and back again", async () => {
+    const casual = await settle(emails.regenerateEmail("demo-port-klang", "casual"));
+    expect(casual.tone).toBe("casual");
+    expect(casual.draftReply).toBe(DEMO_ANSWERS["demo-port-klang"].otherTone?.casual);
+    const back = await settle(emails.regenerateEmail("demo-port-klang", "professional"));
+    expect(back.draftReply).toBe(demoEmails(new Date())[0].draftReply);
+  });
+
+  test.each([en, ms, zh])("the refine suggestions work in every language", async (locale) => {
+    const direct = await settle(
+      emails.refineEmail("demo-invois", locale.refine.suggestionDirect, "", "professional"),
+    );
+    expect(direct.draftReply).toBe(DEMO_ANSWERS["demo-invois"].direct);
+    const deadline = await settle(
+      emails.refineEmail("demo-invois", locale.refine.suggestionDeadline, "", "professional"),
+    );
+    expect(deadline.draftReply).toBe(DEMO_ANSWERS["demo-invois"].deadline);
+  });
+
+  test("a typed refine instruction points to the suggestions", async () => {
+    await expect(
+      settle(emails.refineEmail("demo-invois", "Make it rhyme", "", "professional")),
+    ).rejects.toMatchObject({ code: ApiErrorCode.DemoSuggestionsOnly });
+  });
+
+  test("Translate answers with the prepared translation", async () => {
+    const translation = await settle(emails.translateEmail("demo-meeting", Language.English));
+    expect(translation.text).toBe(DEMO_ANSWERS["demo-meeting"].translations.en);
+  });
+
+  test("a spoofed sender has no draft until the reader confirms it", async () => {
+    const before = await settle(emails.fetchEmail("demo-ceo-transfer"));
+    expect(before.draftReply).toBe("");
+    const after = await settle(emails.confirmSender("demo-ceo-transfer"));
+    expect(after.draftReply).toBe(DEMO_CONFIRMED_DRAFTS["demo-ceo-transfer"]);
+  });
+
+  test("every translation the page can offer is prepared", () => {
+    for (const email of demoEmails(new Date())) {
+      for (const language of Object.values(Language)) {
+        if (!needsTranslation(email.body, language)) continue;
+        expect(
+          DEMO_ANSWERS[email.id]?.translations[language],
+          `${email.id} ${language}`,
+        ).toBeTruthy();
+      }
+    }
+  });
+
+  test("every email with a draft has both tones and both suggestions prepared", () => {
+    for (const email of demoEmails(new Date())) {
+      if (!email.draftReply) continue;
+      const answers = DEMO_ANSWERS[email.id];
+      const otherTone = email.tone === "casual" ? "professional" : "casual";
+      expect(answers?.otherTone?.[otherTone], email.id).toBeTruthy();
+      expect(answers?.direct, email.id).toBeTruthy();
+      expect(answers?.deadline, email.id).toBeTruthy();
+    }
+  });
+
+  test("every placeholder in a prepared answer has a made-up value behind it", () => {
+    for (const email of demoEmails(new Date())) {
+      const values = new Set(email.details?.map((detail) => detail.placeholder));
+      const answers = DEMO_ANSWERS[email.id];
+      const texts = [
+        ...Object.values(answers?.otherTone ?? {}),
+        answers?.direct ?? "",
+        answers?.deadline ?? "",
+        ...Object.values(answers?.translations ?? {}),
+        DEMO_CONFIRMED_DRAFTS[email.id] ?? "",
+      ];
+      for (const text of texts) {
+        for (const [placeholder] of text.matchAll(placeholderPattern())) {
+          expect(values, `${email.id} ${placeholder}`).toContain(placeholder);
+        }
+      }
+    }
   });
 });

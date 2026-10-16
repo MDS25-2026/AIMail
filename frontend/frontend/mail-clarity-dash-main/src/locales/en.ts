@@ -1199,6 +1199,8 @@ export const en = {
     too_long: "That text is too long.",
     not_found: "That item couldn't be found. It may have been removed.",
     not_in_demo: "Not available in the demo. Sign in with Google to use it on your own mailbox.",
+    demo_suggestions_only:
+      "In the demo, the AI's answers are written in advance: try a suggestion below the box.",
     rate_limited: "Too many requests just now. Wait a minute and try again.",
     too_large: "That file is over the 10 MB limit.",
     not_pdf: "That file was rejected: it must be a real PDF.",

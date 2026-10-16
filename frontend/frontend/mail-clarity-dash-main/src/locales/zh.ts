@@ -1157,6 +1157,7 @@ export const zh: Translations = {
     too_long: "文字过长。",
     not_found: "找不到该项目，可能已被删除。",
     not_in_demo: "演示中不可用。请使用 Google 登录，在您自己的邮箱中使用。",
+    demo_suggestions_only: "演示中的 AI 回复是预先写好的：请试试输入框下方的建议。",
     rate_limited: "请求过于频繁。请稍等一分钟后重试。",
     too_large: "该文件超过 10 MB 限制。",
     not_pdf: "该文件被拒绝：必须是真正的 PDF。",

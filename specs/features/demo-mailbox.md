@@ -1,6 +1,6 @@
 # Demo mailbox: try AIMail without signing in
 
-- **Status:** in progress (first slice: switch, entry and exit, four emails, pretend Send)
+- **Status:** in progress (slices 1 and 2: switch, entry and exit, eight emails, pretend Send, prepared AI answers)
 - **Owner:** HyperByte12263 (Han, Lane D)
 - **Related issue:** #227
 - **Last updated:** 2026-10-12
@@ -26,8 +26,9 @@ straight away, so that I can see what it does without an account or my own email
   exception is `GET /service-status` (the public `/status` page): it needs no sign-in and carries no
   mailbox data, and refusing it made every part read "Not working" (2026-10-13).
 - **Demo data, bundled and fictional** (made-up Malaysian companies and people):
-  - About 12 emails across critical, urgent, medium and low; all six categories; English, Malay
-    and Chinese; a few threads with more than one message.
+  - Eight emails across critical, urgent, medium and low; all six categories; English, Malay
+    and Chinese; a thread with more than one message; a spoofed sender (no draft until the
+    visitor confirms the sender) and an automated email (no draft at all).
   - Each with its summary, action items, a draft, checker confidence, masked placeholders and the
     privacy receipt that goes with them.
   - To-do items in each section, audit log entries, two or three templates, a few company documents
@@ -136,5 +137,10 @@ None. Demo changes live in memory for the tab; the demo flag lives in `sessionSt
 - Build order: (1) switch, guard, entry, banner, four emails, pretend Send and snooze/schedule;
   (2) the rest of the emails and the prepared AI answers; (3) To-do, Audit, Templates, Knowledge
   and Settings data. Until (3), those pages say "Not available in the demo".
-- Prepared AI answers: keyed by email id and action (`refine`, `regenerate:<tone>`,
-  `translate:<lang>`); a missing one answers `NotInDemo`.
+- Prepared AI answers live in `src/demo/data/answers.ts`, by email id: the draft in the other tone,
+  the two refine suggestions ("Make it more direct", "Add a deadline", matched in all three
+  languages) and the body in the other two languages. A typed refine instruction answers
+  `DemoSuggestionsOnly` ("try a suggestion below the box"); anything else missing, `NotInDemo`.
+  AI answers wait a further 900 ms, so "Refining…" can be read.
+- Known limit: refine answers are written from the draft in its first tone, so refining after
+  switching tone returns the first tone's wording while the switch still shows the other.

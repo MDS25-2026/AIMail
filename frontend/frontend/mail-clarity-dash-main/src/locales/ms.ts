@@ -1236,6 +1236,8 @@ export const ms: Translations = {
     not_found: "Item itu tidak dijumpai. Ia mungkin telah dibuang.",
     not_in_demo:
       "Tidak tersedia dalam demo. Log masuk dengan Google untuk menggunakannya pada peti mel anda sendiri.",
+    demo_suggestions_only:
+      "Dalam demo, jawapan AI telah ditulis lebih awal: cuba salah satu cadangan di bawah kotak.",
     rate_limited: "Terlalu banyak permintaan sekarang. Tunggu seminit dan cuba lagi.",
     too_large: "Fail itu melebihi had 10 MB.",
     not_pdf: "Fail itu ditolak: ia mesti PDF sebenar.",
