@@ -14,8 +14,19 @@ import {
 } from "../types/email";
 import type { SessionInfo } from "../types/session";
 import { DEMO_ANSWERS, DEMO_CONFIRMED_DRAFTS } from "./data/answers";
-import { DEMO_ACCOUNT, demoEmails } from "./data/emails";
+import { DEMO_ACCOUNT } from "./data/emails";
 import { leaveDemo } from "./mode";
+import { PAGE_ROUTES } from "./pages";
+import {
+  notFound,
+  notInDemo,
+  record,
+  state,
+  updateEmail,
+  type Call,
+  type Json,
+  type Route,
+} from "./state";
 
 /**
  * The demo's stand-in for the backend: every dashboard call is answered here, in memory, and
@@ -23,44 +34,10 @@ import { leaveDemo } from "./mode";
  */
 
 const NOT_IN_DEMO = 400;
-const NOT_FOUND = 404;
 const ANSWER_DELAY_MS = 150;
 // The AI's prepared answers take a moment longer, so "Refining…" and the like can be read.
 const THINKING_MS = 900;
 const CONFIRMED_CONFIDENCE = 0.91;
-
-let start = demoEmails(new Date());
-let emails = structuredClone(start);
-
-/** Back to the mailbox as it starts; for tests, as a reload does it in the app. */
-export function resetDemo(now = new Date()) {
-  start = demoEmails(now);
-  emails = structuredClone(start);
-}
-
-type Json = Record<string, unknown>;
-type Call = { params: string[]; json: Json; query: URLSearchParams; endpoint: string };
-type Handler = (call: Call) => unknown;
-type Method = "GET" | "POST" | "PUT" | "DELETE";
-/** thinks: an AI action, answered after the model's usual pause. */
-type Route = { method: Method; pattern: RegExp; handler: Handler; thinks?: boolean };
-
-function find(id: string, endpoint: string): Email {
-  const email = emails.find((candidate) => candidate.id === id);
-  if (!email) throw new ApiError(NOT_FOUND, ApiErrorCode.NotFound, endpoint);
-  return email;
-}
-
-/** Change one email in place and answer with it, as the backend's email actions do. */
-function update({ params, endpoint }: Call, change: (email: Email) => Partial<Email>): Email {
-  const email = find(params[0], endpoint);
-  Object.assign(email, change(email));
-  return email;
-}
-
-function notInDemo(endpoint: string): never {
-  throw new ApiError(NOT_IN_DEMO, ApiErrorCode.NotInDemo, endpoint);
-}
 
 /** What a model call would add to the privacy receipt: the same details hidden as before. */
 function aiSteps(email: Email, ...purposes: string[]): Email["egress"] {
@@ -78,7 +55,7 @@ function aiSteps(email: Email, ...purposes: string[]): Email["egress"] {
 
 /** The draft in a tone: the email's own draft in its own tone, else the prepared one. */
 function draftInTone({ params, endpoint }: Call, tone: Tone): string {
-  const original = start.find((email) => email.id === params[0]);
+  const original = state.start.find((email) => email.id === params[0]);
   if (original?.tone === tone && original.draftReply) return original.draftReply;
   return DEMO_ANSWERS[params[0]]?.otherTone?.[tone] ?? notInDemo(endpoint);
 }
@@ -108,7 +85,7 @@ const iso = (value: unknown) => new Date(String(value)).toISOString();
 
 const session: SessionInfo = { email: DEMO_ACCOUNT, hasMailbox: true, needsReconnect: false };
 
-const ROUTES: Route[] = [
+const EMAIL_ROUTES: Route[] = [
   { method: "GET", pattern: /^\/auth\/session$/, handler: () => session },
   // Sign out in the account menu ends the demo, then the page goes to sign in as it always does.
   { method: "DELETE", pattern: /^\/auth\/session$/, handler: () => leaveDemo() },
@@ -117,7 +94,7 @@ const ROUTES: Route[] = [
     pattern: /^\/emails$/,
     // Newest first, one page; a snoozed email stays out until its time comes, as on the backend.
     handler: (): EmailPage => ({
-      emails: emails
+      emails: state.emails
         .filter((email) => isDue(email.snoozedUntil, new Date()))
         .sort((a, b) => b.timestamp.localeCompare(a.timestamp)),
       nextCursor: null,
@@ -126,59 +103,77 @@ const ROUTES: Route[] = [
   {
     method: "GET",
     pattern: /^\/emails\/by-thread\/([^/]+)$/,
-    handler: ({ params, endpoint }) => {
-      const email = emails.find((candidate) => candidate.threadId === params[0]);
-      if (!email) throw new ApiError(NOT_FOUND, ApiErrorCode.NotFound, endpoint);
-      return email;
-    },
+    handler: ({ params, endpoint }) =>
+      state.emails.find((email) => email.threadId === params[0]) ?? notFound(endpoint),
   },
   {
     method: "GET",
     pattern: /^\/emails\/([^/]+)$/,
     handler: (call) =>
-      update(call, () => (call.query.get("markRead") === "false" ? {} : { isRead: true })),
+      updateEmail(call, () => (call.query.get("markRead") === "false" ? {} : { isRead: true })),
   },
   {
     method: "POST",
     pattern: /^\/emails\/([^/]+)\/unread$/,
-    handler: (call) => void update(call, () => ({ isRead: false })),
+    handler: (call) => void updateEmail(call, () => ({ isRead: false })),
   },
   {
     method: "POST",
     pattern: /^\/emails\/([^/]+)\/send$/,
     // Pretend: the email is marked sent with the approved text, and nothing goes anywhere.
-    handler: (call) =>
-      update(call, () => ({
+    handler: (call) => {
+      const email = updateEmail(call, () => ({
         draftReply: String(call.json.draft ?? ""),
         sentAt: new Date().toISOString(),
         scheduledFor: null,
         isRead: true,
         isAnswered: true,
-      })),
+      }));
+      record("approve_and_send", { message: email.id, restored: email.details?.length ?? 0 });
+      return email;
+    },
   },
   {
     method: "POST",
     pattern: /^\/emails\/([^/]+)\/schedule$/,
-    handler: (call) =>
-      update(call, () => ({
+    handler: (call) => {
+      const email = updateEmail(call, () => ({
         draftReply: String(call.json.draft ?? ""),
         scheduledFor: iso(call.json.sendAt),
-      })),
+      }));
+      record("send_scheduled", { message: email.id, send_at: email.scheduledFor ?? null });
+      return email;
+    },
   },
   {
     method: "DELETE",
     pattern: /^\/emails\/([^/]+)\/schedule$/,
-    handler: (call) => update(call, () => ({ scheduledFor: null })),
+    handler: (call) => {
+      const email = updateEmail(call, () => ({ scheduledFor: null }));
+      record("scheduled_send_cancelled", { message: email.id });
+      return email;
+    },
   },
   {
     method: "POST",
     pattern: /^\/emails\/([^/]+)\/snooze$/,
-    handler: (call) => update(call, () => ({ snoozedUntil: iso(call.json.until), isRead: false })),
+    handler: (call) => {
+      const email = updateEmail(call, () => ({
+        snoozedUntil: iso(call.json.until),
+        isRead: false,
+      }));
+      record("email_snoozed", { message: email.id, until: email.snoozedUntil ?? null });
+      return email;
+    },
   },
   {
     method: "DELETE",
     pattern: /^\/emails\/([^/]+)\/snooze$/,
-    handler: (call) => update(call, () => ({ snoozedUntil: null })),
+    handler: (call) => {
+      const email = updateEmail(call, () => ({ snoozedUntil: null }));
+      record("email_snoozed", { message: email.id, until: null });
+      return email;
+    },
   },
   {
     method: "POST",
@@ -187,11 +182,14 @@ const ROUTES: Route[] = [
     handler: (call) => {
       const tone: Tone = call.json.tone === "casual" ? "casual" : "professional";
       const draftReply = draftInTone(call, tone);
-      return update(call, (email) => ({
+      const email = updateEmail(call, (current) => ({
         tone,
         draftReply,
-        egress: aiSteps({ ...email, draftReply }, "draft", "critic"),
+        egress: aiSteps({ ...current, draftReply }, "draft", "critic"),
       }));
+      const fields = { message: email.id, tone, confidence: email.criticConfidence };
+      record("generate_draft", { ...fields, review: (email.reviewReasons?.length ?? 0) > 0 });
+      return email;
     },
   },
   {
@@ -200,10 +198,12 @@ const ROUTES: Route[] = [
     thinks: true,
     handler: (call) => {
       const draftReply = refined(call);
-      return update(call, (email) => ({
+      const email = updateEmail(call, (current) => ({
         draftReply,
-        egress: aiSteps({ ...email, draftReply }, "refine", "critic"),
+        egress: aiSteps({ ...current, draftReply }, "refine", "critic"),
       }));
+      record("refine_draft", { message: email.id });
+      return email;
     },
   },
   {
@@ -213,7 +213,9 @@ const ROUTES: Route[] = [
     handler: ({ params, json, endpoint }): Translation => {
       const language = json.language;
       const text = isLanguage(language) ? DEMO_ANSWERS[params[0]]?.translations[language] : null;
-      return { language: String(language), text: text ?? notInDemo(endpoint) };
+      if (!text) return notInDemo(endpoint);
+      record("translate_email", { message: params[0], language: String(language) });
+      return { language: String(language), text };
     },
   },
   {
@@ -221,18 +223,23 @@ const ROUTES: Route[] = [
     pattern: /^\/emails\/([^/]+)\/confirm-sender$/,
     thinks: true,
     // The reader vouches for the sender, so drafting resumes, as on the backend.
-    handler: (call) =>
-      update(call, (email) => {
-        const draftReply = DEMO_CONFIRMED_DRAFTS[email.id] ?? email.draftReply;
+    handler: (call) => {
+      const email = updateEmail(call, (current) => {
+        const draftReply = DEMO_CONFIRMED_DRAFTS[current.id] ?? current.draftReply;
         return {
           authStatus: AuthStatus.SenderConfirmed,
           draftReply,
           criticConfidence: CONFIRMED_CONFIDENCE,
-          egress: aiSteps({ ...email, draftReply }, "draft", "critic"),
+          egress: aiSteps({ ...current, draftReply }, "draft", "critic"),
         };
-      }),
+      });
+      record("confirm_sender", { message: email.id });
+      return email;
+    },
   },
 ];
+
+const ROUTES = [...EMAIL_ROUTES, ...PAGE_ROUTES];
 
 function bodyOf(options: RequestOptions): Json {
   return (options.json ?? {}) as Json;
@@ -251,7 +258,7 @@ export async function demoRequest<T>(path: string, options: RequestOptions = {})
     // Answer after a network call's pause: the page shows its loading states, and the
     // server-rendered page hydrates before the answers land, as it does with the backend.
     await pause(ANSWER_DELAY_MS + (route.thinks ? THINKING_MS : 0));
-    const answer = route.handler({
+    const answer = await route.handler({
       params: match.slice(1).map(decodeURIComponent),
       json: bodyOf(options),
       query: new URLSearchParams(search),

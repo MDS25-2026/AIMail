@@ -17,10 +17,11 @@ import { Language } from "../../lib/preferences";
 import { en } from "../../locales/en";
 import { ms } from "../../locales/ms";
 import { zh } from "../../locales/zh";
-import { DEMO_ANSWERS, DEMO_CONFIRMED_DRAFTS } from "../data/answers";
-import { demoEmails } from "../data/emails";
+import { DEMO_ANSWERS, DEMO_CONFIRMED_DRAFTS, DEMO_FOLLOW_UPS } from "../data/answers";
+import { DEMO_DOCUMENTS } from "../data/documents";
+import { DEMO_WAITING_EMAIL_ID, demoEmails } from "../data/emails";
 import { isDemo, leaveDemo, startDemo } from "../mode";
-import { resetDemo } from "../request";
+import { resetDemo } from "../state";
 
 const API_MODULES = {
   audit,
@@ -219,7 +220,7 @@ describe("the AI's prepared answers (#227)", () => {
 
   test("every email with a draft has both tones and both suggestions prepared", () => {
     for (const email of demoEmails(new Date())) {
-      if (!email.draftReply) continue;
+      if (!email.draftReply || email.sentAt) continue; // a sent reply cannot change
       const answers = DEMO_ANSWERS[email.id];
       const otherTone = email.tone === "casual" ? "professional" : "casual";
       expect(answers?.otherTone?.[otherTone], email.id).toBeTruthy();
@@ -245,5 +246,89 @@ describe("the AI's prepared answers (#227)", () => {
         }
       }
     }
+  });
+});
+
+describe("the demo's other pages (#227)", () => {
+  const ids = (section: { emails: { id: string }[] }) => section.emails.map((email) => email.id);
+
+  test("To-do lists each open email once, and never a spoof, an automated or a sent one", async () => {
+    const list = await settle(todo.fetchTodo());
+    expect(ids(list.needsReview)).toEqual(["demo-leave-plan"]);
+    expect(ids(list.needsAction)[0]).toBe("demo-port-klang");
+    const listed = [...ids(list.needsAction), ...ids(list.needsReview), ...ids(list.unsentDrafts)];
+    expect(new Set(listed).size).toBe(listed.length);
+    for (const left of ["demo-ceo-transfer", "demo-payslip", DEMO_WAITING_EMAIL_ID]) {
+      expect(listed).not.toContain(left);
+    }
+  });
+
+  test("No reply needed takes an email off the To-do and counts as done today", async () => {
+    await settle(todo.dismissEmail("demo-meeting"));
+    const list = await settle(todo.fetchTodo());
+    expect(ids(list.needsAction)).not.toContain("demo-meeting");
+    expect(list.doneToday).toBe(1);
+  });
+
+  test("a week-old reply that asked something waits, and a follow-up takes it off", async () => {
+    const [reply] = (await settle(todo.fetchTodo())).waiting;
+    expect(reply.email?.id).toBe(DEMO_WAITING_EMAIL_ID);
+    expect(reply.workingDays).toBeGreaterThanOrEqual(3);
+    const followUp = await settle(todo.draftFollowUp(reply.id));
+    expect(followUp.draft).toBe(DEMO_FOLLOW_UPS[DEMO_WAITING_EMAIL_ID]);
+    await settle(todo.sendFollowUp({ sentId: reply.id, draft: followUp.draft }));
+    expect((await settle(todo.fetchTodo())).waiting).toEqual([]);
+  });
+
+  test("the audit trail is newest first, chained, and records a pretend send", async () => {
+    await settle(emails.sendEmail("demo-invois", "Terima kasih."));
+    const trail = await settle(audit.fetchAuditTrail());
+    expect(trail.events[0]).toMatchObject({ action: "approve_and_send" });
+    expect(trail.events[0].fields.message).toBe("demo-invois");
+    trail.events.slice(0, -1).forEach((event, index) => {
+      expect(event.prevHash).toBe(trail.events[index + 1].currentHash);
+      expect(event.currentHash).toMatch(/^[0-9a-f]{64}$/);
+    });
+  });
+
+  test("a template fills the names as placeholders and today's date in its language", async () => {
+    const { text } = await settle(
+      templates.fillTemplate({ templateId: "demo-template-bayaran", emailId: "demo-invois" }),
+    );
+    expect(text).toContain("Salam [PERSON_2],");
+    expect(text.trim().endsWith("[PERSON_1]")).toBe(true);
+    expect(text).not.toContain("{{");
+  });
+
+  test("every source a draft cites is in a company document", () => {
+    const texts = DEMO_DOCUMENTS.map((document) => document.content);
+    for (const email of demoEmails(new Date())) {
+      for (const source of email.sources) {
+        expect(
+          texts.some((text) => text.includes(source.excerpt)),
+          source.label,
+        ).toBe(true);
+      }
+    }
+  });
+
+  test("Knowledge lists the documents, and a deleted one is gone", async () => {
+    expect(await settle(documents.fetchDocuments())).toHaveLength(DEMO_DOCUMENTS.length);
+    await settle(documents.deleteDocument("demo-doc-leave"));
+    const after = await settle(documents.fetchDocuments());
+    expect(after.map((document) => document.document_id)).not.toContain("demo-doc-leave");
+  });
+
+  test("personal quiet hours replace the company's until the reader follows it again", async () => {
+    const mine = {
+      start: "22:00:00",
+      end: "07:00:00",
+      weekendDays: [6, 7],
+      timezone: "Asia/Kuala_Lumpur",
+    };
+    expect((await settle(settings.saveQuietHours(mine))).effective).toEqual(mine);
+    const back = await settle(settings.followCompanyQuietHours());
+    expect(back.personal).toBeNull();
+    expect(back.effective).toEqual(back.company);
   });
 });
