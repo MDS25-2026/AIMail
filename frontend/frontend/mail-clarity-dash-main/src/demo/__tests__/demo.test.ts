@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import * as audit from "../../lib/api/audit";
@@ -330,5 +332,62 @@ describe("the demo's other pages (#227)", () => {
     const back = await settle(settings.followCompanyQuietHours());
     expect(back.personal).toBeNull();
     expect(back.effective).toEqual(back.company);
+  });
+});
+
+describe("review of #236", () => {
+  test("each audit hash is the database's formula, recomputed independently", async () => {
+    await settle(emails.sendEmail("demo-invois", "Terima kasih."));
+    const oldestFirst = [...(await settle(audit.fetchAuditTrail())).events].reverse();
+    let prevHash = "0".repeat(64);
+    oldestFirst.forEach((event, index) => {
+      const sorted = Object.fromEntries(
+        Object.entries(event.fields).sort(([a], [b]) => (a < b ? -1 : 1)),
+      );
+      const ms = new Date(event.createdAt).getTime();
+      const epoch = `${Math.floor(ms / 1000)}.${String(ms % 1000).padStart(3, "0")}000`;
+      // migration 0024 audit_row_hash: concat_ws(chr(31), prev_hash, seq, action, detail, success,
+      // user_id, epoch); no user id in the demo.
+      const text = [prevHash, index + 1, event.action, JSON.stringify(sorted), "true", "", epoch]
+        .map(String)
+        .join(String.fromCharCode(31));
+      const expected = createHash("sha256").update(text, "utf8").digest("hex");
+      expect(event.prevHash).toBe(prevHash);
+      expect(event.currentHash).toBe(expected);
+      prevHash = expected;
+    });
+  });
+
+  test("switching the holding reply on with no message is refused, as on the backend", async () => {
+    const current = await settle(settings.fetchHoldingReplySettings());
+    await expect(
+      settle(settings.saveHoldingReplySettings({ ...current, enabled: true, templates: {} })),
+    ).rejects.toMatchObject({ code: ApiErrorCode.NoDefaultTemplate });
+  });
+
+  test("an unsent draft cannot become a writing example", async () => {
+    await expect(
+      settle(profile.addStyleExample({ emailId: "demo-port-klang" })),
+    ).rejects.toMatchObject({ code: ApiErrorCode.NotFound });
+  });
+
+  test("an email dismissed and then sent counts once as done today", async () => {
+    await settle(todo.dismissEmail("demo-meeting"));
+    await settle(emails.sendEmail("demo-meeting", "收到。"));
+    expect((await settle(todo.fetchTodo())).doneToday).toBe(1);
+  });
+
+  test("working days skip the reader's own weekend, from quiet hours", async () => {
+    const before = (await settle(todo.fetchTodo())).waiting[0].workingDays;
+    const allWeek = {
+      start: "21:00:00",
+      end: "08:00:00",
+      weekendDays: [],
+      timezone: "Asia/Kuala_Lumpur",
+    };
+    await settle(settings.saveQuietHours(allWeek));
+    // Seven calendar days: five working days by default, seven with no weekend.
+    expect(before).toBe(5);
+    expect((await settle(todo.fetchTodo())).waiting[0].workingDays).toBe(7);
   });
 });

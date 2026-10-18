@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 
 import { leaveDemo, startDemo } from "../../demo/mode";
+import { resetDemo } from "../../demo/state";
 import { isSignedOut } from "../api/errors";
 import { deleteAccount, disconnectGmail, fetchSession, signOut } from "../api/session";
 import { queryKeys } from "./keys";
@@ -64,7 +65,9 @@ export function useDemoSwitch() {
   const queryClient = useQueryClient();
   return useMemo(
     () => ({
+      // Each start is a fresh mailbox: the next visitor at the booth never sees the last one's sends.
       start: () => {
+        resetDemo();
         startDemo();
         queryClient.clear();
       },

@@ -14,6 +14,9 @@ import {
 
 export const DEMO_ACCOUNT = "aina@seribayu.example";
 
+/** The reader's first name, the value behind [PERSON_1] in every demo email. */
+export const DEMO_OWNER_NAME = "Aina";
+
 /** The email whose reply has had no answer for a week: the To-do's Waiting list. */
 export const DEMO_WAITING_EMAIL_ID = "demo-pallets";
 

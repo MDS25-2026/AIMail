@@ -1,6 +1,6 @@
 import { ApiError, ApiErrorCode } from "../lib/api/errors";
 import { AuditVerification, type AuditFields, type AuditTrailEvent } from "../types/audit";
-import type { Email } from "../types/email";
+import { MaskingStatus, type Email } from "../types/email";
 import type { DocumentDetail } from "../types/knowledge";
 import type { WritingStyle } from "../types/profile";
 import type { HoldingReplySettings, QuietHours, ScanReading } from "../types/settings";
@@ -62,12 +62,10 @@ type DemoState = {
   writingStyle: WritingStyle | null;
 };
 
-export const state = {} as DemoState;
-
-/** Back to the mailbox as it starts; on load, and for tests as a reload does it in the app. */
-export function resetDemo(now = new Date()) {
+/** The mailbox as it starts, with its times counted back from `now`. */
+function freshState(now: Date): DemoState {
   const emails = demoEmails(now);
-  Object.assign(state, {
+  return {
     start: emails,
     emails: structuredClone(emails),
     dismissed: new Map(),
@@ -81,8 +79,16 @@ export function resetDemo(now = new Date()) {
     personalQuietHours: null,
     scanReading: structuredClone(DEMO_SCAN_READING),
     writingStyle: demoWritingStyle(now),
-  } satisfies DemoState);
-  seedAudit(emails);
+  };
+}
+
+export const state: DemoState = freshState(new Date());
+
+/** Back to the mailbox as it starts: each time a visitor starts the demo (#236 review), so the
+ *  next one at the booth never sees the last one's sends, and for tests. */
+export function resetDemo(now = new Date()) {
+  Object.assign(state, freshState(now));
+  seedAudit(state.start);
 }
 
 export function findEmail(id: string, endpoint: string): Email {
@@ -113,19 +119,48 @@ export function record(action: string, fields: AuditFields, at = new Date()) {
   });
 }
 
+// backend/app/db/migrations/0024: concat_ws(chr(31), …), the first row chained to 64 zeros.
+const SEPARATOR = String.fromCharCode(31);
+const GENESIS_HASH = "0".repeat(64);
+
+/** audit_detail() in backend/app/audit.py: compact JSON with sorted keys. ASCII only here, as
+ *  Python's json.dumps escapes anything else. */
+function canonicalDetail(fields: AuditFields): string {
+  const sorted = Object.fromEntries(Object.entries(fields).sort(([a], [b]) => (a < b ? -1 : 1)));
+  return JSON.stringify(sorted);
+}
+
+/** extract(epoch FROM created_at)::text: seconds with six decimals. */
+function epochText(iso: string): string {
+  const ms = new Date(iso).getTime();
+  return `${Math.floor(ms / 1000)}.${String(ms % 1000).padStart(3, "0")}000`;
+}
+
+/** Whether this browser can hash: crypto.subtle needs https or localhost. */
+export const canHash = () => typeof globalThis.crypto?.subtle?.digest === "function";
+
 async function sha256(text: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-/** The trail, oldest first, each row hashed with SHA-256 over itself and the hash before it, so
- *  the page's "SHA-256 hash chain, verified" is true of these (made-up) records. */
+/** The trail, oldest first, hashed by the database's own formula (audit_row_hash in migration
+ *  0024): SHA-256(prev_hash | sequence | action | detail | success | user_id | timestamp), the
+ *  fields joined by chr(31). The demo has no user id, so that field is empty, as for a system row. */
 export async function chainedAudit(): Promise<AuditTrailEvent[]> {
   const chained: AuditTrailEvent[] = [];
-  let prevHash: string | null = null;
-  for (const event of state.audit) {
-    const { id, action, createdAt, fields } = event;
-    const currentHash = await sha256(JSON.stringify({ prevHash, id, action, createdAt, fields }));
+  let prevHash = GENESIS_HASH;
+  for (const [index, event] of state.audit.entries()) {
+    const fields = [
+      prevHash,
+      String(index + 1),
+      event.action,
+      canonicalDetail(event.fields),
+      String(event.success ?? ""),
+      "",
+      epochText(event.createdAt),
+    ];
+    const currentHash = await sha256(fields.join(SEPARATOR));
     chained.push({ ...event, prevHash, currentHash });
     prevHash = currentHash;
   }
@@ -138,7 +173,11 @@ function seedAudit(emails: Email[]) {
     const at = new Date(email.timestamp);
     const masked = email.details?.length ?? 0;
     const rows: [string, AuditFields, Date][] = [
-      ["store_message", { message: email.id, masking_status: email.masking ?? "complete" }, at],
+      [
+        "store_message",
+        { message: email.id, masking_status: email.masking ?? MaskingStatus.Complete },
+        at,
+      ],
       ["pii_mask", { message: email.id, masked }, at],
     ];
     if (email.draftReply) {
@@ -166,4 +205,4 @@ function seedAudit(emails: Email[]) {
     .forEach(([action, fields, at]) => record(action, fields, at));
 }
 
-resetDemo();
+seedAudit(state.start);

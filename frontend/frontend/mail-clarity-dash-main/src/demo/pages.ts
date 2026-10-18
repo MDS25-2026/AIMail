@@ -1,24 +1,36 @@
 import { ApiError, ApiErrorCode } from "../lib/api/errors";
 import { Language } from "../lib/preferences";
 import type { AuditTrail } from "../types/audit";
-import type { Email } from "../types/email";
+import { AuthStatus, MaskingStatus, type Email } from "../types/email";
 import type { DocumentDetail, PolicyDocument, SystemInfo } from "../types/knowledge";
 import { ExampleSource, type WritingStyle } from "../types/profile";
-import type {
-  HoldingReplySettings,
-  QuietHours,
-  QuietHoursSettings,
-  ScanReading,
+import {
+  ScanMode,
+  type HoldingReplySettings,
+  type QuietHours,
+  type QuietHoursSettings,
 } from "../types/settings";
-import type { Template, TemplateDraft } from "../types/template";
+import type { Template } from "../types/template";
 import type { FollowUpDraft, Todo, TodoSection, WaitingReply } from "../types/todo";
 import { DEMO_FOLLOW_UPS } from "./data/answers";
+import { DEMO_OWNER_NAME } from "./data/emails";
 import { DEMO_COMPANY_QUIET_HOURS, DEMO_PRIVATE_MODE, DEMO_SYSTEM_INFO } from "./data/settings";
-import { chainedAudit, findEmail, notFound, record, state, type Call, type Route } from "./state";
+import {
+  canHash,
+  chainedAudit,
+  findEmail,
+  notFound,
+  notInDemo,
+  record,
+  state,
+  type Call,
+  type Route,
+} from "./state";
 
 /** The demo's answers for every page but the inbox: To-do, Audit, Templates, Knowledge, Settings. */
 
 const TOO_MANY = 400;
+const INVALID = 400;
 const DAY_MS = 24 * 60 * 60_000;
 // Drafts left unsent this long are listed again (backend/app/todo.py DRAFT_REMINDER_AFTER).
 const DRAFT_REMINDER_MS = DAY_MS;
@@ -37,8 +49,8 @@ function isOpen(email: Email, now: Date): boolean {
   return (
     !email.sentAt &&
     !state.dismissed.has(email.id) &&
-    email.masking === "complete" &&
-    email.authStatus !== "spoof_detected" &&
+    email.masking === MaskingStatus.Complete &&
+    email.authStatus !== AuthStatus.SpoofDetected &&
     !email.isAutomated &&
     !isSnoozed
   );
@@ -65,15 +77,20 @@ function section(name: SectionName, now: Date): TodoSection {
   return { emails, total: emails.length };
 }
 
-/** Monday to Friday between the two days, not counting the first. */
+/** ISO weekday, 1 (Monday) to 7 (Sunday), as quiet hours store the weekend. */
+const isoWeekday = (day: Date) => day.getDay() || 7;
+
+/** Working days between the two days, not counting the first; the weekend is the reader's quiet
+ *  hours' (backend/app/waiting.py working_days_since). */
 function workingDaysSince(since: Date, now: Date): number {
+  const weekend = new Set(quietHours().effective.weekendDays);
   let days = 0;
   for (
     let day = new Date(since.getTime() + DAY_MS);
     day <= now;
     day = new Date(day.getTime() + DAY_MS)
   ) {
-    if (day.getDay() !== 0 && day.getDay() !== 6) days += 1;
+    if (!weekend.has(isoWeekday(day))) days += 1;
   }
   return days;
 }
@@ -110,14 +127,18 @@ function startOfToday(now: Date): Date {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
 }
 
-/** Sent, dismissed, not waited on or followed up since midnight. */
+/** Emails sent or dismissed, and replies not waited on or followed up, since midnight: each once,
+ *  as the backend counts live columns, so dismissed and then sent is one. */
 function doneToday(now: Date): number {
   const since = startOfToday(now).toISOString();
-  const sent = state.emails.filter((email) => (email.sentAt ?? "") >= since).length;
-  const marks = [state.dismissed, state.notWaiting, state.followedUp].flatMap((map) => [
-    ...map.values(),
-  ]);
-  return sent + marks.filter((at) => at >= since).length;
+  const isToday = (at: string | null | undefined) => (at ?? "") >= since;
+  const emails = state.emails.filter(
+    (email) => isToday(email.sentAt) || isToday(state.dismissed.get(email.id)),
+  ).length;
+  const replies = new Set(
+    [...state.notWaiting, ...state.followedUp].filter(([, at]) => isToday(at)).map(([id]) => id),
+  );
+  return emails + replies.size;
 }
 
 function todo(): Todo {
@@ -218,7 +239,7 @@ function fillTemplate(template: Template, email: Email): string {
   const senderName = email.sender.split("<")[0].trim();
   const values = {
     name: placeholderFor(email, senderName),
-    "my name": placeholderFor(email, "Aina"),
+    "my name": placeholderFor(email, DEMO_OWNER_NAME),
     today: formatDay(new Date(), template.language),
   };
   return template.body.replace(VARIABLE, (whole, raw: string) => {
@@ -231,14 +252,19 @@ function findTemplate(id: string, endpoint: string): Template {
   return state.templates.find((template) => template.id === id) ?? notFound(endpoint);
 }
 
+const isLanguage = (value: unknown): value is Language =>
+  Object.values<unknown>(Language).includes(value);
+
+const strings = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+
 function templateFrom(json: Call["json"], id: string): Template {
-  const draft = json as TemplateDraft;
   return {
     id,
-    title: String(draft.title ?? ""),
-    body: String(draft.body ?? ""),
-    language: draft.language ?? Language.English,
-    triggerKeywords: draft.triggerKeywords ?? [],
+    title: String(json.title ?? ""),
+    body: String(json.body ?? ""),
+    language: isLanguage(json.language) ? json.language : Language.English,
+    triggerKeywords: strings(json.triggerKeywords),
     lastUsedAt: null,
   };
 }
@@ -283,6 +309,33 @@ function addDocument(json: Call["json"]): { chunks: number } {
 
 // ---- Settings ----
 
+/** The backend's template checks (holding_reply.py _template_errors) that a visitor can hit. */
+function holdingReplyError(settings: HoldingReplySettings): ApiErrorCode | null {
+  if (Object.values(settings.templates).some((text) => !text?.trim())) {
+    return ApiErrorCode.EmptyTemplate;
+  }
+  if (settings.enabled && !settings.templates[settings.defaultLanguage]) {
+    return ApiErrorCode.NoDefaultTemplate;
+  }
+  return null;
+}
+
+/** ISO weekdays only, 1 (Monday) to 7 (Sunday), as the backend's validator allows. */
+function quietHoursFrom(json: Call["json"]): QuietHours {
+  const company = DEMO_COMPANY_QUIET_HOURS;
+  const weekendDays = Array.isArray(json.weekendDays)
+    ? json.weekendDays.filter(
+        (day): day is number => typeof day === "number" && day >= 1 && day <= 7,
+      )
+    : company.weekendDays;
+  return {
+    start: typeof json.start === "string" ? json.start : company.start,
+    end: typeof json.end === "string" ? json.end : company.end,
+    timezone: typeof json.timezone === "string" ? json.timezone : company.timezone,
+    weekendDays,
+  };
+}
+
 function quietHours(): QuietHoursSettings {
   const personal = state.personalQuietHours;
   return {
@@ -317,6 +370,8 @@ function addExample({ json, endpoint }: Call): WritingStyle {
     throw new ApiError(TOO_MANY, ApiErrorCode.TooManyExamples, endpoint);
   }
   const fromEmail = typeof json.emailId === "string" ? findEmail(json.emailId, endpoint) : null;
+  // Only a reply that went out can be an example (writing_style_routes.py _sent_text).
+  if (fromEmail && !fromEmail.sentAt) notFound(endpoint);
   const example = {
     id: `demo-example-${Date.now()}`,
     source: fromEmail ? ExampleSource.Sent : ExampleSource.Pasted,
@@ -385,7 +440,9 @@ export const PAGE_ROUTES: Route[] = [
   {
     method: "GET",
     pattern: /^\/audit$/,
-    handler: async (): Promise<AuditTrail> => {
+    handler: async ({ endpoint }): Promise<AuditTrail> => {
+      // Hashing needs https or localhost; on plain http the page says so rather than crashing.
+      if (!canHash()) return notInDemo(endpoint);
       const events = (await chainedAudit()).reverse();
       return {
         events,
@@ -480,10 +537,14 @@ export const PAGE_ROUTES: Route[] = [
   {
     method: "PUT",
     pattern: /^\/settings\/holding-reply$/,
-    handler: ({ json }) => {
-      state.holdingReply = { ...state.holdingReply, ...(json as Partial<HoldingReplySettings>) };
-      record("holding_reply_settings", { enabled: state.holdingReply.enabled });
-      return state.holdingReply;
+    handler: ({ json, endpoint }) => {
+      // The request body is the validation boundary: the form sends the whole settings object.
+      const next = { ...state.holdingReply, ...(json as Partial<HoldingReplySettings>) };
+      const refused = holdingReplyError(next);
+      if (refused) throw new ApiError(INVALID, refused, endpoint);
+      state.holdingReply = next;
+      record("holding_reply_settings", { enabled: next.enabled });
+      return next;
     },
   },
   { method: "GET", pattern: /^\/holding-replies$/, handler: () => [] },
@@ -494,7 +555,8 @@ export const PAGE_ROUTES: Route[] = [
     method: "PUT",
     pattern: /^\/settings\/scan-reading$/,
     handler: ({ json }) => {
-      state.scanReading = { ...state.scanReading, mode: json.mode as ScanReading["mode"] };
+      const mode = json.mode === ScanMode.Checked ? ScanMode.Checked : ScanMode.Local;
+      state.scanReading = { ...state.scanReading, mode };
       record("scan_reading", { mode: state.scanReading.mode });
       return state.scanReading;
     },
@@ -504,7 +566,7 @@ export const PAGE_ROUTES: Route[] = [
     method: "PUT",
     pattern: /^\/settings\/quiet-hours$/,
     handler: ({ json }) => {
-      state.personalQuietHours = json as QuietHours;
+      state.personalQuietHours = quietHoursFrom(json);
       record("quiet_hours", { personal: true });
       return quietHours();
     },
