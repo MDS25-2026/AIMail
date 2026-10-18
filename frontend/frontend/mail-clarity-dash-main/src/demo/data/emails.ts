@@ -403,7 +403,6 @@ export function demoEmails(now: Date): Email[] {
       priority: "low",
       category: "admin",
       categoryConfidence: 0.92,
-      isRead: true,
       isAutomated: true,
       aiSummary: "Your September 2026 payslip is in the HR portal. Automated; no reply needed.",
       draftReply: "",

@@ -19,6 +19,22 @@ export function filterByPriority(
   return conversations.filter(({ email }) => email.priority === filter);
 }
 
+/** Primary: mail from people. Updates: newsletters and notifications, the listener's automated flag
+ *  (specs/features/inbox-updates-tab.md). */
+export type InboxView = "primary" | "updates";
+
+export const INBOX_VIEWS: readonly InboxView[] = ["primary", "updates"];
+
+export const viewOf = (email: Email): InboxView => (email.isAutomated ? "updates" : "primary");
+
+/** The conversations in one view, decided by the row's email like the filters. */
+export function filterByView(conversations: Conversation[], view: InboxView): Conversation[] {
+  return conversations.filter(({ email }) => viewOf(email) === view);
+}
+
+export const unreadCount = (conversations: Conversation[]) =>
+  conversations.filter(({ isRead }) => !isRead).length;
+
 export type InboxSort = "urgent" | "newest";
 
 /** "urgent": most urgent first, by the row's email like the filter (#142). The list arrives newest

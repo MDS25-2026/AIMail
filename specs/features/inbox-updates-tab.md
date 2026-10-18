@@ -1,6 +1,6 @@
 # Inbox: Primary and Updates tabs
 
-- **Status:** draft
+- **Status:** implemented
 - **Owner:** HyperByte12263 (Han, Lane D)
 - **Related issue:** #238 (split from #147)
 - **Last updated:** 2026-10-18

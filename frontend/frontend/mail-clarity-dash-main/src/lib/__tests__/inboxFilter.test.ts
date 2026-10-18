@@ -6,9 +6,11 @@ import {
   CATEGORY_MIN_CONFIDENCE,
   filterByCategory,
   filterByPriority,
+  filterByView,
   PRIORITIES,
   shownCategory,
   sortConversations,
+  unreadCount,
 } from "../inboxFilter";
 import type { Email, EmailCategory, Priority } from "../../types/email";
 import { emailFixture } from "../../test/emailFixture";
@@ -138,5 +140,38 @@ describe("the inbox category filter", () => {
 
   test("offers the six categories in the taxonomy's order", () => {
     expect(CATEGORIES).toEqual(["client", "vendor", "internal", "security", "admin", "personal"]);
+  });
+});
+
+describe("Primary and Updates (#238)", () => {
+  const person = emailFixture({ id: "person", threadId: "t1", isAutomated: false, isRead: false });
+  const newsletter = emailFixture({ id: "news", threadId: "t2", isAutomated: true, isRead: false });
+  const readNotice = emailFixture({
+    id: "notice",
+    threadId: "t3",
+    isAutomated: true,
+    isRead: true,
+  });
+  const all = groupByThread([person, newsletter, readNotice]);
+  const idsIn = (view: "primary" | "updates") =>
+    filterByView(all, view).map(({ email: row }) => row.id);
+
+  test("automated mail goes to Updates, everything else stays in Primary", () => {
+    expect(idsIn("primary")).toEqual(["person"]);
+    expect(idsIn("updates")).toEqual(["news", "notice"]);
+  });
+
+  test("a conversation goes by its newest email, as the filters do", () => {
+    // Newest first: a person's reply on top of a newsletter thread brings it back to Primary.
+    const thread = groupByThread([
+      emailFixture({ id: "reply", threadId: "t", isAutomated: false }),
+      emailFixture({ id: "digest", threadId: "t", isAutomated: true }),
+    ]);
+    expect(filterByView(thread, "primary")).toHaveLength(1);
+    expect(filterByView(thread, "updates")).toHaveLength(0);
+  });
+
+  test("the Updates count is its unread conversations", () => {
+    expect(unreadCount(filterByView(all, "updates"))).toBe(1);
   });
 });

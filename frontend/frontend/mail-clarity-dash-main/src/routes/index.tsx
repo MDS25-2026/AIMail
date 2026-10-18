@@ -8,18 +8,21 @@ import EmailDetailPanel from "../components/EmailDetailPanel";
 import AppShell from "../components/AppShell";
 import { PageEmpty, PageError, PageLoading } from "../components/PageState";
 import PrivateModeOffer from "../components/PrivateModeOffer";
+import { viewOf, type InboxView } from "../lib/inboxFilter";
 import { Page, pageMeta } from "../lib/pageMeta";
 import { useEmail, useEmails, useMarkRead, useMarkUnread, useSession } from "../lib/queries";
 import { useDebouncedValue } from "../lib/useDebouncedValue";
 import { useDraftWorkflow } from "../lib/useDraftWorkflow";
 import { useIsDesktop } from "../lib/useIsDesktop";
 
-type InboxSearch = { email?: string };
+// view: the Updates tab (#238); Primary, the default, has none.
+type InboxSearch = { email?: string; view?: "updates" };
 
 export const Route = createFileRoute("/")({
   // ?email=<id> opens that email, so Sent and other lists can link straight to one.
   validateSearch: (search: Record<string, unknown>): InboxSearch => ({
     email: typeof search.email === "string" ? search.email : undefined,
+    view: search.view === "updates" ? "updates" : undefined,
   }),
   head: ({ match }) => ({
     meta: [
@@ -37,7 +40,7 @@ const SELECTION_SETTLE_MS = 150;
 function DashboardPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { email: requestedId } = Route.useSearch();
+  const { email: requestedId, view: requestedView } = Route.useSearch();
   const emails = useEmails();
   const session = useSession();
   const [userSelectedId, setUserSelectedId] = useState<string | null>(null);
@@ -48,8 +51,11 @@ function DashboardPage() {
   const isDesktop = useIsDesktop();
   // A desktop shows the newest email beside the list; a phone opens one only when it is tapped,
   // since opening marks it read.
+  // An email opened by link (Sent, To-do, search) shows the tab it belongs to.
+  const linkedEmail = emails.data?.find((item) => item.id === requestedId);
+  const view: InboxView = requestedView ?? (linkedEmail ? viewOf(linkedEmail) : "primary");
   const firstEmailId =
-    isDesktop && emails.data && emails.data.length > 0 ? emails.data[0].id : null;
+    (isDesktop && emails.data?.find((item) => viewOf(item) === view)?.id) || null;
   const selectedEmailId = requestedId ?? userSelectedId ?? firstEmailId;
   // Opened once the selection settles, so stepping through with J/K doesn't fetch (and mark read) every row.
   const openedEmailId = useDebouncedValue(selectedEmailId, SELECTION_SETTLE_MS);
@@ -66,18 +72,27 @@ function DashboardPage() {
   const router = useRouter();
   const canGoBack = useCanGoBack();
   const backToInbox = () =>
-    canGoBack ? router.history.back() : void navigate({ to: "/", search: {} });
+    canGoBack
+      ? router.history.back()
+      : void navigate({ to: "/", search: view === "updates" ? { view: "updates" } : {} });
 
   const handleSelectEmail = (id: string) => {
     setUserSelectedId(id);
     setKeptUnreadId(null);
     void navigate({
       to: "/",
-      search: { email: id },
+      search: { email: id, view: view === "updates" ? "updates" : undefined },
       // On a phone opening an email is a step the back button undoes; on a desktop J/K would
       // otherwise fill the history with every row passed.
       replace: isDesktop,
     });
+  };
+
+  // A new tab starts on its own first email, never one left open from the other tab.
+  const handleViewChange = (next: InboxView) => {
+    setUserSelectedId(null);
+    setKeptUnreadId(null);
+    void navigate({ to: "/", search: next === "updates" ? { view: "updates" } : {} });
   };
 
   // If an email was opened directly via search/deep-link and is not in the loaded inbox page,
@@ -132,6 +147,8 @@ function DashboardPage() {
                 emails={displayEmails}
                 selectedEmailId={selectedEmailId}
                 onSelectEmail={handleSelectEmail}
+                view={view}
+                onViewChange={handleViewChange}
               />
             </div>
           ) : null}
