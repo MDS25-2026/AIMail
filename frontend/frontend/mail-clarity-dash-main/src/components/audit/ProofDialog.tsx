@@ -81,7 +81,7 @@ function Proof({ event }: { event: AuditTrailEvent }) {
       />
       <div className="rounded-md border border-line px-3 py-2">
         <p className="font-semibold text-fg">{t("audit.modal.formula")}</p>
-        <p className="mt-0.5 break-all font-mono text-[10px] text-fg-muted">
+        <p className="mt-0.5 break-words font-mono text-[10px] text-fg-muted">
           {t("audit.modal.formulaDesc")}
         </p>
       </div>
