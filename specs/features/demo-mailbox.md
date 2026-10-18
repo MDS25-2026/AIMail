@@ -1,9 +1,9 @@
 # Demo mailbox: try AIMail without signing in
 
-- **Status:** in progress (slices 1 and 2: switch, entry and exit, eight emails, pretend Send, prepared AI answers)
+- **Status:** implemented (three slices: switch and entry; AI answers; the other pages)
 - **Owner:** HyperByte12263 (Han, Lane D)
 - **Related issue:** #227
-- **Last updated:** 2026-10-12
+- **Last updated:** 2026-10-18
 
 ## Goal
 
@@ -31,10 +31,19 @@ straight away, so that I can see what it does without an account or my own email
     visitor confirms the sender) and an automated email (no draft at all).
   - Each with its summary, action items, a draft, checker confidence, masked placeholders and the
     privacy receipt that goes with them.
-  - To-do items in each section, audit log entries, two or three templates, a few company documents
-    for Knowledge, and default settings.
-- **AI actions without a model:** Refine, Regenerate (per tone), Translate and template Adapt return
-  answers written in advance for each demo email. Changes view (#149) then shows what changed.
+  - A ninth email answered a week ago with a question and no reply since, for the To-do's Waiting
+    list and its follow-up.
+  - To-do built from the emails by the backend's rules (backend/app/todo.py), audit log entries,
+    three templates (one per language), five company documents for Knowledge (every source a draft
+    cites is in one), and the backend's default settings.
+  - The audit trail is hashed by the database's own formula (`audit_row_hash`, migration 0024):
+    SHA-256 over prev_hash, sequence, action, detail (compact JSON, sorted keys), success, user id
+    (empty in the demo) and the epoch timestamp, joined by chr(31), the first row chained to 64
+    zeros. Recomputing it the backend's way gives the same hashes, so "verified" is true. On plain
+    http, where browsers offer no hashing, the Audit page says "Not available in the demo".
+- **AI actions without a model:** Refine, Regenerate (per tone) and Translate return answers
+  written in advance for each demo email. Template Insert fills `{{name}}`, `{{my name}}` and
+  `{{today}}` as the backend does; Adapt (an AI rewrite) is not in the demo. Changes view (#149) then shows what changed.
 - **Send is pretend:** the email moves to Sent and an audit entry is added; nothing leaves the
   page. Schedule, snooze, dismiss and mark unread work the same way, in memory.
 - **A demo banner on every dashboard page:** "Demo mailbox: made-up emails, nothing is sent", with
@@ -44,10 +53,12 @@ straight away, so that I can see what it does without an account or my own email
 **Out of scope**
 - The Gmail extension (needs real Gmail). The `/extension` preview page shows demo data for free,
   because it also goes through `request()`.
-- The admin console (its own sign-in) and inbox search / thread Q&A: in demo mode they say
-  "Not available in the demo".
-- Uploading documents or attachments, writing-profile learning, Google account actions
-  (disconnect Gmail, delete account): "Not available in the demo".
+- Inbox search / thread Q&A: in demo mode it says "Not available in the demo".
+- The admin console: it has its own sign-in and calls its own API (`adminApi.ts`), which demo mode
+  does not intercept, so it behaves as without the demo: a visitor sees its sign-in.
+- Uploading a PDF, write-in-my-language (#231), template Adapt and translate, Private mode,
+  cancelling a holding reply, Google account actions (disconnect Gmail, delete account): "Not
+  available in the demo". Pasted policy text is kept in memory like the rest.
 - Any backend, API or database change.
 
 ## Acceptance criteria
@@ -66,6 +77,8 @@ straight away, so that I can see what it does without an account or my own email
       shows what the AI saw and what stayed with the user.
 - [ ] Given changes made in the demo, when the page is reloaded, then the demo data is back as it
       started and the visitor is still in demo mode; closing the tab ends demo mode.
+- [ ] Given a visitor leaves the demo, when the next one clicks Try the demo in the same tab, then
+      the mailbox starts afresh: no earlier sends, dismissals, templates or audit rows.
 - [ ] Given a demo-mode call the demo does not support, then the page shows "Not available in the
       demo" rather than an error or a sign-in redirect.
 - [ ] Given a visitor who signs in with Google from the banner, then demo mode is off and they see
@@ -136,7 +149,8 @@ None. Demo changes live in memory for the tab; the demo flag lives in `sessionSt
   the query cache, so demo emails never sit beside a real mailbox's.
 - Build order: (1) switch, guard, entry, banner, four emails, pretend Send and snooze/schedule;
   (2) the rest of the emails and the prepared AI answers; (3) To-do, Audit, Templates, Knowledge
-  and Settings data. Until (3), those pages say "Not available in the demo".
+  and Settings data. State lives in `src/demo/state.ts`; inbox routes in `request.ts`, the other
+  pages' in `pages.ts`.
 - Prepared AI answers live in `src/demo/data/answers.ts`, by email id: the draft in the other tone,
   the two refine suggestions ("Make it more direct", "Add a deadline", matched in all three
   languages) and the body in the other two languages. A typed refine instruction answers

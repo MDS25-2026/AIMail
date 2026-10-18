@@ -14,6 +14,12 @@ import {
 
 export const DEMO_ACCOUNT = "aina@seribayu.example";
 
+/** The reader's first name, the value behind [PERSON_1] in every demo email. */
+export const DEMO_OWNER_NAME = "Aina";
+
+/** The email whose reply has had no answer for a week: the To-do's Waiting list. */
+export const DEMO_WAITING_EMAIL_ID = "demo-pallets";
+
 const MINUTE = 60_000;
 
 /** What the AI saw for one email: each step went to Gemini with the same details hidden. */
@@ -133,6 +139,8 @@ export function demoEmails(now: Date): Email[] {
     demoEmail({
       id: "demo-invois",
       threadId: "demo-thread-invois",
+      // Its trigger word "invois" matches the Malay payment template (data/templates.ts).
+      suggestedTemplateId: "demo-template-bayaran",
       sender: "Nur Izzati <izzati@sinarpack.example>",
       subject: "Peringatan: invois SP-2291 telah melepasi tarikh akhir",
       body: [
@@ -452,6 +460,49 @@ export function demoEmails(now: Date): Email[] {
         { kind: "LOCATION", placeholder: "[LOCATION_1]", value: "Dewan Seri Melati, Shah Alam" },
       ],
       egress: egress(ago(2 * 24 * 60 - 1), { PERSON: 3, LOCATION: 1 }, 430),
+    }),
+
+    demoEmail({
+      // Answered a week ago with a question and still unanswered: the To-do's Waiting list.
+      id: DEMO_WAITING_EMAIL_ID,
+      threadId: "demo-thread-pallets",
+      sender: "Ravi Kumar <ravi@kotakjaya.example>",
+      subject: "Pallet deliveries move to Tuesdays and Thursdays from November",
+      body: [
+        "Hi [PERSON_1],",
+        "",
+        "Because of a change at our depot, we're moving your pallet deliveries to Tuesdays and Thursdays from November.",
+        "",
+        "Please let me know if that works for your warehouse.",
+        "",
+        "Regards,",
+        "[PERSON_2]",
+        "Kotak Jaya Supplies",
+      ].join("\n"),
+      timestamp: ago(8 * 24 * 60).toISOString(),
+      priority: "medium",
+      category: "vendor",
+      categoryConfidence: 0.89,
+      isRead: true,
+      isAnswered: true,
+      sentAt: ago(7 * 24 * 60).toISOString(),
+      aiSummary:
+        "Kotak Jaya moves pallet deliveries to Tuesdays and Thursdays from November, and asks whether that works for your warehouse.",
+      actionItems: ["Confirm whether Tuesday and Thursday deliveries suit the warehouse"],
+      draftReply: [
+        "Hi [PERSON_2],",
+        "",
+        "Thanks for letting us know. Tuesdays and Thursdays work for us, but our loading bay is busy before 10am. Could your drivers arrive between 10am and 3pm on those days?",
+        "",
+        "Best regards,",
+        "[PERSON_1]",
+      ].join("\n"),
+      criticConfidence: 0.93,
+      details: [
+        { kind: "PERSON", placeholder: "[PERSON_1]", value: "Aina" },
+        { kind: "PERSON", placeholder: "[PERSON_2]", value: "Ravi Kumar" },
+      ],
+      egress: egress(ago(8 * 24 * 60 - 1), { PERSON: 2 }, 300),
     }),
   ];
 }

@@ -399,6 +399,46 @@ export const DEMO_ANSWERS: Readonly<Record<string, PreparedAnswers>> = {
       ),
     },
   },
+
+  // Sent already, so only its body is ever translated.
+  "demo-pallets": {
+    translations: {
+      ms: text(
+        "Hai [PERSON_1],",
+        "",
+        "Disebabkan perubahan di depoh kami, penghantaran palet anda akan dipindahkan ke hari Selasa dan Khamis mulai November.",
+        "",
+        "Sila maklumkan sama ada ini sesuai untuk gudang anda.",
+        "",
+        "Salam hormat,",
+        "[PERSON_2]",
+        "Kotak Jaya Supplies",
+      ),
+      zh: text(
+        "[PERSON_1] 你好，",
+        "",
+        "由于我们仓库的调整，从 11 月起，你们的托盘将改在每周二和周四送货。",
+        "",
+        "请告诉我这个安排是否适合你们的仓库。",
+        "",
+        "此致",
+        "[PERSON_2]",
+        "Kotak Jaya Supplies",
+      ),
+    },
+  },
+};
+
+/** Follow-ups for replies still waiting for an answer, by the email the reply answered. */
+export const DEMO_FOLLOW_UPS: Readonly<Record<string, string>> = {
+  "demo-pallets": text(
+    "Hi [PERSON_2],",
+    "",
+    "Just following up on my email about the November delivery days. Could your drivers arrive between 10am and 3pm on Tuesdays and Thursdays? A quick yes or no is enough for us to plan the loading bay.",
+    "",
+    "Thanks,",
+    "[PERSON_1]",
+  ),
 };
 
 /** Drafts that appear only once the reader confirms a sender whose checks failed. */
