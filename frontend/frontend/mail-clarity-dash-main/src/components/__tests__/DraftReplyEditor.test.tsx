@@ -88,3 +88,24 @@ describe("the AI check (plain-wording-and-polish.md)", () => {
     expect(screen.queryByText("Why to check this draft")).toBeNull();
   });
 });
+
+describe("the AI check badge (#241)", () => {
+  test("is not shown when there is no draft, as for an automated email", () => {
+    stubFetch({});
+    const automated = emailFixture({
+      id: "auto",
+      isAutomated: true,
+      draftReply: "",
+      criticConfidence: 0,
+      reviewReasons: [],
+    });
+    renderWithProviders(<Editor email={automated} />);
+    expect(screen.queryByText(/AI check/)).toBeNull();
+  });
+
+  test("is shown with its score when there is a draft", () => {
+    stubFetch({});
+    renderWithProviders(<Editor email={emailFixture({ id: "d3", criticConfidence: 0.93 })} />);
+    expect(screen.getByText("AI check passed · 93% sure")).toBeTruthy();
+  });
+});
