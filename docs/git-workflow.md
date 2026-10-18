@@ -10,17 +10,16 @@ locally, so `main` is effectively prod; **we are not using a separate `prod` bra
 `main` is protected on GitHub:
 
 - No direct pushes. Every change lands via a pull request.
-- 1 approving review required, and it must come from a **code owner** (the lead) — see
-  [`../.github/CODEOWNERS`](../.github/CODEOWNERS).
+- 1 approving review required, and it must come from a **code owner**: Elyesa (@veyroxie), Han
+  (@HyperByte12263) or Hanif (@HanifRafli), see [`../.github/CODEOWNERS`](../.github/CODEOWNERS).
 - Stale approvals are dismissed when new commits are pushed.
 - No force-pushes, no branch deletion.
 - Linear history required (we squash-merge).
 
-**Review gate (asymmetric by design):**
-- **Everyone except the lead** needs the lead's approval before merging.
-- **The lead** is a repo admin and self-merges via admin bypass (admin enforcement is off), so
-  the code-owner rule never deadlocks the lead's own PRs. The lead should still invite an
-  occasional second look even though it is not enforced.
+**Review gate:**
+- **Every PR** needs one code owner's approval before merging. GitHub never counts an author's own
+  approval, so a code owner's PR is approved by one of the other two.
+- **Admin bypass** (admin enforcement is off) is for emergencies only, not the normal path.
 
 ## The flow
 
@@ -36,9 +35,8 @@ locally, so `main` is effectively prod; **we are not using a separate `prod` bra
    git push -u origin feat/<short-description>
    gh pr create --base main --fill
    ```
-4. **Get the lead's review.** The lead (code owner) reviews and approves; you cannot approve
-   your own PR. The lead's own PRs merge via admin bypass, so the code-owner rule does not
-   deadlock them.
+4. **Get a code owner's review.** One of the code owners other than you reviews and approves;
+   you cannot approve your own PR.
 5. **Squash-merge into `main`** once approved and green. Delete the feature branch.
 
 ## Branch naming

@@ -1,4 +1,4 @@
-# Every change to main requires the lead's review (see docs/git-workflow.md).
-# The lead is a repo admin and can self-merge via admin bypass; everyone else
-# needs this code-owner approval before merging.
-* @veyroxie
+# Every change to main needs one code owner's approval (see docs/git-workflow.md). Any one of the
+# three is enough, and GitHub never counts an author's own approval, so a PR by one owner is approved
+# by another: no admin bypass needed. Agreed by the team on 18 Oct 2026.
+* @veyroxie @HyperByte12263 @HanifRafli
