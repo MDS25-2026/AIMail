@@ -60,6 +60,8 @@ function InboxList({
     [all, view, priority, category, sort],
   );
   const unreadUpdates = useMemo(() => unreadCount(filterByView(all, "updates")), [all]);
+  // The rows shown, so it matches their unread dots (#171).
+  const unreadShown = useMemo(() => unreadCount(conversations), [conversations]);
   const isFiltered = priority !== "all" || category !== "all";
 
   useEffect(() => {
@@ -79,6 +81,7 @@ function InboxList({
             <h1 className="text-sm font-semibold text-fg">{t("inbox.heading")}</h1>
             <p className="text-xs text-fg-muted">
               {t("inbox.conversations", { count: conversations.length })}
+              {unreadShown > 0 ? ` · ${t("inbox.unread", { count: unreadShown })}` : null}
             </p>
           </div>
           <label className="shrink-0">
