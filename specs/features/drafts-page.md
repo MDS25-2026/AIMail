@@ -1,9 +1,9 @@
 # Drafts page: every reply the AI has written that has not gone out
 
-- **Status:** approved (Han, 2026-10-08) — build after #168 merges
+- **Status:** implemented
 - **Owner:** HyperByte12263 (Han, Lane D)
 - **Related issue:** #169
-- **Last updated:** 2026-10-08
+- **Last updated:** 2026-10-19
 
 ## Goal
 
@@ -40,6 +40,8 @@ can work through them and none is forgotten.
       is not listed (the detail panel hides its draft behind `SecurityNotice`).
 - [ ] Given an email with `masking` `pending` or `abandoned`, when the reader opens `/drafts`,
       then it is not listed (the detail panel shows `QuarantineNotice` instead of a draft).
+- [ ] Given an email with `scheduledFor` set (approved, held to send later), when the reader opens
+      `/drafts`, then it is not listed: it is on `/scheduled`, and no longer waiting for approval.
 - [ ] Given an email with `isDrafting` true (its draft is queued, #168), when the reader opens
       `/drafts`, then it is not listed until the draft is written.
 - [ ] Given a listed draft, when the reader clicks its row, then the inbox opens with that email
@@ -73,8 +75,8 @@ None.
   email has no draft yet and does not appear until then. The empty-state text says so.
 - With #168's pagination, only loaded pages are filtered; "load older" reaches the rest, as on
   `/sent`.
-- The list row shows the stored draft, which can contain placeholders such as `[PERSON_1]`:
-  the list response carries no `details`, so names are not restored here. Same as `/sent` today.
+- The list row shows the stored draft with its placeholders filled in from the email's
+  `details`, as on `/sent` since #244; Hide details shows the placeholders.
 
 ## Security & privacy notes
 
@@ -91,6 +93,9 @@ None.
 - `timestampOf` = the email's received `timestamp`.
 
 ## Decisions
+
+- 2026-10-19: A scheduled reply is not a draft: it was approved and waits on `/scheduled`, so
+  listing it here as "waiting" would be wrong. `ComingSoon` goes with this page, its last user.
 
 - 2026-10-08: Reuse `FilteredEmailList` rather than port the Lovable prototype's row layout.
   Rationale: Han chose main's layout (decision F); one component for Drafts and Sent.

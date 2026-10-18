@@ -199,10 +199,12 @@ export const zh: Translations = {
     crashBody: "我们这边出了问题。您可以尝试刷新，或返回首页。",
     tryAgain: "重试",
   },
-  comingSoon: { badge: "即将推出", back: "返回收件箱" },
   drafts: {
-    title: "草稿",
-    description: "已保存和正在编辑的回复将显示在这里，无需重新打开所属会话即可继续编辑草稿。",
+    heading: "草稿",
+    description: "AI 已写好但尚未发送的回复。打开一封即可检查并发送。",
+    label: "草稿",
+    emptyTitle: "没有待处理的草稿",
+    emptyHint: "AIMail 写好回复后，草稿会出现在这里：在你打开邮件时，或提前在后台生成。",
   },
   sent: {
     heading: "已发送",

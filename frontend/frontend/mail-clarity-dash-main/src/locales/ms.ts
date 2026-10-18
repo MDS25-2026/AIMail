@@ -207,11 +207,14 @@ export const ms: Translations = {
     crashBody: "Berlaku masalah di pihak kami. Cuba muat semula atau kembali ke laman utama.",
     tryAgain: "Cuba lagi",
   },
-  comingSoon: { badge: "Akan datang", back: "Kembali ke peti masuk" },
   drafts: {
-    title: "Draf",
+    heading: "Draf",
     description:
-      "Balasan yang disimpan dan sedang ditulis akan berada di sini, supaya anda boleh menyambung draf tanpa membuka semula bebenangnya.",
+      "Balasan yang telah ditulis oleh AI tetapi belum dihantar. Buka satu untuk menyemak dan menghantarnya.",
+    label: "draf",
+    emptyTitle: "Tiada draf menunggu",
+    emptyHint:
+      "Draf muncul di sini apabila AIMail telah menulis balasan: semasa anda membuka e-mel, atau lebih awal di latar belakang.",
   },
   sent: {
     heading: "Dihantar",
