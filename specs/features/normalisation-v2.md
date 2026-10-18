@@ -57,7 +57,7 @@ step at it; translate only at the end, for the reader and for the reply.
 ## Stage 3: everything else reads the English copy
 
 Category (Gemini or Gemma, in the routing call), priority and SLA, summary and action items, RAG, search
-(both versions indexed), critic; To-do due badges and a Notifications filter.
+(both versions indexed), critic; To-do due badges. (Automated mail: the Primary/Updates tabs, #240.)
 
 ## Stage 4: translation last
 
