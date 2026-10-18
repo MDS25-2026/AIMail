@@ -1,6 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
+import { detailValues } from "../lib/details";
+import { DetailsContext } from "../lib/detailsContext";
 import { ListOrder } from "../lib/listOrder";
 import { useFormat } from "../lib/useFormat";
 import { useEmails } from "../lib/queries";
@@ -8,6 +10,7 @@ import type { Email } from "../types/email";
 import LoadOlderEmails from "./LoadOlderEmails";
 import PriorityBadge from "./PriorityBadge";
 import { PageEmpty, PageError, PageLoading } from "./PageState";
+import WithDetails from "./WithDetails";
 
 type FilteredEmailListProps = {
   heading: string;
@@ -60,28 +63,33 @@ export default function FilteredEmailList({
       {rows.length > 0 ? (
         <ul className="relative divide-y divide-line-subtle overflow-hidden rounded-lg border border-line bg-surface">
           {rows.map((email) => (
-            <li key={email.id}>
-              <Link
-                to="/"
-                search={{ email: email.id }}
-                className="block px-4 py-3 transition-colors hover:bg-surface-muted"
-                aria-label={t("sent.open", { subject: email.subject })}
-              >
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="truncate text-sm font-semibold text-fg">{email.sender}</span>
-                  <span className="shrink-0 text-xs text-fg-subtle">
-                    {format.timestamp(timestampOf(email))}
-                  </span>
-                </div>
-                <div className="mt-0.5 truncate text-sm text-fg-body">{email.subject}</div>
-                <p className="mt-0.5 line-clamp-1 text-xs text-fg-muted">
-                  {email.draftReply || email.preview}
-                </p>
-                <div className="mt-2">
-                  <PriorityBadge priority={email.priority} />
-                </div>
-              </Link>
-            </li>
+            // Each row fills in its own email's names, as the inbox rows do (#237).
+            <DetailsContext.Provider key={email.id} value={detailValues(email.details)}>
+              <li>
+                <Link
+                  to="/"
+                  search={{ email: email.id }}
+                  className="block px-4 py-3 transition-colors hover:bg-surface-muted"
+                  aria-label={t("sent.open", { subject: email.subject })}
+                >
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="truncate text-sm font-semibold text-fg">{email.sender}</span>
+                    <span className="shrink-0 text-xs text-fg-subtle">
+                      {format.timestamp(timestampOf(email))}
+                    </span>
+                  </div>
+                  <div className="mt-0.5 truncate text-sm text-fg-body">
+                    <WithDetails text={email.subject} />
+                  </div>
+                  <p className="mt-0.5 line-clamp-1 text-xs text-fg-muted">
+                    <WithDetails text={email.draftReply || email.preview} />
+                  </p>
+                  <div className="mt-2">
+                    <PriorityBadge priority={email.priority} />
+                  </div>
+                </Link>
+              </li>
+            </DetailsContext.Provider>
           ))}
         </ul>
       ) : null}
