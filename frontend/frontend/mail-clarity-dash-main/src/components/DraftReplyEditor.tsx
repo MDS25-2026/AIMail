@@ -30,10 +30,14 @@ export default function DraftReplyEditor({ email, workflow, rows = 10 }: DraftRe
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        <CriticConfidenceBadge
-          value={email.criticConfidence}
-          isFlagged={(email.reviewReasons ?? []).length > 0}
-        />
+        {/* No draft, nothing checked: an automated email arrives with confidence 0 and no reasons,
+            which read "AI check passed · 0% sure" (#241). */}
+        {email.draftReply ? (
+          <CriticConfidenceBadge
+            value={email.criticConfidence}
+            isFlagged={(email.reviewReasons ?? []).length > 0}
+          />
+        ) : null}
         <PiiMaskedBadge masked={email.piiMasked} />
         <div
           role="group"
