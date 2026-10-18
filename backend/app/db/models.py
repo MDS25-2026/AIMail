@@ -168,6 +168,10 @@ class Message(Base):
     deadline_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     importance_model_version: Mapped[str | None] = mapped_column(Text)
     category: Mapped[str | None] = mapped_column(Text)
+    # Normalisation v2 (migration 0044): the email's language, and an English copy of a non-English one.
+    language: Mapped[str | None] = mapped_column(Text)
+    subject_en: Mapped[str | None] = mapped_column(Text)
+    own_text_en: Mapped[str | None] = mapped_column(Text)
     category_confidence: Mapped[float | None]
     # Lane C generation, cached so opening an email doesn't regenerate every time.
     ai_summary: Mapped[str | None] = mapped_column(Text)

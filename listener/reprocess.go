@@ -53,6 +53,10 @@ type reprocessPatch struct {
 	GenerationAttempts int              `json:"generation_attempts"`
 	Category           *string          `json:"category"`
 	CategoryConfidence *float64         `json:"category_confidence"`
+	// Normalised again from the new text (specs/features/normalisation-v2.md).
+	Language  *string `json:"language"`
+	SubjectEn *string `json:"subject_en"`
+	OwnTextEn *string `json:"own_text_en"`
 }
 
 // runReprocess re-reads stored emails from Gmail with today's extraction (specs/features/readable-emails.md).

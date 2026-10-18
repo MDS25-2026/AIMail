@@ -32,7 +32,13 @@ MONTHS = {
     )
 }
 
+# Malay months whose first three letters differ from English (Mac, Mei, Ogos, Oktober, Disember); the
+# rest (Januari, Februari, April, Jun, Julai, September, November) already match.
+MONTHS.update({"mac": 3, "mei": 5, "ogo": 8, "okt": 10, "dis": 12})
+
 _ISO = re.compile(r"\b(\d{4})-(\d{1,2})-(\d{1,2})\b")
+# 10月15日, with or without a year in front (2026年10月15日).
+_HAN_DATE = re.compile(r"(?:(\d{4})年)?(\d{1,2})月(\d{1,2})[日号號]")
 _SLASH = re.compile(r"\b(\d{1,2})/(\d{1,2})/(\d{2,4})\b")
 _MONTH_DAY = re.compile(r"\b([A-Za-z]{3,9})\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?!\d)(?:,?\s+(\d{4}))?\b")
 _DAY_MONTH = re.compile(r"\b(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]{3,9})\.?(?:,?\s+(\d{4}))?\b")
@@ -87,4 +93,6 @@ def dates_in(text: str, now: date) -> Iterator[date]:
     for day, word, year in (m.groups() for m in _DAY_MONTH.finditer(text)):
         candidates.append(_resolve(MONTHS.get(word[:3].lower()), int(day),
                                    int(year) if year else None, now))
+    for year, month, day in (m.groups() for m in _HAN_DATE.finditer(text)):
+        candidates.append(_resolve(int(month), int(day), int(year) if year else None, now))
     return (found for found in candidates if found is not None)

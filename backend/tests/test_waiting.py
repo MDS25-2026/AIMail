@@ -4,8 +4,9 @@ from datetime import datetime, timezone
 
 import pytest
 
+from app.normalise.quotes import own_text
 from app.retention import SENT_MESSAGE_DAYS, _capped
-from app.waiting import asks_something, own_text, working_days_since
+from app.waiting import asks_something, working_days_since
 
 GMAIL_QUOTE = """Thanks, received. We'll process it this week.
 
