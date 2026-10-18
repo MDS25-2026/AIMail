@@ -941,7 +941,7 @@ export const en = {
       noHash: "None: this record was written before the hash chain.",
       formula: "Digest formula",
       formulaDesc:
-        "SHA-256(prev_hash | sequence | action | detail | success | user_id | timestamp)",
+        "SHA-256(prev_hash, sequence, action, detail, success, user_id, timestamp), the fields joined by an invisible separator character (ASCII 31)",
       verified: "This record's hash matches its contents and the record before it.",
       tampered:
         "This record's hash does not match its contents: it was changed after it was written.",

@@ -920,7 +920,7 @@ export const zh: Translations = {
       noHash: "无：这条记录写于哈希链启用之前。",
       formula: "摘要公式",
       formulaDesc:
-        "SHA-256(prev_hash | sequence | action | detail | success | user_id | timestamp)",
+        "SHA-256(prev_hash, sequence, action, detail, success, user_id, timestamp)，各字段以不可见的分隔字符（ASCII 31）连接",
       verified: "这条记录的哈希与其内容及上一条记录相符。",
       tampered: "这条记录的哈希与其内容不符：它在写入后被修改过。",
       unverifiable:

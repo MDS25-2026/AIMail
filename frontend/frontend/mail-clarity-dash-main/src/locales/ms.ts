@@ -967,7 +967,7 @@ export const ms: Translations = {
       noHash: "Tiada: rekod ini ditulis sebelum rantaian hash wujud.",
       formula: "Formula hash",
       formulaDesc:
-        "SHA-256(prev_hash | sequence | action | detail | success | user_id | timestamp)",
+        "SHA-256(prev_hash, sequence, action, detail, success, user_id, timestamp), dengan medan dicantumkan oleh aksara pemisah yang tidak kelihatan (ASCII 31)",
       verified: "Hash rekod ini sepadan dengan kandungannya dan rekod sebelumnya.",
       tampered:
         "Hash rekod ini tidak sepadan dengan kandungannya: ia telah diubah selepas ditulis.",
