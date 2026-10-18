@@ -29,6 +29,8 @@ type InboxListProps = {
   /** Primary or Updates (#238); the page keeps it in the URL. */
   view: InboxView;
   onViewChange: (view: InboxView) => void;
+  /** Older pages not loaded yet: an empty tab may only look empty. */
+  hasOlder?: boolean;
 };
 
 export default function InboxList({
@@ -37,6 +39,7 @@ export default function InboxList({
   onSelectEmail,
   view,
   onViewChange,
+  hasOlder = false,
 }: InboxListProps) {
   const { t } = useTranslation();
   const listRef = useRef<HTMLUListElement>(null);
@@ -129,13 +132,17 @@ export default function InboxList({
             {t("inbox.updatesHint")}
           </p>
         ) : null}
-        {conversations.length === 0 ? (
+        {conversations.length === 0 && isFiltered ? (
           <p className="p-6 text-center text-sm text-fg-subtle">
-            {!isFiltered
-              ? t(view === "updates" ? "inbox.updatesEmpty" : "inbox.primaryEmpty")
-              : category === "all" && priority !== "all"
-                ? t("inbox.filterEmpty", { priority: t(`priority.${priority}`) })
-                : t("inbox.filterEmptyAny")}
+            {category === "all" && priority !== "all"
+              ? t("inbox.filterEmpty", { priority: t(`priority.${priority}`) })
+              : t("inbox.filterEmptyAny")}
+          </p>
+        ) : null}
+        {/* Not while Load older may still bring some: page 1 can be all newsletters. */}
+        {conversations.length === 0 && !isFiltered && !hasOlder ? (
+          <p className="p-6 text-center text-sm text-fg-subtle">
+            {t(view === "updates" ? "inbox.updatesEmpty" : "inbox.primaryEmpty")}
           </p>
         ) : null}
         <ul
@@ -205,7 +212,8 @@ function ViewTabs({
           role="tab"
           id={`inbox-tab-${each}`}
           aria-selected={each === view}
-          aria-controls={`inbox-panel-${each}`}
+          // Only the selected tab's panel is rendered.
+          aria-controls={each === view ? `inbox-panel-${each}` : undefined}
           tabIndex={each === view ? 0 : -1}
           onClick={() => onViewChange(each)}
           onKeyDown={(event) => move(event, each)}

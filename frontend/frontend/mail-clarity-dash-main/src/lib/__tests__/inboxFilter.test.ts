@@ -7,9 +7,11 @@ import {
   filterByCategory,
   filterByPriority,
   filterByView,
+  firstEmailIn,
   PRIORITIES,
   shownCategory,
   sortConversations,
+  tabOf,
   unreadCount,
 } from "../inboxFilter";
 import type { Email, EmailCategory, Priority } from "../../types/email";
@@ -173,5 +175,30 @@ describe("Primary and Updates (#238)", () => {
 
   test("the Updates count is its unread conversations", () => {
     expect(unreadCount(filterByView(all, "updates"))).toBe(1);
+  });
+});
+
+describe("a newsletter thread a person answered (#240 review)", () => {
+  // Newest first, as the inbox loads it: a person's reply on top of a newsletter, plus a newsletter
+  // of its own.
+  const reply = emailFixture({ id: "reply", threadId: "mixed", isAutomated: false });
+  const olderDigest = emailFixture({ id: "digest", threadId: "mixed", isAutomated: true });
+  const notice = emailFixture({ id: "notice", threadId: "solo", isAutomated: true });
+  const loaded = [reply, olderDigest, notice];
+
+  test("the older newsletter is in Primary, with the reply its row is listed by", () => {
+    expect(tabOf(loaded, olderDigest)).toBe("primary");
+    expect(tabOf(loaded, notice)).toBe("updates");
+  });
+
+  test("an email not loaded yet goes by its own flag", () => {
+    const older = emailFixture({ id: "older", threadId: "elsewhere", isAutomated: true });
+    expect(tabOf(loaded, older)).toBe("updates");
+  });
+
+  test("Updates opens its own first row, never the newsletter listed under Primary", () => {
+    expect(firstEmailIn(loaded, "updates")).toBe("notice");
+    expect(firstEmailIn(loaded, "primary")).toBe("reply");
+    expect(firstEmailIn([], "updates")).toBeNull();
   });
 });

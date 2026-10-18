@@ -3,7 +3,7 @@
 - **Status:** implemented
 - **Owner:** HyperByte12263 (Han, Lane D)
 - **Related issue:** #238 (split from #147)
-- **Last updated:** 2026-10-18
+- **Last updated:** 2026-10-18 (review fixes)
 
 ## Goal
 
@@ -20,7 +20,8 @@ written to me, so that the inbox shows what needs me, and the rest is there when
 ## Scope
 
 **In scope**
-- A **Primary / Updates** switch at the top of the inbox list, above the conversation count.
+- A **Primary / Updates** switch at the top of the inbox list, under the heading and conversation
+  count, above the priority and category filters.
   - **Primary**, the default, lists conversations whose newest email is not automated.
   - **Updates** lists those whose newest email is (`email.isAutomated`), the rule the priority and
     category filters already use for a conversation.
@@ -29,7 +30,8 @@ written to me, so that the inbox shows what needs me, and the rest is there when
 - Sort, priority and category apply **within** the open tab and stay set when switching.
 - The tab is in the URL, `?view=updates` (Primary has none), so Back and shared links keep it, as
   the To-do's `?tab=` does.
-- An email opened by `?email=` (from Sent, To-do or a search) shows the tab it belongs to.
+- An email opened by `?email=` (from Sent, To-do or a search) shows the tab its conversation is
+  listed under, also when it is older than the loaded pages (its detail tells).
 - In Updates, one line under the switch: "Newsletters and notifications. AIMail doesn't draft
   replies for these." Each tab has its own empty state.
 - Proper tabs: `role="tablist"` / `tab` / `tabpanel`, `aria-selected`, arrow keys move between
@@ -72,7 +74,11 @@ written to me, so that the inbox shows what needs me, and the rest is there when
   readable, and Regenerate still drafts a reply. Moving it back is the out-of-scope follow-up.
 - **No automated mail:** Updates shows its empty state; the switch stays, so the reader learns
   where such mail goes.
-- **Desktop opens the first email beside the list:** it opens the first row of the open tab.
+- **Desktop opens an email beside the list:** the open tab's newest conversation, by its newest
+  email; never an older email of a thread listed under the other tab.
+- **The Updates count covers the loaded pages only;** Load older may bring more.
+- **Page 1 all newsletters:** Primary shows no "Nothing from people" while Load older may still
+  bring some.
 
 ## Security & privacy notes
 

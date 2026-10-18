@@ -8,7 +8,7 @@ import EmailDetailPanel from "../components/EmailDetailPanel";
 import AppShell from "../components/AppShell";
 import { PageEmpty, PageError, PageLoading } from "../components/PageState";
 import PrivateModeOffer from "../components/PrivateModeOffer";
-import { viewOf, type InboxView } from "../lib/inboxFilter";
+import { firstEmailIn, tabOf, type InboxView } from "../lib/inboxFilter";
 import { Page, pageMeta } from "../lib/pageMeta";
 import { useEmail, useEmails, useMarkRead, useMarkUnread, useSession } from "../lib/queries";
 import { useDebouncedValue } from "../lib/useDebouncedValue";
@@ -34,6 +34,9 @@ export const Route = createFileRoute("/")({
   component: DashboardPage,
 });
 
+// The tab's search params; Primary, the default, has none.
+const searchFor = (view: InboxView) => (view === "updates" ? { view: "updates" as const } : {});
+
 // Long enough to skip rows passed with J/K, short enough not to be felt on a click.
 const SELECTION_SETTLE_MS = 150;
 
@@ -51,11 +54,10 @@ function DashboardPage() {
   const isDesktop = useIsDesktop();
   // A desktop shows the newest email beside the list; a phone opens one only when it is tapped,
   // since opening marks it read.
-  // An email opened by link (Sent, To-do, search) shows the tab it belongs to.
-  const linkedEmail = emails.data?.find((item) => item.id === requestedId);
-  const view: InboxView = requestedView ?? (linkedEmail ? viewOf(linkedEmail) : "primary");
-  const firstEmailId =
-    (isDesktop && emails.data?.find((item) => viewOf(item) === view)?.id) || null;
+  // Only used with no email in the URL, when the tab is the URL's or Primary.
+  const firstEmailId = isDesktop
+    ? firstEmailIn(emails.data ?? [], requestedView ?? "primary")
+    : null;
   const selectedEmailId = requestedId ?? userSelectedId ?? firstEmailId;
   // Opened once the selection settles, so stepping through with J/K doesn't fetch (and mark read) every row.
   const openedEmailId = useDebouncedValue(selectedEmailId, SELECTION_SETTLE_MS);
@@ -67,21 +69,26 @@ function DashboardPage() {
   const markRead = useMarkRead();
   // Never a previous email's detail while the selection settles.
   const detail = selected.data?.id === selectedEmailId ? selected.data : undefined;
+  // An email opened by link (Sent, To-do, search) shows the tab its conversation is listed under,
+  // also when it is older than the loaded pages: its detail tells.
+  const linkedEmail = requestedId
+    ? (detail ?? emails.data?.find((item) => item.id === requestedId))
+    : undefined;
+  const view: InboxView =
+    requestedView ?? (linkedEmail ? tabOf(emails.data ?? [], linkedEmail) : "primary");
 
   // Back when the app opened this email; to the inbox when it was opened from a link.
   const router = useRouter();
   const canGoBack = useCanGoBack();
   const backToInbox = () =>
-    canGoBack
-      ? router.history.back()
-      : void navigate({ to: "/", search: view === "updates" ? { view: "updates" } : {} });
+    canGoBack ? router.history.back() : void navigate({ to: "/", search: searchFor(view) });
 
   const handleSelectEmail = (id: string) => {
     setUserSelectedId(id);
     setKeptUnreadId(null);
     void navigate({
       to: "/",
-      search: { email: id, view: view === "updates" ? "updates" : undefined },
+      search: { email: id, ...searchFor(view) },
       // On a phone opening an email is a step the back button undoes; on a desktop J/K would
       // otherwise fill the history with every row passed.
       replace: isDesktop,
@@ -92,7 +99,7 @@ function DashboardPage() {
   const handleViewChange = (next: InboxView) => {
     setUserSelectedId(null);
     setKeptUnreadId(null);
-    void navigate({ to: "/", search: next === "updates" ? { view: "updates" } : {} });
+    void navigate({ to: "/", search: searchFor(next) });
   };
 
   // If an email was opened directly via search/deep-link and is not in the loaded inbox page,
@@ -149,6 +156,7 @@ function DashboardPage() {
                 onSelectEmail={handleSelectEmail}
                 view={view}
                 onViewChange={handleViewChange}
+                hasOlder={emails.hasNextPage}
               />
             </div>
           ) : null}

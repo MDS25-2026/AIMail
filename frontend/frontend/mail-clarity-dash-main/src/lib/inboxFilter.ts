@@ -1,5 +1,5 @@
 import type { Email, EmailCategory, Priority } from "../types/email";
-import type { Conversation } from "./conversations";
+import { groupByThread, type Conversation } from "./conversations";
 
 // A Record rather than a list, so a new tier in Priority fails to compile until it is placed here.
 const RANK: Record<Priority, number> = { critical: 0, high: 1, medium: 2, low: 3 };
@@ -32,8 +32,23 @@ export function filterByView(conversations: Conversation[], view: InboxView): Co
   return conversations.filter(({ email }) => viewOf(email) === view);
 }
 
+/** Of the loaded pages only: older pages may hold more. */
 export const unreadCount = (conversations: Conversation[]) =>
   conversations.filter(({ isRead }) => !isRead).length;
+
+/** The tab an email is listed under: its conversation's, so an older newsletter answered by a
+ *  person is in Primary with the reply. Not loaded yet: its own flag is all there is to go on. */
+export function tabOf(emails: readonly Email[], email: Email): InboxView {
+  const conversation = groupByThread(emails).find(({ messageIds }) =>
+    messageIds.includes(email.id),
+  );
+  return viewOf(conversation?.email ?? email);
+}
+
+/** The email a desktop opens beside a tab: its newest conversation's, the row it is listed by. */
+export function firstEmailIn(emails: readonly Email[], view: InboxView): string | null {
+  return filterByView(groupByThread(emails), view)[0]?.email.id ?? null;
+}
 
 export type InboxSort = "urgent" | "newest";
 

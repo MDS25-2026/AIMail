@@ -17,7 +17,7 @@ const emails = [
   }),
 ];
 
-function renderList(view: "primary" | "updates", onViewChange = vi.fn()) {
+function renderList(view: "primary" | "updates", onViewChange = vi.fn(), hasOlder = false) {
   renderWithProviders(
     <InboxList
       emails={emails}
@@ -25,6 +25,7 @@ function renderList(view: "primary" | "updates", onViewChange = vi.fn()) {
       onSelectEmail={vi.fn()}
       view={view}
       onViewChange={onViewChange}
+      hasOlder={hasOlder}
     />,
   );
   return onViewChange;
@@ -65,4 +66,26 @@ test("an empty tab says what would be there", () => {
     />,
   );
   expect(screen.getByText("No newsletters or notifications.")).toBeTruthy();
+});
+
+test("only the selected tab points at a panel, the one on the page", () => {
+  renderList("primary");
+  const primary = screen.getByRole("tab", { name: "Primary" });
+  expect(primary.getAttribute("aria-controls")).toBe("inbox-panel-primary");
+  expect(document.getElementById("inbox-panel-primary")).toBeTruthy();
+  expect(screen.getByRole("tab", { name: /Updates/ }).hasAttribute("aria-controls")).toBe(false);
+});
+
+test("an empty tab says nothing while older pages may still fill it", () => {
+  renderWithProviders(
+    <InboxList
+      emails={[emails[1]]}
+      selectedEmailId={null}
+      onSelectEmail={vi.fn()}
+      view="primary"
+      onViewChange={vi.fn()}
+      hasOlder
+    />,
+  );
+  expect(screen.queryByText("Nothing from people right now.")).toBeNull();
 });
