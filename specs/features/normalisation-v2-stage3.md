@@ -12,7 +12,7 @@
 Stage 2 stores, for every non-English email, an English copy of its subject and of what the sender wrote
 (`subject_en`, `own_text_en`), and fills `deadline_at`. Nothing reads them yet. Stage 3 points every step
 that judges or answers an email at the English copy, and shows what the new data makes possible: real
-categories, due badges, and a Notifications filter.
+categories and due badges. (Automated mail already has its own place: the Primary/Updates tabs, #240.)
 
 ## The one rule every task follows
 
@@ -78,13 +78,7 @@ Gemini got 8 of 9 test emails right and Gemma (Private mode) 8 of 9 (measured 20
 **Contract:** `ProcessEmailRequest` and `ProcessEmailResponse` are internal (backend to agent).
 Record them in `specs/context/api-contracts.md` under the agent section anyway.
 
-## Task 2: "Notifications" instead of a category for automated mail (1 h)
-
-- **Frontend** (`src/lib/inboxFilter.ts`, `src/components/CategoryBadge.tsx`; Han to review):
-  - when `email.isAutomated`, the badge reads **Notifications** (Bell icon) instead of a category;
-  - the inbox filter gains **Notifications**, which keeps the automated emails.
-- **Strings:** `category.notifications` in en, ms and zh ("Notifications", "Pemberitahuan", "通知").
-- **Tests:** a component test for the badge, and a unit test for the filter.
+## Task 2: removed, covered by the Primary/Updates tabs (#240)
 
 ## Task 3: due badges on To-do rows and in the inbox (2 h)
 
