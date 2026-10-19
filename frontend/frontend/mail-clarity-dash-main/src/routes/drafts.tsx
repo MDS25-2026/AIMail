@@ -24,6 +24,7 @@ function DraftsPage() {
         emptyHint={t("drafts.emptyHint")}
         filter={isPendingDraft}
         timestampOf={(email) => email.timestamp}
+        byConversation
       />
     </AppShell>
   );

@@ -34,6 +34,11 @@ can work through them and none is forgotten.
 - [ ] Given an email with a non-empty `draftReply` and no `sentAt`, when the reader opens
       `/drafts`, then it is listed.
 - [ ] Given an email with `sentAt` set, when the reader opens `/drafts`, then it is not listed.
+- [ ] Given an email with `isAnswered` true (the reader replied from Gmail, "You replied" in the
+      inbox), when the reader opens `/drafts`, then it is not listed.
+- [ ] Given a conversation with several emails that each have a pending draft, when the reader
+      opens `/drafts`, then only its newest email is listed, one row per conversation as in the
+      inbox. If the newest email has no pending draft, the conversation is not listed.
 - [ ] Given an email with an empty `draftReply` (never generated, or the agent wrote none), when
       the reader opens `/drafts`, then it is not listed.
 - [ ] Given an email with `authStatus` `spoof_detected`, when the reader opens `/drafts`, then it
@@ -73,8 +78,8 @@ None.
 
 - A draft is generated when an email is first opened (or by pre-generation), so a brand-new
   email has no draft yet and does not appear until then. The empty-state text says so.
-- With #168's pagination, only loaded pages are filtered; "load older" reaches the rest, as on
-  `/sent`.
+- Like `/sent` and `/scheduled`, the page covers only the loaded pages of `/emails`; "Load older"
+  brings in the rest.
 - The list row shows the stored draft with its placeholders filled in from the email's
   `details`, as on `/sent` since #244; Hide details shows the placeholders.
 
@@ -91,8 +96,13 @@ None.
 
 - `isPendingDraft(email: Email): boolean` in `src/lib/` keeps the rule testable.
 - `timestampOf` = the email's received `timestamp`.
+- `FilteredEmailList` takes `byConversation`: it runs `groupByThread` first and filters each
+  conversation's newest email. Sent and Scheduled leave it off.
 
 ## Decisions
+
+- 2026-10-19 (review of #248): An email answered from Gmail (`isAnswered`) is not a pending
+  draft, and the page shows one row per conversation: only the newest email's draft matters.
 
 - 2026-10-19: A scheduled reply is not a draft: it was approved and waits on `/scheduled`, so
   listing it here as "waiting" would be wrong. `ComingSoon` goes with this page, its last user.

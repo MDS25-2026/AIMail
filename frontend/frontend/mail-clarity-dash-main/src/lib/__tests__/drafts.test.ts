@@ -12,6 +12,7 @@ describe("which emails the Drafts page lists (specs/features/drafts-page.md)", (
 
   test.each([
     ["it was sent", { sentAt: "2026-10-09T09:00:00Z" }],
+    ["the reader already replied from Gmail", { isAnswered: true }],
     ["it is scheduled to send later", { scheduledFor: "2026-10-20T01:00:00Z" }],
     ["no draft was written", { draftReply: "" }],
     ["the draft is only spaces", { draftReply: "   " }],
