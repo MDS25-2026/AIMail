@@ -272,9 +272,9 @@ export function useDraftWorkflow(
     });
   };
 
-  const startSend = (id: string) => {
+  const startSend = (id: string, text: string = draft) => {
     const remindIfNoReply = remindByEmail.get(id) ?? false;
-    const request = () => sendMutation.mutateAsync({ emailId: id, draft, remindIfNoReply });
+    const request = () => sendMutation.mutateAsync({ emailId: id, draft: text, remindIfNoReply });
     runMutation(id, DraftAction.Send, request, t("announce.sent")).catch(shownOnScreen);
   };
 
@@ -305,9 +305,10 @@ export function useDraftWorkflow(
    * send mutation fires. Call `undoSend()` to cancel during the window.
    */
   const beginUndoCountdown = (id: string) => {
-    clearCountdown();
+    sendNowIfCounting();
     setUndoEmailId(id);
-    pendingSendRef.current = () => startSend(id);
+    const draftToSend = draft;
+    pendingSendRef.current = () => startSend(id, draftToSend);
     setUndoCountdown(UNDO_COUNTDOWN_SECONDS);
 
     let remaining = UNDO_COUNTDOWN_SECONDS;
@@ -319,7 +320,7 @@ export function useDraftWorkflow(
         pendingSendRef.current = null;
         setUndoCountdown(0);
         // Fire the actual send — use id captured in closure so we send the right email.
-        startSend(id);
+        startSend(id, draftToSend);
       } else {
         setUndoCountdown(remaining);
       }

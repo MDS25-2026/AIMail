@@ -61,7 +61,7 @@ function AuditPage() {
             <TrailView
               trail={trail.data}
               onLoadMore={
-                trail.data.events.length < trail.data.totalRecords
+                trail.data.events.length < Math.min(trail.data.totalRecords, 100)
                   ? () => setLimit((prev) => prev + 50)
                   : undefined
               }

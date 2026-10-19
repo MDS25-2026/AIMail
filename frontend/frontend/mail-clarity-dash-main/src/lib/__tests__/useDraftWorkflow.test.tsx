@@ -202,6 +202,32 @@ describe("the undo window", () => {
     );
   });
 
+  test("approving email B within 5 seconds of approving email A flushes A's send and starts B's countdown", async () => {
+    vi.useFakeTimers();
+    const calls = stubFetch({
+      "POST /emails/a/send": { body: { ...first, sentAt: "2026-10-08T00:00:00Z" } },
+      "POST /emails/b/send": { body: { ...second, sentAt: "2026-10-08T00:00:00Z" } },
+    });
+    const { result, rerender } = renderWorkflow(first);
+    act(() => result.current.send());
+    expect(result.current.undoCountdown).toBe(5);
+
+    rerender(second);
+    expect(result.current.undoCountdown).toBeNull();
+
+    act(() => result.current.send());
+    expect(writes(calls)).toEqual([
+      {
+        method: "POST",
+        path: "/emails/a/send",
+        body: { draft: "Draft for A", remindIfNoReply: false },
+      },
+    ]);
+    expect(result.current.undoCountdown).toBe(5);
+
+    act(() => result.current.undoSend());
+  });
+
   test("leaving the page during the countdown still sends the approved reply", async () => {
     vi.useFakeTimers();
     const calls = stubFetch({
