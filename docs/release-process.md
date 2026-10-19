@@ -2,7 +2,7 @@
 
 How AImail releases are cut. Mostly automated — humans only intervene at merge time.
 
-_Last reviewed: 2026-04-29_
+_Last reviewed: 2026-10-19_
 
 ---
 
@@ -32,20 +32,18 @@ You can let the release PR sit open across multiple feature merges — it auto-u
 
 ---
 
-## Version-bumping rules (pre-1.0)
+## Version-bumping rules (post-1.0)
 
-While we are below `1.0.0`:
+With the project at `1.7.0+`:
 
 | Commit type    | Version effect          |
 |----------------|-------------------------|
-| `feat:`        | minor bump? **No** — patch bump (project is pre-1.0). |
-| `fix:`         | patch bump.             |
-| `BREAKING CHANGE:` footer | minor bump (allowed pre-1.0).      |
+| `feat:`        | minor bump (e.g. `1.7.0` -> `1.8.0`). |
+| `fix:`         | patch bump (e.g. `1.7.0` -> `1.7.1`). |
+| `BREAKING CHANGE:` footer | major bump (e.g. `1.7.0` -> `2.0.0`). |
 | Anything else  | no version effect by itself; rolls into the next bumping commit. |
 
-This is enforced by the `bump-patch-for-minor-pre-major: true` flag in [`/release-please-config.json`](../release-please-config.json). It keeps version churn minimal until we're ready to cut a real `1.0.0` for the FYP demo.
-
-When you're ready for `1.0.0`, edit `.release-please-manifest.json` (or comment `release-as: 1.0.0` on the release PR) and merge.
+When you want to force a specific version, comment `release-as: X.Y.Z` on the release PR or edit `.release-please-manifest.json` directly.
 
 ---
 
@@ -77,7 +75,7 @@ To **change** what's visible, edit `changelog-sections` and merge — the next r
 |-------|-----|
 | Hand-edit `CHANGELOG.md`. | Release Please regenerates it. Your edits get clobbered or cause merge conflicts. |
 | Manually create a `chore: release` commit. | Release Please does this. Doing it yourself confuses the next run. |
-| Manually tag releases (`git tag v0.1.0`). | Release Please tags on PR merge. Manual tags break version detection. |
+| Manually tag releases (`git tag v1.7.0`). | Release Please tags on PR merge. Manual tags break version detection. |
 | Force-push to `main`. | Release Please's commit history scan breaks. Already prevented by branch protection. |
 | Squash-merge the release PR. | Release PRs should **merge commit** — Release Please relies on merge commit metadata. *(See note below.)* |
 

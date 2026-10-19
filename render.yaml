@@ -124,4 +124,7 @@ services:
       # Internal). Without it every attachment is skipped.
       - key: ATTACHMENT_READER_URL
         sync: false
+      # Model that transcribes the reader's redacted images.
+      - key: OCR_MODEL
+        value: gemini-3.5-flash-lite
 

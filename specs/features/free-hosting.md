@@ -1,20 +1,21 @@
-# Free hosting for the final presentation: Vercel, Render and the laptop
+# Cloud hosting for the final presentation: Vercel and Render
 
-- **Status:** in progress 2026-10-12
+- **Status:** deployed 2026-10-12
 - **Issue:** #150; epic #138 line 92
-- **Decision:** the owner chose option A on 2026-10-12: free tiers first. Billing was set up the same day,
-  so the backend moved to Starter and Presidio to a private Render service (see "Paid update").
+- **Decision:** the backend moved to Starter plan, Presidio and attachment reader to private Render services,
+  and the listener to a background worker on Render (see "Paid update").
 
 ## Shape
 
 ```
 browser ──► Vercel (dashboard, vercel.app)
-              └─ /api/* rewritten at Vercel's edge ──► Render web service (free)
+              └─ /api/* rewritten at Vercel's edge ──► Render web service (aimail-backend)
                                                         ├─ backend API  :$PORT
                                                         ├─ agent        127.0.0.1:8001
                                                         └─ worker       (drafting, retention, reconciler)
-Render ──HTTPS + basic auth──► Cloudflare quick tunnel ──► laptop: Caddy ──► Presidio analyzer
-laptop: listener (Pub/Sub pull) ──► Supabase ◄── Render
+Render web service ──internal network──► Render private service (aimail-presidio :3000)
+Render web service ──internal network──► Render private service (aimail-attachment-reader)
+Render worker (aimail-listener, Pub/Sub pull) ──► Supabase ◄── Render web service
 ```
 
 ## Why each part is where it is

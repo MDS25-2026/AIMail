@@ -172,13 +172,18 @@ function seedAudit(emails: Email[]) {
   const steps = emails.flatMap((email) => {
     const at = new Date(email.timestamp);
     const masked = email.details?.length ?? 0;
+    const emailsMasked = email.details?.filter((d) => d.kind === "EMAIL").length ?? 0;
+    const phonesMasked = email.details?.filter((d) => d.kind === "PHONE").length ?? 0;
     const rows: [string, AuditFields, Date][] = [
       [
         "store_message",
-        { message: email.id, masking_status: email.masking ?? MaskingStatus.Complete },
+        {
+          emails_masked: emailsMasked,
+          gmail_message_id: email.id,
+          phones_masked: phonesMasked,
+        },
         at,
       ],
-      ["pii_mask", { message: email.id, masked }, at],
     ];
     if (email.draftReply) {
       const drafted = new Date(at.getTime() + 60_000);

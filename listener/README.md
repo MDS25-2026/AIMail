@@ -106,8 +106,9 @@ Pub/Sub; no `credentials.json` or `token.json` goes into the image. Probe `GET :
   are still masked but their details cannot be shown or restored.
 - `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` — the web client in Supabase's Google
   provider; a connected user's token can only be refreshed with the client that issued it.
-- `PRESIDIO_ANALYZER_URL`, `PRESIDIO_ANONYMIZER_URL` — Presidio endpoints; default to `localhost:5001/5002`
-  (the `docker-compose.yml` services). Optional — unset/unreachable degrades to regex-only masking.
+- `PRESIDIO_ANALYZER_URL` — Presidio Analyzer endpoint; defaults to `http://localhost:5001/analyze`
+  (the `docker-compose.yml` service). When unreachable or unconfigured, new emails are quarantined in
+  pending state with no content rather than ingested unmasked.
 - `credentials.json` — OAuth client downloaded from Google Cloud (gitignored).
 - `token.json` — OAuth token, written on consent (gitignored).
 

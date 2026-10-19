@@ -168,10 +168,10 @@ function markDismissed(call: Call, isDismissed: boolean) {
 }
 
 function markNotWaiting({ params, endpoint }: Call, isDismissed: boolean) {
-  const email = emailOfSent(params[0], endpoint);
+  emailOfSent(params[0], endpoint);
   if (isDismissed) state.notWaiting.set(params[0], new Date().toISOString());
   else state.notWaiting.delete(params[0]);
-  record("waiting_dismissed", { message: email.id, dismissed: isDismissed });
+  record("waiting_dismissed", { sent: params[0], dismissed: isDismissed });
 }
 
 // ---- Templates (backend/app/templates.py) ----
@@ -357,10 +357,14 @@ function writingStyle(): WritingStyle {
   return state.writingStyle ?? EMPTY_STYLE;
 }
 
-function changeStyle(action: string, change: (style: WritingStyle) => Partial<WritingStyle>) {
+function changeStyle(
+  action: string,
+  fields: AuditFields,
+  change: (style: WritingStyle) => Partial<WritingStyle>,
+) {
   const style = writingStyle();
   state.writingStyle = { ...style, ...change(style) };
-  record(action, {});
+  record(action, fields);
   return state.writingStyle;
 }
 
@@ -378,9 +382,13 @@ function addExample({ json, endpoint }: Call): WritingStyle {
     createdAt: new Date().toISOString(),
     text: fromEmail ? fromEmail.draftReply : String(json.text ?? ""),
   };
-  return changeStyle("writing_style_example_added", () => ({
-    examples: [...style.examples, example],
-  }));
+  return changeStyle(
+    "writing_style_example_added",
+    { source: example.source },
+    () => ({
+      examples: [...style.examples, example],
+    }),
+  );
 }
 
 export const PAGE_ROUTES: Route[] = [
@@ -423,7 +431,7 @@ export const PAGE_ROUTES: Route[] = [
     handler: ({ params, endpoint }) => {
       const email = emailOfSent(params[0], endpoint);
       state.followedUp.set(params[0], new Date().toISOString());
-      record("follow_up_sent", { message: email.id });
+      record("follow_up_sent", { message: email.id, restored: email.details?.length ?? 0 });
     },
   },
   {
@@ -586,33 +594,49 @@ export const PAGE_ROUTES: Route[] = [
   {
     method: "PUT",
     pattern: /^\/profile\/writing\/description$/,
-    handler: ({ json }) =>
-      changeStyle("writing_style_description", () => ({
-        description: String(json.description ?? ""),
-      })),
+    handler: ({ json }) => {
+      const description = String(json.description ?? "");
+      return changeStyle(
+        "writing_style_description",
+        { chars: description.length },
+        () => ({ description }),
+      );
+    },
   },
   {
     method: "PUT",
     pattern: /^\/profile\/writing\/learning$/,
     handler: ({ json }) =>
-      changeStyle("writing_style_learning", () => ({ learning: Boolean(json.enabled) })),
+      changeStyle(
+        "writing_style_learning",
+        { enabled: Boolean(json.enabled) },
+        () => ({ learning: Boolean(json.enabled) }),
+      ),
   },
   { method: "POST", pattern: /^\/profile\/writing\/examples$/, handler: addExample },
   {
     method: "DELETE",
     pattern: /^\/profile\/writing\/examples\/([^/]+)$/,
     handler: ({ params }) =>
-      void changeStyle("writing_style_deleted_example", (style) => ({
-        examples: style.examples.filter((example) => example.id !== params[0]),
-      })),
+      void changeStyle(
+        "writing_style_deleted_example",
+        { item: params[0] },
+        (style) => ({
+          examples: style.examples.filter((example) => example.id !== params[0]),
+        }),
+      ),
   },
   {
     method: "DELETE",
     pattern: /^\/profile\/writing\/habits\/([^/]+)$/,
     handler: ({ params }) =>
-      void changeStyle("writing_style_hid_habit", (style) => ({
-        habits: style.habits.filter((habit) => habit.id !== params[0]),
-      })),
+      void changeStyle(
+        "writing_style_hid_habit",
+        { item: params[0] },
+        (style) => ({
+          habits: style.habits.filter((habit) => habit.id !== params[0]),
+        }),
+      ),
   },
   {
     method: "DELETE",

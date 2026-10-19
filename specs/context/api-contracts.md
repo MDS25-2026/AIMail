@@ -219,10 +219,10 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   Presidio for names, emails, phones, cards and IBANs. If Presidio is unreachable they answer `503`
   `masking_unavailable` and store nothing.
 - Ingestion routes (`POST /documents`, `POST /documents/upload`) are rate limited to 20
-  requests per 60s per client IP; over that returns `429` with `Retry-After`. Uploads are
+  requests per 60s per user (or client IP if unauthenticated); over that returns `429` with `Retry-After`. Uploads are
   capped at 10 MB (`413`) and must carry a real `%PDF-` header (`400`).
 - Model-spending routes (`POST /search`, `POST /ask`, `POST /emails/{id}/regenerate`,
-  `POST /emails/{id}/refine`, `POST /emails/{id}/translate`) are rate limited to 10 requests per 60s per client IP; over that
+  `POST /emails/{id}/refine`, `POST /emails/{id}/translate`) are rate limited to 10 requests per 60s per user (or client IP if unauthenticated); over that
   returns `429` with `Retry-After`.
 - Every response carries `X-Request-ID` (a caller-supplied one is kept when it is 1-64 chars of
   `[A-Za-z0-9._-]`, otherwise replaced), and the backend forwards it to Lane C so both logs share
@@ -263,7 +263,7 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   with `{"status": "failed", "checks": {"<name>": "failed"}}`; the backend checks its database and
   Presidio (since 2026-10-12), the agent that a model is configured, without calling one). Neither needs a session or the agent token,
   and neither is in the OpenAPI schema. The listener's own probes are on `:8095`.
-- The Lane C agent (`:8001`) carries no token of its own and is bound to `127.0.0.1`; it is
+- The Lane C agent (`:8001`) requires an `Authorization: Bearer <AGENT_TOKEN>` header (configured via `AGENT_TOKEN`) and is bound to `127.0.0.1`; it is
   reachable only by the backend on the same host.
 - Errors follow this shape:
 

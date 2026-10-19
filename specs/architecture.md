@@ -107,9 +107,9 @@ Change a shape there **first**, log it in `docs/decisions/shared.md`, then both 
 
 Tracked in epic #138.
 
-- Hosting is free-tier for now: Vercel for the dashboard, one Render service for the API, agent and
-  worker, and Presidio plus the listener on a laptop ([`features/free-hosting.md`](features/free-hosting.md),
-  ADR 0007 accepted with the `/api` rewrite). The listener needs paid always-on compute to leave the laptop.
+- Hosted deployment: Vercel for the dashboard, and Render from `render.yaml` running the backend API,
+  agent, background listener worker, and private Presidio and attachment-reader services
+  ([`features/free-hosting.md`](features/free-hosting.md), ADR 0007 accepted with the `/api` rewrite).
 - The listener part of per-user mailboxes awaits Lane A review
   ([`features/per-user-mailboxes.md`](features/per-user-mailboxes.md)).
 - To-do grouping by action type waits on the team's action types (#142).

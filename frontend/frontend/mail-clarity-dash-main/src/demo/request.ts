@@ -141,7 +141,7 @@ const EMAIL_ROUTES: Route[] = [
         draftReply: String(call.json.draft ?? ""),
         scheduledFor: iso(call.json.sendAt),
       }));
-      record("send_scheduled", { message: email.id, send_at: email.scheduledFor ?? null });
+      record("send_scheduled", { message: email.id });
       return email;
     },
   },
@@ -150,7 +150,7 @@ const EMAIL_ROUTES: Route[] = [
     pattern: /^\/emails\/([^/]+)\/schedule$/,
     handler: (call) => {
       const email = updateEmail(call, () => ({ scheduledFor: null }));
-      record("scheduled_send_cancelled", { message: email.id });
+      record("scheduled_send_cancelled", { message: email.id, reason: "cancelled" });
       return email;
     },
   },
@@ -162,7 +162,7 @@ const EMAIL_ROUTES: Route[] = [
         snoozedUntil: iso(call.json.until),
         isRead: false,
       }));
-      record("email_snoozed", { message: email.id, until: email.snoozedUntil ?? null });
+      record("email_snoozed", { message: email.id, snoozed: true });
       return email;
     },
   },
@@ -171,7 +171,7 @@ const EMAIL_ROUTES: Route[] = [
     pattern: /^\/emails\/([^/]+)\/snooze$/,
     handler: (call) => {
       const email = updateEmail(call, () => ({ snoozedUntil: null }));
-      record("email_snoozed", { message: email.id, until: null });
+      record("email_snoozed", { message: email.id, snoozed: false });
       return email;
     },
   },
@@ -202,7 +202,10 @@ const EMAIL_ROUTES: Route[] = [
         draftReply,
         egress: aiSteps({ ...current, draftReply }, "refine", "critic"),
       }));
-      record("refine_draft", { message: email.id });
+      record("refine_draft", {
+        message: email.id,
+        review: (email.reviewReasons?.length ?? 0) > 0,
+      });
       return email;
     },
   },

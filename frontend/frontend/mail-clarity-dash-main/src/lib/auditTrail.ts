@@ -12,7 +12,6 @@ const NAMED_ACTIONS = [
   "confirm_sender",
   "translate_email",
   "store_message",
-  "pii_mask",
   "quarantine",
   "document_deleted",
   "private_mode",
