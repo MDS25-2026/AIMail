@@ -66,7 +66,7 @@ export default function DocumentPreviewSheet({
         className="fixed inset-y-0 right-0 flex w-full max-w-full flex-col border-l border-line bg-surface shadow-2xl transition-transform sm:max-w-2xl"
       >
         {/* Header */}
-        <header className="flex items-start justify-between border-b border-line bg-surface-elevated p-4">
+        <header className="flex items-start justify-between border-b border-line bg-surface-muted p-4">
           <div className="min-w-0 flex-1 pr-3">
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-1 text-xs font-semibold text-brand">
@@ -206,7 +206,7 @@ export default function DocumentPreviewSheet({
 
         {/* Footer info */}
         {doc ? (
-          <footer className="flex items-center justify-between border-t border-line bg-surface-elevated px-4 py-2.5 text-[11px] text-fg-muted">
+          <footer className="flex items-center justify-between border-t border-line bg-surface-muted px-4 py-2.5 text-[11px] text-fg-muted">
             <span>{t("docPreview.chunksWithCount", { count: doc.chunk_count })}</span>
             <span
               className="max-w-48 truncate font-mono text-[10px] text-fg-subtle"

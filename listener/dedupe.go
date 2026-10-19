@@ -76,7 +76,7 @@ func insertIgnoringDuplicates(ctx context.Context, table, onConflict, returned s
 		return false, fmt.Errorf("do request: %w", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode >= 400 && resp.StatusCode < 500 {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusUnprocessableEntity || resp.StatusCode == http.StatusConflict {
 		return false, fmt.Errorf("%w: status %d", errRowRejected, resp.StatusCode)
 	}
 	if resp.StatusCode >= 300 {

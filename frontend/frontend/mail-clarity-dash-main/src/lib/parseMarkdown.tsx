@@ -76,7 +76,7 @@ export function parseInlineTokens(text: string): ReactNode[] {
             href={safeHref}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-brand underline hover:text-brand-hover"
+            className="text-brand underline hover:text-brand-strong"
           >
             {linkMatch[1]}
           </a>,

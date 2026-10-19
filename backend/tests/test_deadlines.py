@@ -36,6 +36,7 @@ def test_the_vendor_review_email_is_due_at_noon_tomorrow_its_earliest_ask():
     ("Sila hantar sebelum Khamis.", kl(2026, 10, 15, 17, 0)),
     ("Sila sahkan selewat-lewatnya 20 Oktober.", kl(2026, 10, 20, 17, 0)),
     ("No later than 2026-10-21 18:30.", kl(2026, 10, 21, 18, 30)),
+    ("Please send by 10.99pm tomorrow.", kl(2026, 10, 14, 17, 0)),
 ])
 def test_deadlines_in_english_and_malay(text, due):
     assert local(text) == due

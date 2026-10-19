@@ -23,7 +23,7 @@ _CUE = re.compile(
     r"sebelum|selewat-lewatnya|paling lewat|tarikh akhir)\b",
     re.IGNORECASE,
 )
-_SENTENCE_END = re.compile(r"[.!?\n]")
+_SENTENCE_END = re.compile(r"(?<!\d)\.(?!\d)|[!?\n]")
 _TIME = re.compile(r"\b(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)", re.IGNORECASE)
 _TIME_24H = re.compile(r"\b([01]?\d|2[0-3]):([0-5]\d)\b")
 _WEEKDAYS = {name: index for index, names in enumerate([
@@ -56,7 +56,10 @@ def _moment(window: str, sent: datetime) -> datetime | None:
     day = _day(window, sent.date())
     if day is None:
         return None
-    return datetime.combine(day, _time_of_day(window), tzinfo=sent.tzinfo)
+    try:
+        return datetime.combine(day, _time_of_day(window), tzinfo=sent.tzinfo)
+    except (ValueError, OverflowError):
+        return None
 
 
 def _day(window: str, today: date) -> date | None:
@@ -86,7 +89,13 @@ def _time_of_day(window: str) -> time:
         return NOON
     if match := _TIME.search(window):
         hour, minute, half = int(match.group(1)) % 12, int(match.group(2) or 0), match.group(3).lower()
-        return time(hour + (12 if half.startswith("p") else 0), minute)
+        try:
+            return time(hour + (12 if half.startswith("p") else 0), minute)
+        except ValueError:
+            return DEFAULT_DEADLINE
     if match := _TIME_24H.search(window):
-        return time(int(match.group(1)), int(match.group(2)))
+        try:
+            return time(int(match.group(1)), int(match.group(2)))
+        except ValueError:
+            return DEFAULT_DEADLINE
     return DEFAULT_DEADLINE
