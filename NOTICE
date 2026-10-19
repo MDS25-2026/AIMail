@@ -1,0 +1,41 @@
+AIMail
+Copyright (c) 2026 Team MDS25 (Monash University FIT3164)
+
+This product includes software and materials developed by third parties:
+
+1. Microsoft Presidio
+   - Copyright (c) Microsoft Corporation.
+   - Licensed under the MIT License.
+   - Used for PII recognition, entity extraction, and regex masking floor.
+
+2. Google Generative AI (Gemini Models & SDK)
+   - Governed by the Google Generative AI Developer Terms of Service.
+   - Models utilized: gemini-3.5-flash-lite, gemini-2.5-flash, text-embedding-004 / gemini-embedding-001.
+
+3. Google Gemma & Gemma-SEA-LION
+   - Governed by the Gemma Terms of Use and AI Singapore research license.
+   - Used for optional on-premise Private mode inference and local vision detection.
+
+4. DistilBERT / Hugging Face Transformers
+   - Copyright (c) Hugging Face, Inc.
+   - Licensed under the Apache License, Version 2.0.
+   - Used for optional fine-tuned email priority classification.
+
+5. spaCy & Presidio Models
+   - Copyright (c) ExplosionAI GmbH.
+   - Licensed under the MIT License.
+   - Used for natural language processing and entity span detection.
+
+6. Datasets
+   - Enron Email Dataset (Federal Energy Regulatory Commission / CMU, public domain).
+   - Synthetic B2B Email Classification Corpus (MDS25 synthetic dataset for research).
+
+7. Frontend Libraries & Icons
+   - React & React Router / TanStack Start: MIT License.
+   - Tailwind CSS: MIT License.
+   - Lucide Icons: ISC License (Copyright (c) Lucide Contributors).
+
+8. Backend Frameworks & Database
+   - FastAPI & Starlette: MIT License / BSD-3-Clause License.
+   - SQLAlchemy & asyncpg: MIT License / Apache 2.0 License.
+   - PostgreSQL & pgvector: PostgreSQL License / PostgreSQL License.

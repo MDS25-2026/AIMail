@@ -18,6 +18,7 @@ from app.core.config import get_settings
 from app.db.models import Document, MailboxConnection, Message
 from app.db.session import get_sessionmaker
 from app.erasure import Subject, erase
+from app.gmail_send import invalidate_cached_token
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,7 @@ async def disconnect_gmail(user_id: UUID) -> Erased:
                                       .where(MailboxConnection.user_id == user_id))
     if sealed is None:
         raise NotConnectedError(str(user_id))
+    invalidate_cached_token(user_id)
     await _revoke_at_google(user_id, sealed)
     async with get_sessionmaker()() as session, session.begin():
         counts = await erase(session, user_id, Subject.MAILBOX)

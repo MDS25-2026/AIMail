@@ -27,13 +27,20 @@ type SenderVerdict struct {
 	IsAutomated bool   `json:"is_automated"` // never sent a holding reply (automated.go)
 }
 
+func receivedAt(msg *gmail.Message) time.Time {
+	if msg.InternalDate > 0 {
+		return time.UnixMilli(msg.InternalDate).UTC()
+	}
+	return time.Now().UTC()
+}
+
 // senderFacts needs msg.Payload; callers have already dropped messages without one.
 func senderFacts(msg *gmail.Message) SenderFacts {
 	headers := msg.Payload.Headers
 	return SenderFacts{
 		FromAddr:               headerValue(headers, "From"),
 		ReplyTo:                headerValue(headers, "Reply-To"),
-		ReceivedAt:             time.Now().UTC(),
+		ReceivedAt:             receivedAt(msg),
 		SenderUTCOffsetMinutes: utcOffsetMinutes(headerValue(headers, "Date")),
 		SenderVerdict:          senderVerdict(headers, msg.LabelIds),
 		ThreadIdentity:         threadIdentity(msg),

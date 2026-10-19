@@ -304,6 +304,11 @@ func daysBetween(date, base time.Time) int {
 // ClassifySLA applies the deterministic priority rules to an email's subject and body.
 // Rules are tested in priority order; the first match wins. SLAUnset means no rule fired.
 func ClassifySLA(subject, body string, receivedAt time.Time) SLAPriority {
+	// Attachment text is stored in BodyMasked for RAG/search, but must not falsely trigger SLA rules
+	// or create an asymmetry where replies drop attachments after quotes while fresh mail keeps them.
+	if idx := strings.Index(body, ocrMarker); idx != -1 {
+		body = body[:idx]
+	}
 	body = ownText(body)
 	combined := negatedUrgencyRe.ReplaceAllString(subject+" "+body, " ")
 

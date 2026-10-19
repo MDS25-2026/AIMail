@@ -21,9 +21,14 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-          cache: pip
       # constraints.txt pins what make check last passed with; the floors alone let CI drift.
-      - run: pip install -r requirements.txt -c constraints.txt
+      # Dependabot PRs test bumped floors directly without being blocked by stale pinned constraints.
+      - run: |
+          if [ "${{ github.actor }}" = "dependabot[bot]" ]; then
+            pip install -r requirements.txt
+          else
+            pip install -r requirements.txt -c constraints.txt
+          fi
       - run: ruff check app tests scripts *.py
       - run: pytest -q
       # The image the backend and agent ship in; its .dockerignore keeps the study data out.
@@ -53,7 +58,12 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: pip install -r requirements.txt -c constraints.txt
+      - run: |
+          if [ "${{ github.actor }}" = "dependabot[bot]" ]; then
+            pip install -r requirements.txt
+          else
+            pip install -r requirements.txt -c constraints.txt
+          fi
       # Twice: the second run must find nothing pending, so a migration that is not idempotent fails here.
       - run: python scripts/migrate.py
       - run: python scripts/migrate.py
@@ -73,7 +83,12 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: frontend/frontend/mail-clarity-dash-main/package-lock.json
-      - run: pip install -r backend/requirements.txt -c backend/constraints.txt
+      - run: |
+          if [ "${{ github.actor }}" = "dependabot[bot]" ]; then
+            pip install -r backend/requirements.txt
+          else
+            pip install -r backend/requirements.txt -c backend/constraints.txt
+          fi
       # The npm package.json pins (packageManager): the runner's npm reads the lockfile differently.
       - run: npm install -g "$(node -p "require('./package.json').packageManager")"
         working-directory: frontend/frontend/mail-clarity-dash-main

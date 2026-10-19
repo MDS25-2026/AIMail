@@ -1,5 +1,5 @@
 import { Check, Copy, FileText, Layers, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { InlineAlert } from "./InlineMessages";
@@ -25,12 +25,45 @@ export default function DocumentPreviewSheet({
   const { data: doc, isLoading, error } = useDocument(isOpen ? documentId : null);
   const [viewMode, setViewMode] = useState<ViewMode>("reassembled");
   const [copied, setCopied] = useState(false);
+  const panelRef = useRef<HTMLElement>(null);
 
-  // Close on Escape key
+  // Focus trap and Escape key handler
   useEffect(() => {
+    if (!isOpen) return;
+    const panel = panelRef.current;
+    if (panel) {
+      const focusable = panel.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      focusable[0]?.focus();
+    }
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isOpen) {
+      if (e.key === "Escape") {
         onClose();
+        return;
+      }
+      if (e.key === "Tab" && panel) {
+        const focusable = Array.from(
+          panel.querySelectorAll<HTMLElement>(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+          ),
+        ).filter((el) => !el.hasAttribute("disabled") && el.offsetParent !== null);
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            last.focus();
+            e.preventDefault();
+          }
+        } else {
+          if (document.activeElement === last) {
+            first.focus();
+            e.preventDefault();
+          }
+        }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -61,6 +94,7 @@ export default function DocumentPreviewSheet({
 
       {/* Slide-over panel */}
       <aside
+        ref={panelRef}
         role="dialog"
         aria-label={doc?.title ? `${doc.title} preview` : "Document preview"}
         className="fixed inset-y-0 right-0 flex w-full max-w-full flex-col border-l border-line bg-surface shadow-2xl transition-transform sm:max-w-2xl"

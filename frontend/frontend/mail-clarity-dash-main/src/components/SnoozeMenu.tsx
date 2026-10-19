@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { errorMessage } from "../lib/api/errors";
@@ -14,6 +14,7 @@ export default function SnoozeMenu({ email }: { email: Email }) {
   const { t } = useTranslation();
   const format = useFormat();
   const panelId = useId();
+  const menuRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const snooze = useSnoozeEmail();
   const unsnooze = useUnsnoozeEmail();
@@ -23,6 +24,26 @@ export default function SnoozeMenu({ email }: { email: Email }) {
     email.snoozedUntil !== null &&
     email.snoozedUntil !== undefined &&
     new Date(email.snoozedUntil) > new Date();
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsOpen(false);
+      }
+    };
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isOpen]);
 
   if (isSnoozed && email.snoozedUntil) {
     return (
@@ -41,7 +62,7 @@ export default function SnoozeMenu({ email }: { email: Email }) {
   }
 
   return (
-    <div className="relative">
+    <div ref={menuRef} className="relative">
       <button
         type="button"
         aria-expanded={isOpen}

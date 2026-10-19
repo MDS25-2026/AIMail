@@ -23,6 +23,8 @@ func TestAutomatedMailIsRecognised(t *testing.T) {
 		"another auto-reply": headers("From", "a@b.com", "Auto-Submitted", "auto-replied"),
 		"bounce":             headers("From", "a@b.com", "Return-Path", "<>"),
 		"noreply sender":     headers("From", "Agoda <no-reply@agoda.com>"),
+		"no_reply sender":    headers("From", "Support <no_reply@service.com>"),
+		"do_not_reply":       headers("From", "Alerts <do_not_reply@bank.com>"),
 		"mailer daemon":      headers("From", "MAILER-DAEMON@mail.example.com"),
 	}
 	for name, h := range cases {

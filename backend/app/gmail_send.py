@@ -131,8 +131,14 @@ _cached_tokens: dict[UUID | None, tuple[str, float]] = {}
 _EXPIRY_MARGIN_SECONDS = 60
 
 
+def invalidate_cached_token(owner_id: UUID | None) -> None:
+    """Clear any in-memory access token cached for this mailbox (e.g. on disconnect or revocation)."""
+    _cached_tokens.pop(owner_id, None)
+
+
 async def _mark_needs_reconnect(owner_id: UUID) -> None:
     """The dashboard then asks the user to sign in again (specs/features/per-user-mailboxes.md)."""
+    invalidate_cached_token(owner_id)
     async with get_sessionmaker()() as session, session.begin():
         await session.execute(update(MailboxConnection).where(MailboxConnection.user_id == owner_id)
                               .values(needs_reconnect=True))

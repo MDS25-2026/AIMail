@@ -101,6 +101,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content",
       },
       { name: "theme-color", content: THEME_COLOR },
+      { httpEquiv: "X-Frame-Options", content: "DENY" },
+      { name: "referrer", content: "strict-origin-when-cross-origin" },
+      {
+        httpEquiv: "Content-Security-Policy",
+        content:
+          "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:; connect-src 'self' http://localhost:* https://*.onrender.com https://*.supabase.co;",
+      },
       ...pageMeta(match.context.preferences.language, Page.App),
     ],
     links: [

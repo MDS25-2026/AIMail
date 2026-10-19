@@ -29,15 +29,17 @@ def origins_from(raw: str) -> list[str]:
 
 class PathScopedCORS:
     def __init__(self, app: ASGIApp, admin_prefix: str, admin_origins: list[str],
-                 public_origins: list[str], public_origin_regex: str) -> None:
+                 frontend_origins: list[str] | None = None, public_origin_regex: str = "",
+                 public_origins: list[str] | None = None) -> None:
+        dash_origins = frontend_origins if frontend_origins is not None else (public_origins or [])
         self.admin_prefix = admin_prefix
         self.admin = CORSMiddleware(app, allow_origins=admin_origins, allow_credentials=True,
                                     allow_methods=ADMIN_METHODS, allow_headers=ADMIN_HEADERS)
-        self.dashboard_origins = frozenset(admin_origins)
-        self.dashboard = CORSMiddleware(app, allow_origins=admin_origins, allow_credentials=True,
+        self.dashboard_origins = frozenset(dash_origins)
+        self.dashboard = CORSMiddleware(app, allow_origins=dash_origins, allow_credentials=True,
                                         allow_methods=DASHBOARD_METHODS,
                                         allow_headers=DASHBOARD_HEADERS)
-        self.public = CORSMiddleware(app, allow_origins=public_origins,
+        self.public = CORSMiddleware(app, allow_origins=dash_origins,
                                      allow_origin_regex=public_origin_regex,
                                      allow_methods=["*"], allow_headers=["*"])
 

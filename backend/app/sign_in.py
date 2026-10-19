@@ -34,10 +34,13 @@ from app.core.auth import (
 )
 from app.core.config import get_settings
 from app.core.errors import DomainError, ErrorCode
+from app.core.ratelimit import RateLimiter
 from app.core.supabase_auth import Session
 
 router = APIRouter(prefix="/auth")
 logger = logging.getLogger(__name__)
+
+rate_limit_callback = RateLimiter("auth callback", 10, 60)
 
 VERIFIER_COOKIE = "aimail_pkce"
 VERIFIER_PATH = "/auth"
@@ -116,7 +119,7 @@ async def start_google_sign_in() -> RedirectResponse:
     return response
 
 
-@router.get("/callback")
+@router.get("/callback", dependencies=[Depends(rate_limit_callback)])
 async def finish_google_sign_in(
     code: str | None = None,
     error: str | None = None,

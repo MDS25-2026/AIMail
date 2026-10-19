@@ -84,6 +84,10 @@ user`. Until Google verifies the app for restricted scopes, up to 100 listed tes
 - **Deployment:** cookies need the dashboard and backend on one site (for example
   `app.example.com` and `api.example.com`, or a Vercel rewrite from the dashboard to the backend).
   Two unrelated domains would make the cookies third-party, and browsers block those.
+- **Sign-out and JWT lifespan:** sign-out immediately revokes the Supabase refresh token and clears
+  the session cookie. However, because Supabase access tokens are verified statelessly / locally against
+  project ES256 keys without a network round-trip per request, an existing JWT access token held by a client
+  remains cryptographically valid until its standard 1-hour expiration timestamp (`exp`).
 
 ## Revisit when
 

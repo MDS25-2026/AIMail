@@ -305,6 +305,12 @@ func TestClassifySLA(t *testing.T) {
 			body:    "请在 2024-03-11 之前完成确认。",
 			want:    SLACritical,
 		},
+		{
+			name:    "Attachment text does not affect SLA priority",
+			subject: "Routine update",
+			body:    "Hi team, please find attached.\n\n--- text from attachments ---\nURGENT: due within 24h by 2024-03-11",
+			want:    SLAUnset,
+		},
 	}
 
 	for _, tc := range tests {

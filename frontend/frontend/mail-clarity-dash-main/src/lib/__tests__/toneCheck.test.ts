@@ -47,7 +47,7 @@ describe("checkTone", () => {
   });
 
   test("flags excessive emoji usage (3 or more)", () => {
-    const draft = "Hey there! 😊🎉🚀 Let's talk soon!";
+    const draft = "Hey there! \u{1F60A}\u{1F389}\u{1F680} Let's talk soon!";
     const result = checkTone(draft);
     expect(result.hasIssues).toBe(true);
     expect(result.issueCodes).toContain("EMOJI");
