@@ -184,7 +184,7 @@ export function useDraftWorkflow(
   // null = not in the undo window; 1–5 = counting down; 0 = expired (send fired)
   const [undoCountdown, setUndoCountdown] = useState<number | null>(null);
   // The email this countdown belongs to, so we clean up on email change.
-  const undoEmailIdRef = useRef<string | null>(null);
+  const [undoEmailId, setUndoEmailId] = useState<string | null>(null);
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // The send the running countdown will make, so leaving the email can make it now instead.
   const pendingSendRef = useRef<(() => void) | null>(null);
@@ -217,7 +217,7 @@ export function useDraftWorkflow(
       countdownIntervalRef.current = null;
     }
     setUndoCountdown(null);
-    undoEmailIdRef.current = null;
+    setUndoEmailId(null);
     pendingSendRef.current = null;
   }, []);
 
@@ -286,7 +286,7 @@ export function useDraftWorkflow(
     isPendingFor(scheduleMutation, emailId) || isPendingFor(cancelScheduleMutation, emailId);
   const isSending = isPendingFor(sendMutation, emailId);
   const isCountingDown =
-    undoCountdown !== null && undoCountdown > 0 && undoEmailIdRef.current === emailId;
+    undoCountdown !== null && undoCountdown > 0 && undoEmailId === emailId;
   // Locking: during mutations, pregen, or active undo countdown, prevent editing/sending race conditions:
   const isBusy =
     isRegenerating ||
@@ -307,7 +307,7 @@ export function useDraftWorkflow(
    */
   const beginUndoCountdown = (id: string) => {
     clearCountdown();
-    undoEmailIdRef.current = id;
+    setUndoEmailId(id);
     pendingSendRef.current = () => startSend(id);
     setUndoCountdown(UNDO_COUNTDOWN_SECONDS);
 
@@ -499,7 +499,7 @@ export function useDraftWorkflow(
     refine,
     send,
     undoSend,
-    undoCountdown: undoEmailIdRef.current === emailId ? undoCountdown : null,
+    undoCountdown: undoEmailId === emailId ? undoCountdown : null,
     comparison,
     status,
     announcement,

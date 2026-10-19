@@ -51,7 +51,7 @@ export default function EmailDetailPanel({
   onMarkRead,
 }: EmailDetailPanelProps) {
   const { t } = useTranslation();
-  const values = useMemo(() => (email ? detailValues(email.details) : new Map()), [email?.details]);
+  const values = useMemo(() => (email ? detailValues(email.details) : new Map()), [email]);
   if (!email) {
     return (
       <div className="flex h-full items-center justify-center p-8 text-sm text-fg-subtle">
