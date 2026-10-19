@@ -4,6 +4,7 @@ export * from "./audit";
 export { createQueryClient } from "./client";
 export * from "./documents";
 export * from "./emails";
+export * from "./events";
 export * from "./profile";
 export * from "./session";
 export * from "./settings";

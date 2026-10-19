@@ -478,6 +478,10 @@ export const zh: Translations = {
     useAsExample: "用作示例",
     addedAsExample: "已添加到您的写作风格。",
   },
+  live: {
+    on: "实时",
+    reconnecting: "正在重新连接",
+  },
   reconnect: {
     banner:
       "Google 已停止 AIMail 对您 Gmail 的访问，因此新邮件不会到达，回复也无法发送。测试访问有效期为 7 天。",

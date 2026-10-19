@@ -6,6 +6,20 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-19 — Live inbox: server-sent events from the backend, fed by a Postgres trigger
+- Decision: the dashboard learns about new mail and finished drafts from `GET /events` (SSE), which
+  the backend feeds from one LISTEN connection on the `mailbox_changed` channel; a trigger on
+  `messages` raises it with ids only (`specs/features/live-inbox.md`, migration 0046).
+- Why: the listener writes through PostgREST and the worker through SQLAlchemy, so the table is the
+  one place every change passes; SSE is one-way, plain HTTP, reconnects by itself and passes the
+  Vercel rewrite (the origin must send a byte every 120 s; the stream pings every 25 s).
+- Why not: a 30 s poll (a request per user forever and still a delay); WebSockets (nothing goes
+  browser to server on this channel); Supabase Realtime (anon key and RLS in the browser, a second
+  trust surface, and a paid plan).
+- Affects: Lane B (`app/events.py`, `GET /events`, migration 0046), Lane D (`useMailboxEvents`,
+  `AppShell`), `api-contracts.md`, `db-schema.md`, `free-hosting.md`.
+- Status: accepted
+
 ### 2026-10-13 — The inbox pages by whole conversations
 
 - Decision: `GET /emails` returns pages of whole threads (placed by their newest visible email, `limit`

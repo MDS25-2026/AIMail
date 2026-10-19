@@ -25,7 +25,7 @@ from fastapi import (
     status,
 )
 from fastapi import Path as PathParam
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from app import agent_client
@@ -98,6 +98,7 @@ from app.dashboard import (
     translate_email,
 )
 from app.egress_log import save_egress
+from app.events import STREAMS_PER_USER, StreamLimitError, event_lines, events
 from app.gmail_send import SendError, SendOutcomeUnknownError
 from app.holding_reply_routes import router as holding_reply_router
 from app.private_mode import model_for
@@ -134,6 +135,7 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """The API runs no background jobs: they live in the worker (app/worker.py)."""
     await check_columns()
     yield
+    await events.close()
     await agent_client.close()
 
 
@@ -441,6 +443,24 @@ class SystemInfo(BaseModel):
     generate_poll_seconds: int
     document_count: int
     chunk_count: int
+
+
+# The stream is not JSON, so it stays out of the generated dashboard types; api-contracts.md documents it.
+STREAM_HEADERS = {"Cache-Control": "no-store", "CDN-Cache-Control": "no-store", "X-Accel-Buffering": "no"}
+
+
+@app.get("/events", include_in_schema=False)
+async def mailbox_events(request: Request) -> StreamingResponse:
+    """Server-sent events for the caller's own mailbox (specs/features/live-inbox.md)."""
+    user_id = principal_of(request).user_id
+    if user_id is None:
+        raise DomainError(ErrorCode.NOT_FOUND, "the event stream belongs to a signed-in mailbox")
+    try:
+        queue = events.subscribe(user_id)
+    except StreamLimitError as exc:
+        raise DomainError(ErrorCode.RATE_LIMITED, f"at most {STREAMS_PER_USER} event streams per user") from exc
+    return StreamingResponse(event_lines(user_id, queue, events), media_type="text/event-stream",
+                             headers=STREAM_HEADERS)
 
 
 @app.get("/system/info")
