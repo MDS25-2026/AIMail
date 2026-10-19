@@ -1,6 +1,6 @@
 import { ApiError, ApiErrorCode } from "../lib/api/errors";
 import { Language } from "../lib/preferences";
-import type { AuditTrail } from "../types/audit";
+import type { AuditFields, AuditTrail } from "../types/audit";
 import { AuthStatus, MaskingStatus, type Email } from "../types/email";
 import type { DocumentDetail, PolicyDocument, SystemInfo } from "../types/knowledge";
 import { ExampleSource, type WritingStyle } from "../types/profile";

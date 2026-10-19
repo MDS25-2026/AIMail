@@ -36,7 +36,7 @@ export default function InboxChatWidget() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const userId = session.data?.email ?? session.data?.user?.id ?? null;
+  const userId = session.data?.email ?? null;
   const prevUserIdRef = useRef(userId);
 
   useEffect(() => {

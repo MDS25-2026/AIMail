@@ -57,16 +57,16 @@ type reprocessPatch struct {
 	Category           *string          `json:"category"`
 	CategoryConfidence *float64         `json:"category_confidence"`
 	// Normalised again from the new text (specs/features/normalisation-v2.md).
-	Language           *string          `json:"language"`
-	SubjectEn          *string          `json:"subject_en"`
-	OwnTextEn          *string          `json:"own_text_en"`
+	Language  *string `json:"language"`
+	SubjectEn *string `json:"subject_en"`
+	OwnTextEn *string `json:"own_text_en"`
 	// Derived state reset
-	SlaPriority        SLAPriority      `json:"sla_priority"`
-	DeadlineAt         *string          `json:"deadline_at"`
-	Embedding          *string          `json:"embedding"`
-	Importance         *string          `json:"importance"`
-	CriticAttempts     int              `json:"critic_attempts"`
-	DraftTone          *string          `json:"draft_tone"`
+	SlaPriority    SLAPriority `json:"sla_priority"`
+	DeadlineAt     *string     `json:"deadline_at"`
+	Embedding      *string     `json:"embedding"`
+	Importance     *string     `json:"importance"`
+	CriticAttempts int         `json:"critic_attempts"`
+	DraftTone      *string     `json:"draft_tone"`
 }
 
 // runReprocess re-reads stored emails from Gmail with today's extraction (specs/features/readable-emails.md).

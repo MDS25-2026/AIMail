@@ -155,7 +155,7 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootChatWidget() {
   const session = useSession();
-  const sessionKey = session.data?.email ?? session.data?.user?.id ?? "signed-out";
+  const sessionKey = session.data?.email ?? "signed-out";
   return <InboxChatWidget key={sessionKey} />;
 }
 

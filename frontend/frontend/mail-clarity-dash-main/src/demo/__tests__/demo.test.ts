@@ -123,7 +123,7 @@ describe("demo mode (#227)", () => {
     expect(docs.length).toBeGreaterThan(0);
 
     const todoData = await settle(todo.fetchTodo());
-    expect(todoData.needsAction.length).toBeGreaterThan(0);
+    expect(todoData.needsAction.emails.length).toBeGreaterThan(0);
 
     const style = await settle(profile.fetchWritingStyle());
     expect(style.maxExamples).toBeGreaterThan(0);
