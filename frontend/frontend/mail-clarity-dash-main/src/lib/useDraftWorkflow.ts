@@ -285,8 +285,7 @@ export function useDraftWorkflow(
   const isScheduling =
     isPendingFor(scheduleMutation, emailId) || isPendingFor(cancelScheduleMutation, emailId);
   const isSending = isPendingFor(sendMutation, emailId);
-  const isCountingDown =
-    undoCountdown !== null && undoCountdown > 0 && undoEmailId === emailId;
+  const isCountingDown = undoCountdown !== null && undoCountdown > 0 && undoEmailId === emailId;
   // Locking: during mutations, pregen, or active undo countdown, prevent editing/sending race conditions:
   const isBusy =
     isRegenerating ||
