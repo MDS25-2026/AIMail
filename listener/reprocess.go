@@ -236,7 +236,9 @@ func reprocessOne(ctx context.Context, ownerID string, row reprocessRow, srv *gm
 		SlaPriority:    ClassifySLA(content.Subject, content.BodyMasked, time.Now().UTC()),
 		CriticAttempts: 0,
 	}
-	if err := supabasePatch(ctx, "messages", "id=eq."+url.QueryEscape(row.ID), patch); err != nil {
+	filter := fmt.Sprintf("id=eq.%s&or=(generation_claimed_until.is.null,generation_claimed_until.lte.%s)",
+		url.QueryEscape(row.ID), url.QueryEscape(time.Now().UTC().Format(time.RFC3339)))
+	if err := supabasePatch(ctx, "messages", filter, patch); err != nil {
 		log.Printf("email %s not stored: %v", row.ID, err)
 		return "failed to store"
 	}

@@ -620,9 +620,8 @@ func listenToPubSub(ctx context.Context, cfg pubsubConfig, opts []option.ClientO
 					payload.HistoryID, *msg.DeliveryAttempt, err)
 				writeAuditLog(ctx, mb.ownerID, actionIngestAbandoned, auditFields{fieldHistoryID: payload.HistoryID,
 					fieldAttempts: *msg.DeliveryAttempt, fieldReason: reasonTooManyAttempts, fieldErrorKind: errorKind(err)}, false)
-				// Do not advance baseline on temporary outage drops: keeping the baseline at
-				// the last successfully processed point lets the next notification list from that
-				// baseline and recover emails missed during the outage.
+				// Advance baseline past the abandoned range so a poison message does not freeze the mailbox (H1).
+				advanceBaseline(mb, payload.HistoryID)
 				msg.Ack()
 				return
 			}

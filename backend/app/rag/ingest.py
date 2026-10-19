@@ -149,19 +149,23 @@ async def embed_pending(batch_size: int = EMBED_BATCH) -> int:
                 embedded += len(chunks)
             except EmbeddingError as exc:
                 logger.warning("batch embedding failed (%s); falling back to per-chunk isolation", exc)
-                chunk_saved = 0
+                succeeded_chunks: list[tuple[Chunk, list[float]]] = []
+                failed_chunks: list[Chunk] = []
                 for c in chunks:
                     try:
                         v = (await model_gateway.embed_documents([c.content], provider=Provider.GEMINI, purpose=INDEX))[0]
-                        session.add(Embedding(chunk_id=c.id, embedding=v, model_name=EMBEDDING_TAG))
-                        embedded += 1
-                        chunk_saved += 1
+                        succeeded_chunks.append((c, v))
                     except EmbeddingError as chunk_exc:
                         logger.error("chunk %s rejected by Gemini embedding (%s); isolating chunk", c.id, chunk_exc)
-                        session.add(Embedding(chunk_id=c.id, embedding=[0.0] * EMBEDDING_DIM, model_name=EMBEDDING_TAG))
-                        chunk_saved += 1
-                if chunk_saved == 0:
+                        failed_chunks.append(c)
+                if not succeeded_chunks:
+                    # Model is down: leave chunks unembedded to retry later
                     return embedded
+                for c, v in succeeded_chunks:
+                    session.add(Embedding(chunk_id=c.id, embedding=v, model_name=EMBEDDING_TAG))
+                    embedded += 1
+                for c in failed_chunks:
+                    session.add(Embedding(chunk_id=c.id, embedding=[0.0] * EMBEDDING_DIM, model_name=EMBEDDING_TAG))
 
 
 async def embed_pending_locally(batch_size: int = EMBED_BATCH) -> int:
@@ -186,21 +190,24 @@ async def embed_pending_locally(batch_size: int = EMBED_BATCH) -> int:
                 embedded += len(chunks)
             except EmbeddingError as exc:
                 logger.warning("local batch embedding failed (%s); falling back to per-chunk isolation", exc)
-                chunk_saved = 0
+                succeeded_chunks: list[tuple[Chunk, list[float]]] = []
+                failed_chunks: list[Chunk] = []
                 for c in chunks:
                     try:
                         v = (await model_gateway.embed_documents([c.content], provider=Provider.LOCAL, purpose=INDEX))[0]
-                        session.add(LocalEmbedding(chunk_id=c.id, embedding=v, model_name=local_tag()))
-                        embedded += 1
-                        chunk_saved += 1
+                        succeeded_chunks.append((c, v))
                     except EmbeddingError as chunk_exc:
                         logger.error("chunk %s rejected by local embedding (%s); isolating chunk", c.id, chunk_exc)
-                        session.add(
-                            LocalEmbedding(chunk_id=c.id, embedding=[0.0] * LOCAL_EMBEDDING_DIM, model_name=local_tag())
-                        )
-                        chunk_saved += 1
-                if chunk_saved == 0:
+                        failed_chunks.append(c)
+                if not succeeded_chunks:
                     return embedded
+                for c, v in succeeded_chunks:
+                    session.add(LocalEmbedding(chunk_id=c.id, embedding=v, model_name=local_tag()))
+                    embedded += 1
+                for c in failed_chunks:
+                    session.add(
+                        LocalEmbedding(chunk_id=c.id, embedding=[0.0] * LOCAL_EMBEDDING_DIM, model_name=local_tag())
+                    )
 
 
 async def embed_pending_locally_logged() -> None:

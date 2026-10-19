@@ -196,25 +196,35 @@ async def _wait_before_retry(model: str, attempt: int, retry_after: str | None) 
 
 async def call_model(model: str, payload: dict) -> dict:
     """One model, retried on transient failures within the shared deadline."""
+    posted = False
     for attempt in range(ATTEMPTS_PER_MODEL):
         started = time.monotonic()
         try:
-            response = await _post(model, payload, _attempt_timeout())
+            timeout = _attempt_timeout()
+            posted = True
+            response = await _post(model, payload, timeout)
         except (httpx.TransportError, TimeoutError) as error:
             record_call(model, OUTCOME_TRANSPORT_ERROR, started)
             logger.warning("gemini %s attempt %d failed: %r", model, attempt + 1, error)
             retry_after = None
+        except ModelError as error:
+            error.posted = posted
+            raise
         else:
             record_call(model, OUTCOME_OK if response.is_success else f"http_{response.status_code}",
                     started)
             if response.is_success:
                 return response.json()
             if is_input_rejected(response):
-                raise ModelError(ModelErrorCode.REJECTED,
+                err = ModelError(ModelErrorCode.REJECTED,
                                   f"{model} rejected the request: {response.status_code}")
+                err.posted = posted
+                raise err
             if response.status_code not in RETRYABLE_STATUS:
-                raise ModelError(ModelErrorCode.UNAVAILABLE,
+                err = ModelError(ModelErrorCode.UNAVAILABLE,
                                   f"{model} returned {response.status_code}")
+                err.posted = posted
+                raise err
             logger.warning("gemini %s attempt %d returned %d", model, attempt + 1,
                            response.status_code)
             retry_after = response.headers.get("retry-after")
@@ -222,8 +232,15 @@ async def call_model(model: str, payload: dict) -> dict:
             try:
                 await _wait_before_retry(model, attempt, retry_after)
             except _GiveUpOnModel as give_up:
-                raise ModelError(ModelErrorCode.UNAVAILABLE, str(give_up)) from give_up
-    raise ModelError(ModelErrorCode.UNAVAILABLE, f"{model}: {ATTEMPTS_PER_MODEL} attempts failed")
+                err = ModelError(ModelErrorCode.UNAVAILABLE, str(give_up))
+                err.posted = posted
+                raise err from give_up
+            except ModelError as error:
+                error.posted = posted
+                raise
+    err = ModelError(ModelErrorCode.UNAVAILABLE, f"{model}: {ATTEMPTS_PER_MODEL} attempts failed")
+    err.posted = posted
+    raise err
 
 
 async def generate(prompt: str, response_schema: dict | None = None,

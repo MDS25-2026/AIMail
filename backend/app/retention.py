@@ -82,7 +82,7 @@ def _message_content(days: int) -> Executable:
     # Counts, priority, thread identity and the audit trail stay; the readable content goes.
     return (update(Message).where(Message.created_at < _older_than(days), Message.body_masked != "")
             .values(body_masked="", snippet_masked="", ai_summary="", draft_reply="", rag_sources=None,
-                    action_items=None, embedding=None, own_text_en=None, subject=None, subject_en=None,
+                    action_items=None, embedding=None, own_text_en=None, subject=None,
                     from_addr=None, reply_to=None, critic_checks=None))
 
 

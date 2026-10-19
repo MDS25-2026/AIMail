@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 )
 
@@ -76,6 +77,10 @@ func insertIgnoringDuplicates(ctx context.Context, table, onConflict, returned s
 		return false, fmt.Errorf("do request: %w", err)
 	}
 	defer resp.Body.Close()
+	respBody, _ := io.ReadAll(resp.Body)
+	if bytes.Contains(respBody, []byte("PGRST204")) {
+		return false, fmt.Errorf("supabase schema cache lag (PGRST204): status %d: %s", resp.StatusCode, string(respBody))
+	}
 	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusUnprocessableEntity || resp.StatusCode == http.StatusConflict {
 		return false, fmt.Errorf("%w: status %d", errRowRejected, resp.StatusCode)
 	}
@@ -83,7 +88,7 @@ func insertIgnoringDuplicates(ctx context.Context, table, onConflict, returned s
 		return false, fmt.Errorf("supabase insert into %s failed: status %d", table, resp.StatusCode)
 	}
 	var inserted []json.RawMessage
-	if err := json.NewDecoder(resp.Body).Decode(&inserted); err != nil {
+	if err := json.Unmarshal(respBody, &inserted); err != nil {
 		return false, fmt.Errorf("decode insert: %w", err)
 	}
 	return len(inserted) > 0, nil

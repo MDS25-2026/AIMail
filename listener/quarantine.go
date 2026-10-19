@@ -179,7 +179,7 @@ func remaskQuarantined(ctx context.Context) {
 	for _, row := range rows {
 		mb := mailboxByOwner(row.UserID)
 		if mb == nil {
-			recordFailure(ctx, row, reasonDisconnected)
+			// Do not count attempts while disconnected; attempts are only spent when Gmail can be reached (M16).
 			continue
 		}
 		if !remaskOne(ctx, mb.srv, row) {

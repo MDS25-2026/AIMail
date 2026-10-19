@@ -40,14 +40,17 @@ async def normalise_pending(limit: int) -> int:
         rows = (await session.scalars(
             select(Message).where(Message.language.is_(None), Message.masking_status == MaskingStatus.COMPLETE,
                                   Message.body_masked.is_not(None))
-            .order_by(Message.created_at.asc()).limit(limit))).all()
+            .order_by(Message.created_at.desc()).limit(limit))).all()
     done = 0
     for message in rows:
         try:
             await _normalise(message)
         except _TryAgainLater as exc:
             logger.warning("email %s not normalised yet: %s", message.id, exc)
-            if isinstance(exc.__cause__, (httpx.ConnectError, httpx.ConnectTimeout)):
+            cause = exc.__cause__
+            if isinstance(cause, (httpx.TimeoutException, httpx.ConnectError)) or (
+                isinstance(cause, httpx.HTTPStatusError) and cause.response.status_code >= 500
+            ):
                 return done
             continue
         done += 1
@@ -87,9 +90,9 @@ async def _english(message: Message, own: str) -> tuple[str | None, str | None]:
         return subject, own_en
     except httpx.HTTPStatusError as exc:
         await save_egress(agent_client.refusal_egress(exc.response), user_id=message.user_id, message_id=message.id)
-        if exc.response.status_code == 504:
-            logger.warning("email %s translation timed out (504): skipping English translation", message.id)
-            return None, None
+        if exc.response.status_code >= 500:
+            logger.warning("email %s translation failed (%d): retrying later", message.id, exc.response.status_code)
+            raise _TryAgainLater from exc
         if not agent_client.is_content_refusal(exc.response):
             raise _TryAgainLater from exc
         return None, None
