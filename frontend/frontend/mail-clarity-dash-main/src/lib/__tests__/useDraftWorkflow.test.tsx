@@ -174,15 +174,23 @@ describe("the undo window", () => {
     expect(writes(calls)).toEqual([]);
   });
 
-  test("opening another email during the countdown sends the approved reply now, not never", async () => {
+  test("opening another email during the countdown leaves the countdown running in background until expiry", async () => {
     vi.useFakeTimers();
     const calls = stubFetch({
       "POST /emails/a/send": { body: { ...first, sentAt: "2026-10-08T00:00:00Z" } },
     });
     const { result, rerender } = renderWorkflow(first);
     act(() => result.current.send());
+    expect(result.current.undoCountdown).toBe(5);
     rerender(second);
+    // On the newly selected email, no undo countdown is shown and no send has fired immediately
     expect(result.current.undoCountdown).toBeNull();
+    expect(writes(calls)).toEqual([]);
+    // Navigating back to the original email restores the countdown display
+    rerender(first);
+    expect(result.current.undoCountdown).toBe(5);
+    // Advance timers past the countdown window
+    act(() => vi.advanceTimersByTime(5_000));
     await vi.waitFor(() =>
       expect(writes(calls)).toEqual([
         {

@@ -8,7 +8,7 @@ import { DetailsContext } from "../lib/detailsContext";
 import { useFormat } from "../lib/useFormat";
 import CategoryBadge from "./CategoryBadge";
 import PriorityBadge from "./PriorityBadge";
-import WithDetails from "./WithDetails";
+import WithDetails, { SenderText } from "./WithDetails";
 
 type EmailListItemProps = {
   email: Email;
@@ -54,7 +54,7 @@ export default function EmailListItem({
                 email.isRead ? "font-normal" : "font-bold"
               }`}
             >
-              {email.sender}
+              <SenderText sender={email.sender} />
             </span>
             {/* Outside the truncated name, so a long sender never hides the count. */}
             {messageCount > 1 ? (

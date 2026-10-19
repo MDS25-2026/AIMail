@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 
-import { DETAIL_MARK_CLASS, detailSegments } from "../lib/details";
+import { DETAIL_MARK_CLASS, detailSegments, maskSender, type DetailValues } from "../lib/details";
 import { useDetailValues } from "../lib/detailsContext";
 import { useDetailsHidden } from "../lib/detailsVisibility";
 
@@ -23,4 +23,11 @@ export default function WithDetails({ text }: { text: string }) {
       )}
     </>
   );
+}
+
+/** Sender text masked appropriately when details are hidden for screen sharing or demos. */
+export function SenderText({ sender, values }: { sender: string; values?: DetailValues }) {
+  const contextValues = useDetailValues();
+  const [isHidden] = useDetailsHidden();
+  return <>{maskSender(sender, isHidden, values ?? contextValues)}</>;
 }

@@ -23,6 +23,37 @@ export function restoreDetails(text: string, values: DetailValues): string {
   );
 }
 
+/**
+ * Masks sender info for screen sharing / demos when isHidden is true, or restores placeholders
+ * when isHidden is false.
+ */
+export function maskSender(sender: string, isHidden: boolean, values?: DetailValues): string {
+  if (!sender) return "";
+  if (!isHidden) {
+    return values && values.size > 0 ? restoreDetails(sender, values) : sender;
+  }
+  let masked = sender;
+  if (values && values.size > 0) {
+    for (const [placeholder, val] of values) {
+      if (val && masked.includes(val)) {
+        masked = masked.replaceAll(val, placeholder);
+      }
+    }
+  }
+  masked = masked.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, "[EMAIL]");
+  const angleMatch = /^(.*?)(\s*<[^>]+>)$/.exec(masked);
+  if (angleMatch) {
+    const namePart = angleMatch[1].trim();
+    const emailPart = angleMatch[2];
+    const maskedName = namePart && !namePart.startsWith("[") ? "[PERSON]" : namePart;
+    return `${maskedName}${emailPart}`.trim();
+  }
+  if (!masked.startsWith("[") && !masked.includes("@")) {
+    return "[PERSON]";
+  }
+  return masked;
+}
+
 export type Segment = { text: string; isDetail: boolean };
 
 /** The text split so each restored detail can be marked as hidden from the AI. */

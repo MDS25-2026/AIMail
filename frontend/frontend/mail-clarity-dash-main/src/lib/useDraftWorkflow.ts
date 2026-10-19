@@ -221,7 +221,7 @@ export function useDraftWorkflow(
     pendingSendRef.current = null;
   }, []);
 
-  // Leaving the email or the page in the undo window sends now: the reader approved it, and a
+  // Leaving the page in the undo window sends now: the reader approved it, and a
   // silent cancel would leave them believing it went out.
   const sendNowIfCounting = useCallback(() => {
     const pendingSend = pendingSendRef.current;
@@ -230,12 +230,6 @@ export function useDraftWorkflow(
   }, [clearCountdown]);
 
   useEffect(() => sendNowIfCounting, [sendNowIfCounting]);
-
-  useEffect(() => {
-    if (emailId !== undoEmailIdRef.current && undoEmailIdRef.current !== null) {
-      sendNowIfCounting();
-    }
-  }, [emailId, sendNowIfCounting]);
 
   // Last issued wins, per email: two regenerates for the same email share one cache entry, so a slow
   // first response could otherwise overwrite a newer one. Another email's request changes nothing here.
@@ -291,7 +285,8 @@ export function useDraftWorkflow(
   const isScheduling =
     isPendingFor(scheduleMutation, emailId) || isPendingFor(cancelScheduleMutation, emailId);
   const isSending = isPendingFor(sendMutation, emailId);
-  const isCountingDown = undoCountdown !== null && undoCountdown > 0;
+  const isCountingDown =
+    undoCountdown !== null && undoCountdown > 0 && undoEmailIdRef.current === emailId;
   // Locking: during mutations, pregen, or active undo countdown, prevent editing/sending race conditions:
   const isBusy =
     isRegenerating ||
@@ -504,7 +499,7 @@ export function useDraftWorkflow(
     refine,
     send,
     undoSend,
-    undoCountdown,
+    undoCountdown: undoEmailIdRef.current === emailId ? undoCountdown : null,
     comparison,
     status,
     announcement,

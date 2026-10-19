@@ -15,6 +15,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import { searchInbox, type ChatMessage, type SearchSource } from "../lib/api/search";
+import { maskSender } from "../lib/details";
 import { useDetailsHidden } from "../lib/detailsVisibility";
 import { useSession } from "../lib/queries";
 import { useIsReadingEmail } from "../lib/useIsReadingEmail";
@@ -34,6 +35,19 @@ export default function InboxChatWidget() {
   const [expandedSources, setExpandedSources] = useState<Record<number, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const userId = session.data?.email ?? session.data?.user?.id ?? null;
+  const prevUserIdRef = useRef(userId);
+
+  useEffect(() => {
+    if (prevUserIdRef.current !== userId || !session.data) {
+      setMessages([]);
+      setExpandedSources({});
+      setInput("");
+      setIsOpen(false);
+      prevUserIdRef.current = userId;
+    }
+  }, [userId, session.data]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -318,7 +332,11 @@ export default function InboxChatWidget() {
                             <span className="mt-0.5 line-clamp-1 font-medium text-fg group-hover:text-brand">
                               {source.title}
                             </span>
-                            <span className="text-[10px] text-fg-muted">{source.subtitle}</span>
+                            <span className="text-[10px] text-fg-muted">
+                              {source.source_type === "email"
+                                ? maskSender(source.subtitle, isHidingDetails)
+                                : source.subtitle}
+                            </span>
                             <p className="mt-1 line-clamp-2 text-[10px] text-fg-subtle">
                               {source.snippet}
                             </p>

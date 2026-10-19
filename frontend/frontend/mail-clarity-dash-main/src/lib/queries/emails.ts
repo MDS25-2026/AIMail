@@ -142,6 +142,7 @@ function useDraftMutation<TVariables>(mutationFn: (variables: TVariables) => Pro
     mutationFn,
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKeys.email(updated.id), updated);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.todo });
       void queryClient.invalidateQueries({ queryKey: queryKeys.emails });
     },
   });
