@@ -376,3 +376,33 @@ def test_the_agent_refuses_a_caller_without_the_service_token(monkeypatch):
     agent_client()  # configures the token
     response = TestClient(email_agent.app).post("/translate", json={"text": "Hi", "language": "ms"})
     assert response.status_code == 403
+
+
+def test_sibling_tasks_are_cancelled_when_router_fails(monkeypatch):
+    summary_cancelled = False
+
+    async def mock_route(*_args, **_kwargs):
+        raise ModelError(ModelErrorCode.REJECTED, "rejected by router")
+
+    async def mock_summary(*_args, **_kwargs):
+        nonlocal summary_cancelled
+        try:
+            await asyncio.sleep(5)
+        except asyncio.CancelledError:
+            summary_cancelled = True
+            raise
+        return "summary"
+
+    async def mock_actions(*_args, **_kwargs):
+        await asyncio.sleep(5)
+        return []
+
+    monkeypatch.setattr(email_agent, "route_email", mock_route)
+    monkeypatch.setattr(email_agent, "extract_summary", mock_summary)
+    monkeypatch.setattr(email_agent, "extract_actions", mock_actions)
+
+    response = agent_client().post("/process-email", json={
+        "thread_context": "", "email_body": "Hi", "rag_context": "", "provider": "gemini"})
+    assert response.status_code == 422
+    assert summary_cancelled is True
+

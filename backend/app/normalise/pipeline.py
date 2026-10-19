@@ -81,7 +81,7 @@ async def _english(message: Message, own: str) -> tuple[str | None, str | None]:
         if exc.response.status_code == 504:
             logger.warning("email %s translation timed out (504): skipping English translation", message.id)
             return None, None
-        if exc.response.status_code != REFUSED:
+        if not agent_client.is_content_refusal(exc.response):
             raise _TryAgainLater from exc
         return None, None
     except (httpx.HTTPError, ValidationError) as exc:

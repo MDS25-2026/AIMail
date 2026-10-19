@@ -46,6 +46,18 @@ def test_the_agent_answers_its_probes_without_the_service_token(monkeypatch):
     assert client.post("/translate", json={}).status_code == 403
 
 
+def test_a_mismatched_agent_token_is_rejected_even_on_readyz(monkeypatch):
+    monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
+    monkeypatch.setenv("AGENT_TOKEN", "correct-token")
+    email_agent.get_settings.cache_clear()
+    client = TestClient(email_agent.app, client=("203.0.113.9", 50000))
+    # Correct token passes
+    assert client.get("/readyz", headers={"X-AIMail-Agent-Token": "correct-token"}).status_code == 200
+    # Mismatched token returns 403
+    assert client.get("/readyz", headers={"X-AIMail-Agent-Token": "wrong-token"}).status_code == 403
+
+
+
 def test_a_json_log_line_carries_the_same_fields_as_text():
     record = logging.LogRecord("app.x", logging.WARNING, __file__, 1, "draft failed with %s", ("code",), None)
     record.request_id = "r1"

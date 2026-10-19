@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.core.agent_auth import agent_headers
 from app.core.config import get_settings
 from app.core.health import (
     CHECK_TIMEOUT_SECONDS,
@@ -56,7 +57,7 @@ def _state(is_working: bool) -> PartState:
 async def agent_answers() -> bool:
     try:
         async with httpx.AsyncClient(timeout=CHECK_TIMEOUT_SECONDS) as client:
-            response = await client.get(f"{get_settings().email_agent_url}/healthz")
+            response = await client.get(f"{get_settings().email_agent_url}/readyz", headers=agent_headers())
     except httpx.HTTPError:
         return False
     return response.is_success

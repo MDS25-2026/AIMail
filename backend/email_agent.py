@@ -805,12 +805,21 @@ async def process_email(req: ProcessEmailRequest) -> ProcessEmailResponse:
 
 
 async def _process_email(req: ProcessEmailRequest) -> ProcessEmailResponse:
-    # gather, not a TaskGroup: its ExceptionGroup would slip past the ModelError handler above.
-    category, summary, action_items = await asyncio.gather(
-        route_email(req.thread_context, req.email_body),
-        extract_summary(req.email_body, req.thread_context, req.rag_context),
-        extract_actions(req.email_body),
-    )
+    # Explicit tasks with cancellation on failure to prevent leaked coroutines
+    # and ensure partial egress is captured before the deadline/error handler exits.
+    tasks = [
+        asyncio.create_task(route_email(req.thread_context, req.email_body)),
+        asyncio.create_task(extract_summary(req.email_body, req.thread_context, req.rag_context)),
+        asyncio.create_task(extract_actions(req.email_body)),
+    ]
+    try:
+        category, summary, action_items = await asyncio.gather(*tasks)
+    except BaseException:
+        for t in tasks:
+            if not t.done():
+                t.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        raise
     signals = input_reasons(req.email_body, req.rag_context)
     if category == "NA":
         return ProcessEmailResponse(category=category, summary=summary, action_items=action_items,

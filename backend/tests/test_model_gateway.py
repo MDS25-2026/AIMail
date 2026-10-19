@@ -114,3 +114,28 @@ def test_local_attempts_are_recorded_like_geminis(ollama):
     with track_calls() as calls:
         asyncio.run(local_client.generate_local("Hi"))
     assert [(call["provider"], call["outcome"]) for call in calls] == [("local", "ok")]
+
+
+def test_a_deadline_hit_before_provider_runs_leaves_no_egress_record():
+    import model_runtime
+    with (
+        model_runtime.deadline(seconds=-1.0),
+        model_gateway.track_egress() as egress,
+        pytest.raises(ModelError) as caught,
+    ):
+        asyncio.run(model_gateway.generate("Hi [PERSON_1]", provider=Provider.GEMINI, purpose="draft"))
+    assert caught.value.code == ModelErrorCode.DEADLINE_EXCEEDED
+    assert egress == []
+
+
+def test_an_unconfigured_local_model_leaves_no_egress_record(monkeypatch):
+    monkeypatch.delenv("LOCAL_LLM_MODEL", raising=False)
+    get_settings.cache_clear()
+    with (
+        model_gateway.track_egress() as egress,
+        pytest.raises(ModelError) as caught,
+    ):
+        asyncio.run(model_gateway.generate("Hi [PERSON_1]", provider=Provider.LOCAL, purpose="draft"))
+    assert caught.value.code == ModelErrorCode.UNAVAILABLE
+    assert egress == []
+

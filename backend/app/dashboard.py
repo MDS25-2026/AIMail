@@ -599,7 +599,10 @@ async def _generate(message: Message, tone: Tone, thread: list[Message], details
             generated = await _call_agent("/process-email", request, ProcessEmailResponse)
         except httpx.HTTPStatusError as exc:
             refused = agent_client.refusal_egress(exc.response)
-            if exc.response.status_code != AGENT_CONTENT_FAILURE:
+            if exc.response.status_code == 403:
+                logger.error("agent authentication failed: AGENT_TOKEN is missing or mismatched (HTTP 403)")
+                raise
+            if not agent_client.is_content_refusal(exc.response):
                 raise
             generated = _not_drafted(_agent_error_code(exc.response))
         refused = generated.pop("egress", refused)
@@ -1015,7 +1018,10 @@ async def _refine(
     except httpx.HTTPStatusError as exc:
         logger.warning("refine failed for message %s: %s", message.id, exc)
         await save_egress(agent_client.refusal_egress(exc.response), user_id=message.user_id, message_id=message.id)
-        if exc.response.status_code == AGENT_CONTENT_FAILURE:
+        if exc.response.status_code == 403:
+            logger.error("agent authentication failed: AGENT_TOKEN is missing or mismatched (HTTP 403)")
+            raise DomainError(ErrorCode.FORBIDDEN, "agent authentication failed") from exc
+        if agent_client.is_content_refusal(exc.response):
             raise DraftNotUpdatedError(ErrorCode.DRAFT_REFUSED) from exc
         raise DraftNotUpdatedError(ErrorCode.AGENT_UNAVAILABLE) from exc
     except (httpx.HTTPError, ValueError) as exc:
