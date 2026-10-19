@@ -106,3 +106,59 @@ def test_a_failed_indexing_still_records_what_was_sent(pipeline, receipts):
     with pytest.raises(EmbeddingError):
         _ingest()
     assert receipts == [(1, OWNER, None)]
+
+
+def test_embed_pending_isolates_rejected_chunk(monkeypatch):
+    from app.core.constants import EMBEDDING_DIM
+    from app.db.models import Chunk
+
+    chunk1 = Chunk(id=uuid4(), document_id=uuid4(), chunk_idx=0, content="good chunk")
+    chunk2 = Chunk(id=uuid4(), document_id=uuid4(), chunk_idx=1, content="bad chunk")
+
+    class _Scalars:
+        def __init__(self, items):
+            self.items = items
+
+        def all(self):
+            res = self.items
+            self.items = []
+            return res
+
+    added = []
+    calls = {"count": 0}
+
+    class _FakeSession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return False
+
+        def begin(self):
+            return self
+
+        async def scalars(self, _stmt):
+            calls["count"] += 1
+            return _Scalars([chunk1, chunk2] if calls["count"] == 1 else [])
+
+        def add(self, entity):
+            added.append(entity)
+
+        def add_all(self, entities):
+            added.extend(entities)
+
+    async def mock_embed(texts, *, provider, purpose):
+        if len(texts) > 1:
+            raise EmbeddingError("batch failed because of bad chunk")
+        if texts[0] == "bad chunk":
+            raise EmbeddingError("safety policy violation")
+        return [[0.1] * EMBEDDING_DIM]
+
+    monkeypatch.setattr(ingest.model_gateway, "embed_documents", mock_embed)
+    monkeypatch.setattr(ingest, "get_sessionmaker", lambda: lambda: _FakeSession())
+
+    embedded_count = asyncio.run(ingest.embed_pending(batch_size=10))
+    assert embedded_count == 1
+    assert len(added) == 2
+    assert added[0].chunk_id == chunk1.id and added[0].embedding == [0.1] * EMBEDDING_DIM
+    assert added[1].chunk_id == chunk2.id and added[1].embedding == [0.0] * EMBEDDING_DIM

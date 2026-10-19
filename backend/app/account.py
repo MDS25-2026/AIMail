@@ -91,7 +91,12 @@ async def delete_account(user_id: UUID) -> Erased:
         pass  # nothing connected: there is no token to revoke
     async with get_sessionmaker()() as session, session.begin():
         counts = await erase(session, user_id, Subject.ACCOUNT)
-    await _delete_sign_in(user_id)
     erased = Erased(messages=counts.get(Message.__tablename__, 0), documents=counts.get(Document.__tablename__, 0))
-    await audit(AuditAction.DELETE_ACCOUNT, user_id=user_id, documents_deleted=erased.documents)
+    try:
+        await _delete_sign_in(user_id)
+    except AccountDeletionError as exc:
+        await audit(AuditAction.DELETE_ACCOUNT, user_id=user_id, success=False, documents_deleted=erased.documents,
+                    error=str(exc))
+        raise
+    await audit(AuditAction.DELETE_ACCOUNT, user_id=user_id, success=True, documents_deleted=erased.documents)
     return erased

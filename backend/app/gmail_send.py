@@ -289,6 +289,18 @@ async def _sent_message_id(
         return None
 
 
+async def get_rfc_message_id(gmail_id: str | None, owner_id: UUID | None) -> str | None:
+    """Read back the RFC Message-ID header from Gmail for a given Gmail message ID."""
+    if not gmail_id:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            return await _sent_message_id(client, gmail_id, owner_id)
+    except (httpx.HTTPError, GmailAccessError, KeyError, ValueError) as exc:
+        logger.warning("could not read RFC Message-ID for %s: %s", gmail_id, exc)
+        return None
+
+
 _THREADS_URL = "https://gmail.googleapis.com/gmail/v1/users/me/threads"
 
 

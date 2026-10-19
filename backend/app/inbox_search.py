@@ -45,6 +45,9 @@ QUESTION_STOP_WORDS = frozenset({
     "please", "thanks", "there", "someone", "anyone", "can", "could", "would",
     "which", "my", "our", "their", "his", "her", "dr", "prof", "mr", "mrs", "ms",
     "who", "whom", "whose", "message", "messages", "inbox", "mail",
+    "meeting", "meetings", "notes", "update", "updates", "project", "projects",
+    "status", "budget", "agenda", "review", "draft", "document", "contract",
+    "invoice", "receipt", "schedule", "reminder",
 })
 
 OVERVIEW_PATTERNS = re.compile(
@@ -359,16 +362,10 @@ async def search_messages_hybrid(
             rrf_scores[msg.id] = rrf_scores.get(msg.id, 0.0) + (3.0 / (RRF_K + rank + 1))
 
         for rank, msg in enumerate(fts_rows):
-            # If a specific sender was targeted, do not include unrelated FTS rows
-            if sender_rows and not any(w in (msg.from_addr or "").lower() for w in cleaned_words):
-                continue
             message_map[msg.id] = msg
             rrf_scores[msg.id] = rrf_scores.get(msg.id, 0.0) + (1.0 / (RRF_K + rank + 1))
 
         for rank, msg in enumerate(vec_rows):
-            # If a specific sender was targeted, do not include unrelated vector rows
-            if sender_rows and not any(w in (msg.from_addr or "").lower() for w in cleaned_words):
-                continue
             message_map[msg.id] = msg
             rrf_scores[msg.id] = rrf_scores.get(msg.id, 0.0) + (1.0 / (RRF_K + rank + 1))
 

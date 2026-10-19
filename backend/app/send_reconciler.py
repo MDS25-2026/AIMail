@@ -14,6 +14,7 @@ from uuid import UUID
 
 import httpx
 from sqlalchemy import Select, func, select, update
+from sqlalchemy.dialects.postgresql import insert
 
 from app import gmail_send
 from app.audit import AuditAction, audit
@@ -36,7 +37,7 @@ async def _ask_gmail(thread_id: str, claimed_at: datetime, owner_id: UUID | None
 
 
 def _settled(found: str | None) -> dict:
-    """Done with Gmail's id, or released to be sent again; either way no longer unknown."""
+    """Done with RFC message id, or released to be sent again; either way no longer unknown."""
     return {"sent_message_id": found, "send_outcome_unknown_at": None} if found else {
         "sent_at": None, "send_outcome_unknown_at": None}
 
@@ -48,21 +49,37 @@ async def mark_outcome_unknown(table: type[Message] | type[HoldingReply], row_id
 
 async def _settle_reply(message: Message) -> None:
     found = await _ask_gmail(message.thread_id, message.sent_at, message.user_id)
+    rfc_id = None
+    if found:
+        rfc_id = await gmail_send.get_rfc_message_id(found, message.user_id) or found
     async with get_sessionmaker()() as session, session.begin():
         await session.execute(update(Message).where(Message.id == message.id, Message.sent_message_id.is_(None),
                                                     Message.send_outcome_unknown_at.is_not(None))
-                              .values(**_settled(found)))
+                              .values(**_settled(rfc_id)))
+        if found:
+            await session.execute(insert(SentMessage).values(
+                user_id=message.user_id, gmail_id=found, message_id=message.id,
+                thread_id=message.thread_id, sent_at=message.sent_at or func.now(),
+                subject=message.subject or "", body_masked=message.draft_reply or "",
+                remind=False,
+            ).on_conflict_do_update(index_elements=["gmail_id"], set_={
+                "message_id": message.id, "body_masked": message.draft_reply or "",
+                "subject": message.subject or "",
+            }))
     await audit(AuditAction.SEND_RECONCILED, user_id=message.user_id, message=message.id,
                 outcome=SENT if found else NOT_SENT)
 
 
 async def _settle_holding_reply(reply: HoldingReply, thread_id: str) -> None:
     found = await _ask_gmail(thread_id, reply.sent_at, reply.user_id)
+    rfc_id = None
+    if found:
+        rfc_id = await gmail_send.get_rfc_message_id(found, reply.user_id) or found
     async with get_sessionmaker()() as session, session.begin():
         await session.execute(update(HoldingReply)
                               .where(HoldingReply.id == reply.id, HoldingReply.sent_message_id.is_(None),
                                      HoldingReply.send_outcome_unknown_at.is_not(None))
-                              .values(**_settled(found)))
+                              .values(**_settled(rfc_id)))
     await audit(AuditAction.SEND_RECONCILED, user_id=reply.user_id, reply=reply.id,
                 outcome=SENT if found else NOT_SENT)
 

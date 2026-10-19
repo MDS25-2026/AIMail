@@ -8,7 +8,7 @@ reason. A reply that cannot be sent in time is cancelled rather than sent late.
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from uuid import UUID
 
@@ -67,7 +67,7 @@ LOCK_PREFIX = "holding_reply:"
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 async def schedule_new() -> int:
@@ -186,15 +186,19 @@ async def _release(reply_id: UUID) -> None:
         await session.execute(update(HoldingReply).where(HoldingReply.id == reply_id).values(sent_at=None))
 
 
-async def _send(due: Due) -> None:
+async def _send(due: Due) -> bool:
     language = Language(due.reply.language)
-    text = render(due.settings.templates[language], language, due.message.from_addr, due.settings.leave_until)
+    template = due.settings.templates.get(language)
+    if not template:
+        await _cancel(due.reply.id, Refusal.NO_TEMPLATE, due.reply.user_id)
+        return False
+    text = render(template, language, due.message.from_addr, due.settings.leave_until)
     # It goes out with no one checking it, so a marker or an unfilled field stops it here.
     if has_redaction_marker(text) or TEMPLATE_FIELD.search(text):
         await _cancel(due.reply.id, Refusal.UNFILLED_FIELD, due.reply.user_id)
-        return
+        return False
     if not await _claim(due):
-        return
+        return False
     try:
         sent = await gmail_send.send_reply(
             due.message.gmail_message_id, due.message.from_addr or "", due.message.subject or "", text,
@@ -203,16 +207,17 @@ async def _send(due: Due) -> None:
         await mark_outcome_unknown(HoldingReply, due.reply.id)
         await audit(AuditAction.HOLDING_REPLY_OUTCOME_UNKNOWN, user_id=due.reply.user_id, success=False,
                     reply=due.reply.id)
-        return  # the claim stays: Gmail may have sent it, and a second copy is worse than none
+        return False  # the claim stays: Gmail may have sent it, and a second copy is worse than none
     except gmail_send.SendError as exc:
         await _release(due.reply.id)
         logger.warning("holding reply %s not sent, retrying next poll: %s", due.reply.id, exc)
-        return
+        return False
     async with get_sessionmaker()() as session, session.begin():
         await session.execute(update(HoldingReply).where(HoldingReply.id == due.reply.id)
                               .values(sent_message_id=sent.message_id))
     await audit(AuditAction.HOLDING_REPLY_SENT, user_id=due.reply.user_id, reply=due.reply.id,
                 language=language)
+    return True
 
 
 async def send_due() -> int:
@@ -235,6 +240,9 @@ async def send_due() -> int:
         if verdict != Verdict.SEND:
             await _cancel(due.reply.id, verdict, due.reply.user_id)
             continue
-        await _send(due)
-        sent += 1
+        try:
+            if await _send(due):
+                sent += 1
+        except Exception:
+            logger.exception("holding reply %s failed during send", due.reply.id)
     return sent

@@ -277,3 +277,16 @@ def test_a_holding_reply_still_holding_a_marker_is_cancelled_never_sent(world, m
     asyncio.run(scheduler._send(due))
     assert world["sent"] == [] and cancelled == [scheduler.Refusal.UNFILLED_FIELD]
 
+
+def test_a_deleted_template_cancels_the_reply_with_no_template(world, monkeypatch):
+    cancelled = []
+
+    async def cancel(reply_id, reason, owner_id):
+        cancelled.append(reason)
+
+    monkeypatch.setattr(scheduler, "_cancel", cancel)
+    due = _due()
+    due.settings.templates = {}  # user deleted the template
+    asyncio.run(scheduler._send(due))
+    assert world["sent"] == [] and cancelled == [scheduler.Refusal.NO_TEMPLATE]
+
