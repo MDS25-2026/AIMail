@@ -154,6 +154,9 @@ func isGone(err error) bool {
 // isGmailTrouble is an outage rather than a problem with this message: a rate limit, a 5xx, or no
 // answer at all. It must not use up the message's attempts, or one bad hour abandons the queue.
 func isGmailTrouble(err error) bool {
+	if isRefusedGrant(err) {
+		return false
+	}
 	var apiErr *googleapi.Error
 	if !errors.As(err, &apiErr) {
 		return true
@@ -176,7 +179,8 @@ func remaskQuarantined(ctx context.Context) {
 	for _, row := range rows {
 		mb := mailboxByOwner(row.UserID)
 		if mb == nil {
-			continue // its mailbox is not connected right now; nothing is charged
+			recordFailure(ctx, row, reasonDisconnected)
+			continue
 		}
 		if !remaskOne(ctx, mb.srv, row) {
 			return
@@ -191,6 +195,10 @@ func remaskOne(ctx context.Context, srv *gmail.Service, row quarantinedRow) bool
 	switch {
 	case isGone(err):
 		abandon(ctx, row, reasonGoneFromGmail)
+		return true
+	case isRefusedGrant(err):
+		noteRefusedGrant(ctx, row.UserID, err)
+		recordFailure(ctx, row, reasonDisconnected)
 		return true
 	case err != nil && isGmailTrouble(err):
 		return false

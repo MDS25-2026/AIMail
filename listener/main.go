@@ -22,6 +22,8 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"cloud.google.com/go/pubsub"
 	"github.com/joho/godotenv"
@@ -364,6 +366,83 @@ func overlapsAny(start, end int, spans [][2]int) bool {
 		}
 	}
 	return false
+}
+
+// maskKnownEntities scans text for any entity already registered in the detailVault (e.g. from
+// masking the body) and replaces any occurrences that are not already inside placeholders,
+// ensuring cross-field consistency between subject, snippet, and body (M19).
+func maskKnownEntities(text string, v *detailVault) string {
+	if v == nil || len(v.values) == 0 || strings.TrimSpace(text) == "" {
+		return text
+	}
+	type entityItem struct {
+		placeholder string
+		value       string
+		runes       int
+	}
+	var items []entityItem
+	for placeholder, value := range v.values {
+		trimmed := strings.TrimSpace(value)
+		rCount := utf8.RuneCountInString(trimmed)
+		if rCount >= 2 {
+			items = append(items, entityItem{placeholder: placeholder, value: trimmed, runes: rCount})
+		}
+	}
+	sort.SliceStable(items, func(i, j int) bool {
+		return items[i].runes > items[j].runes
+	})
+
+	for _, item := range items {
+		var pattern string
+		hasHan := false
+		for _, r := range item.value {
+			if unicode.Is(unicode.Han, r) {
+				hasHan = true
+				break
+			}
+		}
+		if hasHan {
+			pattern = regexp.QuoteMeta(item.value)
+		} else {
+			pattern = `(?i)\b` + regexp.QuoteMeta(item.value) + `\b`
+		}
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			continue
+		}
+
+		matches := re.FindAllStringIndex(text, -1)
+		if len(matches) == 0 {
+			continue
+		}
+
+		taken := runeSpans(text, placeholderRegex.FindAllStringIndex(text, -1))
+		matchRunes := runeSpans(text, matches)
+
+		textRunes := []rune(text)
+		var validMatches [][2]int
+		for _, m := range matchRunes {
+			if !overlapsAny(m[0], m[1], taken) {
+				validMatches = append(validMatches, m)
+				taken = append(taken, m)
+			}
+		}
+
+		if len(validMatches) == 0 {
+			continue
+		}
+
+		tokenRunes := []rune(item.placeholder)
+		sort.Slice(validMatches, func(i, j int) bool {
+			return validMatches[i][0] < validMatches[j][0]
+		})
+		for i := len(validMatches) - 1; i >= 0; i-- {
+			vm := validMatches[i]
+			textRunes = append(textRunes[:vm[0]], append(tokenRunes, textRunes[vm[1]:]...)...)
+		}
+		text = string(textRunes)
+	}
+	return text
 }
 
 // presidioPost POSTs a JSON payload to a Presidio endpoint and returns the raw response body.
@@ -796,6 +875,10 @@ func maskMessage(ctx context.Context, srv *gmail.Service, msg *gmail.Message, ow
 	if degradedBody || degradedSnip || degradedSubj {
 		return MaskedContent{}, false
 	}
+	// Reconcile entities across all fields so names masked in body are consistently masked in subject and snippet (M19).
+	maskedSubject = maskKnownEntities(maskedSubject, v)
+	maskedSnippet = maskKnownEntities(maskedSnippet, v)
+	maskedBody = maskKnownEntities(maskedBody, v)
 	ref := messageRef{ownerID: ownerID, msgID: msg.Id}
 	attachments, attachEmails, attachPhones := maskAttachmentText(ctx, ref, ocrAttachments(ctx, srv, ref, msg.Payload), v)
 	return MaskedContent{

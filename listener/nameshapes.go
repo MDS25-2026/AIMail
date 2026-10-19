@@ -1,6 +1,7 @@
 package main
 
 import (
+	"regexp"
 	"strings"
 	"unicode"
 )
@@ -133,8 +134,10 @@ func nameRuns(runes []rune, start, end int) [][2]int {
 	return runs
 }
 
+var placeholderWordRe = regexp.MustCompile(`^(?:PERSON|EMAIL|PHONE|IC|PASSPORT|ACCOUNT|CARD|LOCATION|ORG)_\d+$`)
+
 func isNameWord(word string) bool {
-	if word == "" || malayProse[strings.ToLower(word)] {
+	if word == "" || malayProse[strings.ToLower(word)] || placeholderWordRe.MatchString(word) {
 		return false
 	}
 	first := []rune(word)[0]

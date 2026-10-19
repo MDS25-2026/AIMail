@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"golang.org/x/oauth2"
 )
@@ -180,5 +181,20 @@ func TestOnlyAnExpiredOrRevokedTokenAsksTheUserToReconnect(t *testing.T) {
 		if isRefusedGrant(err) {
 			t.Fatalf("%v is not a refused token and must not ask the user to reconnect", err)
 		}
+	}
+}
+
+func TestGmailHTTPTimeout(t *testing.T) {
+	t.Setenv("GMAIL_HTTP_TIMEOUT", "")
+	if got := gmailHTTPTimeout(); got != 60*time.Second {
+		t.Fatalf("want default 60s, got %v", got)
+	}
+	t.Setenv("GMAIL_HTTP_TIMEOUT", "30s")
+	if got := gmailHTTPTimeout(); got != 30*time.Second {
+		t.Fatalf("want configured 30s, got %v", got)
+	}
+	t.Setenv("GMAIL_HTTP_TIMEOUT", "-5s")
+	if got := gmailHTTPTimeout(); got != 60*time.Second {
+		t.Fatalf("want fallback 60s for negative, got %v", got)
 	}
 }

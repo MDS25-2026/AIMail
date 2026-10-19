@@ -37,6 +37,25 @@ func TestNamesMatchAcrossCaseAndSpacing(t *testing.T) {
 	}
 }
 
+func TestKnownEntitiesFromVaultAreMaskedInSubjectAndSnippet(t *testing.T) {
+	v := newDetailVault()
+	v.placeholder(kindPerson, "Aisyah Rahman")
+	v.placeholder(kindOrg, "Petronas")
+
+	subject := "Urgent: meeting with Aisyah Rahman at Petronas"
+	snippet := "Please follow up with Aisyah Rahman tomorrow."
+
+	maskedSubj := maskKnownEntities(subject, v)
+	maskedSnip := maskKnownEntities(snippet, v)
+
+	if maskedSubj != "Urgent: meeting with [PERSON_1] at [ORG_1]" {
+		t.Fatalf("subject masking failed: got %q", maskedSubj)
+	}
+	if maskedSnip != "Please follow up with [PERSON_1] tomorrow." {
+		t.Fatalf("snippet masking failed: got %q", maskedSnip)
+	}
+}
+
 // Presidio reports character offsets; a name after non-ASCII text must still be cut exactly.
 func TestEntitiesAreNumberedInReadingOrder(t *testing.T) {
 	text := "Ali met Mei Ling"

@@ -22,23 +22,26 @@ const (
 	skipNotComplete   = "quarantined or abandoned"
 	skipPastRetention = "past retention (body already cleared)"
 	skipSendWaiting   = "a reply is waiting to send"
+	skipClaimActive   = "actively claimed by a drafting worker"
 	skipGone          = "no longer in Gmail"
 	skipNotMasked     = "could not be fully masked now"
 	skipFetchFailed   = "Gmail could not be read"
 )
 
 type reprocessRow struct {
-	ID             string  `json:"id"`
-	GmailMessageID string  `json:"gmail_message_id"`
-	SentAt         *string `json:"sent_at"`
-	MaskingStatus  string  `json:"masking_status"`
-	HasBody        bool    `json:"has_body"`
-	HasDraft       bool    `json:"has_draft"`
+	ID                     string  `json:"id"`
+	GmailMessageID         string  `json:"gmail_message_id"`
+	SentAt                 *string `json:"sent_at"`
+	MaskingStatus          string  `json:"masking_status"`
+	HasBody                bool    `json:"has_body"`
+	HasDraft               bool    `json:"has_draft"`
+	GenerationClaimedUntil *string `json:"generation_claimed_until"`
 }
 
 // reprocessPatch stores the new extraction and clears what was written in the old numbering: masking
 // again renumbers the hidden details, so the old summary, items and draft would name the wrong people.
 // Category goes too, so the worker labels the new text. The worker drafts the email again.
+// Derived state (SLA, deadline, embeddings, importance, critic attempts, draft tone) is also reset (M21).
 type reprocessPatch struct {
 	MaskedContent
 	AISummary          string           `json:"ai_summary"`
@@ -54,9 +57,16 @@ type reprocessPatch struct {
 	Category           *string          `json:"category"`
 	CategoryConfidence *float64         `json:"category_confidence"`
 	// Normalised again from the new text (specs/features/normalisation-v2.md).
-	Language  *string `json:"language"`
-	SubjectEn *string `json:"subject_en"`
-	OwnTextEn *string `json:"own_text_en"`
+	Language           *string          `json:"language"`
+	SubjectEn          *string          `json:"subject_en"`
+	OwnTextEn          *string          `json:"own_text_en"`
+	// Derived state reset
+	SlaPriority        SLAPriority      `json:"sla_priority"`
+	DeadlineAt         *string          `json:"deadline_at"`
+	Embedding          *string          `json:"embedding"`
+	Importance         *string          `json:"importance"`
+	CriticAttempts     int              `json:"critic_attempts"`
+	DraftTone          *string          `json:"draft_tone"`
 }
 
 // runReprocess re-reads stored emails from Gmail with today's extraction (specs/features/readable-emails.md).
@@ -109,19 +119,35 @@ func reprocessMailbox(ctx context.Context, connection connectionRow, isWrite boo
 }
 
 // reprocessCandidates is every stored email of this owner that may be re-read, counting the others.
+// It paginates in batches of 1000 to avoid silent truncations on large mailboxes (M22).
 func reprocessCandidates(ctx context.Context, ownerID string, totals map[string]int) ([]reprocessRow, error) {
-	query := "select=id,gmail_message_id,sent_at,masking_status,has_body:body_masked,has_draft:draft_reply&" + ownerFilter(ownerID)
-	body, err := supabaseGet(ctx, "messages", query)
-	if err != nil {
-		return nil, err
-	}
 	var raw []struct {
 		reprocessRow
 		Body  *string `json:"has_body"`
 		Draft *string `json:"has_draft"`
 	}
-	if err := json.Unmarshal(body, &raw); err != nil {
-		return nil, fmt.Errorf("decode messages: %w", err)
+	const batchSize = 1000
+	offset := 0
+	for {
+		query := fmt.Sprintf("select=id,gmail_message_id,sent_at,masking_status,has_body:body_masked,has_draft:draft_reply,generation_claimed_until&%s&order=id.asc&limit=%d&offset=%d",
+			ownerFilter(ownerID), batchSize, offset)
+		body, err := supabaseGet(ctx, "messages", query)
+		if err != nil {
+			return nil, err
+		}
+		var batch []struct {
+			reprocessRow
+			Body  *string `json:"has_body"`
+			Draft *string `json:"has_draft"`
+		}
+		if err := json.Unmarshal(body, &batch); err != nil {
+			return nil, fmt.Errorf("decode messages: %w", err)
+		}
+		raw = append(raw, batch...)
+		if len(batch) < batchSize {
+			break
+		}
+		offset += batchSize
 	}
 	waiting, err := waitingSends(ctx, ownerID)
 	if err != nil {
@@ -140,6 +166,20 @@ func reprocessCandidates(ctx context.Context, ownerID string, totals map[string]
 	return candidates, nil
 }
 
+func isClaimActive(claimedUntil *string) bool {
+	if claimedUntil == nil || *claimedUntil == "" {
+		return false
+	}
+	t, err := time.Parse(time.RFC3339, *claimedUntil)
+	if err != nil {
+		t, err = time.Parse("2006-01-02T15:04:05.999999-07:00", *claimedUntil)
+	}
+	if err != nil {
+		return false
+	}
+	return time.Now().UTC().Before(t.UTC())
+}
+
 func skipReason(row reprocessRow, waiting map[string]bool) string {
 	switch {
 	case row.SentAt != nil:
@@ -150,6 +190,8 @@ func skipReason(row reprocessRow, waiting map[string]bool) string {
 		return skipPastRetention
 	case waiting[row.ID]:
 		return skipSendWaiting
+	case isClaimActive(row.GenerationClaimedUntil):
+		return skipClaimActive
 	}
 	return ""
 }
@@ -188,7 +230,12 @@ func reprocessOne(ctx context.Context, ownerID string, row reprocessRow, srv *gm
 		// Never stored half-masked: the old, fully masked copy stays.
 		return "skipped: " + skipNotMasked
 	}
-	patch := reprocessPatch{MaskedContent: content, ActionItems: []string{}}
+	patch := reprocessPatch{
+		MaskedContent:  content,
+		ActionItems:    []string{},
+		SlaPriority:    ClassifySLA(content.Subject, content.BodyMasked, time.Now().UTC()),
+		CriticAttempts: 0,
+	}
 	if err := supabasePatch(ctx, "messages", "id=eq."+url.QueryEscape(row.ID), patch); err != nil {
 		log.Printf("email %s not stored: %v", row.ID, err)
 		return "failed to store"

@@ -78,3 +78,17 @@ func TestLiveMalayAndChineseMailIsMaskedWhereItShouldBe(t *testing.T) {
 		t.Errorf("prose was masked: %q", masked)
 	}
 }
+
+func TestPlaceholderIsNotTreatedAsANameWord(t *testing.T) {
+	for _, token := range []string{"PHONE_1", "EMAIL_1", "PERSON_2", "IC_1", "LOCATION_3", "ORG_1"} {
+		if isNameWord(token) {
+			t.Errorf("placeholder %q must not be considered a name word", token)
+		}
+	}
+	text := "Aisyah Rahman [PHONE_1]"
+	hit := presidioResult{EntityType: "PERSON", Start: 0, End: len([]rune("Aisyah Rahman")), Score: 0.85}
+	runs := nameShapedOnly(text, []presidioResult{hit})
+	if len(runs) != 1 || string([]rune(text)[runs[0].Start:runs[0].End]) != "Aisyah Rahman" {
+		t.Fatalf("name adjacent to placeholder failed: %+v", runs)
+	}
+}
