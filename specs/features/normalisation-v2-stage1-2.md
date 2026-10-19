@@ -168,7 +168,7 @@ translated again on every request.
 ### Task 2.4: clean-up paths (30 min)
 
 - **Retention** (`backend/app/retention.py`, `_message_content`): also clear `own_text_en` when the body
-  is cleared. The English subject stays, like the original subject.
+  is cleared. The English subject is cleared with the original subject (audit M2).
 - **Reprocess** (`listener/reprocess.go`): also clear `language`, `subject_en` and `own_text_en`, so a
   re-read email is normalised again. Extend `TestReprocessClearsEverythingWrittenInTheOldNumbering`.
 - **Privacy notice** (`docs/privacy/privacy-notice.md`, "What goes to Google Gemini"): a new bullet

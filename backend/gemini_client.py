@@ -249,6 +249,7 @@ async def generate(prompt: str, response_schema: dict | None = None,
     payload = gemini_payload(prompt, response_schema, max_output_tokens, system)
     models = models_in_order()
     failure: ModelError | None = None
+    posted = False
     for position, model in enumerate(models):
         breaker = breaker_for(model)
         # The last model is always tried: skipping it would leave nothing to answer.
@@ -259,6 +260,9 @@ async def generate(prompt: str, response_schema: dict | None = None,
         try:
             body = await call_model(model, payload)
         except ModelError as error:
+            # An earlier model may have been sent the prompt even if this one never was.
+            posted = posted or error.posted
+            error.posted = posted
             # Out of time, or the request itself is at fault: no other model would do better, and
             # a bad input must not open the breaker for every other user.
             if error.code in (ModelErrorCode.DEADLINE_EXCEEDED, ModelErrorCode.REJECTED):

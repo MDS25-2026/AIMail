@@ -280,7 +280,9 @@ func startConnection(ctx context.Context, row connectionRow) error {
 	log.Printf("ingesting the mailbox of user %s", row.UserID)
 	writeAuditLog(ctx, row.UserID, actionStartMailbox, nil, true)
 	// Reset masking attempts on reconnect for any pending quarantined messages (M16):
-	_ = supabasePatch(ctx, "messages", "user_id=eq."+url.QueryEscape(row.UserID)+"&masking_status=eq.pending", map[string]int{"masking_attempts": 0})
+	if err := supabasePatch(ctx, "messages", "user_id=eq."+url.QueryEscape(row.UserID)+"&masking_status=eq.pending", map[string]int{"masking_attempts": 0}); err != nil {
+		log.Printf("could not reset masking attempts for user %s: %v", row.UserID, err)
+	}
 	if isFirstStart {
 		go seedInbox(ctx, mb)
 	}

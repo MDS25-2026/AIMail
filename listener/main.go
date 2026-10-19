@@ -384,7 +384,7 @@ func maskKnownEntities(text string, v *detailVault) string {
 	for placeholder, value := range v.values {
 		trimmed := strings.TrimSpace(value)
 		rCount := utf8.RuneCountInString(trimmed)
-		if rCount >= 2 {
+		if rCount >= minKnownEntityRunes {
 			items = append(items, entityItem{placeholder: placeholder, value: trimmed, runes: rCount})
 		}
 	}
@@ -417,6 +417,7 @@ func maskKnownEntities(text string, v *detailVault) string {
 		}
 
 		taken := runeSpans(text, placeholderRegex.FindAllStringIndex(text, -1))
+		matches = slices.DeleteFunc(matches, func(m []int) bool { return !isKnownEntityMatch(item.value, text[m[0]:m[1]]) })
 		matchRunes := runeSpans(text, matches)
 
 		textRunes := []rune(text)
@@ -443,6 +444,18 @@ func maskKnownEntities(text string, v *detailVault) string {
 		text = string(textRunes)
 	}
 	return text
+}
+
+// minKnownEntityRunes keeps two-letter values such as "IT" from matching all over an email.
+const minKnownEntityRunes = 3
+
+// isKnownEntityMatch stops a one-word name from hiding ordinary words: "May" must not mask "may".
+// Several words, an address or a number cannot be prose, so those match in any case.
+func isKnownEntityMatch(value, matched string) bool {
+	if strings.ContainsAny(value, " @0123456789") {
+		return true
+	}
+	return matched == value || matched == strings.ToUpper(value)
 }
 
 // presidioPost POSTs a JSON payload to a Presidio endpoint and returns the raw response body.

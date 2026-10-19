@@ -216,13 +216,15 @@ describe("the undo window", () => {
     expect(result.current.undoCountdown).toBeNull();
 
     act(() => result.current.send());
-    expect(writes(calls)).toEqual([
-      {
-        method: "POST",
-        path: "/emails/a/send",
-        body: { draft: "Draft for A", remindIfNoReply: false },
-      },
-    ]);
+    await vi.waitFor(() =>
+      expect(writes(calls)).toEqual([
+        {
+          method: "POST",
+          path: "/emails/a/send",
+          body: { draft: "Draft for A", remindIfNoReply: false },
+        },
+      ]),
+    );
     expect(result.current.undoCountdown).toBe(5);
 
     act(() => result.current.undoSend());

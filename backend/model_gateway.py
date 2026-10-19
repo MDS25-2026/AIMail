@@ -77,7 +77,7 @@ def _note(purpose: str, provider: Provider, prompt: str, caught: int) -> None:
 
 def _should_record_egress(error: BaseException) -> bool:
     if isinstance(error, ModelError):
-        if getattr(error, "posted", False):
+        if error.posted:
             # Prompt was already dispatched over the wire; record on receipt (M15).
             return True
         if error.code == ModelErrorCode.DEADLINE_EXCEEDED:

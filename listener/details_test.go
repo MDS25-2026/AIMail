@@ -167,3 +167,24 @@ func TestAVaultSealedByTheBackendOpensHere(t *testing.T) {
 		t.Fatalf("got %v, %v", got, err)
 	}
 }
+
+// A one-word name masked in the body must not swallow the same word as ordinary prose elsewhere.
+func TestAKnownOneWordNameDoesNotHideOrdinaryWords(t *testing.T) {
+	v := newDetailVault()
+	v.placeholder(kindPerson, "May")
+	v.placeholder(kindOrg, "IT")
+	v.placeholder(kindPerson, "Nurul Huda binti Rahman")
+
+	cases := map[string]string{
+		"You may ask it support.":               "You may ask it support.",
+		"Reply from May":                        "Reply from [PERSON_1]",
+		"MAY CALLED":                            "[PERSON_1] CALLED",
+		"APPROVAL FROM NURUL HUDA BINTI RAHMAN": "APPROVAL FROM [PERSON_2]",
+		"approval from nurul huda binti rahman": "approval from [PERSON_2]",
+	}
+	for in, want := range cases {
+		if got := maskKnownEntities(in, v); got != want {
+			t.Errorf("maskKnownEntities(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

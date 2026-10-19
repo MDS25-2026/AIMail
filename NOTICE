@@ -6,7 +6,7 @@ This product includes software and materials developed by third parties:
 1. Microsoft Presidio
    - Copyright (c) Microsoft Corporation.
    - Licensed under the MIT License.
-   - Used for PII recognition, entity extraction, and regex masking floor.
+   - Used for name, place and organisation recognition (NER). The regex masking floor is AIMail's own code.
 
 2. Google Generative AI (Gemini Models & SDK)
    - Governed by the Google Generative AI Developer Terms of Service.
@@ -19,7 +19,7 @@ This product includes software and materials developed by third parties:
 4. DistilBERT / Hugging Face Transformers
    - Copyright (c) Hugging Face, Inc.
    - Licensed under the Apache License, Version 2.0.
-   - Used for optional fine-tuned email priority classification.
+   - Used for an optional priority model (scripts/train_distilbert.py, backfill_importance.py); it does not score live mail.
 
 5. spaCy & Presidio Models
    - Copyright (c) ExplosionAI GmbH.

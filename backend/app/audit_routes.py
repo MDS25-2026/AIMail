@@ -37,7 +37,7 @@ WITH chain AS (
 """
 
 _SUMMARY = text(_CHAIN + """
-SELECT (count(*) > 0 AND COALESCE(bool_and(is_valid), false)) AS is_intact, count(*) AS chained,
+SELECT COALESCE(bool_and(is_valid), true) AS is_intact, count(*) AS chained,
        (SELECT current_hash FROM audit_log WHERE chain_seq IS NOT NULL ORDER BY chain_seq DESC LIMIT 1) AS head
 FROM chain
 """)

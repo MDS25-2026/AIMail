@@ -47,6 +47,8 @@ class ModelError(RuntimeError):
     def __init__(self, code: ModelErrorCode, detail: str) -> None:
         super().__init__(f"{code}: {detail}")
         self.code = code
+        # True once any model was sent the prompt, so the egress receipt records it even on failure.
+        self.posted = False
 
 
 @dataclass(frozen=True)

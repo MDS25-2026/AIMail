@@ -241,3 +241,17 @@ def test_a_bad_api_key_is_unavailable_not_rejected(monkeypatch):
     with pytest.raises(ModelError) as caught:
         run(generate("hi"))
     assert caught.value.code == ModelErrorCode.UNAVAILABLE
+
+
+def test_a_prompt_the_primary_was_sent_stays_on_the_receipt_when_the_fallback_runs_out_of_time(monkeypatch):
+    async def call(model, _payload):
+        if model == PRIMARY:
+            sent = ModelError(ModelErrorCode.UNAVAILABLE, "503")
+            sent.posted = True
+            raise sent
+        raise ModelError(ModelErrorCode.DEADLINE_EXCEEDED, "no time left for the fallback")
+
+    monkeypatch.setattr(gemini_client, "call_model", call)
+    with pytest.raises(ModelError) as caught:
+        asyncio.run(generate("hello"))
+    assert caught.value.code == ModelErrorCode.DEADLINE_EXCEEDED and caught.value.posted

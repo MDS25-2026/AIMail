@@ -199,7 +199,7 @@ leaves the recipient's client ungrouped. Both mechanisms, or it is not threaded.
 
 - `messages.language` (`en`, `ms`, `zh`; NULL until the worker normalises it), `subject_en` and
   `own_text_en`: an English copy of a non-English email's subject and the sender's own text, masked
-  like the original. Retention clears `own_text_en` with the body; the worker also fills `deadline_at`.
+  like the original. Retention clears `own_text_en` with the body and `subject_en` with the subject; the worker also fills `deadline_at`.
 - Partial index `messages_language_pending_idx` on `created_at` WHERE `language IS NULL`: the queue.
 
 ### Personalisation (Lane B, migration 0007)
