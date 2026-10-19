@@ -114,7 +114,10 @@ function TrailView({ trail, onLoadMore }: { trail: AuditTrail; onLoadMore?: () =
           />
         </label>
         <p className="text-xs text-fg-muted">
-          {t("audit.showing", { shown: shown.length, total: trail.totalRecords || trail.events.length })}
+          {t("audit.showing", {
+            shown: shown.length,
+            total: trail.totalRecords || trail.events.length,
+          })}
         </p>
       </div>
       <AuditTable events={shown} onInspect={setInspected} />

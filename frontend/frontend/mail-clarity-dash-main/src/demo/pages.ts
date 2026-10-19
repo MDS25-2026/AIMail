@@ -382,13 +382,9 @@ function addExample({ json, endpoint }: Call): WritingStyle {
     createdAt: new Date().toISOString(),
     text: fromEmail ? fromEmail.draftReply : String(json.text ?? ""),
   };
-  return changeStyle(
-    "writing_style_example_added",
-    { source: example.source },
-    () => ({
-      examples: [...style.examples, example],
-    }),
-  );
+  return changeStyle("writing_style_example_added", { source: example.source }, () => ({
+    examples: [...style.examples, example],
+  }));
 }
 
 export const PAGE_ROUTES: Route[] = [
@@ -596,47 +592,35 @@ export const PAGE_ROUTES: Route[] = [
     pattern: /^\/profile\/writing\/description$/,
     handler: ({ json }) => {
       const description = String(json.description ?? "");
-      return changeStyle(
-        "writing_style_description",
-        { chars: description.length },
-        () => ({ description }),
-      );
+      return changeStyle("writing_style_description", { chars: description.length }, () => ({
+        description,
+      }));
     },
   },
   {
     method: "PUT",
     pattern: /^\/profile\/writing\/learning$/,
     handler: ({ json }) =>
-      changeStyle(
-        "writing_style_learning",
-        { enabled: Boolean(json.enabled) },
-        () => ({ learning: Boolean(json.enabled) }),
-      ),
+      changeStyle("writing_style_learning", { enabled: Boolean(json.enabled) }, () => ({
+        learning: Boolean(json.enabled),
+      })),
   },
   { method: "POST", pattern: /^\/profile\/writing\/examples$/, handler: addExample },
   {
     method: "DELETE",
     pattern: /^\/profile\/writing\/examples\/([^/]+)$/,
     handler: ({ params }) =>
-      void changeStyle(
-        "writing_style_deleted_example",
-        { item: params[0] },
-        (style) => ({
-          examples: style.examples.filter((example) => example.id !== params[0]),
-        }),
-      ),
+      void changeStyle("writing_style_deleted_example", { item: params[0] }, (style) => ({
+        examples: style.examples.filter((example) => example.id !== params[0]),
+      })),
   },
   {
     method: "DELETE",
     pattern: /^\/profile\/writing\/habits\/([^/]+)$/,
     handler: ({ params }) =>
-      void changeStyle(
-        "writing_style_hid_habit",
-        { item: params[0] },
-        (style) => ({
-          habits: style.habits.filter((habit) => habit.id !== params[0]),
-        }),
-      ),
+      void changeStyle("writing_style_hid_habit", { item: params[0] }, (style) => ({
+        habits: style.habits.filter((habit) => habit.id !== params[0]),
+      })),
   },
   {
     method: "DELETE",

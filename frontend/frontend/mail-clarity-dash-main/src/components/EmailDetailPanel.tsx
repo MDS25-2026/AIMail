@@ -51,6 +51,7 @@ export default function EmailDetailPanel({
   onMarkRead,
 }: EmailDetailPanelProps) {
   const { t } = useTranslation();
+  const values = useMemo(() => (email ? detailValues(email.details) : new Map()), [email?.details]);
   if (!email) {
     return (
       <div className="flex h-full items-center justify-center p-8 text-sm text-fg-subtle">
@@ -81,7 +82,6 @@ export default function EmailDetailPanel({
   }
 
   const conversation = splitAround(email.threadContext, email.timestamp);
-  const values = useMemo(() => detailValues(email.details), [email.details]);
   return (
     <DetailsContext.Provider value={values}>
       <div className="relative h-full overflow-y-auto">
