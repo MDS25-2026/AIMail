@@ -45,9 +45,14 @@ async def normalise_pending(limit: int) -> int:
     for message in rows:
         try:
             await _normalise(message)
-        except _TryAgainLater:
-            logger.warning("email %s not normalised yet: the agent is unavailable", message.id)
-            return done  # every remaining email would fail the same way
+        except _TryAgainLater as exc:
+            logger.warning("email %s not normalised yet: %s", message.id, exc)
+            cause = exc.__cause__
+            if isinstance(cause, (httpx.TimeoutException, httpx.ConnectError)) or (
+                isinstance(cause, httpx.HTTPStatusError) and cause.response.status_code >= 500
+            ):
+                return done
+            continue
         done += 1
     return done
 
@@ -72,11 +77,23 @@ async def _english(message: Message, own: str) -> tuple[str | None, str | None]:
     if provider == Provider.LOCAL and not is_offered():
         return None, None
     try:
-        subject = await _translated(message, message.subject, provider) if message.subject else None
-        return subject, await _translated(message, _within_limit(own), provider)
+        subject = (
+            await _translated(message, _within_limit(message.subject), provider)
+            if message.subject and message.subject.strip()
+            else None
+        )
+        own_en = (
+            await _translated(message, _within_limit(own), provider)
+            if own and own.strip()
+            else None
+        )
+        return subject, own_en
     except httpx.HTTPStatusError as exc:
         await save_egress(agent_client.refusal_egress(exc.response), user_id=message.user_id, message_id=message.id)
-        if exc.response.status_code != REFUSED:
+        if exc.response.status_code >= 500:
+            logger.warning("email %s translation failed (%d): retrying later", message.id, exc.response.status_code)
+            raise _TryAgainLater from exc
+        if not agent_client.is_content_refusal(exc.response):
             raise _TryAgainLater from exc
         return None, None
     except (httpx.HTTPError, ValidationError) as exc:
@@ -91,11 +108,23 @@ async def _translated(message: Message, text: str, provider: Provider) -> str:
 
 
 def _within_limit(text: str) -> str:
-    """The agent's limit, cut at the last paragraph that fits so no sentence is halved."""
+    """The agent's limit, cut cleanly so no sentence or placeholder is halved."""
     if len(text) <= MAX_TRANSLATE_CHARS:
         return text
     cut = text.rfind("\n\n", 0, MAX_TRANSLATE_CHARS)
-    return text[:cut if cut > 0 else MAX_TRANSLATE_CHARS]
+    if cut <= 0:
+        cut = text.rfind("\n", 0, MAX_TRANSLATE_CHARS)
+    if cut <= 0:
+        cut = text.rfind(" ", 0, MAX_TRANSLATE_CHARS)
+    if cut <= 0:
+        cut = MAX_TRANSLATE_CHARS
+    candidate = text[:cut]
+    last_open = candidate.rfind("[")
+    if last_open != -1:
+        last_close = candidate.rfind("]")
+        if last_close < last_open:
+            candidate = candidate[:last_open].rstrip()
+    return candidate
 
 
 async def _zone_of(message: Message) -> str:

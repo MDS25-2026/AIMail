@@ -192,3 +192,25 @@ def test_the_google_account_name_becomes_the_profile_name_without_replacing_one_
     statements = _stored_statements(monkeypatch, "new.user@gmail.com")
     profile = next(s for s in statements if "INSERT INTO user_profile" in s)
     assert "coalesce(user_profile.display_name, excluded.display_name)" in profile
+
+
+def test_granted_scopes_uses_bearer_header_and_does_not_leak_token_on_error(monkeypatch):
+    captured_requests = []
+    secret_token = "ya29.SUPER_SECRET_TOKEN_VALUE"
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        captured_requests.append(request)
+        return httpx.Response(429, json={"error": "rate_limit_exceeded"})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+    monkeypatch.setattr(connections.httpx, "AsyncClient", lambda **_kwargs: client)
+
+    with pytest.raises(connections.ConnectionStoreError) as exc_info:
+        asyncio.run(connections.granted_scopes(secret_token))
+
+    assert len(captured_requests) == 1
+    req = captured_requests[0]
+    assert req.headers.get("authorization") == f"Bearer {secret_token}"
+    assert "access_token" not in str(req.url)
+    assert secret_token not in str(exc_info.value)
+    assert "HTTPStatusError: 429" in str(exc_info.value)

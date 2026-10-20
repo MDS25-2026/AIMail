@@ -102,7 +102,7 @@ class TestNoBacktracking:
         "</ " * 25_000,
         "<" * 50_000,
         "</email_body" + " " * 50_000,
-    ])
+    ], ids=["slash_trailing_spaces", "slash_repeated", "lt_repeated", "tag_trailing_spaces"])
     def test_hostile_input_completes_promptly(self, hostile):
         # Regression for the CodeQL class fixed in #68: unbounded whitespace around an alternation
         # is the shape that backtracks. Bounded repetition keeps this linear.

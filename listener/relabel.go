@@ -44,13 +44,25 @@ func runRelabel(ctx context.Context, args []string) error {
 }
 
 func relabelMailbox(ctx context.Context, connection connectionRow, isWrite bool, totals map[string]int) error {
-	body, err := supabaseGet(ctx, "messages", "select=id,gmail_message_id,is_automated&"+ownerFilter(connection.UserID))
-	if err != nil {
-		return err
-	}
 	var rows []relabelRow
-	if err := json.Unmarshal(body, &rows); err != nil {
-		return fmt.Errorf("decode messages: %w", err)
+	const batchSize = 1000
+	offset := 0
+	for {
+		query := fmt.Sprintf("select=id,gmail_message_id,is_automated&%s&order=id.asc&limit=%d&offset=%d",
+			ownerFilter(connection.UserID), batchSize, offset)
+		body, err := supabaseGet(ctx, "messages", query)
+		if err != nil {
+			return err
+		}
+		var batch []relabelRow
+		if err := json.Unmarshal(body, &batch); err != nil {
+			return fmt.Errorf("decode messages: %w", err)
+		}
+		rows = append(rows, batch...)
+		if len(batch) < batchSize {
+			break
+		}
+		offset += batchSize
 	}
 	srv, err := connectionService(ctx, connection)
 	if err != nil {

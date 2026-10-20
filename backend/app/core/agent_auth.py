@@ -32,6 +32,10 @@ def _is_allowed(request: Request) -> bool:
 
 async def require_agent_token(request: Request, call_next: RequestResponseEndpoint) -> Response | JSONResponse:
     # A host's probes carry no token, and the health routes relay nothing to a model.
-    if request.url.path not in HEALTH_PATHS and not _is_allowed(request):
+    # But if an explicit agent token header is provided, or if the path is not a health path, validate it.
+    if request.url.path not in HEALTH_PATHS:
+        if not _is_allowed(request):
+            return error_response(ErrorCode.FORBIDDEN, "agent token missing or wrong")
+    elif AGENT_TOKEN_HEADER in request.headers and not _is_allowed(request):
         return error_response(ErrorCode.FORBIDDEN, "agent token missing or wrong")
     return await call_next(request)

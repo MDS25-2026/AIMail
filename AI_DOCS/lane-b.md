@@ -18,7 +18,7 @@ classifier for inbox triage.
   a 1536-dim vector -> store.
 - Read path (search): question -> embed -> cosine search over stored vectors -> top-k
   passages with scores.
-- Demo UI (backend page + Next.js frontend): scored search, knowledge-base panel with
+- Demo UI (backend page + Vite/React dashboard): scored search, knowledge-base panel with
   provenance, PDF upload + preview, and a one-line trace of the vector-search steps.
 - Full RAG loop demo (/ask): retrieve chunks -> generate a grounded answer with citations
   via Gemini Flash. Note: real reply generation is Lane C; this is a scoped demo of the loop.
@@ -53,7 +53,7 @@ READ    question -> [Gemini embed] -> query vector -> cosine search -> top-k pas
 - `backend/app/rag/generate.py` — grounded-answer generation for /ask (Lane C territory; demo)
 - `backend/app/db/models.py` + `migrations/0001_rag_tables.sql` — `document` / `chunk` / `embedding`
 - `backend/app/main.py` — REST API (`/search`, `/documents`, `/documents/upload`, `/ask`)
-- `frontend/app/page.tsx` — dashboard UI
+- `frontend/frontend/mail-clarity-dash-main/` — Vite/React dashboard UI (:8090)
 
 ## Gotchas
 
@@ -67,9 +67,9 @@ READ    question -> [Gemini embed] -> query vector -> cosine search -> top-k pas
 
 ```bash
 cd backend
-../.venv/bin/python scripts/apply_migration.py      # create tables (first run)
-../.venv/bin/python scripts/ingest.py <pdf> --owner <email> --title "Title"  # ingest a policy PDF
-../.venv/bin/uvicorn app.main:app --reload          # backend at :8000
-../.venv/bin/pytest                                 # tests
-cd ../frontend && npm run dev                        # frontend at :3000
+python scripts/migrate.py                                                      # apply database migrations (first run)
+python scripts/ingest.py <pdf> --owner <email> --title "Title"                 # ingest a policy PDF
+uvicorn app.main:app --reload --port 8000                                      # backend at :8000
+pytest                                                                         # tests
+cd ../frontend/frontend/mail-clarity-dash-main && npm run dev                  # dashboard at :8090
 ```

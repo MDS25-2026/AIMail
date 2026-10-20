@@ -1,6 +1,6 @@
 # Contributing to AImail
 
-_Last reviewed: 2026-04-29_
+_Last reviewed: 2026-10-19_
 
 This is how we ship work on AImail. Read it once; refer back when stuck. Sprint cadence and ceremonies live in [`docs/scrum.md`](docs/scrum.md).
 
@@ -32,7 +32,7 @@ Features without a spec yet get the `status: spec-pending` label until stage 2 p
 
 ## 2 · Spec (features only — bugs and chores skip this)
 
-> **Phase 0 (current — until first feature ships):** specs in `specs/features/` may be `Status: idea` sketches. The spec-only PR rule and the 4-required-sections rule are aspirational, not gated. Real specs (full template, ACs, etc.) start when a feature is picked up for implementation in sprint 2 or later. The rest of the workflow (commits, branches, PRs, reviews) applies in full.
+> **Release 1.7.0+:** specs in `specs/features/` are required for all non-trivial features. Follow the full template with Goal, Scope, Acceptance Criteria, and API Surface. The rest of the workflow (commits, branches, PRs, reviews) applies in full.
 
 1. Copy [`specs/_template.md`](specs/_template.md) → `specs/features/<feature-name>.md`.
 2. Fill in **Goal**, **Scope**, **Acceptance Criteria**, **API Surface** at minimum.

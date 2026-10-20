@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { nextHourHere, nextMondayHere } from "../lib/quietHours";
@@ -15,6 +15,7 @@ type SendLaterMenuProps = { workflow: DraftWorkflow; isBlocked: boolean };
 export default function SendLaterMenu({ workflow, isBlocked }: SendLaterMenuProps) {
   const { t } = useTranslation();
   const panelId = useId();
+  const menuRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [custom, setCustom] = useState("");
   const isDisabled = workflow.isDraftLocked || isBlocked;
@@ -28,8 +29,28 @@ export default function SendLaterMenu({ workflow, isBlocked }: SendLaterMenuProp
     { label: t("schedule.monday"), at: nextMondayHere(now, MORNING_HOUR) },
   ];
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsOpen(false);
+      }
+    };
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isOpen]);
+
   return (
-    <div className="relative">
+    <div ref={menuRef} className="relative">
       <button
         type="button"
         aria-expanded={isOpen}

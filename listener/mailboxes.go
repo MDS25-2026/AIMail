@@ -143,6 +143,14 @@ func loadConnections(ctx context.Context) ([]connectionRow, error) {
 	return rows, nil
 }
 
+func gmailHTTPTimeout() time.Duration {
+	d, err := time.ParseDuration(getEnvOrDefault("GMAIL_HTTP_TIMEOUT", "60s"))
+	if err != nil || d <= 0 {
+		return 60 * time.Second
+	}
+	return d
+}
+
 // connectionService is a Gmail client acting as the user. Their token was issued to the web client
 // configured in Supabase, so it can only be refreshed with that client's id and secret.
 func connectionService(ctx context.Context, row connectionRow) (*gmail.Service, error) {
@@ -165,7 +173,9 @@ func connectionService(ctx context.Context, row connectionRow) (*gmail.Service, 
 	config := &oauth2.Config{ClientID: clientID, ClientSecret: clientSecret, Endpoint: google.Endpoint,
 		Scopes: []string{gmail.GmailReadonlyScope}}
 	tokens := config.TokenSource(ctx, &oauth2.Token{RefreshToken: refreshToken})
-	return gmail.NewService(ctx, option.WithTokenSource(tokens))
+	client := oauth2.NewClient(ctx, tokens)
+	client.Timeout = gmailHTTPTimeout()
+	return gmail.NewService(ctx, option.WithHTTPClient(client))
 }
 
 // syncConnections starts ingesting every connection not yet registered. A connection that cannot
@@ -269,6 +279,10 @@ func startConnection(ctx context.Context, row connectionRow) error {
 	registerMailbox(mb)
 	log.Printf("ingesting the mailbox of user %s", row.UserID)
 	writeAuditLog(ctx, row.UserID, actionStartMailbox, nil, true)
+	// Reset masking attempts on reconnect for any pending quarantined messages (M16):
+	if err := supabasePatch(ctx, "messages", "user_id=eq."+url.QueryEscape(row.UserID)+"&masking_status=eq.pending", map[string]int{"masking_attempts": 0}); err != nil {
+		log.Printf("could not reset masking attempts for user %s: %v", row.UserID, err)
+	}
 	if isFirstStart {
 		go seedInbox(ctx, mb)
 	}

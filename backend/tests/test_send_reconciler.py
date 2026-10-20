@@ -1,7 +1,7 @@
 """Settling sends whose outcome was lost (app/send_reconciler.py)."""
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -38,12 +38,16 @@ def settle(monkeypatch):
     monkeypatch.setattr(send_reconciler, "get_sessionmaker", lambda: lambda: _Session(updates))
     monkeypatch.setattr(send_reconciler, "audit", audit)
 
-    def run(found: str | None):
+    def run(found: str | None, rfc_id: str | None = None):
         async def ask(*_args, **_kwargs):
             return found
 
+        async def get_rfc(*_args, **_kwargs):
+            return rfc_id or found
+
         monkeypatch.setattr(send_reconciler.gmail_send, "sent_message_in_thread_since", ask)
-        message = Message(id=uuid4(), user_id=uuid4(), thread_id="t1", sent_at=datetime.now(timezone.utc))
+        monkeypatch.setattr(send_reconciler.gmail_send, "get_rfc_message_id", get_rfc)
+        message = Message(id=uuid4(), user_id=uuid4(), thread_id="t1", sent_at=datetime.now(UTC))
         asyncio.run(send_reconciler._settle_reply(message))
         return updates, audited
 
@@ -51,8 +55,9 @@ def settle(monkeypatch):
 
 
 def test_a_send_gmail_shows_is_recorded_as_done(settle):
-    updates, audited = settle("gmail-id-1")
-    assert updates[0]["sent_message_id"] == "gmail-id-1" and updates[0]["send_outcome_unknown_at"] is None
+    updates, audited = settle("gmail-id-1", "<rfc-id-1@mail.gmail.com>")
+    assert updates[0]["sent_message_id"] == "<rfc-id-1@mail.gmail.com>" and updates[0]["send_outcome_unknown_at"] is None
+    assert updates[1]["gmail_id"] == "gmail-id-1"
     assert audited == ["sent"]
 
 
@@ -90,8 +95,8 @@ def settle_follow_up(monkeypatch):
             return found
 
         monkeypatch.setattr(send_reconciler.gmail_send, "sent_message_in_thread_since", ask)
-        sent = SentMessage(id=uuid4(), user_id=uuid4(), thread_id="t1", sent_at=datetime.now(timezone.utc),
-                           followed_up_at=datetime.now(timezone.utc))
+        sent = SentMessage(id=uuid4(), user_id=uuid4(), thread_id="t1", sent_at=datetime.now(UTC),
+                           followed_up_at=datetime.now(UTC))
         asyncio.run(send_reconciler._settle_follow_up(sent))
         return updates, audited
 

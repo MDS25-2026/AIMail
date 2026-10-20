@@ -36,7 +36,8 @@ function downloadJson(trail: AuditTrail): void {
 
 function AuditPage() {
   const { t } = useTranslation();
-  const trail = useAuditTrail();
+  const [limit, setLimit] = useState(50);
+  const trail = useAuditTrail(limit);
   return (
     <AppShell>
       <section className="relative min-w-0 flex-1 overflow-y-auto bg-surface-muted p-6">
@@ -56,7 +57,16 @@ function AuditPage() {
               onRetry={() => void trail.refetch()}
             />
           ) : null}
-          {trail.data ? <TrailView trail={trail.data} /> : null}
+          {trail.data ? (
+            <TrailView
+              trail={trail.data}
+              onLoadMore={
+                trail.data.events.length < Math.min(trail.data.totalRecords, 100)
+                  ? () => setLimit((prev) => prev + 50)
+                  : undefined
+              }
+            />
+          ) : null}
         </div>
       </section>
     </AppShell>
@@ -80,7 +90,7 @@ function ExportButton({ trail }: { trail: AuditTrail }) {
   );
 }
 
-function TrailView({ trail }: { trail: AuditTrail }) {
+function TrailView({ trail, onLoadMore }: { trail: AuditTrail; onLoadMore?: () => void }) {
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [inspected, setInspected] = useState<AuditTrailEvent | null>(null);
@@ -104,10 +114,24 @@ function TrailView({ trail }: { trail: AuditTrail }) {
           />
         </label>
         <p className="text-xs text-fg-muted">
-          {t("audit.showing", { shown: shown.length, total: trail.events.length })}
+          {t("audit.showing", {
+            shown: shown.length,
+            total: trail.totalRecords || trail.events.length,
+          })}
         </p>
       </div>
       <AuditTable events={shown} onInspect={setInspected} />
+      {onLoadMore ? (
+        <div className="flex justify-center pt-2">
+          <button
+            type="button"
+            onClick={onLoadMore}
+            className={cn(button({ intent: "quiet", size: "sm" }), "text-xs")}
+          >
+            {t("audit.loadMore", "Load more records")}
+          </button>
+        </div>
+      ) : null}
       <ProofDialog event={inspected} onClose={() => setInspected(null)} />
     </>
   );

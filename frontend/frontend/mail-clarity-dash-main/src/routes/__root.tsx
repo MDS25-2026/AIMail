@@ -18,6 +18,7 @@ import { button } from "../components/variants";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Page, pageMeta } from "../lib/pageMeta";
 import { coloursAttribute, SYSTEM_THEME_SCRIPT, Theme } from "../lib/preferences";
+import { useSession } from "../lib/queries/session";
 import { readPreferences } from "../lib/readPreferences";
 import { cn } from "../lib/utils";
 import { useFocusOnNavigate } from "../lib/useFocusOnNavigate";
@@ -100,6 +101,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content",
       },
       { name: "theme-color", content: THEME_COLOR },
+      { httpEquiv: "X-Frame-Options", content: "DENY" },
+      { name: "referrer", content: "strict-origin-when-cross-origin" },
+      {
+        httpEquiv: "Content-Security-Policy",
+        content:
+          "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:; connect-src 'self' http://localhost:* https://*.onrender.com https://*.supabase.co;",
+      },
       ...pageMeta(match.context.preferences.language, Page.App),
     ],
     links: [
@@ -145,6 +153,12 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+function RootChatWidget() {
+  const session = useSession();
+  const sessionKey = session.data?.email ?? "signed-out";
+  return <InboxChatWidget key={sessionKey} />;
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   useFocusOnNavigate();
@@ -153,7 +167,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
-      <InboxChatWidget />
+      <RootChatWidget />
     </QueryClientProvider>
   );
 }

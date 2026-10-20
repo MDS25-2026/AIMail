@@ -48,7 +48,9 @@ the environment only (`AIMAIL_ENV_FILE` is empty in them), log JSON (`LOG_FORMAT
 Pub/Sub holds Gmail's notifications on a pull subscription the listener reads. Set up the dead-letter policy with
 [`pubsub-dead-letter.md`](pubsub-dead-letter.md).
 
-## Not here yet
+## Cloud hosting
 
-No infrastructure-as-code and no chosen host. The images and probes above are what a host needs; the
-cookie and CORS layout for a deployed dashboard is proposed in [ADR 0007](../docs/adr/0007-one-site-for-the-dashboard-and-api.md): one site, two subdomains.
+Production hosting runs via Render Blueprint [`render.yaml`](../render.yaml) (web API/agent service,
+private Presidio and attachment reader services, and background listener worker) and Vercel for the
+dashboard. The cookie and CORS layout for a deployed dashboard is documented in
+[ADR 0007](../docs/adr/0007-one-site-for-the-dashboard-and-api.md) and [`specs/features/free-hosting.md`](../specs/features/free-hosting.md).

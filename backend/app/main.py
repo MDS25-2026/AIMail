@@ -137,7 +137,16 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     await agent_client.close()
 
 
-app = FastAPI(title="AImail backend", dependencies=[Depends(require_auth)], lifespan=_lifespan)
+_settings = get_settings()
+_is_dev = _settings.environment == "dev"
+app = FastAPI(
+    title="AImail backend",
+    dependencies=[Depends(require_auth)],
+    lifespan=_lifespan,
+    docs_url="/docs" if _is_dev else None,
+    redoc_url="/redoc" if _is_dev else None,
+    openapi_url="/openapi.json" if _is_dev else None,
+)
 app.middleware("http")(request_context)
 # Its own app, so the shared token never applies there: admin is a Supabase session (ADR 0004).
 app.mount(ADMIN_PREFIX, admin_app)
@@ -164,7 +173,7 @@ app.add_middleware(
     PathScopedCORS,
     admin_prefix=ADMIN_PREFIX,
     admin_origins=origins_from(get_settings().admin_origins),
-    public_origins=origins_from(get_settings().frontend_origins),
+    frontend_origins=origins_from(get_settings().frontend_origins),
     public_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
 )
 

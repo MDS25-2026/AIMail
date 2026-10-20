@@ -71,3 +71,18 @@ def test_private_mode_without_a_model_here_makes_no_copy_and_no_call(agent, monk
 def test_a_long_text_is_cut_at_a_paragraph_within_the_agents_limit(monkeypatch):
     monkeypatch.setattr(pipeline, "MAX_TRANSLATE_CHARS", 30)
     assert pipeline._within_limit("First paragraph here.\n\nSecond paragraph is long.") == "First paragraph here."
+
+
+def test_empty_own_text_does_not_call_translate(agent):
+    subject, body = asyncio.run(pipeline._english(_message("Permohonan"), ""))
+    assert subject == "EN Permohonan" and body is None
+    assert len(agent["sent"]) == 1
+
+
+def test_within_limit_prevents_splitting_placeholders(monkeypatch):
+    text = "nospaceshere_[PERSON_1]_tail"
+    cut_inside = text.find("PERSON") + 3
+    monkeypatch.setattr(pipeline, "MAX_TRANSLATE_CHARS", cut_inside)
+    result = pipeline._within_limit(text)
+    assert result == "nospaceshere_"
+    assert "[" not in result

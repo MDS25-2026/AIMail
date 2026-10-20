@@ -44,7 +44,7 @@ FROM chain
 
 _EVENTS = _CHAIN + """
 SELECT a.id, a.created_at, a.action, a.detail, a.success, a.prev_hash, a.current_hash, a.user_id,
-       c.is_valid
+       c.is_valid, count(*) OVER () AS full_count
 FROM audit_log a LEFT JOIN chain c ON c.id = a.id
 """
 _ORDER = " ORDER BY a.created_at DESC, a.id DESC LIMIT :limit"
@@ -132,9 +132,10 @@ async def get_audit_trail(
         summary = (await session.execute(_SUMMARY)).one()
         rows = (await session.execute(text(sql), {**params, "limit": limit})).all()
     events = [_event(row) for row in rows]
+    total_count = getattr(rows[0], "full_count", len(events)) if rows else (summary.chained if principal.is_service else 0)
     return AuditTrailResponse(
         isChainIntact=summary.is_intact,
-        totalRecords=len(events),
+        totalRecords=int(total_count),
         verifiedRecords=sum(1 for event in events if event.verification == Verification.VERIFIED),
         headHash=summary.head,
         events=events,

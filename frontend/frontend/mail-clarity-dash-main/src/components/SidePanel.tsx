@@ -1,8 +1,10 @@
+import { useMemo } from "react";
 import { Contrast } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { detailValues } from "../lib/details";
-import { DetailsContext } from "../lib/detailsContext";
+import { detailValues, maskSender } from "../lib/details";
+import { DetailsContext, useDetailValues } from "../lib/detailsContext";
+import { useDetailsHidden } from "../lib/detailsVisibility";
 import { DraftAvailability, draftAvailability } from "../lib/draftAvailability";
 import { StatusColours } from "../lib/preferences";
 import type { DraftWorkflow } from "../lib/useDraftWorkflow";
@@ -32,11 +34,12 @@ export type SidePanelProps = { email: Email; workflow: DraftWorkflow; account?: 
  * the summary, the action items and the reply. It gates the draft exactly as the inbox does.
  */
 export default function SidePanel({ email, workflow, account }: SidePanelProps) {
+  const values = useMemo(() => detailValues(email.details), [email.details]);
   const availability = draftAvailability(email);
   const isQuarantined = availability === DraftAvailability.Quarantined;
   const isDraftShown = availability !== DraftAvailability.NeedsSenderCheck && !isQuarantined;
   return (
-    <DetailsContext.Provider value={detailValues(email.details)}>
+    <DetailsContext.Provider value={values}>
       <div className="flex h-full w-full flex-col bg-surface-muted">
         <PanelHeader account={account} hasDetails={Boolean(email.details?.length)} />
 
@@ -66,6 +69,10 @@ export default function SidePanel({ email, workflow, account }: SidePanelProps) 
 function PanelTitle({ email }: { email: Email }) {
   const { t } = useTranslation();
   const format = useFormat();
+  const [isHidden] = useDetailsHidden();
+  const contextValues = useDetailValues();
+  const values = contextValues.size > 0 ? contextValues : detailValues(email.details);
+  const sender = maskSender(email.sender, isHidden, values);
   return (
     <div className="flex items-start gap-2">
       <div className="min-w-0 flex-1">
@@ -73,7 +80,7 @@ function PanelTitle({ email }: { email: Email }) {
           <WithDetails text={email.subject} />
         </p>
         <p className="truncate text-xs text-fg-muted">
-          {t("detail.fromAt", { sender: email.sender, when: format.timestamp(email.timestamp) })}
+          {t("detail.fromAt", { sender, when: format.timestamp(email.timestamp) })}
         </p>
       </div>
       <PrivacyReceipt email={email} />
@@ -83,6 +90,7 @@ function PanelTitle({ email }: { email: Email }) {
 
 function PanelDraft({ email, workflow }: { email: Email; workflow: DraftWorkflow }) {
   const { t } = useTranslation();
+  const values = useMemo(() => detailValues(email.details), [email.details]);
   return (
     <section
       aria-label={t("draft.title")}
@@ -93,7 +101,7 @@ function PanelDraft({ email, workflow }: { email: Email; workflow: DraftWorkflow
       <HiddenDetailChips
         key={`hidden-${email.id}`}
         draft={workflow.draft}
-        values={detailValues(email.details)}
+        values={values}
         onDraftChange={workflow.setDraft}
         disabled={workflow.isDraftLocked}
       />

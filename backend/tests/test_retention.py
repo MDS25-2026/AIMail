@@ -25,6 +25,9 @@ def test_clearing_message_content_keeps_the_record_but_not_the_words():
     sql = _sql(retention._message_content(180))
     assert sql.startswith("UPDATE messages") and "body_masked" in sql and "ai_summary" in sql
     assert "embedding=" in sql.replace(" ", "")  # the Gemini vector of the body goes with the words
+    assert "subject=" in sql.replace(" ", "") and "from_addr=" in sql.replace(" ", "")
+    assert "subject_en=" in sql.replace(" ", "")  # the English copy goes with the subject it translates
+    assert "reply_to=" in sql.replace(" ", "") and "critic_checks=" in sql.replace(" ", "")
     assert "DELETE" not in sql
 
 

@@ -54,6 +54,9 @@ services:
         sync: false
       - key: ADMIN_ORIGINS
         sync: false
+      # 1 hop: Render's reverse proxy appends the client IP to X-Forwarded-For
+      - key: TRUSTED_PROXY_HOPS
+        value: "1"
       # http://<aimail-presidio's internal address>/analyze, from that service's page (Connect, Internal).
       - key: PRESIDIO_ANALYZER_URL
         sync: false
@@ -121,4 +124,7 @@ services:
       # Internal). Without it every attachment is skipped.
       - key: ATTACHMENT_READER_URL
         sync: false
+      # Model that transcribes the reader's redacted images.
+      - key: OCR_MODEL
+        value: gemini-3.5-flash-lite
 

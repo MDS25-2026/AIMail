@@ -325,6 +325,6 @@ def test_every_drafting_prompt_asks_for_the_emails_own_language(monkeypatch):
 @pytest.mark.parametrize(("line", "is_name"), [
     ("Elyesa", True), ("Elyesa Tee", True), ("Mary-Jane O'Neil", True),
     ("Ali Bin Abu Bakar", False), ("aisyah", False), ("Tee 2026", False), ("A" * 50_000 + "!", False),
-])
+], ids=["elyesa", "elyesa-tee", "mary-jane", "ali", "aisyah", "tee-2026", "long-string"])
 def test_only_a_short_capitalised_line_counts_as_a_signature(line, is_name):
     assert writing_style._is_signature(line) is is_name

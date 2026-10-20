@@ -15,6 +15,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import { searchInbox, type ChatMessage, type SearchSource } from "../lib/api/search";
+import { maskSender } from "../lib/details";
 import { useDetailsHidden } from "../lib/detailsVisibility";
 import { useSession } from "../lib/queries";
 import { useIsReadingEmail } from "../lib/useIsReadingEmail";
@@ -34,6 +35,19 @@ export default function InboxChatWidget() {
   const [expandedSources, setExpandedSources] = useState<Record<number, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const userId = session.data?.email ?? null;
+  const prevUserIdRef = useRef(userId);
+
+  useEffect(() => {
+    if (prevUserIdRef.current !== userId || !session.data) {
+      setMessages([]);
+      setExpandedSources({});
+      setInput("");
+      setIsOpen(false);
+      prevUserIdRef.current = userId;
+    }
+  }, [userId, session.data]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -148,7 +162,7 @@ export default function InboxChatWidget() {
           "fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-4 z-50 flex h-11 w-11 md:bottom-4 items-center justify-center rounded-full shadow-lg transition-transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2",
           // On a phone an open email's send bar owns the bottom; the assistant is a back-tap away.
           isReadingEmail && !isOpen && "hidden md:flex",
-          isOpen ? "bg-surface-elevated text-fg border border-line" : "bg-brand text-brand-fg",
+          isOpen ? "bg-surface-muted text-fg border border-line" : "bg-brand text-on-brand",
         )}
       >
         {isOpen ? <X className="h-5 w-5" /> : <MessageSquare className="h-5 w-5" />}
@@ -162,7 +176,7 @@ export default function InboxChatWidget() {
           className="fixed inset-x-2 bottom-32 top-16 z-50 md:bottom-16 flex flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-2xl sm:inset-auto sm:bottom-16 sm:left-4 sm:h-[540px] sm:w-[380px]"
         >
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-line bg-surface-elevated px-4 py-3">
+          <div className="flex items-center justify-between border-b border-line bg-surface-muted px-4 py-3">
             <div className="flex items-center gap-2">
               <div className="flex h-7 w-7 items-center justify-center rounded-md bg-brand/10 text-brand">
                 <Sparkles className="h-4 w-4" />
@@ -237,8 +251,8 @@ export default function InboxChatWidget() {
                   className={cn(
                     "max-w-[88%] rounded-lg px-3 py-2 text-xs leading-relaxed",
                     msg.role === "user"
-                      ? "bg-brand text-brand-fg font-medium shadow-xs"
-                      : "bg-surface-elevated text-fg border border-line shadow-xs",
+                      ? "bg-brand text-on-brand font-medium shadow-xs"
+                      : "bg-surface-muted text-fg border border-line shadow-xs",
                   )}
                 >
                   {msg.role === "assistant" ? (
@@ -293,7 +307,7 @@ export default function InboxChatWidget() {
                               event.preventDefault();
                               handleSourceClick(source);
                             }}
-                            className="group flex cursor-pointer flex-col rounded-md border border-line bg-surface p-2 transition-colors hover:border-brand/60 hover:bg-surface-elevated"
+                            className="group flex cursor-pointer flex-col rounded-md border border-line bg-surface p-2 transition-colors hover:border-brand/60 hover:bg-surface-muted"
                           >
                             <div className="flex items-center justify-between gap-1">
                               <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-brand">
@@ -318,7 +332,11 @@ export default function InboxChatWidget() {
                             <span className="mt-0.5 line-clamp-1 font-medium text-fg group-hover:text-brand">
                               {source.title}
                             </span>
-                            <span className="text-[10px] text-fg-muted">{source.subtitle}</span>
+                            <span className="text-[10px] text-fg-muted">
+                              {source.source_type === "email"
+                                ? maskSender(source.subtitle, isHidingDetails)
+                                : source.subtitle}
+                            </span>
                             <p className="mt-1 line-clamp-2 text-[10px] text-fg-subtle">
                               {source.snippet}
                             </p>
@@ -341,7 +359,7 @@ export default function InboxChatWidget() {
           </div>
 
           {/* Footer Input Bar */}
-          <div className="border-t border-line bg-surface-elevated p-2.5">
+          <div className="border-t border-line bg-surface-muted p-2.5">
             <div className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1.5 focus-within:border-brand focus-within:ring-1 focus-within:ring-brand">
               <input
                 ref={inputRef}
@@ -358,7 +376,7 @@ export default function InboxChatWidget() {
                 onClick={() => void handleSend()}
                 disabled={!input.trim() || isLoading}
                 aria-label={t("assistant.send")}
-                className="flex h-7 w-7 items-center justify-center rounded-md bg-brand text-brand-fg transition-opacity hover:opacity-90 disabled:opacity-30"
+                className="flex h-7 w-7 items-center justify-center rounded-md bg-brand text-on-brand transition-opacity hover:opacity-90 disabled:opacity-30"
               >
                 <Send className="h-3.5 w-3.5" />
               </button>

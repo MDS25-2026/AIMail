@@ -37,6 +37,25 @@ func TestNamesMatchAcrossCaseAndSpacing(t *testing.T) {
 	}
 }
 
+func TestKnownEntitiesFromVaultAreMaskedInSubjectAndSnippet(t *testing.T) {
+	v := newDetailVault()
+	v.placeholder(kindPerson, "Aisyah Rahman")
+	v.placeholder(kindOrg, "Petronas")
+
+	subject := "Urgent: meeting with Aisyah Rahman at Petronas"
+	snippet := "Please follow up with Aisyah Rahman tomorrow."
+
+	maskedSubj := maskKnownEntities(subject, v)
+	maskedSnip := maskKnownEntities(snippet, v)
+
+	if maskedSubj != "Urgent: meeting with [PERSON_1] at [ORG_1]" {
+		t.Fatalf("subject masking failed: got %q", maskedSubj)
+	}
+	if maskedSnip != "Please follow up with [PERSON_1] tomorrow." {
+		t.Fatalf("snippet masking failed: got %q", maskedSnip)
+	}
+}
+
 // Presidio reports character offsets; a name after non-ASCII text must still be cut exactly.
 func TestEntitiesAreNumberedInReadingOrder(t *testing.T) {
 	text := "Ali met Mei Ling"
@@ -146,5 +165,26 @@ func TestAVaultSealedByTheBackendOpensHere(t *testing.T) {
 	got, err := openVault(t, `\x`+hex.EncodeToString(sealed), vec.Owner, vec.GmailID)
 	if err != nil || got["[PERSON_1]"] != vec.Details["[PERSON_1]"] {
 		t.Fatalf("got %v, %v", got, err)
+	}
+}
+
+// A one-word name masked in the body must not swallow the same word as ordinary prose elsewhere.
+func TestAKnownOneWordNameDoesNotHideOrdinaryWords(t *testing.T) {
+	v := newDetailVault()
+	v.placeholder(kindPerson, "May")
+	v.placeholder(kindOrg, "IT")
+	v.placeholder(kindPerson, "Nurul Huda binti Rahman")
+
+	cases := map[string]string{
+		"You may ask it support.":               "You may ask it support.",
+		"Reply from May":                        "Reply from [PERSON_1]",
+		"MAY CALLED":                            "[PERSON_1] CALLED",
+		"APPROVAL FROM NURUL HUDA BINTI RAHMAN": "APPROVAL FROM [PERSON_2]",
+		"approval from nurul huda binti rahman": "approval from [PERSON_2]",
+	}
+	for in, want := range cases {
+		if got := maskKnownEntities(in, v); got != want {
+			t.Errorf("maskKnownEntities(%q) = %q, want %q", in, got, want)
+		}
 	}
 }

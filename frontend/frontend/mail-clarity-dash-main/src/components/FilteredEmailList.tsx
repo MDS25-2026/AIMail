@@ -10,7 +10,7 @@ import type { Email } from "../types/email";
 import LoadOlderEmails from "./LoadOlderEmails";
 import PriorityBadge from "./PriorityBadge";
 import { PageEmpty, PageError, PageLoading } from "./PageState";
-import WithDetails from "./WithDetails";
+import WithDetails, { SenderText } from "./WithDetails";
 
 type FilteredEmailListProps = {
   heading: string;
@@ -73,7 +73,9 @@ export default function FilteredEmailList({
                   aria-label={t("sent.open", { subject: email.subject })}
                 >
                   <div className="flex items-baseline justify-between gap-3">
-                    <span className="truncate text-sm font-semibold text-fg">{email.sender}</span>
+                    <span className="truncate text-sm font-semibold text-fg">
+                      <SenderText sender={email.sender} />
+                    </span>
                     <span className="shrink-0 text-xs text-fg-subtle">
                       {format.timestamp(timestampOf(email))}
                     </span>

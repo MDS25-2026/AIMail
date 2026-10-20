@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
-# Starts the pinned Presidio containers from docker-compose.yml and waits until both answer /health.
-# CI runs this instead of GitHub service containers, which fail the whole job the first time a
-# container reports unhealthy, with no retry and no logs (the anonymizer did this on 2 of ~6 runs).
-# The analyzer starts first: it loads spaCy models, and starting both at once slowed the anonymizer.
+# Starts the pinned Presidio container from docker-compose.yml and waits until it answers /health.
 set -euo pipefail
 cd "$(dirname "$0")/.."  # docker-compose.yml is at the repo root, whatever directory this runs from
 
@@ -33,4 +30,3 @@ start() {
 }
 
 start presidio-analyzer 5001
-start presidio-anonymizer 5002

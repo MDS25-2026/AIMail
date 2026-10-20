@@ -2,6 +2,9 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useFormat } from "../lib/useFormat";
+import { maskSender } from "../lib/details";
+import { useDetailValues } from "../lib/detailsContext";
+import { useDetailsHidden } from "../lib/detailsVisibility";
 import type { ThreadMessage } from "../types/email";
 import MessageBody from "./MessageBody";
 import WithDetails from "./WithDetails";
@@ -22,7 +25,11 @@ function MessageCard({ message }: { message: ThreadMessage }) {
   const { t } = useTranslation();
   const format = useFormat();
   const [isOpen, setIsOpen] = useState(false);
-  const sender = message.isOwnReply ? t("thread.you") : message.sender;
+  const [isHidden] = useDetailsHidden();
+  const contextValues = useDetailValues();
+  const sender = message.isOwnReply
+    ? t("thread.you")
+    : maskSender(message.sender, isHidden, contextValues);
   return (
     <li
       className={`rounded-lg border bg-surface ${message.isOwnReply ? "border-brand-line" : "border-line"}`}

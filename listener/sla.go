@@ -168,26 +168,67 @@ var naturalDateRe = regexp.MustCompile(
 		`|\b(\d{1,2})(?:st|nd|rd|th)?\s+(` + monthNamePattern + `)(?:\s+(\d{4}))?\b`,
 )
 
-// parsedDates extracts all candidate dates from text and returns them as time.Time values
-// (UTC, time zeroed to midnight). Year omission is filled with the year of receivedAt.
+var (
+	deadlinePrefixRe = regexp.MustCompile(
+		`(?i)\b(?:by|due(?:\s+(?:date|by|on))?(?:\s*:)?|deadline(?:\s*:)?|before|until|prior\s+to|no\s+later\s+than|` +
+			`submit(?:ted)?\s+by|deliver(?:ed)?\s+by|complete(?:d)?\s+by|respond\s+by|reply\s+by|send\s+by|` +
+			`required\s+by|needed\s+by|sebelum|selewat-lewatnya|sehingga|tarikh\s+akhir)\b` +
+			`|最迟|截止(?:至|到|日期)?(?:\s*[:：])?`,
+	)
+	deadlineSuffixRe = regexp.MustCompile(
+		`^(?:\s*(?:is\s+(?:the\s+)?deadline|deadline|due|之前|前|截止))`,
+	)
+)
+
+func hasDeadlineCue(text string, start, end int) bool {
+	prefixStart := start - 40
+	if prefixStart < 0 {
+		prefixStart = 0
+	}
+	prefix := text[prefixStart:start]
+	if lastNL := strings.LastIndex(prefix, "\n"); lastNL != -1 {
+		prefix = prefix[lastNL+1:]
+	}
+	if deadlinePrefixRe.MatchString(prefix) {
+		return true
+	}
+
+	suffixEnd := end + 25
+	if suffixEnd > len(text) {
+		suffixEnd = len(text)
+	}
+	suffix := text[end:suffixEnd]
+	if firstNL := strings.Index(suffix, "\n"); firstNL != -1 {
+		suffix = suffix[:firstNL]
+	}
+	return deadlineSuffixRe.MatchString(suffix)
+}
+
+// parsedDates extracts candidate deadline dates from text and returns them as time.Time values
+// (UTC, time zeroed to midnight). Only dates accompanied by a deadline cue are treated as deadlines
+// (specs/features/normalisation-v2.md, M17). Year omission is filled with the year of receivedAt.
 func parsedDates(text string, receivedAt time.Time) []time.Time {
 	year := receivedAt.Year()
 	var dates []time.Time
 
 	// ISO / numeric formats
-	for _, m := range isoDateRe.FindAllStringSubmatch(text, -1) {
+	for _, m := range isoDateRe.FindAllStringSubmatchIndex(text, -1) {
+		start, end := m[0], m[1]
+		if !hasDeadlineCue(text, start, end) {
+			continue
+		}
+		raw := text[start:end]
 		var t time.Time
 		var err error
-		if m[1] != "" {
+		if m[2] != -1 {
 			// YYYY-MM-DD
-			t, err = time.Parse("2006-01-02", m[0])
+			t, err = time.Parse("2006-01-02", raw)
 		} else {
 			// DD/MM/YYYY — try both interpretations and keep the one that makes a valid date.
-			// DD/MM/YYYY
-			t, err = time.Parse("02/01/2006", m[0])
+			t, err = time.Parse("02/01/2006", raw)
 			if err != nil {
 				// MM/DD/YYYY
-				t, err = time.Parse("01/02/2006", m[0])
+				t, err = time.Parse("01/02/2006", raw)
 			}
 		}
 		if err == nil {
@@ -196,18 +237,26 @@ func parsedDates(text string, receivedAt time.Time) []time.Time {
 	}
 
 	// Natural language dates
-	for _, m := range naturalDateRe.FindAllStringSubmatch(text, -1) {
+	for _, m := range naturalDateRe.FindAllStringSubmatchIndex(text, -1) {
+		start, end := m[0], m[1]
+		if !hasDeadlineCue(text, start, end) {
+			continue
+		}
 		var monthStr, dayStr, yearStr string
-		if m[1] != "" {
+		if m[2] != -1 {
 			// "Month DD [YYYY]"
-			monthStr = strings.ToLower(m[1])
-			dayStr = m[2]
-			yearStr = m[3]
+			monthStr = strings.ToLower(text[m[2]:m[3]])
+			dayStr = text[m[4]:m[5]]
+			if m[6] != -1 {
+				yearStr = text[m[6]:m[7]]
+			}
 		} else {
 			// "DD Month [YYYY]"
-			dayStr = m[4]
-			monthStr = strings.ToLower(m[5])
-			yearStr = m[6]
+			dayStr = text[m[8]:m[9]]
+			monthStr = strings.ToLower(text[m[10]:m[11]])
+			if m[12] != -1 {
+				yearStr = text[m[12]:m[13]]
+			}
 		}
 		month, ok := monthNames[monthStr]
 		if !ok {
@@ -255,6 +304,11 @@ func daysBetween(date, base time.Time) int {
 // ClassifySLA applies the deterministic priority rules to an email's subject and body.
 // Rules are tested in priority order; the first match wins. SLAUnset means no rule fired.
 func ClassifySLA(subject, body string, receivedAt time.Time) SLAPriority {
+	// Attachment text is stored in BodyMasked for RAG/search, but must not falsely trigger SLA rules
+	// or create an asymmetry where replies drop attachments after quotes while fresh mail keeps them.
+	if idx := strings.Index(body, ocrMarker); idx != -1 {
+		body = body[:idx]
+	}
 	body = ownText(body)
 	combined := negatedUrgencyRe.ReplaceAllString(subject+" "+body, " ")
 

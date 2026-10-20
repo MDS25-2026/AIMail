@@ -101,6 +101,50 @@ def test_a_deletion_that_stops_part_way_says_to_try_again_and_keeps_the_session(
     assert SESSION_COOKIE not in response.headers.get("set-cookie", "")
 
 
+def test_delete_account_failure_audits_unsuccessful_deletion(monkeypatch):
+    import asyncio
+    audited = []
+
+    async def mock_disconnect(_user_id):
+        return account.Erased(messages=0)
+
+    async def mock_erase(_session, _user_id, _subject):
+        return {"messages": 0, "document": 2}
+
+    async def mock_delete_sign_in(_user_id):
+        raise account.AccountDeletionError("Supabase unreachable")
+
+    async def mock_audit(action, **fields):
+        audited.append((action, fields))
+
+    class _FakeSession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return False
+
+        def begin(self):
+            return self
+
+    monkeypatch.setattr(account, "disconnect_gmail", mock_disconnect)
+    monkeypatch.setattr(account, "erase", mock_erase)
+    monkeypatch.setattr(account, "_delete_sign_in", mock_delete_sign_in)
+    monkeypatch.setattr(account, "audit", mock_audit)
+    monkeypatch.setattr(account, "get_sessionmaker", lambda: lambda: _FakeSession())
+
+    with pytest.raises(account.AccountDeletionError):
+        asyncio.run(account.delete_account(ALICE))
+
+    assert len(audited) == 1
+    action, fields = audited[0]
+    assert action == account.AuditAction.DELETE_ACCOUNT
+    assert fields["success"] is False
+    assert fields["user_id"] == ALICE
+    assert fields["documents_deleted"] == 2
+    assert "Supabase unreachable" in fields["error"]
+
+
 # ---------- Holding reply settings: who may call, and what is refused ----------
 
 def test_a_script_has_no_holding_reply_settings(calls):

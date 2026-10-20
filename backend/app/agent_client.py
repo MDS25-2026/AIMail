@@ -71,3 +71,16 @@ def refusal_egress(response: httpx.Response) -> list[dict]:
     detail = body.get("detail") if isinstance(body, dict) else None
     records = detail.get("egress") if isinstance(detail, dict) else None
     return records if isinstance(records, list) else []
+
+
+def is_content_refusal(response: httpx.Response) -> bool:
+    """True for domain content refusals (e.g. 422 with dict/string detail); False for FastAPI validation errors."""
+    if response.status_code != 422:
+        return False
+    try:
+        body = response.json()
+    except ValueError:
+        return True  # Not JSON, so not a standard FastAPI validation error
+    detail = body.get("detail") if isinstance(body, dict) else None
+    return not isinstance(detail, list)
+

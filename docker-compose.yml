@@ -1,9 +1,9 @@
 # Presidio PII-detection services for the listener (Lane A). The listener layers these
 # on top of its regex floor; if they are down it quarantines the message with no content until it
 # can be masked (see listener/main.go).
-# Bound to 127.0.0.1 so the analyzer/anonymizer are never exposed off the host.
+# Bound to 127.0.0.1 so the analyzer is never exposed off the host.
 #
-#   docker compose up -d        # analyzer :5001, anonymizer :5002, attachment reader :5003
+#   docker compose up -d        # analyzer :5001, attachment reader :5003
 #   docker compose down
 #
 # Each container runs read-only with no Linux capabilities and a memory cap (about twice what it
@@ -33,17 +33,6 @@ services:
       - "127.0.0.1:5001:5001"
     environment:
       - PORT=5001
-
-  presidio-anonymizer:
-    image: mcr.microsoft.com/presidio-anonymizer@sha256:a10a12a2a613d13cf29d3ad3641e3258444dd8c90403dd644a0a114c472c2483
-    container_name: presidio-anonymizer
-    <<: *hardened
-    mem_limit: 256m
-    cpus: 1
-    ports:
-      - "127.0.0.1:5002:5002"
-    environment:
-      - PORT=5002
 
   # Reads attachments on this machine before anything else can. Documents come back as text for
   # the listener to mask; images and scanned pages come back redacted, and only if the local OCR

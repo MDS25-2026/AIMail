@@ -39,11 +39,12 @@ async def granted_scopes(provider_token: str) -> set[str]:
     """The scopes Google actually granted, which may be fewer than were asked for."""
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS) as client:
-            response = await client.get(_TOKENINFO_URL, params={"access_token": provider_token})
+            response = await client.get(_TOKENINFO_URL, headers={"Authorization": f"Bearer {provider_token}"})
             response.raise_for_status()
             return set(response.json().get("scope", "").split())
     except (httpx.HTTPError, ValueError) as exc:
-        raise ConnectionStoreError(f"could not read the granted scopes: {exc}") from exc
+        reason = f"{type(exc).__name__}: {exc.response.status_code}" if isinstance(exc, httpx.HTTPStatusError) else type(exc).__name__
+        raise ConnectionStoreError(f"could not read the granted scopes: {reason}") from exc
 
 
 async def _upsert_profile(session: AsyncSession, user_id: str, email: str, display_name: str) -> None:

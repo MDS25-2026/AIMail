@@ -131,8 +131,14 @@ _cached_tokens: dict[UUID | None, tuple[str, float]] = {}
 _EXPIRY_MARGIN_SECONDS = 60
 
 
+def invalidate_cached_token(owner_id: UUID | None) -> None:
+    """Clear any in-memory access token cached for this mailbox (e.g. on disconnect or revocation)."""
+    _cached_tokens.pop(owner_id, None)
+
+
 async def _mark_needs_reconnect(owner_id: UUID) -> None:
     """The dashboard then asks the user to sign in again (specs/features/per-user-mailboxes.md)."""
+    invalidate_cached_token(owner_id)
     async with get_sessionmaker()() as session, session.begin():
         await session.execute(update(MailboxConnection).where(MailboxConnection.user_id == owner_id)
                               .values(needs_reconnect=True))
@@ -286,6 +292,18 @@ async def _sent_message_id(
         return (await message_headers(client, gmail_id, ("Message-ID",), owner_id)).get("message-id")
     except (httpx.HTTPError, GmailAccessError, KeyError, ValueError) as exc:
         logger.warning("sent reply %s: could not read back its Message-ID: %s", gmail_id, exc)
+        return None
+
+
+async def get_rfc_message_id(gmail_id: str | None, owner_id: UUID | None) -> str | None:
+    """Read back the RFC Message-ID header from Gmail for a given Gmail message ID."""
+    if not gmail_id:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            return await _sent_message_id(client, gmail_id, owner_id)
+    except (httpx.HTTPError, GmailAccessError, KeyError, ValueError) as exc:
+        logger.warning("could not read RFC Message-ID for %s: %s", gmail_id, exc)
         return None
 
 

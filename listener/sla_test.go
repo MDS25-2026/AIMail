@@ -281,6 +281,36 @@ func TestClassifySLA(t *testing.T) {
 			body:    "This is urgent, the server is down.\n\nOn Sun, Mar 10, 2024 at 9:00 AM Bryan wrote:\n> Any news?",
 			want:    SLACritical,
 		},
+		{
+			name:    "invoice date today without deadline cue does NOT trigger CRITICAL",
+			subject: "Invoice #1042",
+			body:    "Invoice Date: 2024-03-11\nTotal Amount: $250.00\nThank you for choosing us.",
+			want:    SLAUnset,
+		},
+		{
+			name:    "quote issue date tomorrow without deadline cue does NOT trigger CRITICAL",
+			subject: "Quotation Q-99",
+			body:    "Quotation created on 2024-03-12 for review.",
+			want:    SLAUnset,
+		},
+		{
+			name:    "Chinese deadline cue before date triggers CRITICAL",
+			subject: "工单",
+			body:    "请截止 2024-03-11 处理完毕。",
+			want:    SLACritical,
+		},
+		{
+			name:    "Chinese deadline cue after date triggers CRITICAL",
+			subject: "审核",
+			body:    "请在 2024-03-11 之前完成确认。",
+			want:    SLACritical,
+		},
+		{
+			name:    "Attachment text does not affect SLA priority",
+			subject: "Routine update",
+			body:    "Hi team, please find attached.\n\n--- text from attachments ---\nURGENT: due within 24h by 2024-03-11",
+			want:    SLAUnset,
+		},
 	}
 
 	for _, tc := range tests {

@@ -119,8 +119,16 @@ function KnowledgePage() {
                 {documents.data.map((doc) => (
                   <tr
                     key={doc.document_id}
+                    tabIndex={0}
+                    role="button"
                     onClick={() => handleSelectDoc(doc.document_id)}
-                    className="group cursor-pointer border-b border-line-subtle transition-colors hover:bg-surface-muted/50 last:border-0"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        handleSelectDoc(doc.document_id);
+                      }
+                    }}
+                    className="group cursor-pointer border-b border-line-subtle transition-colors hover:bg-surface-muted/50 focus-visible:bg-surface-muted/50 focus-visible:outline-hidden last:border-0"
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">

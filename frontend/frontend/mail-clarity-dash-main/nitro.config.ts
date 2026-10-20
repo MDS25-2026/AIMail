@@ -7,5 +7,16 @@ if (process.env.VERCEL && !backendOrigin) {
 }
 
 export default {
-  routeRules: backendOrigin ? { "/api/**": { proxy: `${backendOrigin}/**` } } : {},
+  routeRules: {
+    "/**": {
+      headers: {
+        "X-Frame-Options": "DENY",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy":
+          "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:; connect-src 'self' http://localhost:* https://*.onrender.com https://*.supabase.co;",
+      },
+    },
+    ...(backendOrigin ? { "/api/**": { proxy: `${backendOrigin}/**` } } : {}),
+  },
 };

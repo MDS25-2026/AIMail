@@ -9,7 +9,7 @@ import (
 )
 
 // A sender that never reads replies (RFC 3834 section 2): answering it only feeds a loop.
-var noReplySender = regexp.MustCompile(`(?i)(^|[<\s"])(no-?reply|do-?not-?reply|mailer-daemon|postmaster|bounces?)[@+._-]`)
+var noReplySender = regexp.MustCompile(`(?i)(^|[<\s"])(no[-_]?reply|do[-_]?not[-_]?reply|mailer-daemon|postmaster|bounces?)[@+._-]`)
 
 // Gmail's own tabs for mail no person wrote to you: newsletters and notifications (Milanote's carried
 // none of the headers below, so it was drafted for). Primary mail has none of these labels.

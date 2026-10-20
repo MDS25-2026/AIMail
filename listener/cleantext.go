@@ -20,6 +20,10 @@ func cleanText(text string) string {
 }
 
 func plainForm(r rune) rune {
+	switch r {
+	case '\u00A0', '\u3000', '\u2002', '\u2003', '\u2004', '\u2005', '\u2006', '\u2007', '\u2008', '\u2009', '\u200A', '\u202F', '\u205F':
+		return ' '
+	}
 	isDigit := r >= '０' && r <= '９'
 	isLetter := (r >= 'Ａ' && r <= 'Ｚ') || (r >= 'ａ' && r <= 'ｚ')
 	if isDigit || isLetter || strings.ContainsRune(fullWidthPunct, r) {

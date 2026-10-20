@@ -169,6 +169,10 @@ listener — a migration must create `messages` + `audit_log` in Supabase before
 | `sla_priority` | `TEXT NULL` | Lane A | deterministic SLA urgency floor from `ClassifySLA`: `CRITICAL`/`HIGH`/`MEDIUM`/`LOW` or NULL (migration 0034); also set when a quarantined email is released |
 | `search_vector` | `tsvector` generated | Lane B | full-text index over `subject` and `body_masked` for the inbox assistant (GIN index; migration 0035) |
 | `embedding` | `vector(1536) NULL` | Lane B | gemini-embedding-001 vector of the masked subject and body, filled by `scripts/backfill_message_embeddings.py` (HNSW cosine index; migration 0035). Never set for Private mode users, cleared when they switch it on and by the content limit |
+| `reply_to` | `TEXT NULL` | Lane A | RFC `Reply-To` header if present |
+| `generation_attempts` | `INT NOT NULL DEFAULT 0` | Lane B / worker | failed draft generation attempts counter (migration 0045) |
+| `generation_claimed_until` | `TIMESTAMPTZ NULL` | Lane B / worker | worker lease lock preventing concurrent duplicate generation |
+| `send_outcome_unknown_at` | `TIMESTAMPTZ NULL` | backend | marked during in-flight send until confirmed or reconciled by background reconciler |
 | `created_at` | `TIMESTAMPTZ DEFAULT now()` | default | |
 
 Index `thread_id` — every planned consumer (thread view, sent-mail indexing, the extension's
@@ -195,7 +199,7 @@ leaves the recipient's client ungrouped. Both mechanisms, or it is not threaded.
 
 - `messages.language` (`en`, `ms`, `zh`; NULL until the worker normalises it), `subject_en` and
   `own_text_en`: an English copy of a non-English email's subject and the sender's own text, masked
-  like the original. Retention clears `own_text_en` with the body; the worker also fills `deadline_at`.
+  like the original. Retention clears `own_text_en` with the body and `subject_en` with the subject; the worker also fills `deadline_at`.
 - Partial index `messages_language_pending_idx` on `created_at` WHERE `language IS NULL`: the queue.
 
 ### Personalisation (Lane B, migration 0007)
@@ -249,7 +253,7 @@ lowercased.
 - [x] `messages.sender_utc_offset_minutes` (from the sender's Date header) and `messages.snoozed_until`; `quiet_hours` (the row with no user is the company default, one row per user overrides it; RLS on); `scheduled_send` (`message_id`, `user_id`, masked `draft`, `send_at`, `sent_at`, `cancelled_reason`; one waiting row per email; RLS on) ([`../features/quiet-hours-send-later.md`](../features/quiet-hours-send-later.md), migration 0039).
 - [x] `sent_message` (the user's sent replies, masked, no recipient address; unique `gmail_id` and `message_id`; RLS on; deleted after 90 days), `messages.dismissed_at`, `user_preferences.waiting_days` ([`../features/todo-page.md`](../features/todo-page.md), migration 0040).
 - [x] `sent_message.followed_up_at` — the send claim for a follow-up to that reply ([`../features/todo-page.md`](../features/todo-page.md), migration 0042).
-- [x] `sent_message.follow_up_outcome_unknown_at` — set when Gmail's answer to a follow-up was lost; the reconciler asks Gmail and releases the claim if it never went (`backend/app/send_reconciler.py`, migration 0043).
+- [x] `sent_message.send_outcome_unknown_at` and `sent_message.follow_up_outcome_unknown_at` — set when Gmail's answer to a scheduled send or follow-up was lost; the reconciler asks Gmail and releases the claim if it never went (`backend/app/send_reconciler.py`, migration 0043).
 - [x] `reply_template` — `id`, `user_id` (FK, cascade), `title`, `body`, `language` (en/ms/zh), `trigger_keywords text[]`, `last_used_at`, `created_at`, `updated_at`; RLS on; erased with the account ([`../features/reply-templates.md`](../features/reply-templates.md), migration 0038).
 - [x] `user_preferences.scan_reading` — `local` (default) or `checked`: whether scanned attachment images may reach Gemini after the local vision check ([`../features/signature-detection.md`](../features/signature-detection.md), migration 0036).
 - [x] `messages.auth_status` (`pass` / `spoof_detected` / `sender_confirmed`), and on `audit_log`: `user_id` (FK, set null), `prev_hash`, `current_hash`, `chain_seq` (unique), filled by the `trg_compute_audit_hash` trigger with `audit_row_hash()` ([`../features/sender-verification-and-audit.md`](../features/sender-verification-and-audit.md), migration 0024, replacing PR #161's 0019/0020).
@@ -261,3 +265,4 @@ lowercased.
 > The `chat` → `conversation` parent/child shape is the memory backbone: each new email in a thread reuses the prior `conversation` rows as context, which is what gives the agent its "attention span" across replies. See [`../agent-pipeline.md`](../agent-pipeline.md) for how these tables are read and written during a generation.
 - [x] `schema_migrations` (version, checksum, applied_at): the migration ledger (app/db/migrate.py), RLS on.
 - [x] `model_egress`: one row per prompt that left for a model (purpose, provider, chars, sha256, hidden by kind, caught), FK to user and message, RLS on (migration 0026).
+- [x] `rate_limit_counter`: shared sliding-window rate limit counters across API instances (`key TEXT`, `window_start TIMESTAMPTZ`, `hits INT`), PK `(key, window_start)` (migration 0029).

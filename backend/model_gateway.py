@@ -23,6 +23,7 @@ from app.rag.embed import embed_query as gemini_embed_query
 from app.rag.local_embed import embed_documents_locally, embed_query_locally
 from gemini_client import generate as gemini_generate
 from local_client import generate_local
+from model_runtime import ModelError, ModelErrorCode
 
 logger = logging.getLogger(__name__)
 
@@ -74,30 +75,59 @@ def _note(purpose: str, provider: Provider, prompt: str, caught: int) -> None:
                        dict(hidden), caught))
 
 
+def _should_record_egress(error: BaseException) -> bool:
+    if isinstance(error, ModelError):
+        if error.posted:
+            # Prompt was already dispatched over the wire; record on receipt (M15).
+            return True
+        if error.code == ModelErrorCode.DEADLINE_EXCEEDED:
+            return False
+        if "not configured" in str(error):
+            return False
+    return True
+
+
 async def generate(prompt: str, *, provider: Provider, purpose: str, system: str | None = None,
                    response_schema: dict | None = None, max_output_tokens: int | None = None) -> dict | str:
     """Parsed JSON when a schema is given. Raises ModelError (model_runtime) on any failure."""
     safe_prompt, caught = last_net(prompt)
     safe_system = last_net(system)[0] if system else None
-    _note(purpose, provider, safe_prompt, caught)
     answer = generate_local if provider == Provider.LOCAL else gemini_generate
-    return await answer(safe_prompt, response_schema=response_schema, max_output_tokens=max_output_tokens,
-                        system=safe_system)
+    try:
+        result = await answer(safe_prompt, response_schema=response_schema, max_output_tokens=max_output_tokens,
+                              system=safe_system)
+    except BaseException as exc:
+        if _should_record_egress(exc):
+            _note(purpose, provider, safe_prompt, caught)
+        raise
+    _note(purpose, provider, safe_prompt, caught)
+    return result
 
 
 async def embed_documents(texts: list[str], *, provider: Provider, purpose: str) -> list[list[float]]:
     """Vectors for stored chunks; the same last net and record as generation."""
-    safe = [_checked(text, provider, purpose) for text in texts]
-    return await (embed_documents_locally(safe) if provider == Provider.LOCAL else gemini_embed_documents(safe))
+    safe_and_caught = [last_net(text) for text in texts]
+    safe = [s for s, _ in safe_and_caught]
+    try:
+        result = await (embed_documents_locally(safe) if provider == Provider.LOCAL else gemini_embed_documents(safe))
+    except BaseException as exc:
+        if _should_record_egress(exc):
+            for s, c in safe_and_caught:
+                _note(purpose, provider, s, c)
+        raise
+    for s, c in safe_and_caught:
+        _note(purpose, provider, s, c)
+    return result
 
 
 async def embed_query(text: str, *, provider: Provider, purpose: str) -> list[float] | None:
     """The vector a search compares against stored chunks, or None for empty input."""
-    safe = _checked(text, provider, purpose)
-    return await (embed_query_locally(safe) if provider == Provider.LOCAL else gemini_embed_query(safe))
-
-
-def _checked(text: str, provider: Provider, purpose: str) -> str:
     safe, caught = last_net(text)
+    try:
+        result = await (embed_query_locally(safe) if provider == Provider.LOCAL else gemini_embed_query(safe))
+    except BaseException as exc:
+        if _should_record_egress(exc):
+            _note(purpose, provider, safe, caught)
+        raise
     _note(purpose, provider, safe, caught)
-    return safe
+    return result

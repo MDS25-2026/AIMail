@@ -1,9 +1,11 @@
+import { useMemo } from "react";
 import { ArrowLeft, Bot, Paperclip, ShieldAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { splitAround } from "../lib/conversations";
-import { detailValues } from "../lib/details";
-import { DetailsContext } from "../lib/detailsContext";
+import { detailValues, maskSender } from "../lib/details";
+import { DetailsContext, useDetailValues } from "../lib/detailsContext";
+import { useDetailsHidden } from "../lib/detailsVisibility";
 import { DraftAvailability, draftAvailability } from "../lib/draftAvailability";
 import { gmailThreadUrl } from "../lib/gmailLink";
 import type { DraftWorkflow } from "../lib/useDraftWorkflow";
@@ -49,6 +51,7 @@ export default function EmailDetailPanel({
   onMarkRead,
 }: EmailDetailPanelProps) {
   const { t } = useTranslation();
+  const values = useMemo(() => (email ? detailValues(email.details) : new Map()), [email]);
   if (!email) {
     return (
       <div className="flex h-full items-center justify-center p-8 text-sm text-fg-subtle">
@@ -80,7 +83,7 @@ export default function EmailDetailPanel({
 
   const conversation = splitAround(email.threadContext, email.timestamp);
   return (
-    <DetailsContext.Provider value={detailValues(email.details)}>
+    <DetailsContext.Provider value={values}>
       <div className="relative h-full overflow-y-auto">
         <DetailHeader
           email={email}
@@ -110,9 +113,13 @@ export default function EmailDetailPanel({
 function SenderLine({ email }: { email: Email }) {
   const { t } = useTranslation();
   const format = useFormat();
+  const [isHidden] = useDetailsHidden();
+  const contextValues = useDetailValues();
+  const values = contextValues.size > 0 ? contextValues : detailValues(email.details);
+  const sender = maskSender(email.sender, isHidden, values);
   return (
     <p className="text-sm text-fg-muted">
-      {t("detail.fromAt", { sender: email.sender, when: format.timestamp(email.timestamp) })}
+      {t("detail.fromAt", { sender, when: format.timestamp(email.timestamp) })}
     </p>
   );
 }
@@ -197,6 +204,7 @@ function DetailHeader({ email, onBack, onMarkUnread, onMarkRead }: DetailHeaderP
 function DraftSection({ email, workflow }: { email: Email; workflow: DraftWorkflow }) {
   const { t } = useTranslation();
   const format = useFormat();
+  const values = useMemo(() => detailValues(email.details), [email.details]);
   return (
     <section className="space-y-4 rounded-lg border border-line bg-surface p-4">
       {email.isAutomated && !email.draftReply ? (
@@ -213,7 +221,7 @@ function DraftSection({ email, workflow }: { email: Email; workflow: DraftWorkfl
       <HiddenDetailChips
         key={`hidden-${email.id}`}
         draft={workflow.draft}
-        values={detailValues(email.details)}
+        values={values}
         onDraftChange={workflow.setDraft}
         disabled={workflow.isDraftLocked}
       />

@@ -38,6 +38,20 @@ def test_only_the_agents_own_refusal_shape_is_read_for_records():
     assert agent_client.refusal_egress(_refused(["not", "a", "dict"])) == []
 
 
+def test_is_content_refusal_distinguishes_validation_errors():
+    validation_resp = httpx.Response(422, json={"detail": [{"loc": ["body", "tone"], "msg": "field required"}]})
+    assert agent_client.is_content_refusal(validation_resp) is False
+
+    domain_resp = httpx.Response(422, json={"detail": {"code": "gemini_output_truncated", "egress": []}})
+    assert agent_client.is_content_refusal(domain_resp) is True
+
+    string_resp = httpx.Response(422, json={"detail": "gemini_output_truncated"})
+    assert agent_client.is_content_refusal(string_resp) is True
+
+    assert agent_client.is_content_refusal(httpx.Response(500)) is False
+
+
+
 def test_a_failed_draft_keeps_the_search_and_the_agents_records(monkeypatch):
     saved = []
     message = SimpleNamespace(id=uuid4(), user_id=uuid4(), body_masked="Refund?", thread_id=None,

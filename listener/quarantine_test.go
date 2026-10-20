@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/oauth2"
 	"google.golang.org/api/googleapi"
 )
 
@@ -123,5 +125,27 @@ func TestReleasePatchCarriesTheSLAPriorityBesideTheMaskedContent(t *testing.T) {
 		if !strings.Contains(string(encoded), want) {
 			t.Errorf("release patch %s lacks %s", encoded, want)
 		}
+	}
+}
+
+func TestARefusedGrantDoesNotStopRemaskPass(t *testing.T) {
+	refused := fmt.Errorf("fetch: %w", &oauth2.RetrieveError{ErrorCode: "invalid_grant"})
+	if isGmailTrouble(refused) {
+		t.Fatal("a refused token must not look like Gmail trouble")
+	}
+}
+
+func TestAnUnregisteredMailboxChargesAttempt(t *testing.T) {
+	var patches []string
+	withSupabase(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPatch {
+			raw, _ := io.ReadAll(r.Body)
+			patches = append(patches, string(raw))
+		}
+		w.Write([]byte(`[]`))
+	})
+	recordFailure(context.Background(), quarantinedRow{UserID: "unknown", GmailMessageID: "m1", MaskingAttempts: 0}, reasonDisconnected)
+	if len(patches) != 1 || !strings.Contains(patches[0], `"masking_attempts":1`) {
+		t.Fatalf("unregistered mailbox failure must count an attempt: %v", patches)
 	}
 }

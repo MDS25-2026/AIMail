@@ -11,7 +11,7 @@ import type { Email, Priority } from "../types/email";
 import PriorityBadge from "./PriorityBadge";
 import RowMenu, { type MenuItem } from "./RowMenu";
 import { button } from "./variants";
-import WithDetails from "./WithDetails";
+import WithDetails, { SenderText } from "./WithDetails";
 
 export type EmailTab = TodoTab.Reply | TodoTab.Review | TodoTab.Drafts;
 
@@ -50,7 +50,7 @@ export default function TodoEmailRow({ email, tab, actions }: TodoEmailRowProps)
               </span>
             </p>
             <p className="truncate text-xs text-fg-muted">
-              {email.sender} · <WithDetails text={email.subject} />
+              <SenderText sender={email.sender} /> · <WithDetails text={email.subject} />
             </p>
             <button
               type="button"

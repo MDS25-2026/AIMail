@@ -599,7 +599,10 @@ async def _generate(message: Message, tone: Tone, thread: list[Message], details
             generated = await _call_agent("/process-email", request, ProcessEmailResponse)
         except httpx.HTTPStatusError as exc:
             refused = agent_client.refusal_egress(exc.response)
-            if exc.response.status_code != AGENT_CONTENT_FAILURE:
+            if exc.response.status_code == 403:
+                logger.error("agent authentication failed: AGENT_TOKEN is missing or mismatched (HTTP 403)")
+                raise
+            if not agent_client.is_content_refusal(exc.response):
                 raise
             generated = _not_drafted(_agent_error_code(exc.response))
         refused = generated.pop("egress", refused)
@@ -819,7 +822,7 @@ SEND_IN_FLIGHT = timedelta(minutes=2)
 def _is_mid_send(message: Message) -> bool:
     """Claimed by another request that has not heard back from Gmail yet; "sent" could be untrue."""
     is_recent_claim = message.sent_at is not None and message.sent_at > datetime.now(timezone.utc) - SEND_IN_FLIGHT
-    return is_recent_claim and message.sent_message_id is None and message.send_outcome_unknown_at is None
+    return is_recent_claim and message.sent_message_id is None
 
 
 async def _claim_send(pk: UUID) -> bool:
@@ -832,7 +835,7 @@ async def _claim_send(pk: UUID) -> bool:
         claimed = await session.scalar(
             update(Message)
             .where(Message.id == pk, Message.sent_at.is_(None))
-            .values(sent_at=func.now())
+            .values(sent_at=func.now(), send_outcome_unknown_at=func.now())
             .returning(Message.id)
         )
         await session.commit()
@@ -842,7 +845,7 @@ async def _claim_send(pk: UUID) -> bool:
 async def _release_send_claim(pk: UUID) -> None:
     """Undo a claim whose send failed, so the reply can be approved again."""
     async with get_sessionmaker()() as session:
-        await session.execute(update(Message).where(Message.id == pk).values(sent_at=None))
+        await session.execute(update(Message).where(Message.id == pk).values(sent_at=None, send_outcome_unknown_at=None))
         await session.commit()
 
 
@@ -932,6 +935,7 @@ async def _record_send(pk: UUID, message: Message, reply: OutgoingReply, sent: S
         # The record keeps placeholders, so no detail sits readable outside its vault.
         stored.draft_reply = reply.stored
         stored.sent_message_id = sent.message_id
+        stored.send_outcome_unknown_at = None
         # Rows ingested before migration 0009 learn their thread from the send.
         stored.thread_id = stored.thread_id or sent.thread_id
         # In the same transaction: the trail records this send exactly when the record of it commits.
@@ -1014,7 +1018,10 @@ async def _refine(
     except httpx.HTTPStatusError as exc:
         logger.warning("refine failed for message %s: %s", message.id, exc)
         await save_egress(agent_client.refusal_egress(exc.response), user_id=message.user_id, message_id=message.id)
-        if exc.response.status_code == AGENT_CONTENT_FAILURE:
+        if exc.response.status_code == 403:
+            logger.error("agent authentication failed: AGENT_TOKEN is missing or mismatched (HTTP 403)")
+            raise DomainError(ErrorCode.FORBIDDEN, "agent authentication failed") from exc
+        if agent_client.is_content_refusal(exc.response):
             raise DraftNotUpdatedError(ErrorCode.DRAFT_REFUSED) from exc
         raise DraftNotUpdatedError(ErrorCode.AGENT_UNAVAILABLE) from exc
     except (httpx.HTTPError, ValueError) as exc:

@@ -105,12 +105,19 @@ func TestAFailureThatWillRecurIsSkippedNotRetried(t *testing.T) {
 	withSupabase(t, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusBadRequest) })
 	_, err := insertMessage(context.Background(), map[string]string{"gmail_message_id": "m1"})
 	if !isPermanentIngestFailure(err) {
-		t.Fatalf("a 4xx insert must count as permanent: %v", err)
+		t.Fatalf("a 400 insert must count as permanent: %v", err)
 	}
-	withSupabase(t, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusServiceUnavailable) })
+	withSupabase(t, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusUnprocessableEntity) })
 	_, err = insertMessage(context.Background(), map[string]string{"gmail_message_id": "m1"})
-	if isPermanentIngestFailure(err) {
-		t.Fatal("an outage must stay retryable")
+	if !isPermanentIngestFailure(err) {
+		t.Fatalf("a 422 insert must count as permanent: %v", err)
+	}
+	for _, status := range []int{http.StatusUnauthorized, http.StatusNotFound, http.StatusTooManyRequests, http.StatusServiceUnavailable} {
+		withSupabase(t, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(status) })
+		_, err = insertMessage(context.Background(), map[string]string{"gmail_message_id": "m1"})
+		if isPermanentIngestFailure(err) {
+			t.Fatalf("status %d (outage, auth, or schema cache lag) must stay retryable", status)
+		}
 	}
 }
 

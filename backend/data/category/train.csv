@@ -483,7 +483,7 @@ Let's track these in our Jira board under epic ENG-492. Let's ensure these are c
 Thanks,
 
 [PERSON_4]",internal
-"Subject: Happy 5-Year Work Anniversary, [PERSON_1]! 🎉
+"Subject: Happy 5-Year Work Anniversary, [PERSON_1]! 
 
 Hey [PERSON_1],
 
@@ -568,7 +568,7 @@ Best,
 
 [PERSON_2]
 Director of Quality Assurance, [ORG_1]",internal
-"Subject: Happy 3 Years, [PERSON_1]! 🥳
+"Subject: Happy 3 Years, [PERSON_1]! 
 
 Hi [PERSON_1],
 
@@ -640,7 +640,7 @@ Thanks,
 [PERSON_2]
 Security & Privacy Compliance Lead
 [ORG_2]",security
-"Subject: Quick favor: Sign [PERSON_1]'s Milestone Birthday Card! 🎈
+"Subject: Quick favor: Sign [PERSON_1]'s Milestone Birthday Card! 
 
 Hey guys,
 
@@ -684,7 +684,7 @@ Best,
 [PERSON_1]
 Incident Commander / SecOps Manager
 [ORG_1] Security",security
-"Subject: Friday lunch plans? 🌮
+"Subject: Friday lunch plans? 
 
 Hey guys,
 
@@ -971,7 +971,7 @@ Thanks,
 [PERSON_2]
 Senior Corporate Counsel (Privacy & Security)
 [ORG_2]",security
-"Subject: Double Digits! Happy 10th Anniversary, [PERSON_1]! 🥳
+"Subject: Double Digits! Happy 10th Anniversary, [PERSON_1]! 
 
 Hi [PERSON_1],
 
@@ -985,7 +985,7 @@ I hope the leadership team is treating you to something nice today! Let's defini
 
 Cheers,
 [PERSON_2]",personal
-"Subject: Happy early birthday, [PERSON_1]! 🎉
+"Subject: Happy early birthday, [PERSON_1]! 
 
 Hey everyone,
 
@@ -1098,7 +1098,7 @@ If you have any questions about these updated terms, please reach out to your Ac
 Thank you,
 
 [ORG_1] Renewals Operations",vendor
-"Subject: Thank you for the wonderful birthday wishes! 😊
+"Subject: Thank you for the wonderful birthday wishes! 
 
 Hi team,
 
@@ -1252,11 +1252,11 @@ Thanks for your hard work,
 
 [PERSON_2]
 Director of Product, [ORG_1]",internal
-"Subject: It's [PERSON_1]'s Birthday! 🎈
+"Subject: It's [PERSON_1]'s Birthday! 
 
 Hi everyone,
 
-Today is the day! Please join me in wishing [PERSON_1] a very Happy Birthday! 🎂
+Today is the day! Please join me in wishing [PERSON_1] a very Happy Birthday! 
 
 I’ve sent over the virtual card we all signed. For those who want to take a look at the final board, or if you missed the deadline and want to sneak in a last-minute message, here is the live link: 
 https://[ORG_1].kudoboard.com/boards/[PERSON_1]-celebration
@@ -1380,7 +1380,7 @@ Cheers,
 
 [PERSON_1]
 Product Manager, Personalization Team",internal
-"Subject: Happy 1-Year Anniversary! 🌟
+"Subject: Happy 1-Year Anniversary! 
 
 Hi [PERSON_1],
 
@@ -1523,7 +1523,7 @@ Best,
 [PERSON_3]
 Administrative Operations Manager
 [PHONE_1]",admin
-"Subject: Celebrating [PERSON_1]'s Birthday on [DATE_1]! 🎈
+"Subject: Celebrating [PERSON_1]'s Birthday on [DATE_1]! 
 
 Hi all,
 
@@ -1671,7 +1671,7 @@ Sincerely,
 
 [PERSON_2]
 Director of IT, [ORG_1]",client
-"Subject: Shh! [PERSON_1]'s Birthday is on [DATE_1]! 🎂
+"Subject: Shh! [PERSON_1]'s Birthday is on [DATE_1]! 
 
 Hi team,
 
@@ -1752,7 +1752,7 @@ Thank you,
 
 [PERSON_2]
 Customer Operations, [ORG_1]",vendor
-"Subject: Monday watercooler: Did you see that game? 🏈
+"Subject: Monday watercooler: Did you see that game? 
 
 Hey [PERSON_1],
 
@@ -2587,7 +2587,7 @@ Let me know what you think. I've left some detailed inline comments on GitHub as
 
 Thanks,
 [PERSON_2]",internal
-"Subject: Team Trivia Night next [DATE_1]! 🧠🍻
+"Subject: Team Trivia Night next [DATE_1]! 
 
 Hey team,
 
@@ -2600,7 +2600,7 @@ Please RSVP by [DATE_2] so I can finalize the table booking with the venue. Let 
 Hope to see you all there,
 
 [PERSON_1]",personal
-"Subject: Birthday Wishes for [PERSON_1]! 🍰
+"Subject: Birthday Wishes for [PERSON_1]! 
 
 Hi team,
 
@@ -3462,7 +3462,7 @@ Sincerely,
 
 [PERSON_2]
 Enterprise Customer Success Manager, [ORG_2]",client
-"Subject: Happy 5th Anniversary, [PERSON_1]! 🥳
+"Subject: Happy 5th Anniversary, [PERSON_1]! 
 
 Hi [PERSON_1],
 
@@ -3540,7 +3540,7 @@ Best,
 
 [PERSON_2]
 [EMAIL_1] | [ORG_2]",client
-"Subject: Quick Reminder: Sign [PERSON_1]'s Birthday Card! 🎉
+"Subject: Quick Reminder: Sign [PERSON_1]'s Birthday Card! 
 
 Hey team,
 
@@ -5263,7 +5263,7 @@ Best regards,
 [PERSON_2]
 Head of Security Operations
 [ORG_1]",security
-"Subject: Signing [PERSON_1]'s Anniversary Card! 🎂
+"Subject: Signing [PERSON_1]'s Anniversary Card! 
 
 Hi team,
 
@@ -5453,7 +5453,7 @@ Cheers,
 Lead Developer Advocate
 [ORG_1]
 [PHONE_1]",vendor
-"Subject: RE: Thursday Team Trivia - Count me in! 🍕🍻
+"Subject: RE: Thursday Team Trivia - Count me in! 
 
 Hey [PERSON_1],
 
@@ -5733,7 +5733,7 @@ Thanks,
 
 [PERSON_2]
 Director of IT Operations, [ORG_2]",client
-"Subject: Shhh... [PERSON_1]'s Birthday is Coming Up! 🎂
+"Subject: Shhh... [PERSON_1]'s Birthday is Coming Up! 
 
 Hi team,
 
@@ -5978,7 +5978,7 @@ I really need to get away from my screen for a few minutes before the day fully 
 
 Thanks,
 [PERSON_2]",personal
-"Subject: Happy early birthday, [PERSON_1]! 🎂
+"Subject: Happy early birthday, [PERSON_1]! 
 
 Hey everyone,
 
@@ -7181,7 +7181,7 @@ Best,
 
 [PERSON_2]
 Operations & Benefits Team",admin
-"Subject: Action Required (The Fun Kind!): Sign [PERSON_1]'s Birthday Card! 🎉
+"Subject: Action Required (The Fun Kind!): Sign [PERSON_1]'s Birthday Card! 
 
 Hey everyone,
 
@@ -7457,7 +7457,7 @@ Hi Team,
 
 To show our appreciation for everything they do for the [ORG_1] team, we've set up a digital card. Please take a moment to leave a note, share a funny team memory, or upload a GIF:
 
-👉 Sign the card here: https://www.groupgreeting.com/sign/[PERSON_1]s-special-day
+ Sign the card here: https://www.groupgreeting.com/sign/[PERSON_1]s-special-day
 
 Please make sure to add your message by [DATE_1] at 5:00 PM so we can deliver it to their inbox first thing in the morning on their birthday.
 
@@ -7516,7 +7516,7 @@ Cheers,
 [PERSON_2]
 Engineering Lead
 [ORG_2]",internal
-"Subject: Happy Birthday [PERSON_1]!!! 🎈🍰
+"Subject: Happy Birthday [PERSON_1]!!! 
 
 Hi [PERSON_1],
 
@@ -7664,7 +7664,7 @@ We've been down for 3 hours now and QA is completely blocked. Reach me at [PHONE
 
 Thanks,
 [PERSON_2]",internal
-"Subject: Happy Birthday, [PERSON_1]! 🥳🎉
+"Subject: Happy Birthday, [PERSON_1]! 
 
 Hi [PERSON_1],
 
@@ -7679,7 +7679,7 @@ Hope you have a fantastic day, eat some delicious cake, and get to relax this ev
 Cheers,
 
 [PERSON_2] and the [ORG_1] Team",personal
-"Subject: Did you see that game last night? 🏀
+"Subject: Did you see that game last night? 
 
 Hey [PERSON_1],
 
@@ -7854,7 +7854,7 @@ Let me know if you want to walk down together or if I can grab you something whi
 Best,
 
 [PERSON_2]",personal
-"Subject: Signing [PERSON_1]'s birthday card! 🌟
+"Subject: Signing [PERSON_1]'s birthday card! 
 
 Hi folks,
 
@@ -8015,7 +8015,7 @@ Sincerely,
 
 [PERSON_2]
 IT Operations Manager, [ORG_1]",client
-"Subject: Happy Birthday, [PERSON_1]! 🥳 Let's celebrate!
+"Subject: Happy Birthday, [PERSON_1]!  Let's celebrate!
 
 Hi [ORG_1] Team,
 
@@ -8173,7 +8173,7 @@ Good luck to the team, hope we take home the trophy!
 Cheers,
 
 [PERSON_2]",personal
-"Subject: Shhh! [PERSON_1]'s Birthday Card - Please Sign! 🎂
+"Subject: Shhh! [PERSON_1]'s Birthday Card - Please Sign! 
 
 Hi everyone,
 
@@ -8219,7 +8219,7 @@ Warm regards,
 [PERSON_2]
 Developer Advocate, [ORG_1]
 [PHONE_1]",vendor
-"Subject: Shhh... Secret Birthday Card for [PERSON_1]! 🤫🎂
+"Subject: Shhh... Secret Birthday Card for [PERSON_1]! 
 
 Hi team,
 
@@ -8233,7 +8233,7 @@ Let's keep this a secret until Friday morning!
 
 Best,
 [PERSON_2]",personal
-"Subject: Let's celebrate [PERSON_1]'s Milestone Birthday! 🎉
+"Subject: Let's celebrate [PERSON_1]'s Milestone Birthday! 
 
 Hey everyone,
 
@@ -8292,7 +8292,7 @@ Best,
 
 Facilities & Operations
 [ORG_1]",admin
-"Subject: Secret: [PERSON_1]'s Farewell Gift & Card! 🤫
+"Subject: Secret: [PERSON_1]'s Farewell Gift & Card! 
 
 Hey guys,
 
@@ -8322,7 +8322,7 @@ Thanks!
 [PERSON_3]
 Director of Strategic Alliances, [ORG_1]
 [PHONE_1]",vendor
-"Subject: Birthday Card & Gift for [PERSON_1]'s Milestone Birthday! 🎁
+"Subject: Birthday Card & Gift for [PERSON_1]'s Milestone Birthday! 
 
 Hi team,
 
@@ -8427,7 +8427,7 @@ Best,
 [PERSON_2]
 IT Infrastructure Lead, [ORG_1]
 [PHONE_1]",client
-"Subject: Upcoming October Birthdays! 🎂🎈 (Card links inside)
+"Subject: Upcoming October Birthdays!  (Card links inside)
 
 Hey team,
 
@@ -8465,7 +8465,7 @@ We have sent a prepaid FedEx shipping box to your home address. Please pack the 
 Regards,
 IT Logistics and Compliance Team
 [ORG_1] Admin Services",admin
-"Subject: Shh... Secret Birthday Card for [PERSON_1]! 🎂
+"Subject: Shh... Secret Birthday Card for [PERSON_1]! 
 
 Hi team,
 
@@ -8740,7 +8740,7 @@ We would like to thank everyone on Floor 4 for their flexibility and cooperation
 Best,
 [PERSON_2]
 Operations Lead",admin
-"Subject: Milestone Birthday Card for [PERSON_1]! 🎈
+"Subject: Milestone Birthday Card for [PERSON_1]! 
 
 Hi everyone,
 
@@ -8753,7 +8753,7 @@ We will be sharing the board with them during our virtual team lunch on Friday. 
 Best regards,
 
 [PERSON_2]",personal
-"Subject: Birthday celebration for [PERSON_1] next week! 🍰
+"Subject: Birthday celebration for [PERSON_1] next week! 
 
 Hi team,
 
@@ -9167,7 +9167,7 @@ Best regards,
 
 [PERSON_2]
 Managing Director, [ORG_2]",vendor
-"Subject: Happy early birthday, [PERSON_1]! 🎉
+"Subject: Happy early birthday, [PERSON_1]! 
 
 Hey [PERSON_1],
 
@@ -9239,7 +9239,7 @@ Best regards,
 [PERSON_2]
 Director of Customer Onboarding
 [ORG_2]",client
-"Subject: Happy 5-Year Work Anniversary, [PERSON_1]! 🎉
+"Subject: Happy 5-Year Work Anniversary, [PERSON_1]! 
 
 Hey [PERSON_1],
 
@@ -9459,7 +9459,7 @@ Best regards,
 Head of Information Security
 [ORG_1]
 [EMAIL_1]",security
-"Subject: Happy Friday & Birthday Wishes to [PERSON_1]! 🎉
+"Subject: Happy Friday & Birthday Wishes to [PERSON_1]! 
 
 Hey team,
 

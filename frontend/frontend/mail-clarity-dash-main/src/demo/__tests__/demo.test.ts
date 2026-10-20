@@ -108,6 +108,32 @@ describe("demo mode (#227)", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  test("core demo API modules answer with valid domain shapes and non-empty data", async () => {
+    startDemo();
+    const emailPage = await settle(emails.fetchEmailPage());
+    expect(emailPage.emails.length).toBeGreaterThan(0);
+    const firstEmail = await settle(emails.fetchEmail("demo-port-klang"));
+    expect(firstEmail.id).toBe("demo-port-klang");
+    expect(firstEmail.subject).toBeTruthy();
+
+    const tmpls = await settle(templates.fetchTemplates());
+    expect(tmpls.length).toBeGreaterThan(0);
+
+    const docs = await settle(documents.fetchDocuments());
+    expect(docs.length).toBeGreaterThan(0);
+
+    const todoData = await settle(todo.fetchTodo());
+    expect(todoData.needsAction.emails.length).toBeGreaterThan(0);
+
+    const style = await settle(profile.fetchWritingStyle());
+    expect(style.maxExamples).toBeGreaterThan(0);
+
+    const quiet = await settle(settings.fetchQuietHours());
+    expect(quiet).toBeDefined();
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   test("the status page asks the real backend, so the demo never reads as every part down", async () => {
     const parts = { backend: "ok", database: "ok", masking: "ok", drafting: "ok", listener: "ok" };
     fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify({ checkedAt: "now", parts })));

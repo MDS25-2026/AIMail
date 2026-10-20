@@ -26,3 +26,12 @@ func TestInvisibleCharactersNoLongerSplitWords(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestNonAsciiSpacesAreFoldedForPhoneMasking(t *testing.T) {
+	for _, text := range []string{"012\u00a03456789", "012\u30003456789", "012\u202f3456789"} {
+		masked, _, _ := maskPII(cleanText(text), newDetailVault())
+		if !strings.Contains(masked, "[PHONE_") {
+			t.Errorf("phone with non-ASCII space not masked: %q -> %q", text, masked)
+		}
+	}
+}

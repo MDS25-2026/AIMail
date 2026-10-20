@@ -18,6 +18,7 @@ from app.core.config import get_settings
 from app.db.models import Document, MailboxConnection, Message
 from app.db.session import get_sessionmaker
 from app.erasure import Subject, erase
+from app.gmail_send import invalidate_cached_token
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,7 @@ async def disconnect_gmail(user_id: UUID) -> Erased:
                                       .where(MailboxConnection.user_id == user_id))
     if sealed is None:
         raise NotConnectedError(str(user_id))
+    invalidate_cached_token(user_id)
     await _revoke_at_google(user_id, sealed)
     async with get_sessionmaker()() as session, session.begin():
         counts = await erase(session, user_id, Subject.MAILBOX)
@@ -91,7 +93,12 @@ async def delete_account(user_id: UUID) -> Erased:
         pass  # nothing connected: there is no token to revoke
     async with get_sessionmaker()() as session, session.begin():
         counts = await erase(session, user_id, Subject.ACCOUNT)
-    await _delete_sign_in(user_id)
     erased = Erased(messages=counts.get(Message.__tablename__, 0), documents=counts.get(Document.__tablename__, 0))
-    await audit(AuditAction.DELETE_ACCOUNT, user_id=user_id, documents_deleted=erased.documents)
+    try:
+        await _delete_sign_in(user_id)
+    except AccountDeletionError as exc:
+        await audit(AuditAction.DELETE_ACCOUNT, user_id=user_id, success=False, documents_deleted=erased.documents,
+                    error=str(exc))
+        raise
+    await audit(AuditAction.DELETE_ACCOUNT, user_id=user_id, success=True, documents_deleted=erased.documents)
     return erased

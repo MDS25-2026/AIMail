@@ -57,12 +57,10 @@ Defined in the repo-root [`../.env.example`](../.env.example). Expected keys:
 - `LOCAL_LLM_KEEP_ALIVE` — how long Ollama keeps the model loaded (`30m`, `24h`, `-1m` for always); empty = Ollama's 5 minutes
 - `LOCAL_VISION_MODEL` — the local model that checks scans for signatures, faces and stamps (`specs/features/signature-detection.md`); empty = "checked scans" is not offered in Settings
 - `GEMINI_CHAT_MODEL` — optional, defaults to `gemini-2.5-flash`
-- `GOOGLE_API_KEY` — Gemini for the Lane C agent
 - `FRONTEND_ORIGINS` — deployed dashboard origins for CORS, comma-separated (any localhost port is allowed in dev)
 - `ENVIRONMENT` — `dev`, `staging` or `prod`; outside dev, missing secrets or localhost public URLs stop startup
 - `AGENT_TOKEN` — shared secret between the backend and the agent
-- `BACKEND_API_TOKEN` — bearer token required on every route except `GET /`. Empty means the API
-  refuses all requests rather than silently running unauthenticated
+- `BACKEND_API_TOKEN` — shared bearer token for scripts, tests and curl (optional; empty means only signed-in users with valid Supabase session cookies or bearer tokens get in)
 - `EMAIL_AGENT_URL` — where the backend calls Lane C (default `http://localhost:8001`)
 - `PRIORITY_MODEL` — `baseline` (TF-IDF) or `distilbert` (fine-tuned); selects which predictor
   `backfill_importance.py` uses
