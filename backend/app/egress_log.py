@@ -18,21 +18,32 @@ logger = logging.getLogger(__name__)
 RECEIPT_ROWS = 20
 
 
-def _row(record: dict, user_id: UUID | None, message_id: UUID | None) -> ModelEgress:
-    return ModelEgress(user_id=user_id, message_id=message_id, purpose=str(record.get("purpose", "")),
+def _row(record: dict, user_id: UUID | None, message_id: UUID | None,
+         compose_draft_id: UUID | None = None) -> ModelEgress:
+    return ModelEgress(user_id=user_id, message_id=message_id, compose_draft_id=compose_draft_id,
+                       purpose=str(record.get("purpose", "")),
                        provider=str(record.get("provider", "")), chars=int(record.get("chars", 0)),
                        sha256=str(record.get("sha256", "")), hidden=dict(record.get("hidden") or {}),
                        caught=int(record.get("caught", 0)))
 
 
-async def save_egress(records: list[dict], *, user_id: UUID | None, message_id: UUID | None) -> None:
+async def save_egress(records: list[dict], *, user_id: UUID | None, message_id: UUID | None,
+                      compose_draft_id: UUID | None = None) -> None:
     if not records:
         return
     try:
         async with get_sessionmaker()() as session, session.begin():
-            session.add_all(_row(record, user_id, message_id) for record in records)
+            session.add_all(_row(record, user_id, message_id, compose_draft_id) for record in records)
     except SQLAlchemyError:
-        logger.exception("could not keep %d egress record(s) for message %s", len(records), message_id)
+        logger.exception("could not keep %d egress record(s) for message %s / draft %s", len(records),
+                         message_id, compose_draft_id)
+
+
+async def egress_for_draft(compose_draft_id: UUID) -> list[ModelEgress]:
+    async with get_sessionmaker()() as session:
+        rows = await session.scalars(select(ModelEgress).where(ModelEgress.compose_draft_id == compose_draft_id)
+                                     .order_by(ModelEgress.created_at.desc()).limit(RECEIPT_ROWS))
+        return list(rows)
 
 
 async def egress_for(message_id: UUID) -> list[ModelEgress]:

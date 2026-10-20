@@ -18,6 +18,10 @@ export const queryKeys = {
   serviceStatus: ["service-status"] as const,
   writingStyle: ["writing-style"] as const,
   auditTrail: ["audit-trail"] as const,
+  // Separate roots: refreshing the list must never refetch, and so reseed, the draft being edited.
+  composeList: ["compose-list"] as const,
+  composeDraft: (id: string) => ["compose-draft", id] as const,
+  composeSendFailure: (id: string) => ["compose-send-failure", id] as const,
   admin: {
     all: ["admin"] as const,
     session: ["admin", "session"] as const,

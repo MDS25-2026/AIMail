@@ -17,6 +17,7 @@ from sqlalchemy import ColumnElement, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
+    ComposeDraft,
     DocType,
     Document,
     HoldingReply,
@@ -56,6 +57,8 @@ _FROM_THE_MAILBOX: tuple[Rule, ...] = (
     Rule(ScheduledSend, lambda user: ScheduledSend.user_id == user),
     Rule(SentMessage, lambda user: SentMessage.user_id == user),
     Rule(ModelEgress, lambda user: ModelEgress.user_id == user),
+    # New emails the user wrote, sent or not: their text and vault go with the mailbox they were for.
+    Rule(ComposeDraft, lambda user: ComposeDraft.user_id == user),
     Rule(Message, lambda user: Message.user_id == user),
     Rule(Document, lambda user: (Document.user_id == user) & (Document.doc_type == DocType.SENT_REPLY)),
     Rule(StyleExample, lambda user: (StyleExample.user_id == user) & (StyleExample.source == ExampleSource.SENT)),

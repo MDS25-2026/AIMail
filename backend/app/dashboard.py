@@ -38,10 +38,8 @@ from app.agent_contract import RefineRequest as AgentRefineRequest
 from app.attachment_notes import has_unread_attachment
 from app.audit import AuditAction, audit, record
 from app.contracts import (
-    ContextChunk,
     DashboardEmail,
     Detail,
-    EgressRecord,
     EmailPage,
     MeasureView,
     QuantityView,
@@ -68,6 +66,10 @@ from app.db.models import (
     UserProfile,
 )
 from app.db.session import get_sessionmaker
+from app.draft_storage import egress_view as _egress_view
+from app.draft_storage import rag_context_of
+from app.draft_storage import review_columns as _review_fields
+from app.draft_storage import source_records as _source_records
 from app.egress_log import egress_for, save_egress
 from app.email_policy import Action, refusal_for
 from app.gmail_send import SendError, SendOutcomeUnknownError, SentReply, send_reply
@@ -79,6 +81,7 @@ from app.jobs import (
 )
 from app.ml.category import EmailCategory
 from app.normalise.quantities import quantities_in
+from app.owner import owner_name as _owner_name
 from app.past_replies import remember_reply
 from app.personalisation import (
     DEFAULT_POLICY,
@@ -303,18 +306,6 @@ def _sender_offset(message: Message) -> int | None:
     if message.is_automated or offset == UTC_STAMP_MINUTES:
         return None
     return offset
-
-
-def _egress_view(row: ModelEgress) -> EgressRecord:
-    return EgressRecord(purpose=row.purpose, provider=row.provider, chars=row.chars, hidden=row.hidden or {},
-                        caught=row.caught, at=row.created_at.isoformat() if row.created_at else "")
-
-
-async def _owner_name(owner_id: UUID | None) -> str:
-    if owner_id is None:
-        return ""
-    async with get_sessionmaker()() as session:
-        return await session.scalar(select(UserProfile.display_name).where(UserProfile.id == owner_id)) or ""
 
 
 async def _details_for(message: Message, thread: list[Message]) -> ThreadMap:
@@ -564,14 +555,6 @@ def _not_drafted(code: str) -> dict:
             "review_codes": [{"code": ReviewCode.NO_DRAFT, "items": []}], NOT_DRAFTED: True}
 
 
-def _source_records(chunks: list[ContextChunk]) -> list[dict]:
-    return [
-        {"label": chunk["source_title"] or "Policy", "chunkId": str(chunk["chunk_id"]),
-         "excerpt": chunk["content"], "score": round(chunk["similarity_score"], 3)}
-        for chunk in chunks
-    ]
-
-
 async def _generate(message: Message, tone: Tone, thread: list[Message], details: ThreadMap) -> dict:
     """Retrieve policy context (Lane B) and call Lane C's /process-email. Returns {} on any failure.
 
@@ -625,29 +608,6 @@ def _generation_fields(generated: dict) -> dict:
         "rag_sources": generated.get("rag_sources") or [],
         **_review_fields(generated),
         "generated_at": datetime.now(timezone.utc),
-    }
-
-
-def _review_fields(reviewed: dict) -> dict:
-    """The critic's verdict on a draft, stored the same way for a generated and a refined one."""
-    confidence = reviewed.get("confidence")
-    return {
-        "critic_confidence": None if confidence is None else float(confidence),
-        # Stored so a rescued draft is distinguishable from a first-pass success.
-        "critic_attempts": int(reviewed.get("attempts") or 0),
-        "critic_checks": {
-            "grounding_ok": reviewed.get("grounding_ok"),
-            "pii_clean": reviewed.get("pii_clean"),
-            "tone_match": reviewed.get("tone_match"),
-            "completeness": reviewed.get("completeness"),
-            "pii_findings": reviewed.get("pii_findings") or [],
-            "review_reasons": reviewed.get("review_reasons") or [],
-            "review_codes": reviewed.get("review_codes") or [],
-            # Which models answered and how many retries it took; outcomes and ms, no content.
-            "model_calls": reviewed.get("model_calls") or [],
-            "prompt_version": reviewed.get("prompt_version") or "",
-        },
-        "needs_human_review": bool(reviewed.get("needs_human_review")),
     }
 
 
@@ -987,8 +947,7 @@ async def _style_fields(message: Message) -> dict:
 
 def _stored_rag_context(message: Message) -> str:
     """The policy passages the draft was grounded on, rebuilt from what generation stored."""
-    return "\n\n".join(f"[{source.get('label', 'Policy')}] {source.get('excerpt', '')}"
-                       for source in message.rag_sources or [])
+    return rag_context_of(message.rag_sources)
 
 
 async def _refine(

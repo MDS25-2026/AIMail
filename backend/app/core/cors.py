@@ -17,8 +17,8 @@ from app.core.auth import CLIENT_HEADER
 
 ADMIN_METHODS = ["GET", "POST", "DELETE"]
 ADMIN_HEADERS = ["Content-Type", CSRF_HEADER]
-# PUT: holding reply settings (specs/features/holding-reply.md) are replaced whole.
-DASHBOARD_METHODS = ["GET", "POST", "PUT", "DELETE"]
+# PUT: holding reply settings (specs/features/holding-reply.md) are replaced whole; PATCH: Compose autosaves.
+DASHBOARD_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"]
 DASHBOARD_HEADERS = ["Content-Type", CLIENT_HEADER]
 
 

@@ -8,6 +8,7 @@ export enum Page {
   App = "app",
   Inbox = "inbox",
   Todo = "todo",
+  Compose = "compose",
   Drafts = "drafts",
   Sent = "sent",
   Scheduled = "scheduled",

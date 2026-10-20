@@ -12,6 +12,8 @@ type ApproveSendButtonProps = {
   isDraftChanging: boolean;
   /** The draft still holds a saved template's {{blank}}; the backend would refuse it. */
   isBlocked?: boolean;
+  /** The element that says why the button is disabled. */
+  describedBy?: string;
 };
 
 const SENT =
@@ -27,6 +29,7 @@ export default function ApproveSendButton({
   isSent,
   isDraftChanging,
   isBlocked = false,
+  describedBy,
 }: ApproveSendButtonProps) {
   const { t } = useTranslation();
   const disabled = isSending || isSent || isDraftChanging || isBlocked;
@@ -35,6 +38,7 @@ export default function ApproveSendButton({
     <button
       type="button"
       disabled={disabled}
+      aria-describedby={describedBy}
       onClick={onApproveSend}
       className={isSent ? SENT : cn(button({ intent: "primary", size: "md" }), "whitespace-nowrap")}
     >

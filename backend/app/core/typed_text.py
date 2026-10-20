@@ -6,7 +6,8 @@ listener/testdata/masking_vectors.json, so the two floors cannot drift apart unn
 """
 
 import re
-from enum import Enum, auto
+from collections.abc import Callable
+from enum import Enum, StrEnum, auto
 
 _EMAIL = re.compile(r"\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b")
 # A link keeps its scheme, host and path: query strings carry reset tokens and encoded addresses. Cut in one
@@ -41,14 +42,32 @@ def _passes_luhn(digits: str) -> bool:
     return total % 10 == 0
 
 
-def _mask_card(match: re.Match[str]) -> str:
+class TypedDetail(StrEnum):
+    """The fixed formats found here, named as the vault's detail kinds (app/core/vault.py DetailKind)."""
+
+    EMAIL = "EMAIL"
+    IC = "IC"
+    PASSPORT = "PASSPORT"
+    CARD = "CARD"
+    PHONE = "PHONE"
+
+
+# What a found detail becomes: a marker for good by default, a restorable placeholder for Compose.
+Replace = Callable[[TypedDetail, str], str]
+
+
+def redacted(kind: TypedDetail, _value: str) -> str:
+    return f"[{kind}_REDACTED]"
+
+
+def _mask_card(match: re.Match[str], replace: Replace) -> str:
     digits = re.sub(r"\D", "", match.group())
-    return "[CARD_REDACTED]" if _passes_luhn(digits) else match.group()
+    return replace(TypedDetail.CARD, match.group()) if _passes_luhn(digits) else match.group()
 
 
-def _mask_bare_ic(match: re.Match[str]) -> str:
+def _mask_bare_ic(match: re.Match[str], replace: Replace) -> str:
     month, day = int(match.group(2)), int(match.group(3))
-    return "[IC_REDACTED]" if 1 <= month <= 12 and 1 <= day <= 31 else match.group()
+    return replace(TypedDetail.IC, match.group()) if 1 <= month <= 12 and 1 <= day <= 31 else match.group()
 
 
 class _Reading(Enum):
@@ -98,13 +117,13 @@ _BUSINESS_PREFIXES = frozenset({
 })
 
 
-def _mask_email_match(match: re.Match[str], *, preserve_business: bool = False) -> str:
+def _mask_email_match(match: re.Match[str], *, preserve_business: bool = False, replace: Replace = redacted) -> str:
     addr = match.group().lower()
     if preserve_business:
         prefix = addr.split("@")[0].split(".")[0].split("+")[0]
         if prefix in _BUSINESS_PREFIXES:
             return match.group()
-    return "[EMAIL_REDACTED]"
+    return replace(TypedDetail.EMAIL, match.group())
 
 
 _HAN = re.compile(r"[\u4e00-\u9fff]")
@@ -117,12 +136,16 @@ def whole_words(value: str) -> str:
     return words if _HAN.search(value) else rf"(?<!\w){words}(?!\w)"
 
 
+def replace_typed_details(text: str, *, preserve_business_emails: bool = False, replace: Replace = redacted) -> str:
+    """Every email, IC, passport, card and phone number passed through `replace`; links left whole."""
+    text = _EMAIL.sub(lambda m: _mask_email_match(m, preserve_business=preserve_business_emails, replace=replace), text)
+    text = _IC_SEPARATED.sub(lambda m: replace(TypedDetail.IC, m.group()), text)
+    text = _IC_BARE.sub(lambda m: _mask_bare_ic(m, replace), text)
+    text = _PASSPORT.sub(lambda m: replace(TypedDetail.PASSPORT, m.group()), text)
+    text = _CARD.sub(lambda m: _mask_card(m, replace), text)
+    return _PHONE.sub(lambda m: replace(TypedDetail.PHONE, m.group()), text)
+
+
 def mask_typed_text(text: str, *, preserve_business_emails: bool = False) -> str:
     """Strip link queries; replace emails, ICs, passports, card and phone numbers; leave everything else."""
-    text = strip_link_queries(text)
-    text = _EMAIL.sub(lambda m: _mask_email_match(m, preserve_business=preserve_business_emails), text)
-    text = _IC_SEPARATED.sub("[IC_REDACTED]", text)
-    text = _IC_BARE.sub(_mask_bare_ic, text)
-    text = _PASSPORT.sub("[PASSPORT_REDACTED]", text)
-    text = _CARD.sub(_mask_card, text)
-    return _PHONE.sub("[PHONE_REDACTED]", text)
+    return replace_typed_details(strip_link_queries(text), preserve_business_emails=preserve_business_emails)

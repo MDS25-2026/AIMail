@@ -4,8 +4,8 @@ The brain of AImail. FastAPI service for Lanes B + C: RAG retrieval, the priorit
 
 ## Run locally
 
-`app/main.py` serves the dashboard API (emails list/detail, draft regenerate/refine/send) plus the
-RAG retrieval endpoints (`/search`, `/ask`, `/documents`).
+`app/main.py` serves the dashboard API (emails list/detail, draft regenerate/refine/send, and
+`/compose` for new emails) plus the RAG retrieval endpoints (`/search`, `/ask`, `/documents`).
 
 ```bash
 cd backend
@@ -70,14 +70,16 @@ Defined in the repo-root [`../.env.example`](../.env.example). Expected keys:
 
 ```
 backend/
-├── email_agent.py           # Lane C reply-generation agent (Gemini), served on :8001
+├── email_agent.py           # Lane C agent (Gemini): replies, and new emails (/compose); served on :8001
 ├── app/
 │   ├── main.py              # FastAPI entrypoint: dashboard API + retrieval
 │   ├── dashboard.py         # assemble the email view, generation cache, regenerate/refine/send
 │   ├── contracts.py         # cross-lane data shapes (single source of truth)
 │   ├── personalisation.py   # per-user policy applied AFTER the classifier predicts (Lane B)
 │   ├── audit.py             # best-effort audit trail for generate/refine/send
-│   ├── gmail_send.py        # send approved replies via the Gmail API
+│   ├── gmail_send.py        # send approved replies and new emails via the Gmail API
+│   ├── compose.py           # new emails from a brief: drafts, writing, sending (specs/features/compose.md)
+│   ├── draft_storage.py     # how a reply's or new email's sources, review and receipt are stored
 │   ├── static/              # demo.html (retrieval showcase page)
 │   ├── rag/                 # embeddings, ingestion, retrieval, eval (Lane B)
 │   ├── ml/                  # priority classifier + temporal layer (Lane B)

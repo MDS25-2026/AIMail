@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Inbox, ListTodo, Send, Settings } from "lucide-react";
+import { Inbox, ListTodo, Send, Settings, SquarePen } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { useSession, useTodo } from "../lib/queries";
@@ -7,6 +7,7 @@ import { useSession, useTodo } from "../lib/queries";
 const ITEMS = [
   { label: "nav.inbox", to: "/", Icon: Inbox },
   { label: "nav.todo", to: "/todo", Icon: ListTodo },
+  { label: "nav.compose", to: "/compose", Icon: SquarePen },
   { label: "nav.sent", to: "/sent", Icon: Send },
   { label: "nav.settings", to: "/settings", Icon: Settings },
 ] as const;

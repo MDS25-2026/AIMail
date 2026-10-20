@@ -2,9 +2,6 @@
 import type { RequestOptions } from "../lib/api/client";
 import { ApiError, ApiErrorCode } from "../lib/api/errors";
 import { Language } from "../lib/preferences";
-import { en } from "../locales/en";
-import { ms } from "../locales/ms";
-import { zh } from "../locales/zh";
 import {
   AuthStatus,
   type Email,
@@ -13,6 +10,7 @@ import {
   type Translation,
 } from "../types/email";
 import type { SessionInfo } from "../types/session";
+import { COMPOSE_ROUTES } from "./compose";
 import { DEMO_ANSWERS, DEMO_CONFIRMED_DRAFTS } from "./data/answers";
 import { DEMO_ACCOUNT } from "./data/emails";
 import { leaveDemo } from "./mode";
@@ -22,6 +20,7 @@ import {
   notInDemo,
   record,
   state,
+  SUGGESTED,
   updateEmail,
   type Call,
   type Json,
@@ -59,12 +58,6 @@ function draftInTone({ params, endpoint }: Call, tone: Tone): string {
   if (original?.tone === tone && original.draftReply) return original.draftReply;
   return DEMO_ANSWERS[params[0]]?.otherTone?.[tone] ?? notInDemo(endpoint);
 }
-
-// The refine suggestions, in every language the reader may have picked.
-const SUGGESTED = {
-  direct: new Set([en, ms, zh].map((locale) => locale.refine.suggestionDirect)),
-  deadline: new Set([en, ms, zh].map((locale) => locale.refine.suggestionDeadline)),
-};
 
 /** A typed instruction has no prepared answer; only the suggestions under the box do. */
 function refined({ params, endpoint, json }: Call): string {
@@ -242,7 +235,7 @@ const EMAIL_ROUTES: Route[] = [
   },
 ];
 
-const ROUTES = [...EMAIL_ROUTES, ...PAGE_ROUTES];
+const ROUTES = [...EMAIL_ROUTES, ...PAGE_ROUTES, ...COMPOSE_ROUTES];
 
 function bodyOf(options: RequestOptions): Json {
   return (options.json ?? {}) as Json;

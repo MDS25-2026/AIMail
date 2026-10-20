@@ -41,6 +41,12 @@ const NAMED_ACTIONS = [
   "writing_style_hid_habit",
   "writing_style_deleted",
   "admin_sign_in",
+  "compose_written",
+  "compose_refined",
+  "compose_sent",
+  "compose_send_outcome_unknown",
+  "compose_outcome_settled",
+  "compose_deleted",
 ] as const;
 type NamedAction = (typeof NAMED_ACTIONS)[number];
 const NAMED: ReadonlySet<string> = new Set(NAMED_ACTIONS);

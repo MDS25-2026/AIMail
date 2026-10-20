@@ -381,3 +381,29 @@ async def send_reply(
     except (httpx.HTTPError, GmailAccessError, KeyError, OSError, ValueError) as exc:
         raise SendError(str(exc)) from exc
     return SentReply(gmail_id=sent.get("id"), thread_id=sent.get("threadId"), message_id=message_id)
+
+
+def _build_new_raw(to: list[str], cc: list[str], subject: str, body: str) -> str:
+    """A new message: no In-Reply-To, no "Re:". Addresses arrive checked (app/compose.py recipients)."""
+    text = strip_subject_line(body)
+    message = EmailMessage()
+    message["To"] = ", ".join(to)
+    if cc:
+        message["Cc"] = ", ".join(cc)
+    message["Subject"] = subject
+    message.set_content(text)
+    message.add_alternative(_html_body(text), subtype="html")
+    return base64.urlsafe_b64encode(message.as_bytes()).decode()
+
+
+async def send_new(to: list[str], cc: list[str], subject: str, body: str, *, owner_id: UUID) -> SentReply:
+    """Send a new email from the owner's mailbox, starting its own thread (specs/features/compose.md)."""
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            sent = await _post_send(client, {"raw": _build_new_raw(to, cc, subject, body)}, owner_id)
+            message_id = await _sent_message_id(client, sent.get("id"), owner_id)
+    except GoogleAccessExpiredError as exc:
+        raise AccessExpiredSendError(str(exc)) from exc
+    except (httpx.HTTPError, GmailAccessError, KeyError, OSError, ValueError) as exc:
+        raise SendError(str(exc)) from exc
+    return SentReply(gmail_id=sent.get("id"), thread_id=sent.get("threadId"), message_id=message_id)

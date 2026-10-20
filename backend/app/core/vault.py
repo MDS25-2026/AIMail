@@ -18,7 +18,12 @@ from uuid import UUID
 from app.core import sealed_box
 from app.core.config import get_settings
 from app.core.redaction import PLACEHOLDER
-from app.core.typed_text import mask_typed_text, whole_words
+from app.core.typed_text import (
+    TypedDetail,
+    mask_typed_text,
+    replace_typed_details,
+    whole_words,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +48,8 @@ class DetailKind(StrEnum):
     CARD = "CARD"
     LOCATION = "LOCATION"
     ORG = "ORG"
+
+_KIND_OF: dict[TypedDetail, DetailKind] = {kind: DetailKind(kind.value) for kind in TypedDetail}
 
 # Compared case-insensitively and by words; everything else is compared by its letters and digits.
 _WORDLIKE = {DetailKind.PERSON, DetailKind.LOCATION, DetailKind.ORG}
@@ -168,6 +175,38 @@ class ThreadMap:
             flags = re.IGNORECASE if kind in _WORDLIKE else 0
             text = re.sub(whole_words(value), placeholder, text, flags=flags)
         return text
+
+    @classmethod
+    def of_draft(cls, details: dict[str, str], *texts: str) -> "ThreadMap":
+        """A compose draft's details exactly as stored: nothing renumbered, so its text stays valid. Numbers its
+        texts already use without a value (one the model made up) are skipped, so a new detail never takes one."""
+        draft = cls()
+        for match in PLACEHOLDER.finditer("\n".join(texts)):
+            kind = DetailKind(match.group(1))
+            draft._counts[kind] = max(draft._counts.get(kind, 0), int(match.group(2)))
+        for placeholder, value in details.items():
+            kind_name, number = PLACEHOLDER.fullmatch(placeholder).groups()
+            kind = DetailKind(kind_name)
+            draft.values[placeholder] = value
+            draft._by_value[(kind, _normalise(kind, value))] = placeholder
+            draft._counts[kind] = max(draft._counts.get(kind, 0), int(number))
+        return draft
+
+    def add_detail(self, kind: DetailKind, value: str) -> str:
+        """The placeholder for a value, numbered now if it is new."""
+        return self._allocate(kind, _normalise(kind, value), value.strip())
+
+    def tokenise_typed(self, typed: str) -> str:
+        """Text a person typed with every detail as a placeholder that keeps its value: known ones as
+        numbered, new fixed-format ones numbered now. Unlike for_model, the result can be sent."""
+        return replace_typed_details(self.tokenise_known(typed),
+                                     replace=lambda kind, value: self.add_detail(_KIND_OF[kind], value))
+
+    def sealable(self) -> dict[str, str]:
+        """What a draft's vault keeps: every valued detail but the owner's and sender's names, which
+        are looked up again each time rather than stored."""
+        fixed = {OWNER_PLACEHOLDER, SENDER_PLACEHOLDER}
+        return {placeholder: value for placeholder, value in self.values.items() if value and placeholder not in fixed}
 
     def for_model(self, typed: str) -> str:
         """Text a person typed, made safe for the AI: known details become placeholders, and any

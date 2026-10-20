@@ -2,6 +2,7 @@
 export * from "./admin";
 export * from "./audit";
 export { createQueryClient } from "./client";
+export * from "./compose";
 export * from "./documents";
 export * from "./emails";
 export * from "./events";

@@ -8,6 +8,7 @@ export const en = {
   },
   nav: {
     label: "Main",
+    compose: "Compose",
     inbox: "Inbox",
     drafts: "Drafts",
     sent: "Sent",
@@ -202,6 +203,129 @@ export const en = {
     title: "Drafts",
     description:
       "Saved and in-progress replies will live here, so you can pick up a draft without reopening the thread it belongs to.",
+  },
+  compose: {
+    tooManyRecipients:
+      "AIMail sends to at most {{max}} people across To and Cc. The rest are left in the box.",
+    addressTooLong:
+      "An address can't be longer than {{max}} characters. It is left in the box to fix.",
+    hideCc: "Hide Cc",
+    notSent: "Not sent",
+    confirm: {
+      replaceEdits: "AIMail will write a new email over the text in the body.",
+      sendTemplates_one:
+        "This email still has {{count}} bracketed gap, such as [Your Name]. The recipient will see it exactly like that.",
+      sendTemplates_other:
+        "This email still has {{count}} bracketed gaps, such as [Your Name]. The recipient will see them exactly like that.",
+      toneWarning: "Your email may have an unprofessional tone. Send anyway?",
+    },
+    errors: {
+      conflict:
+        "This draft changed while AIMail was writing, so the new text was not used. Your changes are kept; try again.",
+      send_failed:
+        "Gmail didn't accept the email, so it was not sent. Your text is unchanged; try again in a moment.",
+      already_sent: "This email has already been sent.",
+      send_in_progress:
+        "This email is already being sent. Wait a moment, then check whether it went.",
+      send_outcome_unknown:
+        "We couldn't confirm whether the email was sent. Check your Gmail Sent folder before sending again.",
+      draft_refused:
+        "The AI couldn't write this email, and trying again won't change that. Your text is unchanged: write it yourself, or change the brief.",
+      unresolved_placeholders:
+        "This email has a placeholder AIMail can't fill in, such as [PERSON_3]. Type the real detail in its place, then send.",
+      redaction_markers:
+        "This email still has hidden details such as [Redacted]. Type the real details in before sending.",
+      google_access_expired:
+        "Google has ended AIMail's access to your Gmail, so the email was not sent. Sign in again to reconnect; your text is unchanged.",
+      send_not_granted:
+        "AIMail isn't allowed to send from your Gmail. Sign out, sign in again, and tick the box that lets AIMail send email. Your text is unchanged.",
+    },
+    heading: "Compose",
+    description: "New emails AIMail writes from your brief and your company's documents.",
+    newEmail: "New email",
+    creating: "Creating…",
+    draftsTitle: "Drafts",
+    sentTitle: "Sent",
+    emptyTitle: "No new emails yet",
+    emptyHint:
+      "Tell AIMail what the email should say, and it drafts it from your company's documents.",
+    pickHint: "Open a draft, or start a new email.",
+    noSubject: "(no subject)",
+    noRecipients: "No recipients yet",
+    toList: "To {{recipients}}",
+    state: {
+      sending: "Sending",
+      outcomeUnknown: "May have been sent",
+    },
+    newTitle: "New email",
+    back: "Back to your drafts",
+    to: "To",
+    cc: "Cc",
+    addCc: "Add Cc",
+    removeRecipient: "Remove {{address}}",
+    checkAddress: "Check this address",
+    checkAddresses:
+      "These don't look like email addresses: {{addresses}}. Check them before sending.",
+    subject: "Subject",
+    subjectPlaceholder: "Leave it empty and AIMail suggests one",
+    brief: "What should this email say?",
+    briefHint:
+      "A sentence or two is enough. AIMail drafts it from your brief and the documents in Knowledge.",
+    briefPlaceholder: "For example: remind the team to plan next year's leave by 31 October",
+    write: "Write with AIMail",
+    rewrite: "Rewrite",
+    writing: "Writing…",
+    writingStatus: "Writing your email from your documents. This can take up to 20 seconds.",
+    needsBrief: "Say what the email should say first.",
+    body: "Email",
+    bodyPlaceholder: "Write the email here, or let AIMail write it from your brief.",
+    refinePlaceholder: "Ask AI to refine the email (any language)…",
+    save: {
+      saving: "Saving…",
+      saved: "Saved",
+      failed: "Couldn't save. Your text is still here and saves with your next change.",
+    },
+    blocked: {
+      redactionMarkers:
+        "The email still has a hidden detail such as [Redacted]. Type the real detail in before sending.",
+      noRecipient: "Add at least one recipient in To before sending.",
+      noSubject: "Add a subject before sending.",
+      noBody: "Write the email before sending.",
+      missingDetails:
+        "The email has a placeholder AIMail can't fill in, such as [PERSON_3]. Type the real detail in its place.",
+      unfilledBlanks: "Fill in {{blanks}} before sending.",
+    },
+    sendingLocked: "Sending… The email can't be changed now.",
+    outcome: {
+      title: "This email may have been sent.",
+      body: "Check your Gmail Sent folder, then tell AIMail what you found.",
+      wasSent: "It was sent",
+      wasNotSent: "It wasn't sent",
+    },
+    sentAt: "Sent {{when}}",
+    delete: "Delete",
+    deleteName: "Delete this draft",
+    deleteSentName: "Remove this email from the list",
+    deleteQuestion: "Delete this draft?",
+    deleteSentQuestion: "Remove it from this list? It stays in your Gmail.",
+    deleting: "Deleting…",
+    cancel: "Cancel",
+    failed: {
+      create: "Couldn't start a new email. Try again in a moment.",
+      write: "Couldn't write the email. Your text is unchanged, so try again in a moment.",
+      refine:
+        "Couldn't refine the email. Your text and instruction are unchanged, so try again in a moment.",
+      send: "The email was not sent. Your text is unchanged, so try again in a moment.",
+      settle: "Couldn't record that. Try again in a moment.",
+      delete: "Couldn't delete it. Try again in a moment.",
+    },
+    announce: {
+      written: "Email written",
+      refined: "Email refined",
+      sent: "Email sent",
+      settled: "Noted",
+      deleted: "Deleted",
+    },
   },
   sent: {
     heading: "Sent",
@@ -930,6 +1054,12 @@ export const en = {
       document_deleted: "Document removed",
       private_mode: "Private mode changed",
       disconnect_gmail: "Gmail disconnected",
+      compose_written: "New email written by AIMail",
+      compose_refined: "New email refined",
+      compose_sent: "New email approved and sent",
+      compose_send_outcome_unknown: "New email may not have sent",
+      compose_outcome_settled: "Uncertain new email checked",
+      compose_deleted: "New email deleted",
     },
     modal: {
       title: "Hash chain check",
@@ -1141,6 +1271,11 @@ export const en = {
       "Signing in with Google lets AIMail read and send your Gmail. AIMail is a final-year project at Monash University Malaysia.",
   },
   errors: {
+    too_many_drafts: "You already have 200 unsent drafts. Send or delete one first.",
+    invalid_recipients:
+      "One of the addresses isn't a valid email address, or there are more than 20 recipients. Check To and Cc, then send.",
+    no_recipients: "Add at least one recipient in To, then send.",
+    no_subject: "Add a subject, then send.",
     ai_service_unreachable: "The AI service didn't answer. Nothing changed; try again in a moment.",
     translation_unfaithful:
       "The translation changed a figure or a hidden detail, so it isn't shown. Read the original instead.",
@@ -1246,6 +1381,10 @@ export const en = {
       title: "AIMail: AI inbox dashboard",
       description:
         "Prioritised inbox with AI summaries, action items and draft replies sent only once you approve them.",
+    },
+    compose: {
+      title: "AIMail compose",
+      description: "New emails AIMail drafts from your brief and your company's documents.",
     },
     drafts: { title: "AIMail drafts", description: "Draft replies waiting for your review." },
     sent: { title: "AIMail sent", description: "Replies a human approved and AIMail sent." },

@@ -1,10 +1,15 @@
 import { ApiError, ApiErrorCode } from "../lib/api/errors";
+import { en } from "../locales/en";
+import { ms } from "../locales/ms";
+import { zh } from "../locales/zh";
 import { AuditVerification, type AuditFields, type AuditTrailEvent } from "../types/audit";
+import type { ComposeDraft } from "../types/compose";
 import { MaskingStatus, type Email } from "../types/email";
 import type { DocumentDetail } from "../types/knowledge";
 import type { WritingStyle } from "../types/profile";
 import type { HoldingReplySettings, QuietHours, ScanReading } from "../types/settings";
 import type { Template } from "../types/template";
+import { demoComposeDrafts } from "./data/compose";
 import { DEMO_DOCUMENTS } from "./data/documents";
 import { DEMO_WAITING_EMAIL_ID, demoEmails } from "./data/emails";
 import {
@@ -22,7 +27,7 @@ import { DEMO_TEMPLATES } from "./data/templates";
 
 export type Json = Record<string, unknown>;
 export type Call = { params: string[]; json: Json; query: URLSearchParams; endpoint: string };
-export type Method = "GET" | "POST" | "PUT" | "DELETE";
+export type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 /** thinks: an AI action, answered after the model's usual pause. */
 export type Route = {
   method: Method;
@@ -33,6 +38,12 @@ export type Route = {
 
 const NOT_IN_DEMO = 400;
 const NOT_FOUND = 404;
+
+// The refine suggestions, in every language the reader may have picked: only these are prepared.
+export const SUGGESTED = {
+  direct: new Set([en, ms, zh].map((locale) => locale.refine.suggestionDirect)),
+  deadline: new Set([en, ms, zh].map((locale) => locale.refine.suggestionDeadline)),
+};
 
 export function notInDemo(endpoint: string): never {
   throw new ApiError(NOT_IN_DEMO, ApiErrorCode.NotInDemo, endpoint);
@@ -60,6 +71,8 @@ type DemoState = {
   personalQuietHours: QuietHours | null;
   scanReading: ScanReading;
   writingStyle: WritingStyle | null;
+  /** New emails on the Compose page, drafts and sent. */
+  composeDrafts: ComposeDraft[];
 };
 
 /** The mailbox as it starts, with its times counted back from `now`. */
@@ -79,6 +92,7 @@ function freshState(now: Date): DemoState {
     personalQuietHours: null,
     scanReading: structuredClone(DEMO_SCAN_READING),
     writingStyle: demoWritingStyle(now),
+    composeDrafts: demoComposeDrafts(now),
   };
 }
 

@@ -7,7 +7,7 @@ Skipped unless TEST_DATABASE_URL names a throwaway database with every migration
 import asyncio
 import os
 from datetime import datetime, time, timedelta, timezone
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import func, select, text, update
@@ -16,7 +16,10 @@ from sqlalchemy.exc import DBAPIError
 import model_gateway
 from app import (
     audit_routes,
+    compose,
+    connections,
     dashboard,
+    erasure,
     private_mode_routes,
     quiet_hours,
     retention,
@@ -36,19 +39,22 @@ from app.core.typed_names import TypedNames
 from app.dashboard import SendRejectedError, list_dashboard_emails, snooze_email
 from app.db.migrate import apply_pending, pending
 from app.db.models import (
+    AuditLog,
     AuthStatus,
     Chunk,
+    ComposeDraft,
     DocType,
     Document,
     Embedding,
     LocalEmbedding,
     MaskingStatus,
     Message,
+    ModelEgress,
     SentMessage,
     UserProfile,
 )
 from app.db.session import get_engine, get_sessionmaker
-from app.gmail_send import SendError, SentReply
+from app.gmail_send import SendError, SendOutcomeUnknownError, SentReply
 from app.inbox_search import search_messages_hybrid
 from app.jobs import claim_requested, request_draft
 from app.ml.categorise import classify_pending
@@ -780,3 +786,261 @@ def test_a_malay_email_gets_its_language_an_english_copy_and_a_deadline(monkeypa
     assert stored_malay.own_text_en == "Please confirm by Friday."
     assert stored_malay.deadline_at == datetime(2026, 10, 16, 9, tzinfo=timezone.utc)  # Fri 17:00 in KL
     assert (stored_english.language, stored_english.own_text_en, stored_english.deadline_at) == ("en", None, None)
+
+
+# ---------- Compose: a new email from a brief (specs/features/compose.md) ----------
+
+VAULT_KEY = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+HARITH = "Harith Zulkifli <harith@keris.com.my>"
+BRIEF = "Tell Harith we will raise the credit note by Friday. Call me on 012-345 6789 if needed."
+WRITTEN = ("Dear [PERSON_1],\n\nWe will raise the credit note by Friday. Call me on [PHONE_1].\n\n"
+           "Regards,\n[PERSON_900]")
+
+
+@pytest.fixture
+def composing(monkeypatch):
+    """The agent, retrieval and Gmail stubbed; the database, vault and checks real."""
+    monkeypatch.setenv("PII_VAULT_KEY", VAULT_KEY)
+    seen: dict = {"requests": [], "sent": [], "send_delay": 0.0, "send_error": None, "meanwhile": None}
+
+    async def gemini(_user_id):
+        return Provider.GEMINI
+
+    async def found(_query, **_kwargs):
+        return [{"chunk_id": uuid4(), "content": "Credit notes are issued within 14 days.",
+                 "similarity_score": 0.81, "source_title": "Refund policy"}]
+
+    async def agent(path, request, answer):
+        seen["requests"].append((path, request))
+        if seen["meanwhile"]:
+            await seen["meanwhile"]()
+        draft = WRITTEN if path == "/compose" else WRITTEN.replace("[PHONE_1]", "[PHONE_1] or [PHONE_2]")
+        return answer.model_validate({"subject": "Credit note for the pallet wrap", "draft": draft,
+                                      "confidence": 0.93, "egress": [{"purpose": "draft", "provider": "gemini",
+                                                                      "chars": 120, "sha256": "x", "hidden": {}}]})
+
+    async def gmail(to, cc, subject, body, *, owner_id):
+        await asyncio.sleep(seen["send_delay"])
+        if seen["send_error"]:
+            raise seen["send_error"]
+        seen["sent"].append({"to": to, "cc": cc, "subject": subject, "body": body})
+        return SentReply(gmail_id=f"gmail-{uuid4()}", thread_id="thread-new", message_id="<m@mail.gmail.com>")
+
+    async def granted(_user_id):
+        return True
+
+    monkeypatch.setattr(compose, "model_for", gemini)
+    monkeypatch.setattr(compose, "retrieve", found)
+    monkeypatch.setattr(compose.agent_client, "call", agent)
+    monkeypatch.setattr(compose, "send_new", gmail)
+    monkeypatch.setattr(connections, "can_send", granted)
+    return seen
+
+
+async def _composer() -> UUID:
+    owner = uuid4()
+    async with get_sessionmaker()() as session, session.begin():
+        session.add(UserProfile(id=owner, email=f"{owner}@example.com", display_name="Elyesa Tee"))
+    return owner
+
+
+def _fields(**typed: object) -> compose.ComposeFields:
+    return compose.ComposeFields(**typed)
+
+
+def test_a_new_email_is_stored_masked_written_from_placeholders_and_sent_with_the_details(composing):
+    async def scenario():
+        owner = await _composer()
+        draft = await compose.create_draft(owner, _fields(to=[HARITH], brief=BRIEF))
+        draft_id = UUID(draft.id)
+        written = await compose.write(owner, draft_id, _fields())
+        async with get_sessionmaker()() as session:
+            row = await session.get(ComposeDraft, draft_id)
+        body = written.body
+        for detail in written.details:
+            body = body.replace(detail.placeholder, detail.value)
+        fields = _fields(to=[HARITH], subject=written.subject, body=body)
+        sent = await compose.send(owner, draft_id, fields, remind=True)
+        again = await compose.send(owner, draft_id, fields, remind=True)
+        async with get_sessionmaker()() as session:
+            copy = await session.scalar(select(SentMessage).where(SentMessage.user_id == owner))
+            receipts = (await session.scalars(select(ModelEgress).where(
+                ModelEgress.compose_draft_id == draft_id))).all()
+            actions = (await session.scalars(select(AuditLog.action).where(AuditLog.user_id == owner))).all()
+        return row, written, sent, again, copy, receipts, actions
+
+    row, written, sent, again, copy, receipts, actions = _run(scenario())
+    path, request = composing["requests"][0]
+    # Stored, and sent to the model, as placeholders only.
+    assert "012-345 6789" not in row.brief and "[PHONE_1]" in row.brief and row.pii_vault is not None
+    assert path == "/compose" and "012-345 6789" not in request.brief and "[PHONE_1]" in request.brief
+    assert request.recipients == ["[PERSON_1]"] and request.sign_off == "[PERSON_900]"
+    assert "Credit notes are issued within 14 days." in request.rag_context
+    assert written.subject == "Credit note for the pallet wrap" and written.sources[0].label == "Refund policy"
+    # Sent once, with every detail filled in, to the address as typed.
+    assert len(composing["sent"]) == 1
+    email = composing["sent"][0]
+    assert email["to"] == [HARITH] and "Dear Harith Zulkifli" in email["body"]
+    assert "012-345 6789" in email["body"] and "Elyesa Tee" in email["body"] and "[" not in email["body"]
+    assert sent.state == "sent" and again.state == "sent"
+    # Recorded masked for the waiting list, with its receipt and its trail.
+    assert copy.message_id is None and copy.remind is True and "[PHONE_1]" in copy.body_masked
+    assert "012-345 6789" not in copy.body_masked
+    assert len(receipts) == 1
+    assert {"compose_written", "compose_sent"} <= set(actions)
+
+
+def test_two_sends_of_one_draft_reach_gmail_once(composing):
+    composing["send_delay"] = 0.3
+
+    async def scenario():
+        owner = await _composer()
+        fields = _fields(to=[HARITH], subject="Hello", body="Hi Harith, a note.")
+        draft_id = UUID((await compose.create_draft(owner, fields)).id)
+        return await asyncio.gather(compose.send(owner, draft_id, fields, remind=None),
+                                    compose.send(owner, draft_id, fields, remind=None),
+                                    return_exceptions=True)
+
+    results = _run(scenario())
+    refused = [result for result in results if isinstance(result, DomainError)]
+    assert len(composing["sent"]) == 1
+    assert len(refused) == 1 and refused[0].code == ErrorCode.SEND_IN_PROGRESS
+
+
+def test_a_refused_send_can_be_sent_again_and_an_unknown_one_waits_for_the_user(composing):
+    async def scenario():
+        owner = await _composer()
+        fields = _fields(to=[HARITH], subject="Hello", body="Hi Harith.")
+        draft_id = UUID((await compose.create_draft(owner, fields)).id)
+        composing["send_error"] = SendError("gmail said no")
+        with pytest.raises(SendError):
+            await compose.send(owner, draft_id, fields, remind=None)
+        released = (await compose.get_draft(owner, draft_id)).state
+        composing["send_error"] = SendOutcomeUnknownError("no answer")
+        with pytest.raises(SendOutcomeUnknownError):
+            await compose.send(owner, draft_id, fields, remind=None)
+        with pytest.raises(DomainError) as editing:
+            await compose.update_draft(owner, draft_id, _fields(body="changed"))
+        # The request is over, so it can be settled at once rather than after the in-flight window.
+        unknown = (await compose.get_draft(owner, draft_id)).state
+        settled = await compose.settle(owner, draft_id, compose.SettleOutcome.NOT_SENT)
+        return released, editing.value.code, unknown, settled.state
+
+    released, editing, unknown, settled = _run(scenario())
+    assert released == "draft"
+    assert editing == ErrorCode.SEND_IN_PROGRESS
+    assert unknown == "outcome_unknown" and settled == "draft"
+
+
+def test_a_send_is_refused_before_gmail_for_bad_addresses_or_unfillable_placeholders(composing):
+    async def scenario():
+        owner = await _composer()
+        draft_id = UUID((await compose.create_draft(owner, _fields(subject="Hi", body="x"))).id)
+        codes = []
+        for fields in (_fields(to=["a@b.com\r\nBcc: c@d.com"], subject="Hi", body="Hello"),
+                       _fields(to=[HARITH], subject="Hi", body="Hello [PHONE_7]"),
+                       _fields(to=[HARITH], subject="Hi", body="Hello [EMAIL_REDACTED]")):
+            with pytest.raises(DomainError) as refused:
+                await compose.send(owner, draft_id, fields, remind=None)
+            codes.append(refused.value.code)
+        return codes, (await compose.get_draft(owner, draft_id)).state
+
+    codes, state = _run(scenario())
+    assert codes == [ErrorCode.INVALID_RECIPIENTS, ErrorCode.UNRESOLVED_PLACEHOLDERS, ErrorCode.REDACTION_MARKERS]
+    assert state == "draft" and composing["sent"] == []
+
+
+def test_another_users_draft_reads_as_missing(composing):
+    async def scenario():
+        owner, stranger = await _composer(), await _composer()
+        draft_id = UUID((await compose.create_draft(owner, _fields(brief=BRIEF))).id)
+        codes = []
+        for attempt in (compose.get_draft(stranger, draft_id),
+                        compose.update_draft(stranger, draft_id, _fields(body="mine now")),
+                        compose.delete_draft(stranger, draft_id),
+                        compose.send(stranger, draft_id, _fields(to=[HARITH], subject="Hi", body="Hi"),
+                                     remind=None)):
+            with pytest.raises(DomainError) as refused:
+                await attempt
+            codes.append(refused.value.code)
+        return codes, await compose.list_drafts(stranger)
+
+    codes, listed = _run(scenario())
+    assert codes == [ErrorCode.NOT_FOUND] * 4
+    assert listed.drafts == [] and listed.sent == []
+
+
+def test_disconnecting_gmail_erases_drafts_and_old_sent_ones_expire(composing):
+    async def scenario():
+        owner, other = await _composer(), await _composer()
+        await compose.create_draft(owner, _fields(brief=BRIEF))
+        kept = UUID((await compose.create_draft(other, _fields(brief=BRIEF))).id)
+        old = UUID((await compose.create_draft(other, _fields(brief="old"))).id)
+        async with get_sessionmaker()() as session, session.begin():
+            await session.execute(update(ComposeDraft).where(ComposeDraft.id == old).values(
+                sent_at=func.now() - timedelta(days=retention.SENT_COMPOSE_DAYS + 1)))
+            counts = await erasure.erase(session, owner, erasure.Subject.MAILBOX)
+        async with get_sessionmaker()() as session, session.begin():
+            await session.execute(retention._sent_compose_drafts(retention.SENT_COMPOSE_DAYS))
+        async with get_sessionmaker()() as session:
+            left = set((await session.scalars(select(ComposeDraft.id).where(
+                ComposeDraft.user_id.in_([owner, other])))).all())
+        return counts, left, kept
+
+    counts, left, kept = _run(scenario())
+    assert counts["compose_draft"] == 1
+    assert left == {kept}
+
+
+def test_a_number_typed_in_a_refine_instruction_reaches_the_sent_email(composing):
+    async def scenario():
+        owner = await _composer()
+        draft_id = UUID((await compose.create_draft(owner, _fields(to=[HARITH], brief=BRIEF))).id)
+        await compose.write(owner, draft_id, _fields())
+        refined = await compose.refine(owner, draft_id, "add my office line 03-1234 5678", _fields())
+        body = refined.body
+        for detail in refined.details:
+            body = body.replace(detail.placeholder, detail.value)
+        await compose.send(owner, draft_id, _fields(to=[HARITH], subject=refined.subject, body=body), remind=None)
+        return refined
+
+    refined = _run(scenario())
+    _, request = composing["requests"][-1]
+    assert "03-1234 5678" not in request.instruction and "[PHONE_2]" in request.instruction
+    assert "[PHONE_2]" in refined.body
+    assert "03-1234 5678" in composing["sent"][0]["body"]
+
+
+def test_an_edit_made_elsewhere_while_writing_is_kept_and_the_answer_refused(composing):
+    async def scenario():
+        owner = await _composer()
+        draft_id = UUID((await compose.create_draft(owner, _fields(to=[HARITH], brief=BRIEF))).id)
+
+        async def edited_in_another_tab():
+            await compose.update_draft(owner, draft_id, _fields(body="My own words."))
+
+        composing["meanwhile"] = edited_in_another_tab
+        with pytest.raises(DomainError) as refused:
+            await compose.write(owner, draft_id, _fields())
+        return refused.value.code, (await compose.get_draft(owner, draft_id)).body
+
+    code, body = _run(scenario())
+    assert code == ErrorCode.CONFLICT and body == "My own words."
+
+
+def test_retention_never_deletes_a_draft_that_may_have_been_sent(composing):
+    async def scenario():
+        owner = await _composer()
+        claimed = UUID((await compose.create_draft(owner, _fields(brief="claimed"))).id)
+        idle = UUID((await compose.create_draft(owner, _fields(brief="idle"))).id)
+        async with get_sessionmaker()() as session, session.begin():
+            await session.execute(update(ComposeDraft).where(ComposeDraft.id.in_([claimed, idle])).values(
+                updated_at=func.now() - timedelta(days=400)))
+            await session.execute(update(ComposeDraft).where(ComposeDraft.id == claimed).values(
+                send_claimed_at=func.now() - timedelta(days=400)))
+            await session.execute(retention._unsent_compose_drafts(30))
+        async with get_sessionmaker()() as session:
+            return set((await session.scalars(select(ComposeDraft.id).where(ComposeDraft.user_id == owner))).all()), claimed
+
+    left, claimed = _run(scenario())
+    assert left == {claimed}

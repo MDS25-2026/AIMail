@@ -403,6 +403,35 @@ class SentMessage(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class ComposeDraft(Base):
+    """A new email the user is writing (migration 0047, specs/features/compose.md), with placeholders."""
+
+    __tablename__ = "compose_draft"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("user_profile.id", ondelete="CASCADE"))
+    to_addrs: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
+    cc_addrs: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
+    subject: Mapped[str] = mapped_column(Text, default="")
+    brief: Mapped[str] = mapped_column(Text, default="")
+    body: Mapped[str] = mapped_column(Text, default="")
+    pii_vault: Mapped[bytes | None] = mapped_column(LargeBinary)
+    tone: Mapped[str] = mapped_column(Text, default="professional")
+    rag_sources: Mapped[list[dict] | None] = mapped_column(JSONB)
+    critic_confidence: Mapped[float | None]
+    critic_attempts: Mapped[int] = mapped_column(default=0)
+    critic_checks: Mapped[dict | None] = mapped_column(JSONB)
+    needs_human_review: Mapped[bool] = mapped_column(default=False)
+    generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    send_claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    send_outcome_unknown_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sent_gmail_id: Mapped[str | None] = mapped_column(Text)
+    sent_thread_id: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class ReplyTemplate(Base):
     """One saved reply (migration 0038, specs/features/reply-templates.md), stored as typed."""
 
@@ -463,6 +492,8 @@ class ModelEgress(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     user_id: Mapped[UUID | None] = mapped_column(ForeignKey("user_profile.id", ondelete="CASCADE"))
     message_id: Mapped[UUID | None] = mapped_column(ForeignKey("messages.id", ondelete="CASCADE"))
+    # A new email's receipt (migration 0047); kept, unlinked, when the draft is deleted.
+    compose_draft_id: Mapped[UUID | None] = mapped_column(ForeignKey("compose_draft.id", ondelete="SET NULL"))
     purpose: Mapped[str] = mapped_column(Text)
     provider: Mapped[str] = mapped_column(Text)
     chars: Mapped[int]

@@ -34,6 +34,7 @@ from app.admin.app import admin_app
 from app.agent_contract import Tone
 from app.audit import AuditAction, audit
 from app.audit_routes import router as audit_router
+from app.compose_routes import router as compose_router
 from app.contracts import (
     EMAILS_PER_PAGE,
     MAX_EMAILS_PER_PAGE,
@@ -163,6 +164,7 @@ app.include_router(template_router)
 app.include_router(quiet_hours_router)
 app.include_router(todo_router)
 app.include_router(writing_style_router)
+app.include_router(compose_router)
 app.include_router(audit_router)
 app.include_router(search_router)
 
