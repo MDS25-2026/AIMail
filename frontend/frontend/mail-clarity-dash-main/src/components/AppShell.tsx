@@ -11,6 +11,7 @@ import { MAIN_CONTENT_ID } from "../lib/useFocusOnNavigate";
 import { useIsReadingEmail } from "../lib/useIsReadingEmail";
 import BottomNav from "./BottomNav";
 import DemoBanner from "./DemoBanner";
+import InboxChatWidget from "./InboxChatWidget";
 import SideNav from "./SideNav";
 import { button } from "./variants";
 
@@ -66,6 +67,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         </div>
       </main>
       {isReadingEmail ? null : <BottomNav />}
+      <AssistantForThisAccount />
     </div>
   );
 }
@@ -87,6 +89,12 @@ function LiveStatus({ state }: { state: LiveState }) {
       {t(isLive ? "live.on" : "live.reconnecting")}
     </span>
   );
+}
+
+/** Only inside the app, never on the public pages; keyed by account so a new sign-in starts afresh. */
+function AssistantForThisAccount() {
+  const session = useSession();
+  return <InboxChatWidget key={session.data?.email ?? "signed-out"} />;
 }
 
 /** Google refused the stored token; until the user signs in again nothing arrives or sends. */
