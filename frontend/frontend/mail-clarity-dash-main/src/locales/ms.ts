@@ -890,6 +890,7 @@ export const ms: Translations = {
     filterLabel: "Tapis rekod",
     filterPlaceholder: "Tapis mengikut tindakan, butiran atau hash",
     showing: "Memaparkan {{shown}} daripada {{total}} rekod",
+    loadMore: "Muatkan lebih banyak rekod",
     noFields: "Tiada butiran direkodkan",
     inspect: "Periksa hash rekod ini",
     copy: "Salin",

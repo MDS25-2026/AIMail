@@ -864,6 +864,7 @@ export const en = {
     filterLabel: "Filter records",
     filterPlaceholder: "Filter by action, detail or hash",
     showing: "Showing {{shown}} of {{total}} records",
+    loadMore: "Load more records",
     noFields: "No details recorded",
     inspect: "Inspect the hash of this record",
     copy: "Copy",

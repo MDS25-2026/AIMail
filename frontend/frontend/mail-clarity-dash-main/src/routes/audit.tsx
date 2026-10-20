@@ -128,7 +128,7 @@ function TrailView({ trail, onLoadMore }: { trail: AuditTrail; onLoadMore?: () =
             onClick={onLoadMore}
             className={cn(button({ intent: "quiet", size: "sm" }), "text-xs")}
           >
-            {t("audit.loadMore", "Load more records")}
+            {t("audit.loadMore")}
           </button>
         </div>
       ) : null}

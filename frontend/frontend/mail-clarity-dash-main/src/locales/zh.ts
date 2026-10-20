@@ -843,6 +843,7 @@ export const zh: Translations = {
     filterLabel: "筛选记录",
     filterPlaceholder: "按操作、详情或哈希筛选",
     showing: "显示 {{shown}} / {{total}} 条记录",
+    loadMore: "加载更多记录",
     noFields: "未记录详情",
     inspect: "查看这条记录的哈希",
     copy: "复制",
