@@ -3,7 +3,7 @@
 - **Status:** implemented — ported to `main` from Lane C's branch
 - **Owner:** Hanif (Lane C) designed and wrote the original; Elyesa ported, hardened and tested
 - **Related issues:** #71, #74
-- **Last updated:** 2026-09-17
+- **Last updated:** 2026-10-21
 
 ## Goal
 
@@ -138,3 +138,9 @@ have passed the first test alone.
 - 2026-09-17: ported onto `main` rather than merging Lane C's branch. Rationale: that branch forks
   from 2026-05-02, is 56 commits behind, and contains none of the critic gate work from #68 —
   merging it would have reverted the review gate to the state where it never fires.
+- 2026-10-21: the summariser no longer answers "Unable to summarize due to untrusted content." That
+  rule fired on ordinary work mail, because a supervisor's requests read as instructions; the email
+  in the report produced correct action items while its summary was refused. The summary now
+  includes the sender's requests and, when the text addresses the AI itself, summarizes the rest and
+  says it contains instructions aimed at an AI assistant. The fence and the isolation rule still
+  carry the defence; nothing the summary says is acted on.
