@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import AppShell from "../components/AppShell";
-import ComingSoon from "../components/ComingSoon";
+import FilteredEmailList from "../components/FilteredEmailList";
+import { isPendingDraft } from "../lib/drafts";
 import { Page, pageMeta } from "../lib/pageMeta";
 
 export const Route = createFileRoute("/drafts")({
@@ -10,11 +11,21 @@ export const Route = createFileRoute("/drafts")({
   component: DraftsPage,
 });
 
+/** Every reply the AI has written that has not gone out (specs/features/drafts-page.md). */
 function DraftsPage() {
   const { t } = useTranslation();
   return (
     <AppShell>
-      <ComingSoon title={t("drafts.title")} description={t("drafts.description")} />
+      <FilteredEmailList
+        heading={t("drafts.heading")}
+        description={t("drafts.description")}
+        label={t("drafts.label")}
+        emptyTitle={t("drafts.emptyTitle")}
+        emptyHint={t("drafts.emptyHint")}
+        filter={isPendingDraft}
+        timestampOf={(email) => email.timestamp}
+        byConversation
+      />
     </AppShell>
   );
 }

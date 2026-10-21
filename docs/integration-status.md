@@ -66,7 +66,7 @@ A real email flows Gmail -> mask -> shared Supabase -> retrieval -> draft -> das
 | 7 | Send hardening | A / infra | Reuses the listener's OAuth token; best practice is a Workspace service account with domain-wide delegation. |
 | 8 | Gmail watch renewal | A | The watch expires ~7 days and nothing renews it; restarting the listener re-arms it. |
 | 9 | PII masking refinement | A | **JiaJun is actively refining this — do not touch.** Regex tuning against Presidio, targeting the 80% floor. |
-| 10 | Drafts page | D | **Han is actively working on this — do not touch.** |
+| 10 | Drafts page | D | Done (#169): lists every written, unsent draft; spec `specs/features/drafts-page.md`. |
 | 11 | n8n | — | Not used — the backend sends via the Gmail API directly. Its scaffolding is archived in `legacy/n8n/` as evidence of the pivot. |
 
 ## What has been measured

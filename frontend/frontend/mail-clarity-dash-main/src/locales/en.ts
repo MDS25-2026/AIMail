@@ -198,11 +198,14 @@ export const en = {
     crashBody: "Something went wrong on our end. You can try refreshing or head back home.",
     tryAgain: "Try again",
   },
-  comingSoon: { badge: "Coming soon", back: "Back to inbox" },
   drafts: {
-    title: "Drafts",
+    heading: "Drafts",
     description:
-      "Saved and in-progress replies will live here, so you can pick up a draft without reopening the thread it belongs to.",
+      "Replies the AI has written that haven't gone out yet. Open one to check it and send it.",
+    label: "drafts",
+    emptyTitle: "No drafts waiting",
+    emptyHint:
+      "A draft appears here once AIMail has written a reply: when you open an email, or ahead of time in the background.",
   },
   compose: {
     tooManyRecipients:

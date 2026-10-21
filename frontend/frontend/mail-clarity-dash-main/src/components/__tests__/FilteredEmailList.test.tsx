@@ -3,6 +3,7 @@ import { screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
+import { isPendingDraft } from "../../lib/drafts";
 import { emailFixture } from "../../test/emailFixture";
 import { stubFetch } from "../../test/fetchStub";
 import { renderWithProviders } from "../../test/render";
@@ -83,5 +84,64 @@ describe("names on Sent rows (#237)", () => {
     localStorage.setItem("aimail-hide-details", "1");
     renderSent();
     expect(await screen.findByText("Hi [PERSON_2], the quote is attached.")).toBeTruthy();
+  });
+});
+
+describe("Drafts lists one row per conversation", () => {
+  function renderDrafts(emails: ReturnType<typeof emailFixture>[]) {
+    // The inbox payload is newest-arrived first.
+    stubFetch({ "GET /emails": () => ({ body: { emails, nextCursor: null } }) });
+    renderWithProviders(
+      <FilteredEmailList
+        heading="Drafts"
+        description=""
+        label="Drafts"
+        emptyTitle="No drafts"
+        emptyHint=""
+        filter={isPendingDraft}
+        timestampOf={(email) => email.timestamp}
+        byConversation
+      />,
+    );
+  }
+
+  test("a thread with a draft on every email shows only its newest", async () => {
+    renderDrafts([
+      emailFixture({
+        id: "c",
+        threadId: "t1",
+        subject: "Third",
+        timestamp: "2026-10-08T11:00:00Z",
+      }),
+      emailFixture({
+        id: "b",
+        threadId: "t1",
+        subject: "Second",
+        timestamp: "2026-10-08T10:00:00Z",
+      }),
+      emailFixture({
+        id: "a",
+        threadId: "t1",
+        subject: "First",
+        timestamp: "2026-10-08T09:00:00Z",
+      }),
+    ]);
+    expect(await screen.findByText("Third")).toBeTruthy();
+    expect(screen.queryByText("Second")).toBeNull();
+    expect(screen.queryByText("First")).toBeNull();
+  });
+
+  test("an older draft in a thread whose newest email is answered is not listed", async () => {
+    renderDrafts([
+      emailFixture({ id: "b", threadId: "t1", subject: "Newest", isAnswered: true }),
+      emailFixture({
+        id: "a",
+        threadId: "t1",
+        subject: "Older",
+        timestamp: "2026-10-07T09:00:00Z",
+      }),
+    ]);
+    expect(await screen.findByText("No drafts")).toBeTruthy();
+    expect(screen.queryByText("Older")).toBeNull();
   });
 });

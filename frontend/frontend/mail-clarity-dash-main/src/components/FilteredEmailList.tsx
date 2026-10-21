@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
+import { groupByThread } from "../lib/conversations";
 import { detailValues } from "../lib/details";
 import { DetailsContext } from "../lib/detailsContext";
 import { ListOrder } from "../lib/listOrder";
@@ -22,6 +23,8 @@ type FilteredEmailListProps = {
   /** Which date this view is about — received for drafts, sent for sent. */
   timestampOf: (email: Email) => string;
   order?: ListOrder;
+  /** Judge only each conversation's newest email, as the inbox shows it: one row per thread. */
+  byConversation?: boolean;
 };
 
 /**
@@ -39,12 +42,15 @@ export default function FilteredEmailList({
   filter,
   timestampOf,
   order = ListOrder.NewestFirst,
+  byConversation = false,
 }: FilteredEmailListProps) {
   const { t } = useTranslation();
   const format = useFormat();
   const emails = useEmails();
+  const all = emails.data ?? [];
+  const candidates = byConversation ? groupByThread(all).map(({ email }) => email) : all;
   // Newest first by the list's own time: Sent orders by when each reply went out, not when it arrived.
-  const rows = (emails.data ?? []).filter(filter).sort((a, b) => {
+  const rows = candidates.filter(filter).sort((a, b) => {
     const newestFirst = Date.parse(timestampOf(b)) - Date.parse(timestampOf(a));
     return order === ListOrder.NewestFirst ? newestFirst : -newestFirst;
   });
