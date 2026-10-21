@@ -24,7 +24,7 @@ jobs:
       # constraints.txt pins what make check last passed with; the floors alone let CI drift.
       # Dependabot PRs test bumped floors directly without being blocked by stale pinned constraints.
       - run: |
-          if [ "${{ github.actor }}" = "dependabot[bot]" ]; then
+          if [[ "${{ github.head_ref }}" == dependabot/pip/* ]]; then
             pip install -r requirements.txt
           else
             pip install -r requirements.txt -c constraints.txt
@@ -59,7 +59,7 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: |
-          if [ "${{ github.actor }}" = "dependabot[bot]" ]; then
+          if [[ "${{ github.head_ref }}" == dependabot/pip/* ]]; then
             pip install -r requirements.txt
           else
             pip install -r requirements.txt -c constraints.txt
@@ -84,7 +84,7 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/frontend/mail-clarity-dash-main/package-lock.json
       - run: |
-          if [ "${{ github.actor }}" = "dependabot[bot]" ]; then
+          if [[ "${{ github.head_ref }}" == dependabot/pip/* ]]; then
             pip install -r backend/requirements.txt
           else
             pip install -r backend/requirements.txt -c backend/constraints.txt
