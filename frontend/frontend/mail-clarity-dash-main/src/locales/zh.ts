@@ -39,6 +39,8 @@ export const zh: Translations = {
     unread_other: "{{count}} 封未读",
     updatesHint: "新闻简报和通知。AIMail 不会为这些邮件起草回复。",
     primaryEmpty: "目前没有来自他人的邮件。",
+    primaryEmptyUpdates: "目前没有来自他人的邮件。你的新闻简报和通知（{{count}}）在“更新”中。",
+    showUpdates: "查看更新",
     updatesEmpty: "没有新闻简报或通知。",
     emptyTitle: "暂无邮件",
     emptyHint: "新邮件到达您的 Gmail 收件箱几秒后会显示在这里。",

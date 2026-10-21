@@ -36,6 +36,9 @@ export const en = {
     unread_other: "{{count}} unread",
     updatesHint: "Newsletters and notifications. AIMail doesn't draft replies for these.",
     primaryEmpty: "Nothing from people right now.",
+    primaryEmptyUpdates:
+      "Nothing from people right now. Your newsletters and notifications ({{count}}) are under Updates.",
+    showUpdates: "Show Updates",
     updatesEmpty: "No newsletters or notifications.",
     emptyTitle: "No emails yet",
     emptyHint: "New emails show up here a few seconds after they reach your Gmail inbox.",

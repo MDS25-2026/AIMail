@@ -39,6 +39,9 @@ export const ms: Translations = {
     unread_other: "{{count}} belum dibaca",
     updatesHint: "Surat berita dan pemberitahuan. AIMail tidak mendraf balasan untuk e-mel ini.",
     primaryEmpty: "Tiada e-mel daripada orang buat masa ini.",
+    primaryEmptyUpdates:
+      "Tiada e-mel daripada orang buat masa ini. Surat berita dan pemberitahuan anda ({{count}}) ada di bawah Kemas kini.",
+    showUpdates: "Tunjukkan Kemas kini",
     updatesEmpty: "Tiada surat berita atau pemberitahuan.",
     emptyTitle: "Belum ada e-mel",
     emptyHint:
