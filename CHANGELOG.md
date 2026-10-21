@@ -1,5 +1,51 @@
 # Changelog
 
+## [1.8.0](https://github.com/MDS25-2026/AIMail/compare/v1.7.0...v1.8.0) (2026-10-21)
+
+
+### Features
+
+* **compose:** new emails written from a brief and the company's documents ([#256](https://github.com/MDS25-2026/AIMail/issues/256)) ([476deba](https://github.com/MDS25-2026/AIMail/commit/476deba78d354a43e182d3bf57fa4f7e28fb9582))
+* **demo:** a demo mailbox that needs no sign-in (first slice) ([#230](https://github.com/MDS25-2026/AIMail/issues/230)) ([786e852](https://github.com/MDS25-2026/AIMail/commit/786e852867f0e2625d48b77933eaba9d4ec11b1b))
+* **demo:** prepared AI answers and four more demo emails ([#235](https://github.com/MDS25-2026/AIMail/issues/235)) ([af0f064](https://github.com/MDS25-2026/AIMail/commit/af0f06469b27f9e79b479002f0ec92c0c7f52c86))
+* **demo:** To-do, Audit, Templates, Knowledge and Settings in the demo ([#236](https://github.com/MDS25-2026/AIMail/issues/236)) ([39e5084](https://github.com/MDS25-2026/AIMail/commit/39e508480a77a6f80d9de2f2f4b5482f1d9dff67))
+* **hosting:** free tier on Vercel and Render, with Presidio on the laptop ([#218](https://github.com/MDS25-2026/AIMail/issues/218)) ([56ae285](https://github.com/MDS25-2026/AIMail/commit/56ae2855eae8c10e331c7691962a8a3cee4531d9))
+* **hosting:** the listener runs on Render as a background worker ([#223](https://github.com/MDS25-2026/AIMail/issues/223)) ([0d19208](https://github.com/MDS25-2026/AIMail/commit/0d192082329e7df9fa5840d428300d101e5aa0c4))
+* inbox pages by whole conversations, You replied, write in my language, automated flags for older mail ([#231](https://github.com/MDS25-2026/AIMail/issues/231)) ([9cb37cc](https://github.com/MDS25-2026/AIMail/commit/9cb37cc7d895cc07b4d9e90bcabcf0245f365e03))
+* **inbox:** new mail and finished drafts arrive live over server-sent events ([#255](https://github.com/MDS25-2026/AIMail/issues/255)) ([13cecf6](https://github.com/MDS25-2026/AIMail/commit/13cecf66ff354d86e286a11fad0d3fde6294978d))
+* **inbox:** Primary and Updates tabs keep newsletters out of the main inbox ([#240](https://github.com/MDS25-2026/AIMail/issues/240)) ([cff3c72](https://github.com/MDS25-2026/AIMail/commit/cff3c72ff616027e182abc459144b12ecc6d2578))
+* **landing:** a landing page that shows AIMail working, in three languages ([#219](https://github.com/MDS25-2026/AIMail/issues/219)) ([fd564ae](https://github.com/MDS25-2026/AIMail/commit/fd564aea05c7933545c11c8dbccf9238d2688242))
+* **normalise:** clean text, language, English copy and deadlines (stages 1 and 2) ([#242](https://github.com/MDS25-2026/AIMail/issues/242)) ([7d6b1c5](https://github.com/MDS25-2026/AIMail/commit/7d6b1c5a10e7c0fbad14e1c4b0350ab603c12ec5))
+* readable Gmail and Outlook emails, Gmail replies in threads, attachments read on the hosted app ([#229](https://github.com/MDS25-2026/AIMail/issues/229)) ([613e712](https://github.com/MDS25-2026/AIMail/commit/613e712ae9595869c57902d7dc9f0ab98b6a9849))
+* **todo:** tabs with next steps, Undo and Remind me later; a public status page ([#228](https://github.com/MDS25-2026/AIMail/issues/228)) ([4848110](https://github.com/MDS25-2026/AIMail/commit/48481108402b46bf1e8e20f68042d1180b48d99d))
+
+
+### Bug Fixes
+
+* **audit:** the Proof dialog names the real field separator, ASCII 31 ([#247](https://github.com/MDS25-2026/AIMail/issues/247)) ([f3dfd71](https://github.com/MDS25-2026/AIMail/commit/f3dfd7144c4313e92266e6a7a5755144492b593c))
+* backups, the token.json mailbox retired, and five known-issue fixes ([#216](https://github.com/MDS25-2026/AIMail/issues/216)) ([4c1ab7d](https://github.com/MDS25-2026/AIMail/commit/4c1ab7d94c9fc13a8bbf4882e34b8d9110cebf05))
+* **dashboard:** no "AI check passed · 0% sure" badge on an email with no draft ([#243](https://github.com/MDS25-2026/AIMail/issues/243)) ([9ba3fd5](https://github.com/MDS25-2026/AIMail/commit/9ba3fd536a5bf0f9044d44705fe132ec1340283f))
+* **dashboard:** Sent and Scheduled rows show names, not [PERSON_n] ([#244](https://github.com/MDS25-2026/AIMail/issues/244)) ([3e71110](https://github.com/MDS25-2026/AIMail/commit/3e7111070eea13295cca3e74b7f6e31f4cd46a5a))
+* **drafting:** skip automated mail, refuse Private mode without a model, fill holding-reply fields ([#225](https://github.com/MDS25-2026/AIMail/issues/225)) ([47adf43](https://github.com/MDS25-2026/AIMail/commit/47adf43319fb8e64922a40caf4ce970bd660fc77))
+* findings from the 12 Oct test run (details after a change, read toggle, templates, To-do count) ([#226](https://github.com/MDS25-2026/AIMail/issues/226)) ([d3cda0e](https://github.com/MDS25-2026/AIMail/commit/d3cda0ebefb2e63fc9fae2838d3cf8b3ddf8f4f2))
+* **hosting:** answer Render's health check on 0.1 CPU; settings ignore stray spaces ([#220](https://github.com/MDS25-2026/AIMail/issues/220)) ([a9a32e2](https://github.com/MDS25-2026/AIMail/commit/a9a32e21dd459bc654271936994e7cb351672730))
+* **hosting:** private Presidio on Render, backend on Starter, instant To-do dismiss ([#221](https://github.com/MDS25-2026/AIMail/issues/221)) ([a1a45f0](https://github.com/MDS25-2026/AIMail/commit/a1a45f003b06aba78787873d31a931e1e9f40a70))
+* **masking:** Malay prose is no longer hidden as names, and Malaysian and Chinese names are ([#233](https://github.com/MDS25-2026/AIMail/issues/233)) ([7a27141](https://github.com/MDS25-2026/AIMail/commit/7a271419352d5142753a2958827d2ad5c03d97fc))
+* **priority:** automated mail is low, not the unscored Medium placeholder ([#232](https://github.com/MDS25-2026/AIMail/issues/232)) ([c75cc70](https://github.com/MDS25-2026/AIMail/commit/c75cc70264bcbe5540fbc91da7c33733770c9b0e))
+* readiness checks Presidio, reused sign-in codes read as failed, a descriptor beside the name ([#222](https://github.com/MDS25-2026/AIMail/issues/222)) ([6b22e13](https://github.com/MDS25-2026/AIMail/commit/6b22e135759079dc9b9352e5917112074c0a8c11))
+* resolve all 54 audit findings across lanes (H1-H6, M1-M33, L1-L15) ([#250](https://github.com/MDS25-2026/AIMail/issues/250)) ([4499f9f](https://github.com/MDS25-2026/AIMail/commit/4499f9ff8aba9e48cb8f0b45f380ec21303078cb))
+
+
+### Performance
+
+* efficiency audit — listener connection reuse, DB indexes and query batching ([#257](https://github.com/MDS25-2026/AIMail/issues/257)) ([d19f4f4](https://github.com/MDS25-2026/AIMail/commit/d19f4f4bc87adf919180c5e256693a5fcc0492d3))
+
+
+### Documentation
+
+* **normalise:** drop stage 3 task 2, covered by the Primary/Updates tabs ([#246](https://github.com/MDS25-2026/AIMail/issues/246)) ([cb590c3](https://github.com/MDS25-2026/AIMail/commit/cb590c3e8e6add868ad62ed5c34f9dfd0a895d65))
+* **privacy:** publish privacy policy and Google Search Console verification ([#251](https://github.com/MDS25-2026/AIMail/issues/251)) ([adf03d6](https://github.com/MDS25-2026/AIMail/commit/adf03d624670699cc653d48ec968bc5404371e46))
+
 ## [1.7.0](https://github.com/MDS25-2026/AIMail/compare/v1.6.0...v1.7.0) (2026-10-11)
 
 
