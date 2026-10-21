@@ -49,8 +49,8 @@ const (
 // stuck call cannot hold the Pub/Sub receive callback open (the same failure as #86). The reader
 // runs two local OCR passes per scanned page, up to its 20-page cap.
 var (
-	readerClient = &http.Client{Timeout: 180 * time.Second}
-	ocrClient    = &http.Client{Timeout: 90 * time.Second}
+	readerClient = &http.Client{Timeout: 180 * time.Second, Transport: pooledTransport}
+	ocrClient    = &http.Client{Timeout: 90 * time.Second, Transport: pooledTransport}
 )
 
 // readerResult is the attachment reader's reply: local text, and redacted images that passed both
@@ -199,7 +199,7 @@ func readLocally(ctx context.Context, raw []byte, mimeType string) (readerResult
 	if err != nil {
 		return readerResult{}, fmt.Errorf("attachment reader unreachable: %w", err)
 	}
-	defer resp.Body.Close()
+	defer drainAndClose(resp.Body)
 	if resp.StatusCode >= 300 {
 		return readerResult{}, fmt.Errorf("attachment reader returned %d", resp.StatusCode)
 	}
@@ -245,7 +245,7 @@ func readRedactedImage(ctx context.Context, encoded, mimeType string) (string, e
 	if err != nil {
 		return "", fmt.Errorf("ocr request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer drainAndClose(resp.Body)
 	if resp.StatusCode >= 300 {
 		return "", fmt.Errorf("ocr returned %d", resp.StatusCode)
 	}

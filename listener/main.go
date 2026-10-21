@@ -43,7 +43,29 @@ var (
 // #86: http.DefaultClient has no deadline, so a hung PostgREST connection blocked the receive
 // callback forever. DNS here resolves through Tailscale, which makes that a routine failure
 // rather than a theoretical one.
-var supabaseClient = &http.Client{Timeout: supabaseTimeout()}
+var supabaseClient = &http.Client{Timeout: supabaseTimeout(), Transport: pooledTransport}
+
+// The default transport keeps two idle connections a host, so concurrent notifications opened a new
+// TLS connection to Supabase or Presidio for most requests.
+const maxIdleConnsPerHost = 16
+
+// maxDrainBytes bounds how much of an unread reply is discarded so its connection can be reused.
+const maxDrainBytes = 64 << 10
+
+var pooledTransport = newPooledTransport()
+
+func newPooledTransport() *http.Transport {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.MaxIdleConnsPerHost = maxIdleConnsPerHost
+	return transport
+}
+
+// drainAndClose reads what is left of a reply before closing it: a body closed unread closes its
+// connection too. A drain error only costs that reuse, so it is not reported.
+func drainAndClose(body io.ReadCloser) {
+	_, _ = io.Copy(io.Discard, io.LimitReader(body, maxDrainBytes))
+	body.Close()
+}
 
 func supabaseTimeout() time.Duration {
 	seconds, err := strconv.Atoi(getEnvOrDefault("SUPABASE_TIMEOUT_SECONDS", "10"))
@@ -152,7 +174,7 @@ func withoutQuery(link string) string {
 
 // presidioClient bounds each call so a hung container can't block the webhook handler.
 // Package-level (not http.DefaultClient) to avoid mutating shared global client state.
-var presidioClient = &http.Client{Timeout: 5 * time.Second}
+var presidioClient = &http.Client{Timeout: 5 * time.Second, Transport: pooledTransport}
 
 type presidioPattern struct {
 	Name  string  `json:"name"`
@@ -480,7 +502,7 @@ func presidioPost(ctx context.Context, url string, payload []byte) ([]byte, erro
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer drainAndClose(resp.Body)
 	if resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("status %d", resp.StatusCode)
 	}
@@ -559,7 +581,7 @@ func supabaseInsert(ctx context.Context, table string, row interface{}, onConfli
 	if err != nil {
 		return fmt.Errorf("do request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer drainAndClose(resp.Body)
 
 	if resp.StatusCode >= 300 {
 		return fmt.Errorf("supabase insert into %s failed: status %d", table, resp.StatusCode)

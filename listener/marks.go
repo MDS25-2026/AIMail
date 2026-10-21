@@ -29,7 +29,7 @@ const (
 )
 
 // Gemma-SEA-LION-v4 4B measured 12.8 s from a cold start (model unloaded after idling) and under 7 s warm.
-var markClient = &http.Client{Timeout: 60 * time.Second}
+var markClient = &http.Client{Timeout: 60 * time.Second, Transport: pooledTransport}
 
 // clearOfMarks says, per image, whether the local model found it free of signatures, faces and
 // stamps. No model configured, no answer, or anything but three clear noes counts as not clear.
@@ -86,7 +86,7 @@ func hasMark(ctx context.Context, model, encoded string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("local model unreachable: %w", err)
 	}
-	defer resp.Body.Close()
+	defer drainAndClose(resp.Body)
 	if resp.StatusCode >= 300 {
 		return false, fmt.Errorf("local model returned %d", resp.StatusCode)
 	}

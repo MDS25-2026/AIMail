@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"google.golang.org/api/gmail/v1"
@@ -187,5 +189,32 @@ func TestANotificationAlreadyCoveredByTheBaselineCallsNothing(t *testing.T) {
 	}
 	if mb.lastHistoryID != 500 || lookups != 0 {
 		t.Fatalf("baseline %d after %d lookups", mb.lastHistoryID, lookups)
+	}
+}
+
+func TestARefusedRequestLeavesItsConnectionForTheNext(t *testing.T) {
+	var opened atomic.Int32
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(strings.Repeat("e", 8<<10))) // an error page, never read by the caller
+	}))
+	server.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+		if state == http.StateNew {
+			opened.Add(1)
+		}
+	}
+	server.Start()
+	t.Cleanup(server.Close)
+	for range 3 {
+		if _, err := presidioPost(context.Background(), server.URL, []byte(`{}`)); err == nil {
+			t.Fatal("a 500 must be an error")
+		}
+	}
+	if got := opened.Load(); got != 1 {
+		t.Fatalf("%d connections for 3 requests: the unread error body closed each one", got)
+	}
+	if pooledTransport.MaxIdleConnsPerHost != maxIdleConnsPerHost || presidioClient.Transport != pooledTransport ||
+		supabaseClient.Transport != pooledTransport {
+		t.Fatal("the Supabase and Presidio clients must share the pooled transport")
 	}
 }

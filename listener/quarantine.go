@@ -94,7 +94,7 @@ func serviceHealthy(ctx context.Context, target string) bool {
 	if err != nil {
 		return false
 	}
-	resp.Body.Close()
+	drainAndClose(resp.Body)
 	return resp.StatusCode < 300
 }
 
@@ -270,7 +270,7 @@ func supabaseRequest(ctx context.Context, method, target string, body []byte) ([
 	if err != nil {
 		return nil, fmt.Errorf("do request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer drainAndClose(resp.Body)
 	var out bytes.Buffer
 	if _, err := out.ReadFrom(resp.Body); err != nil {
 		return nil, fmt.Errorf("read response: %w", err)

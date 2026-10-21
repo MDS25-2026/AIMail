@@ -30,7 +30,7 @@ func messageStored(ctx context.Context, ownerID, msgID string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("do request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer drainAndClose(resp.Body)
 	if resp.StatusCode >= 300 {
 		return false, fmt.Errorf("supabase lookup failed: status %d", resp.StatusCode)
 	}
@@ -76,7 +76,7 @@ func insertIgnoringDuplicates(ctx context.Context, table, onConflict, returned s
 	if err != nil {
 		return false, fmt.Errorf("do request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer drainAndClose(resp.Body)
 	respBody, _ := io.ReadAll(resp.Body)
 	if bytes.Contains(respBody, []byte("PGRST204")) {
 		return false, fmt.Errorf("supabase schema cache lag (PGRST204): status %d: %s", resp.StatusCode, string(respBody))
