@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 import httpx
 
 from app.core.config import get_settings
+from app.core.http_pool import client_for
 from model_runtime import (
     OUTCOME_CIRCUIT_OPEN,
     OUTCOME_OK,
@@ -170,9 +171,9 @@ async def _post(model: str, payload: dict, timeout: float) -> httpx.Response:
                "X-goog-api-key": get_settings().google_api_key}
     # httpx's timeout bounds each phase (connect, write, read) separately; asyncio.timeout bounds
     # the whole attempt, so one slow call cannot run past the shared deadline.
-    async with asyncio.timeout(timeout), httpx.AsyncClient(timeout=timeout, transport=transport) as client:
+    async with asyncio.timeout(timeout), client_for(transport) as client:
         return await client.post(f"{base_url}/models/{model}:generateContent",
-                                 headers=headers, json=payload)
+                                 headers=headers, json=payload, timeout=timeout)
 
 
 def _attempt_timeout() -> float:
