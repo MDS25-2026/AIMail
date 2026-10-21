@@ -205,8 +205,9 @@ A code audit of every single-mailbox assumption found these, each checked in cod
 4. Listener multi-mailbox ingest with per-mailbox baselines (Lane A). Built 2026-10-05, for
    JiaJun's review; verified live the same day (a connected user's watch set, baseline saved, 10
    emails seeded and masked under their user id, the unowned rows untouched): `listener/mailboxes.go` loads every connection, watches each on the shared
-   topic, routes notifications by address (unknown ones acked and dropped), seeds a first-time
-   inbox with its newest 10 emails, saves each baseline and watch expiry on the connection row,
+   topic, routes notifications by address (unknown ones acked and dropped), imports a first-time
+   inbox's newest 20 emails from the last 30 days (`specs/features/inbox-import.md`, 2026-10-21; it was
+   the newest 10 before), saves each baseline and watch expiry on the connection row,
    and picks up new sign-ups every two minutes. A failing mailbox is logged and retried, never
    fatal, except a token Google refused (`invalid_grant`): it is not retried until signing in again
    stores a new token, or the listener restarts. Rows carry `user_id`; duplicates are judged per mailbox (`on_conflict=user_id,gmail_message_id`).
