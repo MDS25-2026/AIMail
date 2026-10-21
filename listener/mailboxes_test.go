@@ -198,3 +198,21 @@ func TestGmailHTTPTimeout(t *testing.T) {
 		t.Fatalf("want fallback 60s for negative, got %v", got)
 	}
 }
+
+func TestARefusedTokenIsNotRetriedUntilANewOneIsStored(t *testing.T) {
+	t.Cleanup(func() { delete(refusedTokens.sealed, "user-r") })
+	refused := connectionRow{UserID: "user-r", Sealed: `\x01`, NeedsReconnect: true}
+	if isKnownRefused(refused) {
+		t.Fatal("a token never tried by this listener must be tried once")
+	}
+	rememberRefused(refused)
+	if !isKnownRefused(refused) {
+		t.Fatal("a token Google refused was retried while the user still has to sign in again")
+	}
+	if isKnownRefused(connectionRow{UserID: "user-r", Sealed: `\x02`, NeedsReconnect: true}) {
+		t.Fatal("a new token, flagged by a send still holding the old one, was never started")
+	}
+	if isKnownRefused(connectionRow{UserID: "user-r", Sealed: `\x01`}) {
+		t.Fatal("a cleared flag must be tried again")
+	}
+}
