@@ -5,19 +5,22 @@ import { expect, test, vi } from "vitest";
 import { emailFixture } from "../../test/emailFixture";
 import { renderHookWithProviders } from "../../test/render";
 import type { EmailPage } from "../../types/email";
-import { useEmails } from "../queries";
+import { useEmails, useRegenerateEmail } from "../queries";
 import { refreshChangedEmails } from "../queries/inboxRefresh";
 
 const OLDER = "?cursor=c1";
 const pageResponse = (page: EmailPage) => new Response(JSON.stringify(page));
+
+const REGENERATED = emailFixture({ id: "a1", draftReply: "A new draft" });
 
 /** GET /emails by its query string (the shared stub sees paths only); "" is page 1. */
 function stubInbox(answer: (query: string) => EmailPage): string[] {
   const queries: string[] = [];
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (url: string) => {
+    vi.fn(async (url: string, init?: RequestInit) => {
       const { pathname, search } = new URL(url);
+      if (init?.method === "POST") return new Response(JSON.stringify(REGENERATED));
       expect(pathname).toBe("/emails");
       queries.push(search || "page 1");
       return pageResponse(answer(search));
@@ -89,4 +92,18 @@ test("with one page loaded, the change is a plain refetch of that page", async (
   calls.length = 0;
   await act(() => refreshChangedEmails(client, new Set(["a1"])));
   await waitFor(() => expect(calls).toEqual(["page 1"]));
+});
+
+test("a regenerated draft on page 1 refreshes page 1 alone, not every loaded page", async () => {
+  const { client, calls } = await twoPagesLoaded(() => ({
+    emails: [emailFixture({ id: "a1" })],
+    nextCursor: "c1",
+  }));
+  const { result } = renderHookWithProviders(() => useRegenerateEmail(), { client });
+  await act(async () => {
+    await result.current.mutateAsync({ emailId: "a1", tone: "professional" });
+  });
+  await waitFor(() => expect(calls).toContain("page 1"));
+  await waitFor(() => expect(client.isFetching()).toBe(0));
+  expect(calls).toEqual(["page 1"]);
 });

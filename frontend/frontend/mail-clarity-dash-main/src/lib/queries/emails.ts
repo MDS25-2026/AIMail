@@ -26,6 +26,7 @@ import {
 } from "../api/emails";
 import { adaptTemplate } from "../api/templates";
 import { useLiveState } from "../liveInbox";
+import { refreshChangedEmails } from "./inboxRefresh";
 import { queryKeys } from "./keys";
 
 // While the worker writes the first draft (email.isDrafting), the email is fetched again on this
@@ -142,8 +143,8 @@ export function useEmailTranslation(emailId: string, language: string, isRequest
 
 /**
  * Every draft-mutating call returns the updated email, so the detail cache is written directly
- * rather than refetched (that endpoint re-runs generation). The list is invalidated instead,
- * which keeps Inbox and Sent consistent after a send.
+ * rather than refetched (that endpoint re-runs generation). The list is refreshed instead, which
+ * keeps Inbox and Sent consistent after a send: page 1 alone when the email is there.
  */
 function useDraftMutation<TVariables>(mutationFn: (variables: TVariables) => Promise<Email>) {
   const queryClient = useQueryClient();
@@ -152,7 +153,7 @@ function useDraftMutation<TVariables>(mutationFn: (variables: TVariables) => Pro
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKeys.email(updated.id), updated);
       void queryClient.invalidateQueries({ queryKey: queryKeys.todo });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.emails });
+      void refreshChangedEmails(queryClient, new Set([updated.id]));
     },
   });
 }
@@ -187,7 +188,7 @@ export function useSendEmail() {
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKeys.email(updated.id), updated);
       void queryClient.invalidateQueries({ queryKey: queryKeys.todo });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.emails });
+      void refreshChangedEmails(queryClient, new Set([updated.id]));
     },
     onError: (_error, { emailId }) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.email(emailId) });
