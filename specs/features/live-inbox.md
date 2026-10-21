@@ -38,8 +38,8 @@ so that I can leave the dashboard open and trust it instead of reloading to chec
 **Out of scope**
 - `sent_messages` and `scheduled_sends` events (You replied, Sent list): slice 2, same trigger
   function.
-- Removing the 3 s draft poll in `useEmail`: it stays as the bounded safety net until the stream has
-  run in production for a while; then it becomes a 30 s fallback.
+- Removing the draft poll in `useEmail` altogether: while the stream is live it already runs at
+  30 s instead of 3 s (see Decisions); it stays as the bounded safety net.
 - Browser or OS notifications; the Chrome extension panel (it can use the same hook later).
 - Supabase Realtime: the browser would need the anon key and RLS, a second trust surface, and it is
   the one option that needs a paid Supabase plan.
@@ -156,6 +156,12 @@ Recorded in [`../context/db-schema.md`](../context/db-schema.md).
   PostgREST writes and the worker's SQLAlchemy writes both pass. Alternatives: a 30 s poll (a
   baseline request per user forever and still a delay), WebSockets (nothing goes browser to server
   on this channel), Supabase Realtime (anon key and RLS in the browser, paid plan).
+- 2026-10-21: while the stream is live, the open email's draft poll runs every 30 s, not 3 s
+  (`LIVE_DRAFT_POLL_MS`); reconnecting, off, or in the extension it stays at 3 s. Rationale: a
+  finished draft arrives as a `draft` event, but a failed attempt only bumps `generation_attempts`,
+  which the trigger does not watch, so "Drafting" would never end without a poll. Alternatives:
+  no poll when live (stuck on a failure), adding `generation_attempts` to the trigger (a backend
+  migration for one client concern).
 - 2026-10-21: the stream moved from `AppShell` to the root. Rationale: every route renders its own
   `AppShell`, so each page change closed the stream and the reopen refetched the whole inbox.
   Alternatives: a pathless layout route (moves every route file), a ref-counted module-level

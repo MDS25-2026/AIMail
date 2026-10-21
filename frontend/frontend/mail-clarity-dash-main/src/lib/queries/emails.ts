@@ -25,12 +25,16 @@ import {
   unsnoozeEmail,
 } from "../api/emails";
 import { adaptTemplate } from "../api/templates";
+import { useLiveState } from "../liveInbox";
 import { queryKeys } from "./keys";
 
 // While the worker writes the first draft (email.isDrafting), the email is fetched again on this
 // beat; it gives up after DRAFT_POLL_LIMIT tries (two minutes), when Regenerate is the way on.
 export const DRAFT_POLL_MS = 3_000;
 export const DRAFT_POLL_LIMIT = 40;
+// With the stream live a finished draft arrives as an event; a failed attempt writes no column the
+// stream watches (generation_attempts), so this slower beat is what still ends "Drafting".
+export const LIVE_DRAFT_POLL_MS = 30_000;
 
 // Module level, so the query keeps its memoised result instead of re-flattening every render.
 const everyLoadedEmail = (data: InfiniteData<EmailPage>) =>
@@ -78,6 +82,7 @@ function setReadState(queryClient: QueryClient, emailId: string, isRead: boolean
  */
 export function useEmail(emailId: string | null, keepUnread = false) {
   const queryClient = useQueryClient();
+  const draftPollMs = useLiveState() === "live" ? LIVE_DRAFT_POLL_MS : DRAFT_POLL_MS;
   return useQuery({
     queryKey: queryKeys.email(emailId ?? ""),
     // The signal cancels the request when the reader moves to another email before it answers.
@@ -90,7 +95,7 @@ export function useEmail(emailId: string | null, keepUnread = false) {
     refetchOnWindowFocus: false,
     refetchInterval: (query) =>
       query.state.data?.isDrafting && query.state.dataUpdateCount < DRAFT_POLL_LIMIT
-        ? DRAFT_POLL_MS
+        ? draftPollMs
         : false,
   });
 }
