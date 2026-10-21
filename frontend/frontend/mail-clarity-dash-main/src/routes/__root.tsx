@@ -1,7 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
-  Link,
   createRootRouteWithContext,
   useRouter,
   HeadContent,
@@ -13,6 +12,7 @@ import { useTranslation } from "react-i18next";
 
 import appCss from "../styles.css?url";
 import LiveInboxProvider from "../components/LiveInboxProvider";
+import NotFoundPage from "../components/NotFoundPage";
 import PreferencesProvider from "../components/PreferencesProvider";
 import { button } from "../components/variants";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -21,30 +21,6 @@ import { coloursAttribute, SYSTEM_THEME_SCRIPT, Theme } from "../lib/preferences
 import { readPreferences } from "../lib/readPreferences";
 import { cn } from "../lib/utils";
 import { useFocusOnNavigate } from "../lib/useFocusOnNavigate";
-
-function NotFoundComponent() {
-  const { t } = useTranslation();
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-app px-4">
-      <div className="max-w-md text-center">
-        <h1 className="text-7xl font-bold text-fg">404</h1>
-        <h2 className="mt-4 text-xl font-semibold text-fg">{t("page.notFoundTitle")}</h2>
-        <p className="mt-2 text-sm text-fg-muted">{t("page.notFoundBody")}</p>
-        <div className="mt-6">
-          <Link
-            to="/"
-            className={cn(
-              button({ intent: "primary", size: "md" }),
-              "inline-flex items-center justify-center",
-            )}
-          >
-            {t("page.goHome")}
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function ErrorComponent({ error, reset }: ErrorComponentProps) {
   const { t } = useTranslation();
@@ -122,7 +98,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   }),
   shellComponent: RootShell,
   component: RootComponent,
-  notFoundComponent: NotFoundComponent,
+  notFoundComponent: NotFoundPage,
   errorComponent: ErrorComponent,
 });
 

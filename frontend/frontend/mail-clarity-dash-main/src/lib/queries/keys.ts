@@ -25,9 +25,10 @@ export const queryKeys = {
   admin: {
     all: ["admin"] as const,
     session: ["admin", "session"] as const,
+    // Set by the console's own sign-in form; otherwise the console runs on the dashboard session.
+    hasOwnSession: ["admin", "has-own-session"] as const,
     overview: (days: number) => ["admin", "overview", days] as const,
     flagged: ["admin", "flagged"] as const,
     quietHours: ["admin", "quiet-hours"] as const,
-    audit: (failuresOnly: boolean) => ["admin", "audit", failuresOnly] as const,
   },
 };

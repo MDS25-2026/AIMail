@@ -1058,6 +1058,11 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * ActionGroup
+         * @enum {string}
+         */
+        ActionGroup: "sending" | "drafting" | "privacy" | "mailbox" | "settings" | "admin" | "other";
+        /**
          * ActiveWhen
          * @enum {string}
          */
@@ -1103,27 +1108,52 @@ export interface components {
             fields: {
                 [key: string]: string | number | boolean | null;
             };
+            group: components["schemas"]["ActionGroup"];
             /** Id */
             id: string;
             /** Prevhash */
             prevHash: string | null;
             /** Success */
             success: boolean | null;
+            /** Useremail */
+            userEmail?: string | null;
             verification: components["schemas"]["Verification"];
+        };
+        /** AuditPerson */
+        AuditPerson: {
+            /** Email */
+            email: string;
+            /** Id */
+            id: string;
         };
         /** AuditTrailResponse */
         AuditTrailResponse: {
             /** Events */
             events: components["schemas"]["AuditEventOut"][];
+            /**
+             * Failedrecords
+             * @default 0
+             */
+            failedRecords: number;
             /** Headhash */
             headHash: string | null;
             /** Ischainintact */
             isChainIntact: boolean;
+            /**
+             * People
+             * @default []
+             */
+            people: components["schemas"]["AuditPerson"][];
             /** Totalrecords */
             totalRecords: number;
             /** Verifiedrecords */
             verifiedRecords: number;
         };
+        /**
+         * AuditWindow
+         * @enum {string}
+         */
+        AuditWindow: "day" | "week" | "month" | "all";
         /**
          * AuthStatus
          * @description The sender's domain check (SPF, DKIM, DMARC), read by the listener (migration 0024).
@@ -1827,6 +1857,11 @@ export interface components {
             /** Hasmailbox */
             hasMailbox: boolean;
             /**
+             * Isadmin
+             * @default false
+             */
+            isAdmin: boolean;
+            /**
              * Needsreconnect
              * @default false
              */
@@ -2231,6 +2266,10 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
+                group?: components["schemas"]["ActionGroup"] | null;
+                person?: string | null;
+                failures_only?: boolean;
+                window?: components["schemas"]["AuditWindow"];
             };
             header?: never;
             path?: never;

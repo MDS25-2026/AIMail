@@ -47,6 +47,22 @@ const NAMED_ACTIONS = [
   "compose_send_outcome_unknown",
   "compose_outcome_settled",
   "compose_deleted",
+  "store_sent_message",
+  "quarantine_message",
+  "remask_message",
+  "drop_attachment_text",
+  "read_attachment",
+  "ocr_attachment",
+  "skip_cloud_ocr",
+  "fetch_message",
+  "start_mailbox",
+  "stop_mailbox",
+  "setup_watch",
+  "renew_watch",
+  "fetch_history",
+  "ingest_abandoned",
+  "ingest_skipped",
+  "import_inbox",
 ] as const;
 type NamedAction = (typeof NAMED_ACTIONS)[number];
 const NAMED: ReadonlySet<string> = new Set(NAMED_ACTIONS);
@@ -61,10 +77,16 @@ export function fieldEntries(fields: AuditFields): [string, string][] {
   return Object.entries(fields).map(([key, value]) => [key, String(value)]);
 }
 
-/** Whether a record mentions the query in its action, fields, id or hash. */
+/** Whether a record mentions the query in its action, person, fields, id or hash. */
 export function matchesQuery(event: AuditTrailEvent, query: string): boolean {
   const needle = query.trim().toLowerCase();
   if (!needle) return true;
-  const haystack = [event.action, event.id, event.currentHash ?? "", JSON.stringify(event.fields)];
+  const haystack = [
+    event.action,
+    event.userEmail ?? "",
+    event.id,
+    event.currentHash ?? "",
+    JSON.stringify(event.fields),
+  ];
   return haystack.some((text) => text.toLowerCase().includes(needle));
 }

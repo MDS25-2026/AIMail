@@ -1,11 +1,14 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
+import type { AuditFilters } from "../../types/audit";
 import { fetchAuditTrail } from "../api/audit";
 import { queryKeys } from "./keys";
 
-export function useAuditTrail(limit = 50) {
+/** The last answer stays on screen while a new filter loads, so the list does not blank out. */
+export function useAuditTrail(filters: AuditFilters, limit: number) {
   return useQuery({
-    queryKey: [...queryKeys.auditTrail, limit],
-    queryFn: () => fetchAuditTrail(limit),
+    queryKey: [...queryKeys.auditTrail, filters, limit],
+    queryFn: () => fetchAuditTrail(filters, limit),
+    placeholderData: keepPreviousData,
   });
 }

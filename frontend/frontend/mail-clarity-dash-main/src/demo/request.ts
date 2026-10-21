@@ -76,7 +76,13 @@ const isDue = (until: string | null | undefined, now: Date) => !until || new Dat
 
 const iso = (value: unknown) => new Date(String(value)).toISOString();
 
-const session: SessionInfo = { email: DEMO_ACCOUNT, hasMailbox: true, needsReconnect: false };
+// An admin, so the booth can show the Admin console and the tamper-evident Audit Trail.
+const session: SessionInfo = {
+  email: DEMO_ACCOUNT,
+  hasMailbox: true,
+  needsReconnect: false,
+  isAdmin: true,
+};
 
 const EMAIL_ROUTES: Route[] = [
   { method: "GET", pattern: /^\/auth\/session$/, handler: () => session },

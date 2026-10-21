@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { SquarePen } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { useIsDemo } from "../demo/mode";
 import { useSession, useTodo } from "../lib/queries";
 import { cn } from "../lib/utils";
 import { button } from "./variants";
@@ -13,9 +14,10 @@ const NAV_ITEMS = [
   { label: "nav.sent", to: "/sent" },
   { label: "nav.scheduled", to: "/scheduled" },
   { label: "nav.knowledge", to: "/knowledge" },
-  { label: "nav.audit", to: "/audit" },
+  { label: "nav.audit", to: "/audit", isAdminOnly: true },
   { label: "nav.settings", to: "/settings" },
-  { label: "nav.admin", to: "/admin" },
+  // The console shows real company data, so the demo has none of it (the Audit Trail has demo rows).
+  { label: "nav.admin", to: "/admin", isAdminOnly: true, isHiddenInDemo: true },
 ] as const;
 
 const BASE_ITEM = "block w-full rounded-md px-3 py-2 text-left text-sm";
@@ -26,6 +28,12 @@ export default function SideNav() {
   const session = useSession();
   const todo = useTodo(session.data?.hasMailbox === true);
   const todoCount = todo.data?.count ?? 0;
+  // Unknown until the session answers, so the admin items never flash in for someone else.
+  const isAdmin = session.data?.isAdmin === true;
+  const isDemo = useIsDemo();
+  const items = NAV_ITEMS.filter(
+    (item) => (isAdmin || !("isAdminOnly" in item)) && !(isDemo && "isHiddenInDemo" in item),
+  );
   return (
     <nav aria-label={t("nav.label")} className="hidden w-44 shrink-0 bg-rail p-3 md:block">
       {/* Above the list, as in a mail app: starting an email is the one action, not a place. */}
@@ -37,7 +45,7 @@ export default function SideNav() {
         {t("nav.compose")}
       </Link>
       <ul className="space-y-1">
-        {NAV_ITEMS.map((item) => (
+        {items.map((item) => (
           <li key={item.to}>
             <Link
               to={item.to}

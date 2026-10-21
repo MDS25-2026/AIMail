@@ -1,4 +1,5 @@
-import type { AdminIdentity, AuditEvent, FlaggedDraft, Overview } from "../types/admin";
+import { isDemo } from "../demo/mode";
+import type { AdminIdentity, FlaggedDraft, Overview } from "../types/admin";
 import type { QuietHours } from "../types/settings";
 import { BACKEND_URL } from "./api/config";
 import { ApiError, ApiErrorCode, apiErrorFrom } from "./api/errors";
@@ -13,6 +14,7 @@ const ADMIN_HEADER = { "X-AIMail-Admin": "1" };
 const UNAUTHORIZED = 401;
 const FORBIDDEN = 403;
 const MAX_RETRIES = 2;
+const NOT_IN_DEMO = 400;
 
 /** React Query retry policy for admin calls: transient failures retry, auth failures never do. */
 export function retryUnlessAuth(failureCount: number, error: unknown): boolean {
@@ -20,6 +22,8 @@ export function retryUnlessAuth(failureCount: number, error: unknown): boolean {
 }
 
 async function send(path: string, init: RequestInit = {}): Promise<Response> {
+  // The demo counts as an admin, but a cookie left in the browser must never show real company data.
+  if (isDemo()) throw new ApiError(NOT_IN_DEMO, ApiErrorCode.NotInDemo, `/admin${path}`);
   return fetch(`${BACKEND_URL}/admin${path}`, { ...init, credentials: "include" });
 }
 
@@ -60,8 +64,6 @@ async function getJson<T>(path: string): Promise<T> {
 export const fetchAdminSession = () => getJson<AdminIdentity>("/session");
 export const fetchOverview = (days: number) => getJson<Overview>(`/overview?days=${days}`);
 export const fetchFlagged = () => getJson<FlaggedDraft[]>("/flagged");
-export const fetchAudit = (failuresOnly: boolean) =>
-  getJson<AuditEvent[]>(`/audit?limit=100&failures_only=${failuresOnly}`);
 
 export const fetchCompanyQuietHours = () => getJson<QuietHours>("/quiet-hours");
 

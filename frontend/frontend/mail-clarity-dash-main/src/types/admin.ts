@@ -32,13 +32,6 @@ export type Overview = {
   };
 };
 
-export type AuditEvent = {
-  created_at: string;
-  action: string;
-  success: boolean | null;
-  detail: string;
-};
-
 export type FlaggedDraft = {
   id: string;
   subject: string;
