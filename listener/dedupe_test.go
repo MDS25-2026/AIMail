@@ -174,3 +174,18 @@ func TestAGmailOutageIsRetriedFromTheSameBaselineNotCaughtUp(t *testing.T) {
 		t.Fatalf("baseline %d after %d lookups: an outage fell back to a catch-up", mb.lastHistoryID, lookups)
 	}
 }
+
+func TestANotificationAlreadyCoveredByTheBaselineCallsNothing(t *testing.T) {
+	var lookups int
+	withSupabase(t, func(w http.ResponseWriter, _ *http.Request) { lookups++ })
+	// A nil Gmail service: any history.list or catch-up would panic.
+	mb := &mailbox{lastHistoryID: 500}
+	for _, historyID := range []uint64{400, 500} {
+		if err := ingestHistory(context.Background(), mb, historyID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if mb.lastHistoryID != 500 || lookups != 0 {
+		t.Fatalf("baseline %d after %d lookups", mb.lastHistoryID, lookups)
+	}
+}

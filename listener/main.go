@@ -693,6 +693,10 @@ func ingestHistory(ctx context.Context, mb *mailbox, historyID uint64) error {
 		// baseline advance from here.
 		return catchUpThenAdvance(ctx, mb, historyID)
 	}
+	if historyID <= start {
+		// A newer notification already listed this range while this one waited for the lock.
+		return nil
+	}
 
 	call := mb.srv.Users.History.List("me").StartHistoryId(start).HistoryTypes("messageAdded").LabelId("INBOX")
 	var ids []string
