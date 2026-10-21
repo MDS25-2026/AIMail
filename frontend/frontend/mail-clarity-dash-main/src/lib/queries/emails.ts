@@ -32,6 +32,10 @@ import { queryKeys } from "./keys";
 export const DRAFT_POLL_MS = 3_000;
 export const DRAFT_POLL_LIMIT = 40;
 
+// Module level, so the query keeps its memoised result instead of re-flattening every render.
+const everyLoadedEmail = (data: InfiniteData<EmailPage>) =>
+  data.pages.flatMap((page) => page.emails);
+
 /** The inbox, page by page; `data` is every loaded email, newest first, and fetchNextPage loads older. */
 export function useEmails() {
   return useInfiniteQuery({
@@ -39,7 +43,7 @@ export function useEmails() {
     queryFn: ({ pageParam }) => fetchEmailPage(pageParam),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
-    select: (data) => data.pages.flatMap((page) => page.emails),
+    select: everyLoadedEmail,
   });
 }
 
