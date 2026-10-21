@@ -169,11 +169,11 @@ type presidioRecognizer struct {
 }
 
 type presidioAnalyzeRequest struct {
-	Text             string               `json:"text"`
-	Language         string               `json:"language"`
-	ScoreThreshold   float64              `json:"score_threshold"`
-	Entities         []string             `json:"entities,omitempty"`
-	AdHocRecognizers []presidioRecognizer `json:"ad_hoc_recognizers,omitempty"`
+	Text             string          `json:"text"`
+	Language         string          `json:"language"`
+	ScoreThreshold   float64         `json:"score_threshold"`
+	Entities         []string        `json:"entities,omitempty"`
+	AdHocRecognizers json.RawMessage `json:"ad_hoc_recognizers,omitempty"`
 }
 
 type presidioResult struct {
@@ -221,6 +221,17 @@ var localeRecognizers = []presidioRecognizer{
 		Patterns: []presidioPattern{{Name: "my_plate", Regex: `(?<![\w/.:=-])(?-i:[A-Z]{1,3} ?\d{1,4}(?: ?[A-Z])?)(?![\w/-])`, Score: 0.4}},
 		Context:  []string{"plate", "kereta", "vehicle", "kenderaan", "jpj", "motorcycle", "motosikal", "lorry"},
 	},
+}
+
+// adHocRecognizers is marshalled once: the recognizers never change, and every NER call sends them.
+var adHocRecognizers = mustMarshal(append(append([]presidioRecognizer{}, localeRecognizers...), nameRecognizers...))
+
+func mustMarshal(value any) json.RawMessage {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		panic(fmt.Sprintf("marshal static value: %v", err))
+	}
+	return encoded
 }
 
 // allowedLocations are place names kept in the text rather than redacted. A country or state in
@@ -295,7 +306,7 @@ func maskWithPresidio(ctx context.Context, text string, v *detailVault) (string,
 		// cannot fire on an invoice or order number that merely looks card- or IBAN-shaped. SWIFT/BIC
 		// is left out on purpose: it names a bank, which is public, not a person.
 		Entities:         []string{"PERSON", "LOCATION", "ORGANIZATION", "ACCOUNT_NUMBER", "CREDIT_CARD", "IBAN_CODE", "PHONE_NUMBER", "EMAIL_ADDRESS", "MY_POSTCODE", "VEHICLE_PLATE"},
-		AdHocRecognizers: append(append([]presidioRecognizer{}, localeRecognizers...), nameRecognizers...),
+		AdHocRecognizers: adHocRecognizers,
 	})
 	if err != nil {
 		return "", fmt.Errorf("marshal analyze request: %w", err)

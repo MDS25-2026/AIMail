@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -90,5 +92,27 @@ func TestPlaceholderIsNotTreatedAsANameWord(t *testing.T) {
 	runs := nameShapedOnly(text, []presidioResult{hit})
 	if len(runs) != 1 || string([]rune(text)[runs[0].Start:runs[0].End]) != "Aisyah Rahman" {
 		t.Fatalf("name adjacent to placeholder failed: %+v", runs)
+	}
+}
+
+func TestThePrecomputedRecognizersMarshalAsTheStructsDid(t *testing.T) {
+	type perCallRequest struct {
+		Text             string               `json:"text"`
+		AdHocRecognizers []presidioRecognizer `json:"ad_hoc_recognizers,omitempty"`
+	}
+	type cachedRequest struct {
+		Text             string          `json:"text"`
+		AdHocRecognizers json.RawMessage `json:"ad_hoc_recognizers,omitempty"`
+	}
+	want, err := json.Marshal(perCallRequest{Text: "x", AdHocRecognizers: append(append([]presidioRecognizer{}, localeRecognizers...), nameRecognizers...)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := json.Marshal(cachedRequest{Text: "x", AdHocRecognizers: adHocRecognizers})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("the analyze payload changed:\n got %s\nwant %s", got, want)
 	}
 }
