@@ -98,11 +98,10 @@ def _sections() -> dict[str, list[ColumnElement[bool]]]:
 
 
 async def _section_rows(session: AsyncSession, scope: Scope, conditions: list) -> tuple[list[Message], int]:
-    where = [*_open(scope), *conditions]
-    rows = (await session.scalars(select(Message).where(*where).order_by(Message.created_at.desc())
-                                  .limit(SECTION_LIMIT))).all()
-    total = await session.scalar(select(func.count()).select_from(Message).where(*where))
-    return list(rows), total or 0
+    # The window counts every match before LIMIT, so the total comes with the rows in one query.
+    found = (await session.execute(select(Message, func.count().over()).where(*_open(scope), *conditions)
+                                   .order_by(Message.created_at.desc()).limit(SECTION_LIMIT))).all()
+    return [message for message, _ in found], found[0][1] if found else 0
 
 
 async def _sections_with_rows(session: AsyncSession, scope: Scope, policy: Policy) -> dict[str, TodoSection]:

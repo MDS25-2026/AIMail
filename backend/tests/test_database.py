@@ -447,6 +447,22 @@ def test_a_waiting_reply_opens_the_email_it_answered_and_an_answer_after_it_take
     assert [(w.threadId, w.email.id if w.email else None) for w in result.waiting] == [("E", asked_id)]
 
 
+def test_a_todo_list_counts_every_email_though_it_shows_only_the_newest():
+    owner = uuid4()
+
+    async def scenario():
+        async with get_sessionmaker()() as session, session.begin():
+            session.add(UserProfile(id=owner, email=f"{owner}@example.com"))
+        async with get_sessionmaker()() as session, session.begin():
+            session.add_all([Message(id=uuid4(), user_id=owner, gmail_message_id=f"many-{uuid4()}", subject="s",
+                                     masking_status=MaskingStatus.COMPLETE, auth_status=AuthStatus.PASS,
+                                     action_items=["Pay"]) for _ in range(todo.SECTION_LIMIT + 1)])
+        return await todo.todo_for(Scope(owner_id=owner), f"{owner}@example.com")
+
+    result = _run(scenario())
+    assert (len(result.needsAction.emails), result.needsAction.total) == (todo.SECTION_LIMIT, todo.SECTION_LIMIT + 1)
+
+
 def test_an_email_that_fits_every_todo_list_shows_once_in_the_most_urgent():
     owner = uuid4()
     now = datetime.now(timezone.utc)
