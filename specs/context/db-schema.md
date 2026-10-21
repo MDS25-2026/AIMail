@@ -197,11 +197,25 @@ leaves the recipient's client ungrouped. Both mechanisms, or it is not threaded.
 
 #### Live inbox (migration 0046, `specs/features/live-inbox.md`)
 
-- `notify_mailbox_change()` and the trigger `trg_notify_mailbox_change` on `messages`: `AFTER INSERT OR
-  UPDATE OF draft_reply, ai_summary, category, language, read_at, sent_at, snoozed_until, dismissed_at,
-  auth_status, masking_status`, raising `pg_notify('mailbox_changed', {user_id, message_id, kind})` with
+- `notify_mailbox_change()` raises `pg_notify('mailbox_changed', {user_id, message_id, kind})` with
   `kind` = `new` | `draft` | `state`. Ids only, never content: the payload is visible to every session
   on the channel. No table or column; the backend's `GET /events` is the only listener.
+- Since migration 0048 two triggers on `messages` call it: `trg_notify_mailbox_insert` (`AFTER INSERT`)
+  and `trg_notify_mailbox_update` (`AFTER UPDATE OF draft_reply, ai_summary, category, language, read_at,
+  sent_at, snoozed_until, dismissed_at, auth_status, masking_status`, `WHEN` one of those columns is
+  `DISTINCT FROM` its old value), so writing the same value back announces nothing. They replace
+  0046's single `trg_notify_mailbox_change`, which a `WHEN` reading `OLD` cannot be added to.
+
+#### Query indexes (migration 0048)
+
+Checked usable with `EXPLAIN` on synthetic data, not measured on a real mailbox.
+
+- `audit_log_user_action_idx` on `audit_log (user_id, action)`: an email's failed attachment reads
+  (`app/attachment_notes.py`).
+- `pg_trgm` extension and `messages_from_addr_trgm_idx`, GIN on `from_addr gin_trgm_ops`: the inbox
+  assistant's sender match, `from_addr ILIKE '%word%'`.
+- `messages_user_thread_key_idx` on `messages (user_id, coalesce(thread_id, id::text), created_at DESC,
+  id DESC)`: the inbox's conversation key (`DISTINCT ON` and the page's thread lookup).
 
 ## Normalised copy (migration 0044, `specs/features/normalisation-v2.md`)
 

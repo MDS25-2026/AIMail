@@ -5,6 +5,7 @@ Skipped unless TEST_DATABASE_URL names a throwaway database with every migration
 """
 
 import asyncio
+import json
 import os
 from datetime import datetime, time, timedelta, timezone
 from uuid import UUID, uuid4
@@ -68,6 +69,8 @@ from app.rag.ingest import store_chunks
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "")
 pytestmark = pytest.mark.skipif(not TEST_DATABASE_URL, reason="set TEST_DATABASE_URL to a throwaway database")
 CONCURRENT_WRITES = 10
+# Long enough for a committed NOTIFY to reach a listener on the same machine.
+NOTICE_WAIT_SECONDS = 0.3
 
 
 @pytest.fixture(autouse=True)
@@ -199,6 +202,25 @@ def test_paging_the_inbox_shows_every_email_once_even_with_equal_timestamps():
 
     seen = _run(scenario())
     assert len(seen) == 5 and len(set(seen)) == 5
+
+
+def test_an_inbox_page_brings_every_email_of_its_threads_and_the_ones_with_no_thread():
+    owner = uuid4()
+    now = datetime.now(timezone.utc)
+
+    async def scenario():
+        async with get_sessionmaker()() as session, session.begin():
+            session.add(UserProfile(id=owner, email=f"{owner}@example.com"))
+        emails = [Message(id=uuid4(), user_id=owner, gmail_message_id=f"thr-{uuid4()}", subject="s", thread_id=thread,
+                          created_at=now - timedelta(minutes=age))
+                  for thread, age in (("T", 1), ("T", 30), (None, 2), (None, 3))]
+        async with get_sessionmaker()() as session, session.begin():
+            session.add_all(emails)
+        page = await list_dashboard_emails(Scope(owner_id=owner), "", 2, None)
+        return {str(email.id) for email in emails[:3]}, [email.id for email in page.emails], page.nextCursor
+
+    expected, listed, after = _run(scenario())
+    assert set(listed) == expected and len(listed) == len(expected) and after is not None
 
 
 def test_the_worker_classifies_an_email_once_and_stores_it():
@@ -1081,3 +1103,22 @@ def test_retention_never_deletes_a_draft_that_may_have_been_sent(composing):
 
     left, claimed = _run(scenario())
     assert left == {claimed}
+
+
+def test_a_change_to_an_email_is_announced_and_writing_the_same_value_back_is_not():
+    async def scenario() -> list[str]:
+        kinds: list[str] = []
+        async with get_engine().connect() as listening:
+            raw = (await listening.get_raw_connection()).driver_connection
+            await raw.add_listener("mailbox_changed", lambda *notice: kinds.append(json.loads(notice[3])["kind"]))
+            message = Message(id=uuid4(), gmail_message_id=f"ev-{uuid4()}", subject="s",
+                              masking_status=MaskingStatus.COMPLETE)
+            async with get_sessionmaker()() as session, session.begin():
+                session.add(message)
+            for read_at in (None, datetime.now(timezone.utc)):
+                async with get_sessionmaker()() as session, session.begin():
+                    await session.execute(update(Message).where(Message.id == message.id).values(read_at=read_at))
+            await asyncio.sleep(NOTICE_WAIT_SECONDS)
+        return kinds
+
+    assert _run(scenario()) == ["new", "state"]

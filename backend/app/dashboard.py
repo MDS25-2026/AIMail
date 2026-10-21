@@ -18,7 +18,17 @@ from zoneinfo import ZoneInfo
 
 import httpx
 from pydantic import BaseModel
-from sqlalchemy import ColumnElement, Text, cast, func, or_, select, tuple_, update
+from sqlalchemy import (
+    ColumnElement,
+    Text,
+    and_,
+    cast,
+    func,
+    or_,
+    select,
+    tuple_,
+    update,
+)
 from sqlalchemy.dialects.postgresql import distinct_on, insert
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -358,6 +368,24 @@ def _thread_key() -> ColumnElement[str]:
     return func.coalesce(Message.thread_id, cast(Message.id, Text))
 
 
+def _in_threads(keys: list[str]) -> ColumnElement[bool]:
+    """_thread_key() IN keys, spelled so messages_thread_id_idx and the primary key can serve it."""
+    return or_(Message.thread_id.in_(keys), and_(Message.thread_id.is_(None), Message.id.in_(_message_ids(keys))))
+
+
+def _message_ids(keys: list[str]) -> list[UUID]:
+    """The keys that are an id as Postgres prints id::text; no other key can equal a thread-less email's."""
+    ids = []
+    for key in keys:
+        try:
+            parsed = UUID(key)
+        except ValueError:
+            continue
+        if str(parsed) == key:
+            ids.append(parsed)
+    return ids
+
+
 async def list_dashboard_emails(scope: Scope, policy_email: str, limit: int, after: Cursor | None) -> EmailPage:
     """One page of whole conversations, newest first (specs/features/inbox-threads.md). A thread is placed
     by its newest email and comes with every visible email in it, so it never splits across pages; the
@@ -377,7 +405,7 @@ async def list_dashboard_emails(scope: Scope, policy_email: str, limit: int, aft
     async with get_sessionmaker()() as session:
         found = (await session.execute(heads)).all()
         page = found[:limit]
-        rows = (await session.scalars(select(Message).where(*visible, _thread_key().in_([h.key for h in page]))
+        rows = (await session.scalars(select(Message).where(*visible, _in_threads([h.key for h in page]))
                                       .order_by(Message.created_at.desc(), Message.id.desc()))).all() if page else []
         policy = await load_policy(session, policy_email)
         replied = await _latest_gmail_replies(session, scope, rows)
