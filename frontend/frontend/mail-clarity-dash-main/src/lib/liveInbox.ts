@@ -7,6 +7,7 @@ const LIVE_INBOX_PATHS: ReadonlySet<string> = new Set([
   "/",
   "/admin",
   "/audit",
+  "/compose",
   "/drafts",
   "/knowledge",
   "/scheduled",
