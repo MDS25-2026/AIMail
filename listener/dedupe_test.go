@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -127,13 +129,14 @@ func TestTheCatchUpIngestsRecentMailOldestFirstAndSkipsWhatIsStored(t *testing.T
 	var looked []string
 	withSupabase(t, func(w http.ResponseWriter, r *http.Request) {
 		looked = append(looked, r.URL.Query().Get("gmail_message_id"))
-		w.Write([]byte(`[{"gmail_message_id":"stored"}]`)) // every one already stored: nothing is fetched
+		// Every one already stored: one lookup, and nothing is fetched or written.
+		w.Write([]byte(`[{"gmail_message_id":"m3"},{"gmail_message_id":"m1"},{"gmail_message_id":"m2"}]`))
 	})
 	mb := &mailbox{srv: fakeGmail(t, http.StatusOK, `{"messages":[{"id":"m3"},{"id":"m2"},{"id":"m1"}]}`)}
 	if err := ingestHistory(context.Background(), mb, 500); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Join(looked, ",") != "eq.m1,eq.m2,eq.m3" || mb.lastHistoryID != 500 {
+	if strings.Join(looked, "|") != `in.("m1","m2","m3")` || mb.lastHistoryID != 500 {
 		t.Fatalf("looked up %v, baseline %d", looked, mb.lastHistoryID)
 	}
 }
@@ -216,5 +219,40 @@ func TestARefusedRequestLeavesItsConnectionForTheNext(t *testing.T) {
 	if pooledTransport.MaxIdleConnsPerHost != maxIdleConnsPerHost || presidioClient.Transport != pooledTransport ||
 		supabaseClient.Transport != pooledTransport {
 		t.Fatal("the Supabase and Presidio clients must share the pooled transport")
+	}
+}
+
+func TestNewMessagesDropsStoredAndRepeatedIDsInOneLookup(t *testing.T) {
+	queries := withSupabase(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte(`[{"gmail_message_id":"m2"}]`))
+	})
+	fresh, _ := newMessages(context.Background(), &mailbox{ownerID: "user-a"}, []string{"m1", "m2", "m3", "m1"})
+	if strings.Join(fresh, ",") != "m1,m3" || len(*queries) != 1 {
+		t.Fatalf("fresh %v after %d lookups", fresh, len(*queries))
+	}
+	if !strings.Contains((*queries)[0], "user_id=eq.user-a&gmail_message_id=in.") {
+		t.Fatalf("lookup not scoped to the mailbox: %s", (*queries)[0])
+	}
+}
+
+func TestNewMessagesFallsBackToCheckingEachWhenTheLookupFails(t *testing.T) {
+	withSupabase(t, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusServiceUnavailable) })
+	fresh, ingest := newMessages(context.Background(), &mailbox{}, []string{"m1", "m2"})
+	if strings.Join(fresh, ",") != "m1,m2" || reflect.ValueOf(ingest).Pointer() != reflect.ValueOf(ingestMessage).Pointer() {
+		t.Fatalf("a failed lookup must ingest everything, each checking for itself: %v", fresh)
+	}
+}
+
+func TestStoredMessageIDsLooksUpInBatchesAndNotAtAllForNone(t *testing.T) {
+	queries := withSupabase(t, func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte(`[]`)) })
+	if _, err := storedMessageIDs(context.Background(), "", nil); err != nil || len(*queries) != 0 {
+		t.Fatalf("no ids must ask nothing: %d lookups, %v", len(*queries), err)
+	}
+	ids := make([]string, storedLookupBatch+1)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("m%d", i)
+	}
+	if _, err := storedMessageIDs(context.Background(), "", ids); err != nil || len(*queries) != 2 {
+		t.Fatalf("want 2 batched lookups, got %d: %v", len(*queries), err)
 	}
 }

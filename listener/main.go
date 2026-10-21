@@ -768,8 +768,9 @@ func ingestHistory(ctx context.Context, mb *mailbox, historyID uint64) error {
 // ingestEach stores each message in order. A permanent failure is recorded and skipped; any other
 // stops the run, so the caller's retry lists the range again (stored messages are skipped then).
 func ingestEach(ctx context.Context, mb *mailbox, ids []string) error {
-	for _, msgID := range ids {
-		err := ingestMessage(ctx, mb, msgID)
+	fresh, ingest := newMessages(ctx, mb, ids)
+	for _, msgID := range fresh {
+		err := ingest(ctx, mb, msgID)
 		if isPermanentIngestFailure(err) {
 			// Retrying cannot help (deleted before the fetch, or a row the database refuses), and
 			// failing the range would hold every newer message behind this one.
@@ -779,7 +780,7 @@ func ingestEach(ctx context.Context, mb *mailbox, ids []string) error {
 		}
 		if err != nil {
 			// The baseline stays put, so the redelivery lists this range again and retries the
-			// message; the ones already stored are skipped by messageStored.
+			// message; the ones already stored are skipped by newMessages.
 			return fmt.Errorf("message %s: %w", msgID, err)
 		}
 	}
@@ -846,7 +847,11 @@ func ingestMessage(ctx context.Context, mb *mailbox, msgID string) error {
 	if isStored {
 		return nil
 	}
+	return ingestUnstored(ctx, mb, msgID)
+}
 
+// ingestUnstored is ingestMessage for an id already looked up and found missing.
+func ingestUnstored(ctx context.Context, mb *mailbox, msgID string) error {
 	ref := messageRef{ownerID: mb.ownerID, msgID: msgID}
 	msg, err := fetchMessage(ctx, mb.srv, ref)
 	if err != nil {

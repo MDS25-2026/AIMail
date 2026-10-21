@@ -7,8 +7,64 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"net/url"
+	"slices"
+	"strings"
 )
+
+// storedLookupBatch keeps each in.() lookup's URL well inside what the gateway accepts.
+const storedLookupBatch = 100
+
+type ingestFunc func(context.Context, *mailbox, string) error
+
+// newMessages returns ids less those already stored, each once, and how to ingest them. A catch-up
+// asked once per id; one lookup now covers a batch. When it fails, every message checks for itself.
+func newMessages(ctx context.Context, mb *mailbox, ids []string) ([]string, ingestFunc) {
+	stored, err := storedMessageIDs(ctx, mb.ownerID, ids)
+	ingest := ingestUnstored
+	if err != nil {
+		log.Printf("could not check which of %d messages are stored, checking each: %v", len(ids), err)
+		stored, ingest = map[string]bool{}, ingestMessage
+	}
+	var fresh []string
+	for _, id := range ids {
+		if stored[id] {
+			continue
+		}
+		stored[id] = true // a message listed twice is ingested once
+		fresh = append(fresh, id)
+	}
+	return fresh, ingest
+}
+
+// storedMessageIDs reports which of ids already have a row in the owner's mailbox.
+func storedMessageIDs(ctx context.Context, ownerID string, ids []string) (map[string]bool, error) {
+	stored := make(map[string]bool, len(ids))
+	for batch := range slices.Chunk(ids, storedLookupBatch) {
+		quoted := make([]string, len(batch))
+		for i, id := range batch {
+			quoted[i] = `"` + id + `"`
+		}
+		query := "select=gmail_message_id&" + ownerFilter(ownerID) +
+			"&gmail_message_id=in." + url.QueryEscape("("+strings.Join(quoted, ",")+")")
+		body, err := supabaseGet(ctx, "messages", query)
+		if err != nil {
+			return nil, err
+		}
+		var rows []struct {
+			GmailMessageID string `json:"gmail_message_id"`
+		}
+		if err := json.Unmarshal(body, &rows); err != nil {
+			return nil, fmt.Errorf("decode lookup: %w", err)
+		}
+		for _, row := range rows {
+			stored[row.GmailMessageID] = true
+		}
+	}
+	return stored, nil
+}
 
 // messageStored reports whether msgID already has a row. ingestMessage asks before fetching, so
 // a Pub/Sub redelivery, the restart fallback to the newest message, or a retry never pays for

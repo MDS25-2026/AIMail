@@ -313,8 +313,13 @@ func seedInbox(ctx context.Context, mb *mailbox) {
 		log.Printf("could not list the first emails for user %s: %v", mb.ownerID, err)
 		return
 	}
-	for _, m := range list.Messages {
-		if err := ingestMessage(ctx, mb, m.Id); err != nil {
+	ids := make([]string, len(list.Messages))
+	for i, m := range list.Messages {
+		ids[i] = m.Id
+	}
+	fresh, ingest := newMessages(ctx, mb, ids)
+	for _, msgID := range fresh {
+		if err := ingest(ctx, mb, msgID); err != nil {
 			log.Printf("seeding user %s: %v", mb.ownerID, err)
 		}
 	}
