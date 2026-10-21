@@ -8,6 +8,7 @@ unreachable the email still returns with its Lane A/B fields and stays uncached 
 """
 
 import logging
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from email.utils import parseaddr
@@ -215,12 +216,12 @@ def _sent_key(reply: SentMessage) -> str:
     return f"sent:{reply.id}"
 
 
-async def _gmail_replies(message: Message) -> list[SentMessage]:
+async def _gmail_replies(message: Message, session: AsyncSession | None = None) -> list[SentMessage]:
     """The owner's replies in this thread sent from Gmail itself; AIMail's own sends are on the message."""
     if not message.thread_id:
         return []
-    async with get_sessionmaker()() as session:
-        return list((await session.scalars(select(SentMessage).where(
+    async with nullcontext(session) if session is not None else get_sessionmaker()() as active:
+        return list((await active.scalars(select(SentMessage).where(
             SentMessage.thread_id == message.thread_id, Scope(owner_id=message.user_id).where(SentMessage.user_id),
             SentMessage.message_id.is_(None)).order_by(SentMessage.sent_at))).all())
 
@@ -231,12 +232,12 @@ def is_drafting(message: Message) -> bool:
             and not message.generation_attempts)
 
 
-async def _policy_for(message: Message) -> Policy:
+async def _policy_for(message: Message, session: AsyncSession | None = None) -> Policy:
     """The owner's priority rules, as the inbox list applies them, so a priority never changes on opening."""
     if message.user_id is None:
         return DEFAULT_POLICY  # a row with no owner, seen only by a script, as the list shows it
-    async with get_sessionmaker()() as session:
-        return await load_policy_for_user(session, message.user_id)
+    async with nullcontext(session) if session is not None else get_sessionmaker()() as active:
+        return await load_policy_for_user(active, message.user_id)
 
 
 def _to_email(
@@ -308,10 +309,10 @@ def _sender_offset(message: Message) -> int | None:
     return offset
 
 
-async def _details_for(message: Message, thread: list[Message]) -> ThreadMap:
+async def _details_for(message: Message, thread: list[Message], session: AsyncSession | None = None) -> ThreadMap:
     """The conversation's placeholders and their values, oldest message first, plus the owner's
     name as the sign-off placeholder. Opened per request and never stored or logged."""
-    return _thread_map(message, thread, await _owner_name(message.user_id))
+    return _thread_map(message, thread, await _owner_name(message.user_id, session))
 
 
 def _thread_map(message: Message, thread: list[Message], owner_name: str) -> ThreadMap:
@@ -685,16 +686,19 @@ async def email_detail(message_id: str, *, scope: Scope, viewer_id: UUID | None 
     if loaded is None:
         return None
     message, thread = loaded
-    details = await _details_for(message, thread)
     # Never drafted here: the request returns at once and the worker drafts it within seconds.
     if is_drafting(message):
         await request_draft(pk)
-    email = _to_email(message, await _policy_for(message), thread=thread, details=details,
-                      egress=await egress_for(message.id), schedule=(await states_for([pk])).get(pk),
-                      sent=await _gmail_replies(message), has_unread_attachment=await has_unread_attachment(message))
-    # Templates are the viewer's; a script, which has no viewer, gets the owner's.
-    email.suggestedTemplateId = await suggested_template_id(
-        viewer_id or message.user_id, f"{message.subject or ''}\n{message.body_masked or ''}")
+    # One session for the reads: one pooled connection per open, not one per read.
+    async with get_sessionmaker()() as session:
+        details = await _details_for(message, thread, session)
+        email = _to_email(message, await _policy_for(message, session), thread=thread, details=details,
+                          egress=await egress_for(message.id, session),
+                          schedule=(await states_for([pk], session)).get(pk), sent=await _gmail_replies(message, session),
+                          has_unread_attachment=await has_unread_attachment(message, session))
+        # Templates are the viewer's; a script, which has no viewer, gets the owner's.
+        email.suggestedTemplateId = await suggested_template_id(
+            viewer_id or message.user_id, f"{message.subject or ''}\n{message.body_masked or ''}", session)
     return email
 
 

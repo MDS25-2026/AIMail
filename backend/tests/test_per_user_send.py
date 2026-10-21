@@ -107,7 +107,7 @@ def test_a_user_who_granted_read_only_is_refused_before_anything_is_claimed(monk
         claimed.append(pk)
         return True
 
-    async def no_name(_owner_id):
+    async def no_name(_owner_id, _session=None):
         return ""
 
     monkeypatch.setattr(dashboard, "_load", load)

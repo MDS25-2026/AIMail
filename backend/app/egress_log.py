@@ -4,10 +4,12 @@ A failure to keep them is logged and never fails the user's action: the prompt h
 """
 
 import logging
+from contextlib import nullcontext
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import ModelEgress
 from app.db.session import get_sessionmaker
@@ -46,8 +48,8 @@ async def egress_for_draft(compose_draft_id: UUID) -> list[ModelEgress]:
         return list(rows)
 
 
-async def egress_for(message_id: UUID) -> list[ModelEgress]:
-    async with get_sessionmaker()() as session:
-        rows = await session.scalars(select(ModelEgress).where(ModelEgress.message_id == message_id)
+async def egress_for(message_id: UUID, session: AsyncSession | None = None) -> list[ModelEgress]:
+    async with nullcontext(session) if session is not None else get_sessionmaker()() as active:
+        rows = await active.scalars(select(ModelEgress).where(ModelEgress.message_id == message_id)
                                      .order_by(ModelEgress.created_at.desc()).limit(RECEIPT_ROWS))
         return list(rows)

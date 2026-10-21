@@ -44,7 +44,7 @@ def mailbox(monkeypatch, test_settings):
     async def load_with_thread(pk, scope):
         return state["message"], []
 
-    async def owner_name(_owner_id):
+    async def owner_name(_owner_id, _session=None):
         return "Elyesa Tee"
 
     async def call_agent(path, request, _answer=None):
@@ -71,13 +71,13 @@ def mailbox(monkeypatch, test_settings):
     async def no_style(_user_id):
         return {}
 
-    async def no_egress(_message_id):
+    async def no_egress(_message_id, _session=None):
         return []
 
     async def gemini(_user_id):
         return Provider.GEMINI
 
-    async def no_schedules(_message_ids):
+    async def no_schedules(_message_ids, _session=None):
         return {}
 
     for name, value in (("_load", load), ("_load_with_thread", load_with_thread), ("_owner_name", owner_name),
@@ -241,7 +241,7 @@ def test_a_template_adapted_by_the_agent_reaches_it_with_placeholders_only(mailb
 def test_the_suggestion_uses_the_viewers_templates_even_on_an_unowned_email(mailbox, monkeypatch):
     asked = []
 
-    async def suggested(user_id, _text):
+    async def suggested(user_id, _text, _session=None):
         asked.append(user_id)
         return "tpl-1"
 

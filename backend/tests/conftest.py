@@ -34,7 +34,7 @@ def default_priority_policy(monkeypatch):
     """Detail views read the owner's priority rules from the database; unit tests have none, so they get the
     neutral policy. tests/test_detail_priority.py checks the real lookup."""
 
-    async def neutral(_message):
+    async def neutral(_message, _session=None):
         return DEFAULT_POLICY
 
     monkeypatch.setattr(dashboard, "_policy_for", neutral)
@@ -45,10 +45,10 @@ def no_thread_extras(monkeypatch):
     """The detail view reads replies sent from Gmail and failed attachment reads from the database;
     unit tests have neither. tests/test_thread_replies.py checks both."""
 
-    async def none(_message):
+    async def none(_message, _session=None):
         return []
 
-    async def all_read(_message):
+    async def all_read(_message, _session=None):
         return False
 
     monkeypatch.setattr(dashboard, "_gmail_replies", none)

@@ -2,6 +2,7 @@
 (app/scheduled_send_worker.py); this module only keeps the rows.
 """
 
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
@@ -9,6 +10,7 @@ from uuid import UUID
 
 from sqlalchemy import ColumnElement, and_, exists, func, select, update
 from sqlalchemy.dialects.postgresql import distinct_on, insert
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import ScheduledSend
 from app.db.session import get_sessionmaker
@@ -52,15 +54,15 @@ async def cancel_pending(message_id: UUID, reason: CancelReason) -> bool:
     return cancelled is not None
 
 
-async def states_for(message_ids: list[UUID]) -> dict[UUID, ScheduleState]:
+async def states_for(message_ids: list[UUID], session: AsyncSession | None = None) -> dict[UUID, ScheduleState]:
     """Each email's newest schedule, as the dashboard shows it."""
     if not message_ids:
         return {}
     newest = (select(ScheduledSend).where(ScheduledSend.message_id.in_(message_ids))
               .ext(distinct_on(ScheduledSend.message_id))
               .order_by(ScheduledSend.message_id, ScheduledSend.created_at.desc()))
-    async with get_sessionmaker()() as session:
-        rows = (await session.scalars(newest)).all()
+    async with nullcontext(session) if session is not None else get_sessionmaker()() as active:
+        rows = (await active.scalars(newest)).all()
     states = {}
     for row in rows:
         if row.sent_at is None and row.cancelled_reason is None:
