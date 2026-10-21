@@ -213,12 +213,15 @@ class Message(Base):
     # A worker drafting this message holds it until then (migration 0027, app/jobs.py).
     generation_claimed_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     reply_to: Mapped[str | None] = mapped_column(Text)
-    # Hybrid search embedding (migration 0035, gemini-embedding-001 @ 1536 dims).
-    embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM))
-    # Full-text search vector (migration 0035, generated always as stored).
+    # Hybrid search embedding (migration 0035, gemini-embedding-001 @ 1536 dims). Deferred with raiseload:
+    # 1536 floats on every inbox row cost more than the row, and reading it unloaded fails loudly.
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM), deferred=True,
+                                                          deferred_raiseload=True)
+    # Full-text search vector (migration 0035, generated always as stored); only ever used in SQL.
     search_vector: Mapped[str | None] = mapped_column(
         TSVECTOR,
         Computed("to_tsvector('english', coalesce(subject, '') || ' ' || coalesce(body_masked, ''))", persisted=True),
+        deferred=True, deferred_raiseload=True,
     )
 
 
