@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 
 import { useIsDemo } from "../../demo/mode";
 import { BACKEND_URL } from "../api/config";
+import { invalidateInbox, refreshChangedEmails } from "./inboxRefresh";
 import { queryKeys } from "./keys";
 import { useSession } from "./session";
 
@@ -44,7 +45,7 @@ export function useMailboxEvents({ isEnabled }: { isEnabled: boolean }): LiveSta
 }
 
 function openStream(queryClient: QueryClient, setState: (state: LiveState) => void): () => void {
-  const refetch = coalesced(() => invalidateInbox(queryClient), COALESCE_MS);
+  const changes = inboxChanges(queryClient);
   let failures = 0;
   let poll: ReturnType<typeof setInterval> | undefined;
   const stopPolling = () => {
@@ -56,13 +57,13 @@ function openStream(queryClient: QueryClient, setState: (state: LiveState) => vo
     failures = 0;
     stopPolling();
     setState("live");
-    refetch();
+    changes.everything();
   };
   source.onerror = () => {
     failures += 1;
     setState("reconnecting");
     if (failures < FAILURES_BEFORE_POLLING || poll !== undefined) return;
-    poll = setInterval(() => invalidateInbox(queryClient), FALLBACK_POLL_MS);
+    poll = setInterval(() => refetchEverything(queryClient), FALLBACK_POLL_MS);
   };
   source.addEventListener("mailbox", (message) => {
     const event = parseEvent(dataOf(message));
@@ -70,18 +71,47 @@ function openStream(queryClient: QueryClient, setState: (state: LiveState) => vo
     if (event.kind === "draft" && event.messageId !== null) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.email(event.messageId) });
     }
-    refetch();
+    // New mail on a full page 1 always moves its last row, so page 1 alone would be a wasted call.
+    const isWholeInbox = event.kind === "resync" || event.kind === "new";
+    if (isWholeInbox || event.messageId === null) changes.everything();
+    else changes.email(event.messageId);
   });
   return () => {
     source.close();
     stopPolling();
-    refetch.cancel();
+    changes.cancel();
   };
 }
 
-function invalidateInbox(queryClient: QueryClient): void {
-  void queryClient.invalidateQueries({ queryKey: queryKeys.emails });
+function refetchEverything(queryClient: QueryClient): void {
+  void invalidateInbox(queryClient);
   void queryClient.invalidateQueries({ queryKey: queryKeys.todo });
+}
+
+/** One refetch per burst: the emails named in it (page 1 alone when it can), or everything. */
+function inboxChanges(queryClient: QueryClient) {
+  let changedIds = new Set<string>();
+  let isEverything = false;
+  const flush = coalesced(() => {
+    const ids = changedIds;
+    const isFull = isEverything;
+    changedIds = new Set();
+    isEverything = false;
+    if (isFull) return refetchEverything(queryClient);
+    void refreshChangedEmails(queryClient, ids);
+    void queryClient.invalidateQueries({ queryKey: queryKeys.todo });
+  }, COALESCE_MS);
+  return {
+    email: (id: string) => {
+      changedIds.add(id);
+      flush();
+    },
+    everything: () => {
+      isEverything = true;
+      flush();
+    },
+    cancel: flush.cancel,
+  };
 }
 
 function dataOf(message: Event): string | null {

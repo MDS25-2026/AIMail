@@ -146,7 +146,12 @@ Recorded in [`../context/db-schema.md`](../context/db-schema.md).
   (`src/components/`) mounts it once in `__root.tsx` for the paths in `src/lib/liveInbox.ts` (the
   pages inside `AppShell`; a test keeps the two in step) and shares the state through
   `LiveInboxContext`; `AppShell` reads it with `useLiveState` and shows `LiveStatus`.
-- Tests: `backend/tests/test_events.py`, `src/lib/__tests__/useMailboxEvents.test.tsx`,
+- `src/lib/queries/inboxRefresh.ts`: a burst of `draft` and `state` events refetches page 1 alone
+  and swaps it in, when more than one page is loaded, none of the emails is on a later page, and
+  the fresh page 1 still ends on the same row (its `nextCursor` is unchanged). Otherwise the whole
+  list is invalidated, as it always is for `new` (with older pages loaded, page 1 is full, so a new
+  row always moves its edge), `resync`, every (re)open and the fallback poll.
+- Tests: `backend/tests/test_events.py`, `src/lib/__tests__/inboxRefresh.test.tsx`, `src/lib/__tests__/useMailboxEvents.test.tsx`,
   `src/lib/__tests__/liveInbox.test.ts`.
 
 ## Decisions
