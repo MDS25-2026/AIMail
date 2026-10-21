@@ -7,6 +7,7 @@ import { DetailsContext, useDetailValues } from "../lib/detailsContext";
 import { useDetailsHidden } from "../lib/detailsVisibility";
 import { DraftAvailability, draftAvailability } from "../lib/draftAvailability";
 import { StatusColours } from "../lib/preferences";
+import { replyGoesElsewhere } from "../lib/replyTarget";
 import type { DraftWorkflow } from "../lib/useDraftWorkflow";
 import { useFormat } from "../lib/useFormat";
 import { usePreferences } from "../lib/usePreferences";
@@ -58,7 +59,11 @@ export default function SidePanel({ email, workflow, account }: SidePanelProps) 
 
         {isDraftShown ? (
           <footer className="border-t border-line bg-surface p-3">
-            <DraftActionsBar workflow={workflow} isSent={Boolean(email.sentAt)} />
+            <DraftActionsBar
+              workflow={workflow}
+              isSent={Boolean(email.sentAt)}
+              replyElsewhere={replyGoesElsewhere(email.sender, email.replyTo)}
+            />
           </footer>
         ) : null}
       </div>

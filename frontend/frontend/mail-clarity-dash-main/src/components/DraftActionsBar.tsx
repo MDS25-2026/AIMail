@@ -9,9 +9,18 @@ import SendLaterMenu from "./SendLaterMenu";
 import UndoSendBar from "./UndoSendBar";
 import { button } from "./variants";
 
-type DraftActionsBarProps = { workflow: DraftWorkflow; isSent: boolean };
+type DraftActionsBarProps = {
+  workflow: DraftWorkflow;
+  isSent: boolean;
+  /** Where the reply goes when that is not the sender (a Reply-To header), or null. */
+  replyElsewhere?: string | null;
+};
 
-export default function DraftActionsBar({ workflow, isSent }: DraftActionsBarProps) {
+export default function DraftActionsBar({
+  workflow,
+  isSent,
+  replyElsewhere = null,
+}: DraftActionsBarProps) {
   // Every mutation blocks the others: the draft must not change under a send, and a send must
   // not go out mid-change. Sending is the irreversible one, so it is the one guarded hardest.
   const { t } = useTranslation();
@@ -33,6 +42,12 @@ export default function DraftActionsBar({ workflow, isSent }: DraftActionsBarPro
           onChange={workflow.setRemindIfNoReply}
         />
       )}
+      {replyElsewhere && !isSent ? (
+        // A forged Reply-To is how a reply gets diverted; the approver must see it before sending.
+        <p role="note" className="text-right text-xs text-warning">
+          {t("draft.replyGoesTo", { address: replyElsewhere })}
+        </p>
+      ) : null}
       {blanks.length > 0 ? (
         <p role="status" className="text-right text-xs text-warning">
           {t("templates.fillBlanks", { blanks: blanks.join(", "), count: blanks.length })}

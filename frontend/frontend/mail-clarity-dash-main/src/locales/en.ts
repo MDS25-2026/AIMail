@@ -88,6 +88,7 @@ export const en = {
     undoSendingIn_other: "Sending in {{count}} seconds…",
     undo: "Undo",
     approveSend: "Approve & Send",
+    replyGoesTo: "This reply goes to {{address}}, not the sender. Check it is someone you expect.",
     sending: "Sending…",
     sent: "Sent",
   },

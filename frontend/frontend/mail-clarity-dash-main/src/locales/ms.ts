@@ -93,6 +93,8 @@ export const ms: Translations = {
     undoSendingIn_other: "Menghantar dalam {{count}} saat…",
     undo: "Batal",
     approveSend: "Lulus & Hantar",
+    replyGoesTo:
+      "Balasan ini dihantar kepada {{address}}, bukan kepada pengirim. Pastikan ia orang yang anda jangka.",
     sending: "Menghantar…",
     sent: "Dihantar",
   },

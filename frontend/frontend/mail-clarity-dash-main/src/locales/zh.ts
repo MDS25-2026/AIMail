@@ -90,6 +90,7 @@ export const zh: Translations = {
     undoSendingIn_other: "{{count}} 秒后发送…",
     undo: "撤销",
     approveSend: "批准并发送",
+    replyGoesTo: "此回复将发送至 {{address}}，而不是发件人。请确认这是你预期的收件人。",
     sending: "正在发送…",
     sent: "已发送",
   },
