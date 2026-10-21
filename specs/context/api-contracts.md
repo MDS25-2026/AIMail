@@ -355,6 +355,19 @@ See [`../features/rag-retrieval.md`](../features/rag-retrieval.md).
 - Not stored. Rate limited with the other model-spending routes. Only the masked body is sent,
   as plain text (markup stripped). See [`../features/translation.md`](../features/translation.md).
 
+### Live inbox (2026-10-19, `specs/features/live-inbox.md`)
+
+**`GET /events`** — server-sent events for the caller's own mailbox; a hint to refetch, never data.
+- Cookie session only (the service token gets 404: no mailbox). Same `/api` rewrite as every call.
+- Response 200 `text/event-stream`, `Cache-Control: no-store`, `CDN-Cache-Control: no-store`:
+  `retry: 3000`, then `event: mailbox` with `data: {"kind": "new" | "draft" | "state" | "resync",
+  "messageId": string | null}` and an `id:` sequence, and a `: ping` comment every 25 s while quiet.
+- `new`: an email was stored; `draft`: its draft changed; `state`: read, sent, snoozed, dismissed,
+  category, language, sender check or masking changed; `resync`: the backend's listener reopened,
+  refetch everything. Ids only, never content.
+- 429 `rate_limited` past three open streams per user. Not in the generated dashboard types (the
+  body is a stream); the dashboard's `useMailboxEvents` is the only client.
+
 ### Admin console (`/admin`, ADR 0004)
 
 A separate app mounted at `/admin`. The shared bearer token does **not** apply and does not grant

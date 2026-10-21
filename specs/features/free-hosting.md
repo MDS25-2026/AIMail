@@ -53,6 +53,9 @@ Render worker (aimail-listener, Pub/Sub pull) ──► Supabase ◄── Rende
   `VITE_BACKEND_URL=/api` and `AIMAIL_BACKEND_ORIGIN=https://<service>.onrender.com`.
 - **Render:** a Blueprint from `render.yaml`; fill each `sync: false` variable in the dashboard.
 - **Supabase:** add `https://<app>.vercel.app/api/auth/callback` to the redirect URLs.
+- **Supabase, live inbox:** the backend holds one extra session-pooler connection (port 5432, the
+  `DATABASE_URL` host) for LISTEN while any dashboard is open; none when idle. Free plan is enough
+  (`live-inbox.md`).
 - **Laptop:** `make tunnel` starts Presidio, Caddy and the tunnel and prints the address to put in
   Render's `PRESIDIO_ANALYZER_URL`. The address changes on every start.
 - **Keep-awake:** a free external pinger on `https://<service>.onrender.com/healthz` every 10 minutes,

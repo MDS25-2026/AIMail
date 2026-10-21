@@ -195,7 +195,15 @@ leaves the recipient's client ungrouped. Both mechanisms, or it is not threaded.
 > Provisional — confirm exact names/types against JiaJun's Go structs at the sync. Lane A writes via
 > PostgREST (`SUPABASE_SERVICE_KEY`); Lane B reads via asyncpg (`DATABASE_URL`). Same Supabase project.
 
-### Normalised copy (migration 0044, `specs/features/normalisation-v2.md`)
+#### Live inbox (migration 0046, `specs/features/live-inbox.md`)
+
+- `notify_mailbox_change()` and the trigger `trg_notify_mailbox_change` on `messages`: `AFTER INSERT OR
+  UPDATE OF draft_reply, ai_summary, category, language, read_at, sent_at, snoozed_until, dismissed_at,
+  auth_status, masking_status`, raising `pg_notify('mailbox_changed', {user_id, message_id, kind})` with
+  `kind` = `new` | `draft` | `state`. Ids only, never content: the payload is visible to every session
+  on the channel. No table or column; the backend's `GET /events` is the only listener.
+
+## Normalised copy (migration 0044, `specs/features/normalisation-v2.md`)
 
 - `messages.language` (`en`, `ms`, `zh`; NULL until the worker normalises it), `subject_en` and
   `own_text_en`: an English copy of a non-English email's subject and the sender's own text, masked

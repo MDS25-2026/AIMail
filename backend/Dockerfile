@@ -24,4 +24,5 @@ USER aimail
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s CMD python -c "import os, urllib.request; urllib.request.urlopen(f'http://127.0.0.1:{os.environ[\"PORT\"]}/healthz', timeout=2)"
 # exec, so uvicorn is PID 1 and gets the stop signal for a graceful shutdown.
-CMD exec uvicorn "$APP" --host 0.0.0.0 --port "$PORT" --no-access-log
+# The graceful-shutdown cap: an open event stream (GET /events) would otherwise hold the drain open.
+CMD exec uvicorn "$APP" --host 0.0.0.0 --port "$PORT" --no-access-log --timeout-graceful-shutdown 20

@@ -485,6 +485,10 @@ export const en = {
     useAsExample: "Use as an example",
     addedAsExample: "Added to your writing style.",
   },
+  live: {
+    on: "Live",
+    reconnecting: "Reconnecting",
+  },
   reconnect: {
     banner:
       "Google has stopped AIMail's access to your Gmail, so new emails aren't arriving and replies can't be sent. Test access lasts 7 days.",

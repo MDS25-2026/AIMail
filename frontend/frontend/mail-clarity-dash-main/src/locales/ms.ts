@@ -502,6 +502,10 @@ export const ms: Translations = {
     useAsExample: "Guna sebagai contoh",
     addedAsExample: "Ditambah ke gaya penulisan anda.",
   },
+  live: {
+    on: "Langsung",
+    reconnecting: "Menyambung semula",
+  },
   reconnect: {
     banner:
       "Google telah menghentikan akses AIMail ke Gmail anda, jadi e-mel baharu tidak masuk dan balasan tidak boleh dihantar. Akses ujian bertahan 7 hari.",
