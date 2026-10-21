@@ -82,7 +82,7 @@ func TestOCRDisabledWithoutConfig(t *testing.T) {
 	// No model or key configured must be a no-op, not an error: the text body still ingests.
 	t.Setenv("OCR_MODEL", "")
 	t.Setenv("GOOGLE_API_KEY", "")
-	text, err := readRedactedImage(t.Context(), []byte("not really an image"), "image/png")
+	text, err := readRedactedImage(t.Context(), "not really an image", "image/png")
 	if err != nil {
 		t.Fatalf("unconfigured OCR should not error, got %v", err)
 	}

@@ -82,17 +82,16 @@ const (
 
 // Stages name the step that failed.
 const (
-	stageFetch          = "fetch"
-	stageDecode         = "decode"
-	stageReadLocally    = "read_locally"
-	stageDecodeRedacted = "decode_redacted_image"
-	stageOCR            = "ocr"
-	stageMarkCheck      = "mark_check"
-	stageStore          = "store"
-	stageProfile        = "profile"
-	stageWatch          = "watch"
-	stageList           = "list"
-	stageStart          = "start"
+	stageFetch       = "fetch"
+	stageDecode      = "decode"
+	stageReadLocally = "read_locally"
+	stageOCR         = "ocr"
+	stageMarkCheck   = "mark_check"
+	stageStore       = "store"
+	stageProfile     = "profile"
+	stageWatch       = "watch"
+	stageList        = "list"
+	stageStart       = "start"
 )
 
 // Error kinds: an error's text can quote a Gmail reply or an address, so only its kind is kept.

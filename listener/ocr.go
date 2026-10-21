@@ -210,8 +210,9 @@ func readLocally(ctx context.Context, raw []byte, mimeType string) (readerResult
 	return result, nil
 }
 
-// readRedactedImage asks Gemini to transcribe an image that has already been redacted.
-func readRedactedImage(ctx context.Context, redacted []byte, mimeType string) (string, error) {
+// readRedactedImage asks Gemini to transcribe an image that has already been redacted. encoded is
+// standard base64, as the reader returns it and as Gemini takes it, so it is passed through untouched.
+func readRedactedImage(ctx context.Context, encoded, mimeType string) (string, error) {
 	model := getEnvOrDefault("OCR_MODEL", "")
 	key := getEnvOrDefault("GOOGLE_API_KEY", "")
 	if model == "" || key == "" {
@@ -223,7 +224,7 @@ func readRedactedImage(ctx context.Context, redacted []byte, mimeType string) (s
 			map[string]any{"text": ocrPrompt},
 			map[string]any{"inline_data": map[string]string{
 				"mime_type": mimeType,
-				"data":      base64.StdEncoding.EncodeToString(redacted),
+				"data":      encoded,
 			}},
 		}}},
 		"generationConfig": map[string]any{"temperature": 0},
@@ -375,12 +376,7 @@ func appendText(texts []string, text string) []string {
 
 // transcribe OCRs one image the reader has already redacted and cleared.
 func transcribe(ctx context.Context, ref messageRef, encoded, mimeType string) string {
-	redacted, err := base64.StdEncoding.DecodeString(encoded)
-	if err != nil {
-		logOCRFailure(ctx, ref, stageDecodeRedacted, err)
-		return ""
-	}
-	text, err := readRedactedImage(ctx, redacted, mimeType)
+	text, err := readRedactedImage(ctx, encoded, mimeType)
 	if err != nil {
 		logOCRFailure(ctx, ref, stageOCR, err)
 		return ""

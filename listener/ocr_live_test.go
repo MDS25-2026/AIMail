@@ -11,6 +11,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"image"
 	"image/color"
 	"image/png"
@@ -85,7 +86,7 @@ func TestLiveOCRDoesNotNarrateABlankImage(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
-	text, err := readRedactedImage(ctx, testImagePNG(t), "image/png")
+	text, err := readRedactedImage(ctx, base64.StdEncoding.EncodeToString(testImagePNG(t)), "image/png")
 	if err != nil {
 		t.Fatalf("ocr failed: %v", err)
 	}
