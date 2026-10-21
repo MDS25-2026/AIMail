@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 
 import * as audit from "../../lib/api/audit";
 import * as compose from "../../lib/api/compose";
@@ -70,6 +70,11 @@ async function settle<T>(call: Promise<T>): Promise<T> {
   if ("error" in settled) throw settled.error;
   return settled.value;
 }
+
+// The client loads the demo on its first call; loaded here, the fake clock never runs ahead of it.
+beforeAll(async () => {
+  await import("../request");
+});
 
 beforeEach(() => {
   // Demo answers wait like a network call; settle() moves the clock past that wait.

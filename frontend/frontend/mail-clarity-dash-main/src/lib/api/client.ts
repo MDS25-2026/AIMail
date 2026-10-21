@@ -1,5 +1,4 @@
 import { isDemo } from "../../demo/mode";
-import { demoRequest } from "../../demo/request";
 import { BACKEND_URL, SERVICE_STATUS_PATH } from "./config";
 import { ApiError, ApiErrorCode, apiErrorFrom } from "./errors";
 
@@ -92,7 +91,11 @@ async function readBody(res: Response) {
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   // The demo mailbox answers every call itself; nothing reaches the backend (#227). The status page's
   // call is the one exception: public and mailbox-free, so the demo shows the real status, not "down".
-  if (isDemo() && path !== SERVICE_STATUS_PATH) return demoRequest<T>(path, options);
+  if (isDemo() && path !== SERVICE_STATUS_PATH) {
+    // Loaded on first use, so the made-up mailbox is not in every signed-in reader's bundle.
+    const { demoRequest } = await import("../../demo/request");
+    return demoRequest<T>(path, options);
+  }
   const endpoint = `${options.method ?? HttpMethod.Get} ${path.split("?")[0]}`;
   const res = await sendSignedIn(path, options, endpoint);
   if (!res.ok) throw await apiErrorFrom(res, endpoint);

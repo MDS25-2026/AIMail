@@ -56,8 +56,9 @@ function TryDemoButton({ className = "" }: { className?: string }) {
   return (
     <button
       type="button"
-      onClick={() => {
-        start();
+      // Into the inbox only once the demo is on, or its first call would go to the backend signed out.
+      onClick={async () => {
+        await start();
         void navigate({ to: "/" });
       }}
       className={`inline-flex items-center justify-center rounded-md border px-5 py-2.5 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 ${className}`}
