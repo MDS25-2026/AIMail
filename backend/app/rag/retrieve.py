@@ -50,8 +50,10 @@ def cutoff_for(provider: Provider, model: str) -> float:
     return calibration.cutoff
 
 
-async def _gemini_search(masked_email: str, k: int, scope: Scope) -> Select | None:
-    query_vector = await model_gateway.embed_query(masked_email, provider=Provider.GEMINI, purpose=SEARCH)
+async def _gemini_search(masked_email: str, k: int, scope: Scope,
+                         query_vector: list[float] | None = None) -> Select | None:
+    query_vector = query_vector or await model_gateway.embed_query(masked_email, provider=Provider.GEMINI,
+                                                                   purpose=SEARCH)
     if query_vector is None:
         return None
     return _search(Embedding, EMBEDDING_TAG, Embedding.embedding.cosine_distance(query_vector), k, scope)
@@ -85,10 +87,13 @@ def model_tag(provider: Provider) -> str:
     return local_tag() if provider == Provider.LOCAL else EMBEDDING_TAG
 
 
-async def search(masked_email: str, k: int, *, scope: Scope, provider: Provider) -> list[ContextChunk]:
+async def search(masked_email: str, k: int, *, scope: Scope, provider: Provider,
+                 gemini_vector: list[float] | None = None) -> list[ContextChunk]:
     """The top-k most similar chunks, best first, before any cutoff. Only the scope's own documents
-    can ground a draft, so nothing cites another user's files; Private mode searches locally only."""
-    statement = await (_local_search if provider == Provider.LOCAL else _gemini_search)(masked_email, k, scope)
+    can ground a draft, so nothing cites another user's files; Private mode searches locally only.
+    A caller that already embedded the query on Gemini passes gemini_vector, so it is sent once."""
+    statement = (await _local_search(masked_email, k, scope) if provider == Provider.LOCAL
+                 else await _gemini_search(masked_email, k, scope, gemini_vector))
     if statement is None:
         return []
     async with get_sessionmaker()() as session:

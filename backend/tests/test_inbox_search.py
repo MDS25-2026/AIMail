@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 from unittest.mock import MagicMock
 from uuid import uuid4
 
+import pytest
+
 from app import inbox_search
 from app.core.ownership import EVERYTHING
 from app.core.providers import Provider
@@ -167,6 +169,10 @@ def test_the_assistants_earlier_answers_never_go_back_to_the_model(monkeypatch) 
     assert "recent emails?" in prompts[0] and "Aisyah" not in prompts[0] and "Petronas" not in prompts[0]
 
 
+async def _no_vector(*_args, **_kwargs) -> None:
+    return None
+
+
 def test_a_quoted_subject_restores_its_own_emails_person_not_the_first_emails(monkeypatch) -> None:
     first = Message(id=uuid4(), user_id=None, gmail_message_id="g1", subject="Meeting",
                     body_masked="[PERSON_1] asks to meet.", pii_vault=b"v1")
@@ -186,6 +192,7 @@ def test_a_quoted_subject_restores_its_own_emails_person_not_the_first_emails(mo
 
     monkeypatch.setattr(inbox_search, "route_query_intent", email_search)
     monkeypatch.setattr(inbox_search, "search_messages_hybrid", found)
+    monkeypatch.setattr(inbox_search.model_gateway, "embed_query", _no_vector)
     monkeypatch.setattr(inbox_search, "open_vault", lambda _vault, _user, gmail_id: vaults[gmail_id])
     monkeypatch.setattr(inbox_search.model_gateway, "generate", echo_second_subject)
     response = asyncio.run(inbox_search.execute_inbox_search(
@@ -209,9 +216,40 @@ def test_with_details_hidden_the_answer_and_sources_keep_their_placeholders(monk
 
     monkeypatch.setattr(inbox_search, "route_query_intent", email_search)
     monkeypatch.setattr(inbox_search, "search_messages_hybrid", found)
+    monkeypatch.setattr(inbox_search.model_gateway, "embed_query", _no_vector)
     monkeypatch.setattr(inbox_search, "open_vault", lambda *_args: {"[PERSON_1]": "Siti"})
     monkeypatch.setattr(inbox_search.model_gateway, "generate", answer)
     hidden = asyncio.run(inbox_search.execute_inbox_search(
         InboxSearchRequest(query="refunds?", restore=False), scope=EVERYTHING, provider=Provider.GEMINI))
     assert "Siti" not in hidden.answer and "siti@" not in hidden.answer and hidden.sender_vault == {}
     assert hidden.sources[0].title == "Refund for [PERSON_1]" and "siti@" not in hidden.sources[0].subtitle
+
+
+@pytest.mark.parametrize(("provider", "expected_embeds"), [(Provider.GEMINI, 1), (Provider.LOCAL, 0)])
+def test_a_search_of_emails_and_documents_embeds_the_question_once(monkeypatch, provider, expected_embeds) -> None:
+    vector = [0.1, 0.2]
+    embedded, given = [], []
+
+    async def embed(text, **_kwargs):
+        embedded.append(text)
+        return vector
+
+    async def hybrid(*_args, **_kwargs):
+        return inbox_search.QueryIntent.HYBRID
+
+    async def emails(*_args, gemini_vector, **_kwargs):
+        given.append(gemini_vector)
+        return [], []
+
+    async def documents(*_args, gemini_vector, **_kwargs):
+        given.append(gemini_vector)
+        return []
+
+    monkeypatch.setattr(inbox_search, "route_query_intent", hybrid)
+    monkeypatch.setattr(inbox_search.model_gateway, "embed_query", embed)
+    monkeypatch.setattr(inbox_search, "search_messages_hybrid", emails)
+    monkeypatch.setattr(inbox_search, "search_policy_documents", documents)
+    asyncio.run(inbox_search.execute_inbox_search(InboxSearchRequest(query="refunds?"), scope=EVERYTHING,
+                                                  provider=provider))
+    assert len(embedded) == expected_embeds
+    assert given == [vector if expected_embeds else None] * 2

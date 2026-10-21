@@ -540,7 +540,8 @@ def test_a_private_inbox_search_finds_by_words_without_any_model(monkeypatch):
         raise AssertionError("a Private mode inbox search asked a model for a vector")
 
     monkeypatch.setattr(model_gateway, "embed_query", no_model)
-    found, _ = _run(search_messages_hybrid("invoice", 5, scope=Scope(private), provider=Provider.LOCAL, names=TypedNames()))
+    found, _ = _run(search_messages_hybrid("invoice", 5, scope=Scope(private), provider=Provider.LOCAL, names=TypedNames(),
+                                           gemini_vector=None))
     assert [message.user_id for message in found] == [private]
 
 
@@ -680,14 +681,10 @@ def test_someone_elses_reply_cannot_be_followed_up(gmail_and_agent):
     assert _run(dashboard.send_follow_up(str(from_aimail), "Hi", scope=Scope(uuid4()))) is False
 
 
-def test_a_search_across_users_on_gemini_leaves_out_private_mode_users(monkeypatch):
+def test_a_search_across_users_on_gemini_leaves_out_private_mode_users():
     private, cloud = _private_and_cloud_users()
-
-    async def no_vector(*_args, **_kwargs):
-        return []
-
-    monkeypatch.setattr(model_gateway, "embed_query", no_vector)
-    found, _ = _run(search_messages_hybrid("invoice", 20, scope=EVERYTHING, provider=Provider.GEMINI, names=TypedNames()))
+    found, _ = _run(search_messages_hybrid("invoice", 20, scope=EVERYTHING, provider=Provider.GEMINI, names=TypedNames(),
+                                           gemini_vector=None))
     owners = {message.user_id for message in found}
     assert cloud in owners and private not in owners
 
