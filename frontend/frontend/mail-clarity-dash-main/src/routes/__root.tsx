@@ -12,6 +12,7 @@ import { useEffect, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import appCss from "../styles.css?url";
+import LiveInboxProvider from "../components/LiveInboxProvider";
 import PreferencesProvider from "../components/PreferencesProvider";
 import { button } from "../components/variants";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -157,8 +158,10 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
+      <LiveInboxProvider>
+        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+        <Outlet />
+      </LiveInboxProvider>
     </QueryClientProvider>
   );
 }

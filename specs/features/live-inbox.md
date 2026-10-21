@@ -27,7 +27,8 @@ so that I can leave the dashboard open and trust it instead of reloading to chec
 - `GET /events`: server-sent events for the caller's own mailbox, cookie-authenticated through the
   same `/api` rewrite as everything else. A `retry` hint, then `mailbox` events, with a comment line
   every 25 s while quiet.
-- The dashboard opens one stream per tab (`useMailboxEvents`, mounted once in `AppShell`), treats
+- The dashboard opens one stream per tab (`useMailboxEvents`, mounted once at the root by
+  `LiveInboxProvider`, so moving between pages keeps it open; only on the pages inside `AppShell`), treats
   each event as a hint to refetch the inbox and the To-do (coalesced to one refetch per 500 ms), and
   refreshes the open email when its draft lands. A small Live / Reconnecting status in the header.
 - Three drops in a row and the inbox polls every 60 s until the stream is back. Every (re)open
@@ -141,9 +142,12 @@ Recorded in [`../context/db-schema.md`](../context/db-schema.md).
   lifespan. The API still starts no background task on its own: the listener starts with the first
   stream and stops with the last.
 - `src/lib/queries/events.ts`: `useMailboxEvents` (the only file that may import React Query
-  outside `src/lib/queries`), exported through `src/lib/queries/index.ts`. `AppShell` mounts it and
-  shows `LiveStatus`.
-- Tests: `backend/tests/test_events.py`, `src/lib/__tests__/useMailboxEvents.test.tsx`.
+  outside `src/lib/queries`), exported through `src/lib/queries/index.ts`. `LiveInboxProvider`
+  (`src/components/`) mounts it once in `__root.tsx` for the paths in `src/lib/liveInbox.ts` (the
+  pages inside `AppShell`; a test keeps the two in step) and shares the state through
+  `LiveInboxContext`; `AppShell` reads it with `useLiveState` and shows `LiveStatus`.
+- Tests: `backend/tests/test_events.py`, `src/lib/__tests__/useMailboxEvents.test.tsx`,
+  `src/lib/__tests__/liveInbox.test.ts`.
 
 ## Decisions
 
@@ -152,5 +156,9 @@ Recorded in [`../context/db-schema.md`](../context/db-schema.md).
   PostgREST writes and the worker's SQLAlchemy writes both pass. Alternatives: a 30 s poll (a
   baseline request per user forever and still a delay), WebSockets (nothing goes browser to server
   on this channel), Supabase Realtime (anon key and RLS in the browser, paid plan).
+- 2026-10-21: the stream moved from `AppShell` to the root. Rationale: every route renders its own
+  `AppShell`, so each page change closed the stream and the reopen refetched the whole inbox.
+  Alternatives: a pathless layout route (moves every route file), a ref-counted module-level
+  stream (a grace timer to tune, and state outside React).
 - 2026-10-19: the listener connection is opened lazily, not at startup. Rationale: the API's rule
   that it starts no background job holds, and an idle deployment holds no pooler connection.

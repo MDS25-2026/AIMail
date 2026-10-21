@@ -23,11 +23,12 @@ const KINDS = ["new", "draft", "state", "resync"] as const;
 type EventKind = (typeof KINDS)[number];
 type MailboxEvent = { kind: EventKind; messageId: string | null };
 
-export function useMailboxEvents(): LiveState {
+/** isEnabled: the page wants the stream (the app's pages; not sign-in, status or the extension). */
+export function useMailboxEvents({ isEnabled }: { isEnabled: boolean }): LiveState {
   const queryClient = useQueryClient();
   const isDemo = useIsDemo();
   const isSignedIn = useSession().data !== undefined;
-  const isActive = !isDemo && isSignedIn;
+  const isActive = isEnabled && !isDemo && isSignedIn;
   const [state, setState] = useState<LiveState>("off");
   // Reset while rendering, not in the effect: a stream closed by sign-out never shows a stale "Live".
   const [wasActive, setWasActive] = useState(isActive);

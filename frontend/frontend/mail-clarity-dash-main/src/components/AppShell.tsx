@@ -5,7 +5,8 @@ import { useTranslation } from "react-i18next";
 import logoForLight from "../assets/aimail-logo-dark.png";
 import logoForDark from "../assets/aimail-logo-light.png";
 import { SIGN_IN_URL } from "../lib/api/config";
-import { useMailboxEvents, useSession, useSignOut, type LiveState } from "../lib/queries";
+import { useLiveState } from "../lib/liveInbox";
+import { useSession, useSignOut, type LiveState } from "../lib/queries";
 import { cn } from "../lib/utils";
 import { MAIN_CONTENT_ID } from "../lib/useFocusOnNavigate";
 import { useIsReadingEmail } from "../lib/useIsReadingEmail";
@@ -19,8 +20,8 @@ import { button } from "./variants";
 export default function AppShell({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
   const isReadingEmail = useIsReadingEmail();
-  // One stream per tab: the hook lives here, above every route (specs/features/live-inbox.md).
-  const live = useMailboxEvents();
+  // One stream per tab, held at the root (specs/features/live-inbox.md).
+  const live = useLiveState();
   return (
     // relative: the containing block for anything absolutely positioned below (sr-only text),
     // so none of it can position against the page and stretch it past the viewport (#96).

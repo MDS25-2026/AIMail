@@ -69,7 +69,9 @@ afterEach(() => {
 test("opens one stream at the backend with the session cookie, and refetches when it opens", () => {
   const client = signedInClient();
   const invalidate = vi.spyOn(client, "invalidateQueries");
-  const { result } = renderHookWithProviders(() => useMailboxEvents(), { client });
+  const { result } = renderHookWithProviders(() => useMailboxEvents({ isEnabled: true }), {
+    client,
+  });
 
   expect(FakeEventSource.instances).toHaveLength(1);
   const source = FakeEventSource.instances[0];
@@ -85,7 +87,7 @@ test("opens one stream at the backend with the session cookie, and refetches whe
 test("a burst of new-mail events refetches the inbox once", () => {
   const client = signedInClient();
   const invalidate = vi.spyOn(client, "invalidateQueries");
-  renderHookWithProviders(() => useMailboxEvents(), { client });
+  renderHookWithProviders(() => useMailboxEvents({ isEnabled: true }), { client });
   const source = FakeEventSource.instances[0];
 
   act(() => {
@@ -100,7 +102,7 @@ test("a burst of new-mail events refetches the inbox once", () => {
 test("a finished draft also refreshes that email, so the editor fills without polling", () => {
   const client = signedInClient();
   const invalidate = vi.spyOn(client, "invalidateQueries");
-  renderHookWithProviders(() => useMailboxEvents(), { client });
+  renderHookWithProviders(() => useMailboxEvents({ isEnabled: true }), { client });
 
   act(() => {
     FakeEventSource.instances[0].emit(
@@ -115,7 +117,7 @@ test("a finished draft also refreshes that email, so the editor fills without po
 test("an event that is not the backend's shape is ignored", () => {
   const client = signedInClient();
   const invalidate = vi.spyOn(client, "invalidateQueries");
-  renderHookWithProviders(() => useMailboxEvents(), { client });
+  renderHookWithProviders(() => useMailboxEvents({ isEnabled: true }), { client });
 
   act(() => {
     const source = FakeEventSource.instances[0];
@@ -129,7 +131,9 @@ test("an event that is not the backend's shape is ignored", () => {
 test("after three drops the inbox polls every minute until the stream is back", () => {
   const client = signedInClient();
   const invalidate = vi.spyOn(client, "invalidateQueries");
-  const { result } = renderHookWithProviders(() => useMailboxEvents(), { client });
+  const { result } = renderHookWithProviders(() => useMailboxEvents({ isEnabled: true }), {
+    client,
+  });
   const source = FakeEventSource.instances[0];
 
   act(() => {
@@ -147,7 +151,7 @@ test("after three drops the inbox polls every minute until the stream is back", 
 
 test("the demo opens no stream", () => {
   startDemo();
-  const { result } = renderHookWithProviders(() => useMailboxEvents(), {
+  const { result } = renderHookWithProviders(() => useMailboxEvents({ isEnabled: true }), {
     client: signedInClient(),
   });
   expect(FakeEventSource.instances).toHaveLength(0);
@@ -155,12 +159,33 @@ test("the demo opens no stream", () => {
 });
 
 test("a signed-out page opens no stream", () => {
-  renderHookWithProviders(() => useMailboxEvents(), { client: testQueryClient() });
+  renderHookWithProviders(() => useMailboxEvents({ isEnabled: true }), {
+    client: testQueryClient(),
+  });
   expect(FakeEventSource.instances).toHaveLength(0);
 });
 
+test("a page that does not want the stream opens none", () => {
+  const { result } = renderHookWithProviders(() => useMailboxEvents({ isEnabled: false }), {
+    client: signedInClient(),
+  });
+  expect(FakeEventSource.instances).toHaveLength(0);
+  expect(result.current).toBe("off");
+});
+
+test("moving to a page without the stream closes it and shows nothing", () => {
+  const { result, rerender } = renderHookWithProviders(
+    ({ isEnabled }: { isEnabled: boolean }) => useMailboxEvents({ isEnabled }),
+    { client: signedInClient(), initialProps: { isEnabled: true } },
+  );
+  act(() => FakeEventSource.instances[0].onopen?.());
+  rerender({ isEnabled: false });
+  expect(FakeEventSource.instances[0].isClosed).toBe(true);
+  expect(result.current).toBe("off");
+});
+
 test("leaving the page closes the stream", () => {
-  const { unmount } = renderHookWithProviders(() => useMailboxEvents(), {
+  const { unmount } = renderHookWithProviders(() => useMailboxEvents({ isEnabled: true }), {
     client: signedInClient(),
   });
   unmount();
