@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { fireEvent, screen, within } from "@testing-library/react";
-import { expect, test, vi } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 
 import { emailFixture } from "../../test/emailFixture";
 import { renderWithProviders } from "../../test/render";
@@ -88,4 +88,44 @@ test("an empty tab says nothing while older pages may still fill it", () => {
     />,
   );
   expect(screen.queryByText("Nothing from people right now.")).toBeNull();
+});
+
+describe("the unread count in the header (#171)", () => {
+  const people = [
+    emailFixture({ id: "a", threadId: "a", priority: "high", isRead: false }),
+    emailFixture({ id: "b", threadId: "b", priority: "low", isRead: false }),
+    emailFixture({ id: "c", threadId: "c", priority: "low", isRead: true }),
+  ];
+  const header = () =>
+    screen.getByRole("heading", { name: "Inbox" }).nextElementSibling?.textContent;
+
+  function renderInbox(emails = people) {
+    renderWithProviders(
+      <InboxList
+        emails={emails}
+        selectedEmailId={null}
+        onSelectEmail={vi.fn()}
+        view="primary"
+        onViewChange={vi.fn()}
+      />,
+    );
+  }
+
+  test("counts the unread conversations listed", () => {
+    renderInbox();
+    expect(header()).toBe("3 conversations · 2 unread");
+  });
+
+  test("is hidden when nothing listed is unread", () => {
+    renderInbox([people[2]]);
+    expect(header()).toBe("1 conversation");
+  });
+
+  test("follows the priority filter, like the conversation count", () => {
+    renderInbox();
+    fireEvent.change(screen.getByRole("combobox", { name: "Filter by priority" }), {
+      target: { value: "low" },
+    });
+    expect(header()).toBe("2 conversations · 1 unread");
+  });
 });
