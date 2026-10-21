@@ -48,7 +48,8 @@ The sender's UTC offset is read from the `Date` header and stored as
 
 Scanned pages and images are read by the local attachment reader, which returns each page's text and
 a redacted copy. By default only the text is used, masked with the rest of the email, and no scan
-image reaches Gemini. An owner who chooses checked scans (Settings, `user_preferences.scan_reading`)
+image reaches Gemini; the reader is then asked for text only (`return_images=false`) and skips the
+redaction, though its confidence and identity-document gates still apply. An owner who chooses checked scans (Settings, `user_preferences.scan_reading`)
 gets the redacted images sent to Gemini when a local vision model (`LOCAL_VISION_MODEL`, on Ollama)
 finds no signature, face or stamp on them; any doubt keeps the image here and uses its text
 (`marks.go`, `specs/features/signature-detection.md`).

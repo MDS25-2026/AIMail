@@ -38,6 +38,9 @@ const (
 
 	ocrMarker = "\n\n--- text from attachments ---\n"
 
+	// Sent as "false" when the images will not go to Gemini, so the reader skips redacting them.
+	returnImagesField = "return_images"
+
 	pdfMime         = "application/pdf"
 	zipMime         = "application/zip"
 	octetStreamMime = "application/octet-stream"
@@ -169,8 +172,9 @@ type redactedImage struct {
 
 // readLocally sends an attachment to the local reader. An error here must fail the attachment
 // rather than fall through to OCR: sending an unread, unredacted image onward is the one outcome
-// this design exists to prevent. The file name is deliberately not sent; names carry PII.
-func readLocally(ctx context.Context, raw []byte, mimeType string) (readerResult, error) {
+// this design exists to prevent. The file name is deliberately not sent; names carry PII. When
+// cloudRefusal is set the images come back as their text only, which is all transcribeImages uses.
+func readLocally(ctx context.Context, raw []byte, mimeType, cloudRefusal string) (readerResult, error) {
 	url := getEnvOrDefault("ATTACHMENT_READER_URL", "http://localhost:5003/read")
 
 	var body bytes.Buffer
@@ -184,6 +188,11 @@ func readLocally(ctx context.Context, raw []byte, mimeType string) (readerResult
 	}
 	if err := writer.WriteField("mime_type", mimeType); err != nil {
 		return readerResult{}, fmt.Errorf("write field: %w", err)
+	}
+	if cloudRefusal != "" {
+		if err := writer.WriteField(returnImagesField, "false"); err != nil {
+			return readerResult{}, fmt.Errorf("write field: %w", err)
+		}
 	}
 	if err := writer.Close(); err != nil {
 		return readerResult{}, fmt.Errorf("close form: %w", err)
@@ -318,7 +327,7 @@ func readAttachment(ctx context.Context, srv *gmail.Service, ref messageRef, par
 		ref.audit(ctx, actionReadAttachment, auditFields{fieldReason: reasonTypeMismatch, fieldMimeType: part.MimeType}, false)
 		return ""
 	}
-	result, err := readLocally(ctx, raw, mimeType)
+	result, err := readLocally(ctx, raw, mimeType, cloudRefusal)
 	if err != nil {
 		// Not falling through to OCR on purpose: see readLocally's comment.
 		logOCRFailure(ctx, ref, stageReadLocally, err)

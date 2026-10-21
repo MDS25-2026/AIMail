@@ -28,7 +28,7 @@ func requireLiveReader(t *testing.T) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	if _, err := readLocally(ctx, testImagePNG(t), "image/png"); err != nil {
+	if _, err := readLocally(ctx, testImagePNG(t), "image/png", ""); err != nil {
 		t.Skipf("attachment reader unreachable (%v); run docker compose up -d", err)
 	}
 }
@@ -54,7 +54,7 @@ func TestLiveReaderWithholdsAnImageItCouldNotRead(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	result, err := readLocally(ctx, testImagePNG(t), "image/png")
+	result, err := readLocally(ctx, testImagePNG(t), "image/png", "")
 	if err != nil {
 		t.Fatalf("read failed: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestLiveReaderFailureDoesNotFallThroughToOCR(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	if _, err := readLocally(ctx, testImagePNG(t), "image/png"); err == nil {
+	if _, err := readLocally(ctx, testImagePNG(t), "image/png", ""); err == nil {
 		t.Fatal("an unreachable reader must return an error, never an unread attachment")
 	}
 }
@@ -105,7 +105,7 @@ func TestLiveAScanReadLocallyKeepsItsText(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := readLocally(context.Background(), raw, "image/png")
+	result, err := readLocally(context.Background(), raw, "image/png", "")
 	if err != nil {
 		t.Fatal(err)
 	}
