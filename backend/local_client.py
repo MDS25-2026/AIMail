@@ -12,6 +12,7 @@ import time
 import httpx
 
 from app.core.config import get_settings
+from app.core.http_pool import client_for
 from model_runtime import ModelError, ModelErrorCode, record_call, remaining_seconds
 
 DEFAULT_URL = "http://localhost:11434"
@@ -60,8 +61,8 @@ async def _post(model: str, payload: dict) -> dict:
     url = (get_settings().local_llm_url or DEFAULT_URL).rstrip("/") + CHAT_PATH
     started = time.monotonic()
     try:
-        async with httpx.AsyncClient(timeout=_budget(), transport=transport) as client:
-            response = await client.post(url, json=payload)
+        async with client_for(transport) as client:
+            response = await client.post(url, json=payload, timeout=_budget())
             response.raise_for_status()
             body = response.json()
     except (httpx.HTTPError, ValueError) as exc:

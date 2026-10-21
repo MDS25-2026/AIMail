@@ -5,6 +5,7 @@ and dual-grounded Gemini answer synthesis across masked messages and policy docu
 with local AES-GCM vault PII restoration, sender query grounding, and universal source pruning.
 """
 
+import asyncio
 import logging
 import re
 from datetime import datetime
@@ -36,6 +37,7 @@ PURPOSE_QA = "inbox_qa"
 PURPOSE_REFORMULATE = "inbox_reformulate"
 PURPOSE_ROUTE = "inbox_route"
 RRF_K = 60
+DOCUMENT_SIMILARITY_FLOOR = 0.65
 
 QUESTION_STOP_WORDS = frozenset({
     "tell", "me", "about", "any", "emails", "email", "from", "with", "what", "when",
@@ -254,19 +256,13 @@ async def search_messages_hybrid(
     scope: Scope,
     provider: Provider,
     names: TypedNames,
+    gemini_vector: list[float] | None,
 ) -> tuple[list[Message], list[str]]:
     """Retrieve candidate messages using sender matching and vector similarity.
 
-    Returns a tuple of (matched_messages, sender_candidate_words). The query is embedded with its
-    typed names hidden; the word and sender matches run in the database with the names back in.
+    Returns a tuple of (matched_messages, sender_candidate_words). gemini_vector is the query with its
+    typed names hidden (_gemini_vector); the word and sender matches run in the database with the names back in.
     """
-    # Email vectors are Gemini's (migration 0035): Private mode has none, so it matches on words only.
-    query_vector = (
-        await model_gateway.embed_query(search_query, provider=Provider.GEMINI, purpose=PURPOSE_SEARCH)
-        if provider == Provider.GEMINI
-        else None
-    )
-
     search_query = names.restore(search_query)
     # The typed names too: a rewritten follow-up may not carry their placeholders back intact.
     typed = " ".join(names.names.values())
@@ -336,9 +332,9 @@ async def search_messages_hybrid(
 
         # 2. Vector Search with strict relevance threshold (distance <= 0.35 / similarity >= 65%)
         vec_rows: list[Message] = []
-        if query_vector:
+        if gemini_vector:
             try:
-                distance = Message.embedding.cosine_distance(query_vector)
+                distance = Message.embedding.cosine_distance(gemini_vector)
                 vec_stmt = (
                     select(Message)
                     .where(
@@ -396,6 +392,25 @@ def format_received_date(dt: datetime | None) -> str:
     return dt.strftime("%d %b %Y, %I:%M %p")
 
 
+async def _gemini_vector(query: str, provider: Provider) -> list[float] | None:
+    """The query embedded once for both the email and the document search. Email vectors are Gemini's
+    (migration 0035): Private mode has none, and its document search embeds locally."""
+    if provider != Provider.GEMINI:
+        return None
+    return await model_gateway.embed_query(query, provider=Provider.GEMINI, purpose=PURPOSE_SEARCH)
+
+
+async def _matched_documents(query: str, k: int, scope: Scope, provider: Provider,
+                             gemini_vector: list[float] | None) -> list[ContextChunk]:
+    """Policy chunks close enough to cite; a failed lookup leaves the answer to the emails."""
+    try:
+        found = await search_policy_documents(query, k, scope=scope, provider=provider, gemini_vector=gemini_vector)
+    except (SQLAlchemyError, ModelError) as exc:
+        logger.warning("Knowledge base retrieval failed: %s", exc)
+        return []
+    return [d for d in found if d.get("similarity_score", 0.0) >= DOCUMENT_SIMILARITY_FLOOR]
+
+
 async def execute_inbox_search(
     request: InboxSearchRequest,
     *,
@@ -437,65 +452,30 @@ async def execute_inbox_search(
         matched_docs = []
 
     elif intent == QueryIntent.EMAIL_SEARCH:
+        gemini_vector = await _gemini_vector(effective_query, provider)
         matched_emails, sender_candidates = await search_messages_hybrid(
-            effective_query,
-            request.k_emails,
-            scope=scope,
-            provider=provider,
-            names=names,
-        )
+            effective_query, request.k_emails, scope=scope, provider=provider, names=names,
+            gemini_vector=gemini_vector)
         # Safe fallback: if no emails match targeted search, inspect knowledge base before negative short-circuit
         if not matched_emails:
-            try:
-                raw_docs = await search_policy_documents(
-                    effective_query,
-                    request.k_docs,
-                    scope=scope,
-                    provider=provider,
-                )
-                matched_docs = [d for d in raw_docs if d.get("similarity_score", 0.0) >= 0.65]
-            except (SQLAlchemyError, ModelError) as exc:
-                logger.warning("Knowledge base fallback retrieval failed: %s", exc)
+            matched_docs = await _matched_documents(effective_query, request.k_docs, scope, provider, gemini_vector)
 
     elif intent == QueryIntent.POLICY_QA:
-        try:
-            raw_docs = await search_policy_documents(
-                effective_query,
-                request.k_docs,
-                scope=scope,
-                provider=provider,
-            )
-            matched_docs = [d for d in raw_docs if d.get("similarity_score", 0.0) >= 0.65]
-        except (SQLAlchemyError, ModelError) as exc:
-            logger.warning("Knowledge base retrieval failed: %s", exc)
+        gemini_vector = await _gemini_vector(effective_query, provider)
+        matched_docs = await _matched_documents(effective_query, request.k_docs, scope, provider, gemini_vector)
         # Safe fallback: if no docs match, inspect inbox emails before negative short-circuit
         if not matched_docs:
             matched_emails, sender_candidates = await search_messages_hybrid(
-                effective_query,
-                request.k_emails,
-                scope=scope,
-                provider=provider,
-                names=names,
-            )
+                effective_query, request.k_emails, scope=scope, provider=provider, names=names,
+                gemini_vector=gemini_vector)
 
     else:  # HYBRID
-        matched_emails, sender_candidates = await search_messages_hybrid(
-            effective_query,
-            request.k_emails,
-            scope=scope,
-            provider=provider,
-            names=names,
-        )
-        try:
-            raw_docs = await search_policy_documents(
-                effective_query,
-                request.k_docs,
-                scope=scope,
-                provider=provider,
-            )
-            matched_docs = [d for d in raw_docs if d.get("similarity_score", 0.0) >= 0.65]
-        except (SQLAlchemyError, ModelError) as exc:
-            logger.warning("Knowledge base retrieval failed during hybrid search: %s", exc)
+        gemini_vector = await _gemini_vector(effective_query, provider)
+        # Separate sessions, so the two searches can run at once.
+        (matched_emails, sender_candidates), matched_docs = await asyncio.gather(
+            search_messages_hybrid(effective_query, request.k_emails, scope=scope, provider=provider, names=names,
+                                   gemini_vector=gemini_vector),
+            _matched_documents(effective_query, request.k_docs, scope, provider, gemini_vector))
 
     # If no candidates found anywhere upfront
     if not matched_emails and not matched_docs:

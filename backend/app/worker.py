@@ -12,6 +12,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from app import agent_client
+from app.core import http_pool
 from app.core.config import get_settings
 from app.core.constants import (
     EMBED_POLL_SECONDS,
@@ -117,6 +118,7 @@ async def run() -> None:
         asyncio.get_running_loop().add_signal_handler(sig, stop.set)
     await run_until(stop)
     await agent_client.close()
+    await http_pool.close()
 
 
 if __name__ == "__main__":

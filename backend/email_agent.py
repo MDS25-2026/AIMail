@@ -3,8 +3,8 @@ import json
 import logging
 import math
 import re
-from collections.abc import Awaitable, Callable, Iterator
-from contextlib import contextmanager
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
+from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from enum import StrEnum
@@ -35,6 +35,7 @@ from app.agent_contract import (
     TranslateRequest,
     TranslationLanguage,
 )
+from app.core import http_pool
 from app.core.agent_auth import require_agent_token
 from app.core.config import get_settings
 from app.core.draft_text import strip_subject_line
@@ -82,7 +83,14 @@ DRAFT_MAX_TOKENS = 2048
 
 configure_logging()
 
-app = FastAPI()
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    yield
+    await http_pool.close()
+
+
+app = FastAPI(lifespan=_lifespan)
 # Same request id as the backend call that asked for the draft, so both logs line up.
 app.middleware("http")(request_context)
 # Registered last so it runs first: nothing reaches a model without the backend's token.
@@ -485,16 +493,15 @@ async def scan_draft_pii(draft: str) -> list[str]:
     findings = ["REDACTION_PLACEHOLDER"] if has_redaction_marker(draft) else []
     try:
         # Inside the draft's budget, so the dashboard never gives up first and drafts it again.
-        async with httpx.AsyncClient(timeout=max(min(PII_SCAN_TIMEOUT_SECONDS, remaining_seconds()),
-                                                 MIN_PII_SCAN_SECONDS), auth=get_settings().presidio_auth) as client:
-            resp = await client.post(get_settings().presidio_analyzer_url, json={
-                "text": draft, "language": "en",
-                "score_threshold": _PII_SCORE_THRESHOLD,
-                "entities": _PII_ENTITIES,
-                "ad_hoc_recognizers": _AD_HOC_RECOGNIZERS,
-            })
-            resp.raise_for_status()
-            findings += sorted({hit["entity_type"] for hit in resp.json()})
+        resp = await http_pool.shared_client().post(get_settings().presidio_analyzer_url, json={
+            "text": draft, "language": "en",
+            "score_threshold": _PII_SCORE_THRESHOLD,
+            "entities": _PII_ENTITIES,
+            "ad_hoc_recognizers": _AD_HOC_RECOGNIZERS,
+        }, timeout=max(min(PII_SCAN_TIMEOUT_SECONDS, remaining_seconds()), MIN_PII_SCAN_SECONDS),
+            auth=get_settings().presidio_auth)
+        resp.raise_for_status()
+        findings += sorted({hit["entity_type"] for hit in resp.json()})
     except (httpx.HTTPError, KeyError, ValueError):
         findings.append("PRESIDIO_UNAVAILABLE")
     return findings

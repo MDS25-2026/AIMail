@@ -204,7 +204,7 @@ def test_a_translated_template_that_lost_a_variable_is_refused(monkeypatch):
 
 
 def test_the_suggestion_reads_the_owners_templates_most_recent_first(monkeypatch):
-    async def listed(_user_id):
+    async def listed(_user_id, _session=None):
         return [_template(id="recent", trigger_keywords=["invoice"]), _template(id="older")]
 
     monkeypatch.setattr(template_store, "list_templates", listed)

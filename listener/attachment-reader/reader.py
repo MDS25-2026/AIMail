@@ -8,6 +8,8 @@ Runs beside the listener on 127.0.0.1 and never calls out. For each attachment:
   image is not sent on (the owner's choice, or a signature, face or stamp on it). A page with low-confidence words is skipped rather than handed to a
   stronger remote reader that would see what was never masked. Text the OCR never detects at all
   (handwriting, rotated or tiny print) cannot be gated this way: see docs/known-issues.md.
+  With return_images=false (the image would never be sent) the same gates apply, but the page is
+  not redacted and comes back as its text alone.
 """
 
 from __future__ import annotations
@@ -22,6 +24,7 @@ import re
 import time
 import warnings
 import zipfile
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import pypdfium2 as pdfium
@@ -82,6 +85,12 @@ FORMAT_ENTITIES = [
 ID_DOCUMENT_ENTITIES = ["MY_NRIC", "PASSPORT"]
 MAX_REDACTION_PASSES = 3
 
+# The listener sends return_images=false when the owner keeps scans off the cloud, so redacting
+# and encoding the images would only be thrown away.
+RETURN_IMAGES_FIELD = "return_images"
+# png of a page that passed the gates when no image was asked for: listed with its text, no data.
+NOT_REQUESTED = b""
+
 
 def _recognizer(entity: str, regex: str, score: float, context: list[str]) -> PatternRecognizer:
     return PatternRecognizer(
@@ -127,7 +136,7 @@ class Reading:
             "text": "\n\n".join(t for t in self.texts if t.strip()),
             # Each image's local text stands in for it wherever the image is not sent on.
             "images": [{"mime_type": "image/png", "data": base64.b64encode(i.png).decode(), "text": i.text}
-                       for i in self.images if i.png],
+                       for i in self.images if i.png is not None],
             "skipped_pages": self.skipped_pages,
             "pages": self.pages,
             "unread_pages": self.unread_pages,
@@ -225,12 +234,10 @@ class Redactor:
         "Ena:", which NER then tags as a person.
         """
         rgb = image.convert("RGB")
-        text, words = ocr_words(rgb)
-        if not confidently_read(words):
+        trusted = self._trusted_text(rgb)
+        if trusted is None:
             return Scan()
-        if self._findings(text, ID_DOCUMENT_ENTITIES):
-            logger.warning("image reads as an identity document; withheld whole")
-            return Scan()
+        text, words = trusted
         redacted = rgb.copy()
         draw = ImageDraw.Draw(redacted)
         for index in self.words_to_hide(words, text):
@@ -242,10 +249,34 @@ class Redactor:
         redacted.save(buffer, format="PNG")
         return Scan(text=text, png=buffer.getvalue())
 
+    def read_text(self, image: Image.Image) -> Scan:
+        """The page's local text behind the same confidence and identity-document gates, and no image.
 
-def add_image(reading: Reading, redactor: Redactor, image: Image.Image) -> None:
+        The residual-identifier check exists only to stop a redacted image leaving, so it is not run.
+        """
+        trusted = self._trusted_text(image.convert("RGB"))
+        if trusted is None:
+            return Scan()
+        return Scan(text=trusted[0], png=NOT_REQUESTED)
+
+    def _trusted_text(self, rgb: Image.Image) -> tuple[str, list[Word]] | None:
+        """The page's OCR text and words, or None when the page must stay here whole."""
+        text, words = ocr_words(rgb)
+        if not confidently_read(words):
+            return None
+        if self._findings(text, ID_DOCUMENT_ENTITIES):
+            logger.warning("image reads as an identity document; withheld whole")
+            return None
+        return text, words
+
+
+# Redactor.redact, or Redactor.read_text when no image is wanted.
+ScanPage = Callable[[Image.Image], Scan]
+
+
+def add_image(reading: Reading, scan_page: ScanPage, image: Image.Image) -> None:
     reading.pages += 1
-    scan = redactor.redact(image)
+    scan = scan_page(image)
     if scan.png is None:
         reading.skipped_pages += 1
         reading.texts.append(scan.text)
@@ -253,7 +284,7 @@ def add_image(reading: Reading, redactor: Redactor, image: Image.Image) -> None:
     reading.images.append(scan)
 
 
-def read_pdf(data: bytes, redactor: Redactor) -> Reading:
+def read_pdf(data: bytes, scan_page: ScanPage) -> Reading:
     try:
         document = pdfium.PdfDocument(data)
     except pdfium.PdfiumError as error:
@@ -270,7 +301,7 @@ def read_pdf(data: bytes, redactor: Redactor) -> Reading:
             reading.pages += 1
             reading.texts.append(text)
             continue
-        add_image(reading, redactor, page.render(scale=render_scale(*page.get_size())).to_pil())
+        add_image(reading, scan_page, page.render(scale=render_scale(*page.get_size())).to_pil())
     return reading
 
 
@@ -344,26 +375,26 @@ def read_xlsx(data: bytes) -> Reading:
     return Reading(texts=["\n".join(v for v in values if v.strip())], pages=1)
 
 
-def read_image(data: bytes, redactor: Redactor) -> Reading:
+def read_image(data: bytes, scan_page: ScanPage) -> Reading:
     try:
         image = Image.open(io.BytesIO(data))
         image.load()
     except (OSError, Image.DecompressionBombError, Image.DecompressionBombWarning) as error:
         raise ReaderError(f"unreadable image: {error}") from error
     reading = Reading()
-    add_image(reading, redactor, image)
+    add_image(reading, scan_page, image)
     return reading
 
 
-def read_attachment(data: bytes, mime_type: str, redactor: Redactor) -> Reading:
+def read_attachment(data: bytes, mime_type: str, scan_page: ScanPage) -> Reading:
     if mime_type == PDF_MIME:
-        return read_pdf(data, redactor)
+        return read_pdf(data, scan_page)
     if mime_type == DOCX_MIME:
         return read_docx(data)
     if mime_type == XLSX_MIME:
         return read_xlsx(data)
     if mime_type.startswith(IMAGE_PREFIX):
-        return read_image(data, redactor)
+        return read_image(data, scan_page)
     raise ReaderError(f"unsupported type {mime_type}")
 
 
@@ -382,8 +413,11 @@ def create_app(analyzer: AnalyzerEngine | None = None) -> Flask:
         mime_type = request.form.get("mime_type", "")
         if upload is None:
             return jsonify(error="missing file"), 400
+        # Absent, or anything but "false", keeps the redacted images: an older listener sends no field.
+        is_text_only = request.form.get(RETURN_IMAGES_FIELD, "") == "false"
+        scan_page = redactor.read_text if is_text_only else redactor.redact
         try:
-            reading = read_attachment(upload.read(), mime_type, redactor)
+            reading = read_attachment(upload.read(), mime_type, scan_page)
         except ReaderError as error:
             # The reason stays in our log: some carry library exception text we do not control.
             logger.warning("attachment unreadable: %s", error)

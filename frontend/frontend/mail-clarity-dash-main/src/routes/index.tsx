@@ -1,5 +1,5 @@
 import { createFileRoute, useCanGoBack, useNavigate, useRouter } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import InboxList from "../components/InboxList";
@@ -14,6 +14,7 @@ import { useEmail, useEmails, useMarkRead, useMarkUnread, useSession } from "../
 import { useDebouncedValue } from "../lib/useDebouncedValue";
 import { useDraftWorkflow } from "../lib/useDraftWorkflow";
 import { useIsDesktop } from "../lib/useIsDesktop";
+import type { Email } from "../types/email";
 
 // view: the Updates tab (#238); Primary, the default, has none.
 type InboxSearch = { email?: string; view?: "updates" };
@@ -36,6 +37,8 @@ export const Route = createFileRoute("/")({
 
 // The tab's search params; Primary, the default, has none.
 const searchFor = (view: InboxView) => (view === "updates" ? { view: "updates" as const } : {});
+
+const NO_EMAILS: Email[] = [];
 
 // Long enough to skip rows passed with J/K, short enough not to be felt on a click.
 const SELECTION_SETTLE_MS = 150;
@@ -83,31 +86,41 @@ function DashboardPage() {
   const backToInbox = () =>
     canGoBack ? router.history.back() : void navigate({ to: "/", search: searchFor(view) });
 
-  const handleSelectEmail = (id: string) => {
-    setUserSelectedId(id);
-    setKeptUnreadId(null);
-    void navigate({
-      to: "/",
-      search: { email: id, ...searchFor(view) },
-      // On a phone opening an email is a step the back button undoes; on a desktop J/K would
-      // otherwise fill the history with every row passed.
-      replace: isDesktop,
-    });
-  };
+  // Stable, like displayEmails below, so typing in the draft editor never re-renders the list.
+  const handleSelectEmail = useCallback(
+    (id: string) => {
+      setUserSelectedId(id);
+      setKeptUnreadId(null);
+      void navigate({
+        to: "/",
+        search: { email: id, ...searchFor(view) },
+        // On a phone opening an email is a step the back button undoes; on a desktop J/K would
+        // otherwise fill the history with every row passed.
+        replace: isDesktop,
+      });
+    },
+    [navigate, view, isDesktop],
+  );
 
   // A new tab starts on its own first email, never one left open from the other tab.
-  const handleViewChange = (next: InboxView) => {
-    setUserSelectedId(null);
-    setKeptUnreadId(null);
-    void navigate({ to: "/", search: searchFor(next) });
-  };
+  const handleViewChange = useCallback(
+    (next: InboxView) => {
+      setUserSelectedId(null);
+      setKeptUnreadId(null);
+      void navigate({ to: "/", search: searchFor(next) });
+    },
+    [navigate],
+  );
 
   // If an email was opened directly via search/deep-link and is not in the loaded inbox page,
   // include it in the display list so it is highlighted in the list
-  const displayEmails =
-    detail && !emails.data?.some((item) => item.id === detail.id)
-      ? [detail, ...(emails.data ?? [])]
-      : (emails.data ?? []);
+  const displayEmails = useMemo(
+    () =>
+      detail && !emails.data?.some((item) => item.id === detail.id)
+        ? [detail, ...(emails.data ?? [])]
+        : (emails.data ?? NO_EMAILS),
+    [detail, emails.data],
+  );
 
   // The detail call re-runs generation (~15s), so show the list row's copy until it lands.
   const listEmail = displayEmails.find((item) => item.id === selectedEmailId) ?? null;

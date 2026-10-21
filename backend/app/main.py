@@ -41,6 +41,7 @@ from app.contracts import (
     DashboardEmail,
     EmailPage,
 )
+from app.core import http_pool
 from app.core.auth import (
     principal_of,
     require_auth,
@@ -138,6 +139,7 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     yield
     await events.close()
     await agent_client.close()
+    await http_pool.close()
 
 
 _settings = get_settings()

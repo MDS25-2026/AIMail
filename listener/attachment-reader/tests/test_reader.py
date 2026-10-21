@@ -36,8 +36,8 @@ def _png(image: Image.Image) -> bytes:
     return buffer.getvalue()
 
 
-def _read(client, data: bytes, mime_type: str):
-    return client.post("/read", data={"file": (io.BytesIO(data), "a"), "mime_type": mime_type},
+def _read(client, data: bytes, mime_type: str, **fields: str):
+    return client.post("/read", data={"file": (io.BytesIO(data), "a"), "mime_type": mime_type, **fields},
                        content_type="multipart/form-data")
 
 
@@ -245,3 +245,15 @@ def test_an_identity_document_is_withheld_whole(client, lines):
     body = _read(client, _png(_image(lines)), "image/png").get_json()
     assert body["images"] == [] and body["skipped_pages"] == 1 and body["text"] == ""
 
+
+
+def test_without_images_a_page_keeps_its_text_and_sends_no_pixels(client):
+    body = _read(client, _png(_image(INVOICE)), "image/png", return_images="false").get_json()
+    assert [(i["data"], "Aisyah" in i["text"]) for i in body["images"]] == [("", True)]
+    assert body["skipped_pages"] == 0 and body["pages"] == 1
+
+
+@pytest.mark.parametrize("lines", [ID_CARD, PASSPORT_PAGE], ids=["mykad", "passport"])
+def test_without_images_an_identity_document_is_still_withheld_whole(client, lines):
+    body = _read(client, _png(_image(lines)), "image/png", return_images="false").get_json()
+    assert body["images"] == [] and body["skipped_pages"] == 1 and body["text"] == ""

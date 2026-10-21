@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import { groupByThread } from "../lib/conversations";
@@ -33,7 +33,10 @@ type InboxListProps = {
   hasOlder?: boolean;
 };
 
-export default function InboxList({
+// Memoised: the page re-renders on every keystroke in the draft editor, and this list need not.
+export default memo(InboxList);
+
+function InboxList({
   emails,
   selectedEmailId,
   onSelectEmail,
@@ -47,12 +50,16 @@ export default function InboxList({
   const [priority, setPriority] = useState<PriorityFilter>("all");
   const [category, setCategory] = useState<CategoryFilter>("all");
   const [sort, setSort] = useState<InboxSort>("urgent");
-  const all = groupByThread(emails);
-  const conversations = sortConversations(
-    filterByCategory(filterByPriority(filterByView(all, view), priority), category),
-    sort,
+  const all = useMemo(() => groupByThread(emails), [emails]);
+  const conversations = useMemo(
+    () =>
+      sortConversations(
+        filterByCategory(filterByPriority(filterByView(all, view), priority), category),
+        sort,
+      ),
+    [all, view, priority, category, sort],
   );
-  const unreadUpdates = unreadCount(filterByView(all, "updates"));
+  const unreadUpdates = useMemo(() => unreadCount(filterByView(all, "updates")), [all]);
   const isFiltered = priority !== "all" || category !== "all";
 
   useEffect(() => {
@@ -163,7 +170,8 @@ export default function InboxList({
             return (
               <EmailListItem
                 key={email.id}
-                email={{ ...email, isRead }}
+                email={email}
+                isRead={isRead}
                 messageCount={count}
                 selected={isSelected}
                 onSelect={onSelectEmail}

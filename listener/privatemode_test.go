@@ -118,14 +118,18 @@ func TestARefusedImageNeverReachesGeminiAndIsAudited(t *testing.T) {
 	}
 }
 
-// fakeReader stands in for the local attachment reader, returning one redacted image.
-func fakeReader(t *testing.T) {
+// fakeReader stands in for the local attachment reader, returning one redacted image. It records
+// the return_images field each request sent.
+func fakeReader(t *testing.T) *string {
 	t.Helper()
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	var returnImages string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		returnImages = r.FormValue(returnImagesField)
 		w.Write([]byte(`{"text":"","images":[{"mime_type":"image/png","data":"cG5n","text":"Local invoice 7"}],"pages":1}`))
 	}))
 	t.Cleanup(server.Close)
 	t.Setenv("ATTACHMENT_READER_URL", server.URL+"/read")
+	return &returnImages
 }
 
 func TestAnOwnerWhoNeverChoseKeepsScansLocalAndGetsTheirText(t *testing.T) {
@@ -142,7 +146,7 @@ func TestAnOwnerWhoNeverChoseKeepsScansLocalAndGetsTheirText(t *testing.T) {
 
 func TestAPrivateModeOwnersAttachmentImagesStayLocal(t *testing.T) {
 	calls := recordOCRCalls(t)
-	fakeReader(t)
+	returnImages := fakeReader(t)
 	withPreferences(t, http.StatusOK, `[{"draft_provider":"local"}]`)
 	srv := fakeGmail(t, http.StatusOK, `{"data":"iVBORw0KGgoAAAAAAAAAAA=="}`) // a real PNG signature: the bytes are sniffed
 	got := ocrAttachments(context.Background(), srv, messageRef{ownerID: "user-a", msgID: "m1"},
@@ -150,18 +154,24 @@ func TestAPrivateModeOwnersAttachmentImagesStayLocal(t *testing.T) {
 	if *calls != 0 || !strings.Contains(got, "Local invoice 7") {
 		t.Fatalf("a Private mode image reached Gemini or lost its text: %d calls, text %q", *calls, got)
 	}
+	if *returnImages != "false" {
+		t.Fatalf("the reader redacted images that could only be discarded: return_images=%q", *returnImages)
+	}
 }
 
 func TestACheckedScansOwnersClearImagesAreTranscribed(t *testing.T) {
 	answerMarks(t, noMark)
 	calls := recordOCRCalls(t)
-	fakeReader(t)
+	returnImages := fakeReader(t)
 	withPreferences(t, http.StatusOK, `[{"draft_provider":"gemini","scan_reading":"checked"}]`)
 	srv := fakeGmail(t, http.StatusOK, `{"data":"iVBORw0KGgoAAAAAAAAAAA=="}`) // a real PNG signature: the bytes are sniffed
 	got := ocrAttachments(context.Background(), srv, messageRef{ownerID: "user-a", msgID: "m1"},
 		imagePart("image/png", "att-1", 100))
 	if *calls != 1 || !strings.Contains(got, "Invoice 42") {
 		t.Fatalf("want one transcription, got %d calls, text %q", *calls, got)
+	}
+	if *returnImages != "" {
+		t.Fatalf("images bound for Gemini were not asked for: return_images=%q", *returnImages)
 	}
 }
 

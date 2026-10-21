@@ -5,6 +5,7 @@ Skipped unless TEST_DATABASE_URL names a throwaway database with every migration
 """
 
 import asyncio
+import json
 import os
 from datetime import datetime, time, timedelta, timezone
 from uuid import UUID, uuid4
@@ -68,6 +69,8 @@ from app.rag.ingest import store_chunks
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "")
 pytestmark = pytest.mark.skipif(not TEST_DATABASE_URL, reason="set TEST_DATABASE_URL to a throwaway database")
 CONCURRENT_WRITES = 10
+# Long enough for a committed NOTIFY to reach a listener on the same machine.
+NOTICE_WAIT_SECONDS = 0.3
 
 
 @pytest.fixture(autouse=True)
@@ -199,6 +202,25 @@ def test_paging_the_inbox_shows_every_email_once_even_with_equal_timestamps():
 
     seen = _run(scenario())
     assert len(seen) == 5 and len(set(seen)) == 5
+
+
+def test_an_inbox_page_brings_every_email_of_its_threads_and_the_ones_with_no_thread():
+    owner = uuid4()
+    now = datetime.now(timezone.utc)
+
+    async def scenario():
+        async with get_sessionmaker()() as session, session.begin():
+            session.add(UserProfile(id=owner, email=f"{owner}@example.com"))
+        emails = [Message(id=uuid4(), user_id=owner, gmail_message_id=f"thr-{uuid4()}", subject="s", thread_id=thread,
+                          created_at=now - timedelta(minutes=age))
+                  for thread, age in (("T", 1), ("T", 30), (None, 2), (None, 3))]
+        async with get_sessionmaker()() as session, session.begin():
+            session.add_all(emails)
+        page = await list_dashboard_emails(Scope(owner_id=owner), "", 2, None)
+        return {str(email.id) for email in emails[:3]}, [email.id for email in page.emails], page.nextCursor
+
+    expected, listed, after = _run(scenario())
+    assert set(listed) == expected and len(listed) == len(expected) and after is not None
 
 
 def test_the_worker_classifies_an_email_once_and_stores_it():
@@ -423,6 +445,46 @@ def test_the_todo_lists_what_needs_the_reader_and_what_is_still_waiting():
     assert after.needsAction.total == 0 and after.waiting == []
 
 
+def test_a_waiting_reply_opens_the_email_it_answered_and_an_answer_after_it_takes_it_off():
+    owner = uuid4()
+    now = datetime.now(timezone.utc)
+
+    def received(thread: str, days_ago: int) -> Message:
+        return Message(id=uuid4(), user_id=owner, gmail_message_id=f"wr-{uuid4()}", subject="s", thread_id=thread,
+                       masking_status=MaskingStatus.COMPLETE, created_at=now - timedelta(days=days_ago))
+
+    async def scenario():
+        async with get_sessionmaker()() as session, session.begin():
+            session.add(UserProfile(id=owner, email=f"{owner}@example.com"))
+        asked = received("E", 10)
+        async with get_sessionmaker()() as session, session.begin():
+            session.add_all([asked, received("F", 10), received("F", 1)])
+        async with get_sessionmaker()() as session, session.begin():
+            session.add_all([SentMessage(user_id=owner, gmail_id=f"g-{uuid4()}", thread_id=thread,
+                                         sent_at=now - timedelta(days=8), body_masked="Thanks.", remind=True)
+                             for thread in ("E", "F")])
+        return str(asked.id), await todo.todo_for(Scope(owner_id=owner), f"{owner}@example.com")
+
+    asked_id, result = _run(scenario())
+    assert [(w.threadId, w.email.id if w.email else None) for w in result.waiting] == [("E", asked_id)]
+
+
+def test_a_todo_list_counts_every_email_though_it_shows_only_the_newest():
+    owner = uuid4()
+
+    async def scenario():
+        async with get_sessionmaker()() as session, session.begin():
+            session.add(UserProfile(id=owner, email=f"{owner}@example.com"))
+        async with get_sessionmaker()() as session, session.begin():
+            session.add_all([Message(id=uuid4(), user_id=owner, gmail_message_id=f"many-{uuid4()}", subject="s",
+                                     masking_status=MaskingStatus.COMPLETE, auth_status=AuthStatus.PASS,
+                                     action_items=["Pay"]) for _ in range(todo.SECTION_LIMIT + 1)])
+        return await todo.todo_for(Scope(owner_id=owner), f"{owner}@example.com")
+
+    result = _run(scenario())
+    assert (len(result.needsAction.emails), result.needsAction.total) == (todo.SECTION_LIMIT, todo.SECTION_LIMIT + 1)
+
+
 def test_an_email_that_fits_every_todo_list_shows_once_in_the_most_urgent():
     owner = uuid4()
     now = datetime.now(timezone.utc)
@@ -500,7 +562,8 @@ def test_a_private_inbox_search_finds_by_words_without_any_model(monkeypatch):
         raise AssertionError("a Private mode inbox search asked a model for a vector")
 
     monkeypatch.setattr(model_gateway, "embed_query", no_model)
-    found, _ = _run(search_messages_hybrid("invoice", 5, scope=Scope(private), provider=Provider.LOCAL, names=TypedNames()))
+    found, _ = _run(search_messages_hybrid("invoice", 5, scope=Scope(private), provider=Provider.LOCAL, names=TypedNames(),
+                                           gemini_vector=None))
     assert [message.user_id for message in found] == [private]
 
 
@@ -640,14 +703,10 @@ def test_someone_elses_reply_cannot_be_followed_up(gmail_and_agent):
     assert _run(dashboard.send_follow_up(str(from_aimail), "Hi", scope=Scope(uuid4()))) is False
 
 
-def test_a_search_across_users_on_gemini_leaves_out_private_mode_users(monkeypatch):
+def test_a_search_across_users_on_gemini_leaves_out_private_mode_users():
     private, cloud = _private_and_cloud_users()
-
-    async def no_vector(*_args, **_kwargs):
-        return []
-
-    monkeypatch.setattr(model_gateway, "embed_query", no_vector)
-    found, _ = _run(search_messages_hybrid("invoice", 20, scope=EVERYTHING, provider=Provider.GEMINI, names=TypedNames()))
+    found, _ = _run(search_messages_hybrid("invoice", 20, scope=EVERYTHING, provider=Provider.GEMINI, names=TypedNames(),
+                                           gemini_vector=None))
     owners = {message.user_id for message in found}
     assert cloud in owners and private not in owners
 
@@ -1044,3 +1103,22 @@ def test_retention_never_deletes_a_draft_that_may_have_been_sent(composing):
 
     left, claimed = _run(scenario())
     assert left == {claimed}
+
+
+def test_a_change_to_an_email_is_announced_and_writing_the_same_value_back_is_not():
+    async def scenario() -> list[str]:
+        kinds: list[str] = []
+        async with get_engine().connect() as listening:
+            raw = (await listening.get_raw_connection()).driver_connection
+            await raw.add_listener("mailbox_changed", lambda *notice: kinds.append(json.loads(notice[3])["kind"]))
+            message = Message(id=uuid4(), gmail_message_id=f"ev-{uuid4()}", subject="s",
+                              masking_status=MaskingStatus.COMPLETE)
+            async with get_sessionmaker()() as session, session.begin():
+                session.add(message)
+            for read_at in (None, datetime.now(timezone.utc)):
+                async with get_sessionmaker()() as session, session.begin():
+                    await session.execute(update(Message).where(Message.id == message.id).values(read_at=read_at))
+            await asyncio.sleep(NOTICE_WAIT_SECONDS)
+        return kinds
+
+    assert _run(scenario()) == ["new", "state"]

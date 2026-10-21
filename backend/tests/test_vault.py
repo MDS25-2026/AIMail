@@ -45,6 +45,14 @@ def test_without_the_key_nothing_opens(monkeypatch):
         vault.open_vault(sealed, OWNER, "gm-1")
 
 
+def test_a_rotated_key_seals_new_vaults_without_a_restart(monkeypatch):
+    before = vault.keyring()
+    assert vault.keyring() is before  # parsed once while the key stays the same
+    monkeypatch.setenv("PII_VAULT_KEYS", "k2:ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8=")
+    get_settings.cache_clear()
+    assert vault.keyring().primary == "k2"
+
+
 def _thread() -> ThreadMap:
     thread = ThreadMap()
     thread.add_message("first", {"[PERSON_1]": "Aisyah Rahman", "[PHONE_1]": "012-345 6789"},

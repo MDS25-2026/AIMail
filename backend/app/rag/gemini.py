@@ -1,5 +1,7 @@
 """The one place the backend builds a Gemini client, so every call has a deadline and retries."""
 
+from functools import lru_cache
+
 from google import genai
 from google.genai import types
 
@@ -17,7 +19,11 @@ _RETRY = types.HttpRetryOptions(
 
 
 def gemini_client() -> genai.Client:
-    return genai.Client(
-        api_key=get_settings().google_api_key,
-        http_options=types.HttpOptions(timeout=REQUEST_TIMEOUT_MS, retry_options=_RETRY),
-    )
+    return _client_for(get_settings().google_api_key)
+
+
+@lru_cache
+def _client_for(api_key: str) -> genai.Client:
+    """One client, and its connection pool, per key: a changed key gets a new one without a restart."""
+    return genai.Client(api_key=api_key,
+                        http_options=types.HttpOptions(timeout=REQUEST_TIMEOUT_MS, retry_options=_RETRY))

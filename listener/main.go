@@ -43,7 +43,29 @@ var (
 // #86: http.DefaultClient has no deadline, so a hung PostgREST connection blocked the receive
 // callback forever. DNS here resolves through Tailscale, which makes that a routine failure
 // rather than a theoretical one.
-var supabaseClient = &http.Client{Timeout: supabaseTimeout()}
+var supabaseClient = &http.Client{Timeout: supabaseTimeout(), Transport: pooledTransport}
+
+// The default transport keeps two idle connections a host, so concurrent notifications opened a new
+// TLS connection to Supabase or Presidio for most requests.
+const maxIdleConnsPerHost = 16
+
+// maxDrainBytes bounds how much of an unread reply is discarded so its connection can be reused.
+const maxDrainBytes = 64 << 10
+
+var pooledTransport = newPooledTransport()
+
+func newPooledTransport() *http.Transport {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.MaxIdleConnsPerHost = maxIdleConnsPerHost
+	return transport
+}
+
+// drainAndClose reads what is left of a reply before closing it: a body closed unread closes its
+// connection too. A drain error only costs that reuse, so it is not reported.
+func drainAndClose(body io.ReadCloser) {
+	_, _ = io.Copy(io.Discard, io.LimitReader(body, maxDrainBytes))
+	body.Close()
+}
 
 func supabaseTimeout() time.Duration {
 	seconds, err := strconv.Atoi(getEnvOrDefault("SUPABASE_TIMEOUT_SECONDS", "10"))
@@ -152,7 +174,7 @@ func withoutQuery(link string) string {
 
 // presidioClient bounds each call so a hung container can't block the webhook handler.
 // Package-level (not http.DefaultClient) to avoid mutating shared global client state.
-var presidioClient = &http.Client{Timeout: 5 * time.Second}
+var presidioClient = &http.Client{Timeout: 5 * time.Second, Transport: pooledTransport}
 
 type presidioPattern struct {
 	Name  string  `json:"name"`
@@ -169,11 +191,11 @@ type presidioRecognizer struct {
 }
 
 type presidioAnalyzeRequest struct {
-	Text             string               `json:"text"`
-	Language         string               `json:"language"`
-	ScoreThreshold   float64              `json:"score_threshold"`
-	Entities         []string             `json:"entities,omitempty"`
-	AdHocRecognizers []presidioRecognizer `json:"ad_hoc_recognizers,omitempty"`
+	Text             string          `json:"text"`
+	Language         string          `json:"language"`
+	ScoreThreshold   float64         `json:"score_threshold"`
+	Entities         []string        `json:"entities,omitempty"`
+	AdHocRecognizers json.RawMessage `json:"ad_hoc_recognizers,omitempty"`
 }
 
 type presidioResult struct {
@@ -221,6 +243,17 @@ var localeRecognizers = []presidioRecognizer{
 		Patterns: []presidioPattern{{Name: "my_plate", Regex: `(?<![\w/.:=-])(?-i:[A-Z]{1,3} ?\d{1,4}(?: ?[A-Z])?)(?![\w/-])`, Score: 0.4}},
 		Context:  []string{"plate", "kereta", "vehicle", "kenderaan", "jpj", "motorcycle", "motosikal", "lorry"},
 	},
+}
+
+// adHocRecognizers is marshalled once: the recognizers never change, and every NER call sends them.
+var adHocRecognizers = mustMarshal(append(append([]presidioRecognizer{}, localeRecognizers...), nameRecognizers...))
+
+func mustMarshal(value any) json.RawMessage {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		panic(fmt.Sprintf("marshal static value: %v", err))
+	}
+	return encoded
 }
 
 // allowedLocations are place names kept in the text rather than redacted. A country or state in
@@ -295,7 +328,7 @@ func maskWithPresidio(ctx context.Context, text string, v *detailVault) (string,
 		// cannot fire on an invoice or order number that merely looks card- or IBAN-shaped. SWIFT/BIC
 		// is left out on purpose: it names a bank, which is public, not a person.
 		Entities:         []string{"PERSON", "LOCATION", "ORGANIZATION", "ACCOUNT_NUMBER", "CREDIT_CARD", "IBAN_CODE", "PHONE_NUMBER", "EMAIL_ADDRESS", "MY_POSTCODE", "VEHICLE_PLATE"},
-		AdHocRecognizers: append(append([]presidioRecognizer{}, localeRecognizers...), nameRecognizers...),
+		AdHocRecognizers: adHocRecognizers,
 	})
 	if err != nil {
 		return "", fmt.Errorf("marshal analyze request: %w", err)
@@ -469,7 +502,7 @@ func presidioPost(ctx context.Context, url string, payload []byte) ([]byte, erro
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer drainAndClose(resp.Body)
 	if resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("status %d", resp.StatusCode)
 	}
@@ -548,7 +581,7 @@ func supabaseInsert(ctx context.Context, table string, row interface{}, onConfli
 	if err != nil {
 		return fmt.Errorf("do request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer drainAndClose(resp.Body)
 
 	if resp.StatusCode >= 300 {
 		return fmt.Errorf("supabase insert into %s failed: status %d", table, resp.StatusCode)
@@ -693,6 +726,10 @@ func ingestHistory(ctx context.Context, mb *mailbox, historyID uint64) error {
 		// baseline advance from here.
 		return catchUpThenAdvance(ctx, mb, historyID)
 	}
+	if historyID <= start {
+		// A newer notification already listed this range while this one waited for the lock.
+		return nil
+	}
 
 	call := mb.srv.Users.History.List("me").StartHistoryId(start).HistoryTypes("messageAdded").LabelId("INBOX")
 	var ids []string
@@ -731,8 +768,9 @@ func ingestHistory(ctx context.Context, mb *mailbox, historyID uint64) error {
 // ingestEach stores each message in order. A permanent failure is recorded and skipped; any other
 // stops the run, so the caller's retry lists the range again (stored messages are skipped then).
 func ingestEach(ctx context.Context, mb *mailbox, ids []string) error {
-	for _, msgID := range ids {
-		err := ingestMessage(ctx, mb, msgID)
+	fresh, ingest := newMessages(ctx, mb, ids)
+	for _, msgID := range fresh {
+		err := ingest(ctx, mb, msgID)
 		if isPermanentIngestFailure(err) {
 			// Retrying cannot help (deleted before the fetch, or a row the database refuses), and
 			// failing the range would hold every newer message behind this one.
@@ -742,7 +780,7 @@ func ingestEach(ctx context.Context, mb *mailbox, ids []string) error {
 		}
 		if err != nil {
 			// The baseline stays put, so the redelivery lists this range again and retries the
-			// message; the ones already stored are skipped by messageStored.
+			// message; the ones already stored are skipped by newMessages.
 			return fmt.Errorf("message %s: %w", msgID, err)
 		}
 	}
@@ -809,7 +847,11 @@ func ingestMessage(ctx context.Context, mb *mailbox, msgID string) error {
 	if isStored {
 		return nil
 	}
+	return ingestUnstored(ctx, mb, msgID)
+}
 
+// ingestUnstored is ingestMessage for an id already looked up and found missing.
+func ingestUnstored(ctx context.Context, mb *mailbox, msgID string) error {
 	ref := messageRef{ownerID: mb.ownerID, msgID: msgID}
 	msg, err := fetchMessage(ctx, mb.srv, ref)
 	if err != nil {

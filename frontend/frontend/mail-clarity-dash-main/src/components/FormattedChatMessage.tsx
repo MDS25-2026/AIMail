@@ -1,3 +1,5 @@
+import { memo } from "react";
+
 import { parseInlineTokens } from "../lib/parseMarkdown";
 
 type FormattedChatMessageProps = {
@@ -19,12 +21,15 @@ type Block =
   | { type: "quote"; content: string }
   | { type: "code"; code: string };
 
+// Memoised: every keystroke in the chat input renders the widget; no need to re-parse each answer.
+export default memo(FormattedChatMessage);
+
 /**
  * Structured markdown renderer for AI assistant messages.
  * Formats lists, key metrics, bold emphasis, and code blocks cleanly
  * without raw markdown syntax leaks (such as asterisks or dashes).
  */
-export default function FormattedChatMessage({ content, className }: FormattedChatMessageProps) {
+function FormattedChatMessage({ content, className }: FormattedChatMessageProps) {
   const lines = content.replace(/\r\n/g, "\n").split("\n");
   const blocks: Block[] = [];
 

@@ -8,7 +8,7 @@ reads as missing (404), never as forbidden, so an id reveals nothing about what 
 import asyncio
 import time
 from dataclasses import dataclass
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import jwt
 import pytest
@@ -285,3 +285,9 @@ def test_the_thread_lookup_takes_the_newest_message_the_caller_owns(captured):
     assert "messages.thread_id = '1a10b0c2d3e4f5a6'" in sql
     assert f"messages.user_id = '{ALICE}'" in sql
     assert "ORDER BY messages.received_at DESC NULLS LAST" in sql
+
+
+def test_only_a_key_written_as_postgres_writes_an_id_can_name_an_email_with_no_thread():
+    pk = uuid4()
+    keys = [str(pk), str(pk).upper(), "18c2f0a9d3b4e5f6", ""]
+    assert dashboard._message_ids(keys) == [pk]

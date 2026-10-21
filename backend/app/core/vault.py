@@ -13,6 +13,7 @@ import logging
 import re
 from dataclasses import dataclass, field
 from enum import StrEnum
+from functools import lru_cache
 from uuid import UUID
 
 from app.core import sealed_box
@@ -66,9 +67,15 @@ def _aad(owner_id: UUID | None, gmail_message_id: str) -> bytes:
 def keyring() -> sealed_box.Keyring:
     settings = get_settings()
     try:
-        return sealed_box.parse_keyring(settings.pii_vault_keys, settings.pii_vault_key, SETTINGS)
+        return _parsed_keyring(settings.pii_vault_keys, settings.pii_vault_key)
     except sealed_box.SealKeyError as exc:
         raise VaultUnavailableError(str(exc)) from exc
+
+
+@lru_cache
+def _parsed_keyring(ring: str, legacy: str) -> sealed_box.Keyring:
+    """Keyed by the settings' values, so a rotated key is picked up; a bad one raises every time."""
+    return sealed_box.parse_keyring(ring, legacy, SETTINGS)
 
 
 def seal_vault(details: dict[str, str], owner_id: UUID | None, gmail_message_id: str) -> bytes:

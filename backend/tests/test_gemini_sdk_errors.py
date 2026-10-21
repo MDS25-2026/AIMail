@@ -6,8 +6,9 @@ import pytest
 from google.genai import errors
 
 import model_gateway
+from app.core.config import get_settings
 from app.core.providers import Provider
-from app.rag import embed, generate, reformulate
+from app.rag import embed, gemini, generate, reformulate
 from model_runtime import ModelError, ModelErrorCode
 
 
@@ -44,3 +45,11 @@ def test_a_failed_answer_raises_the_shared_model_error(rate_limited):
 
 def test_rate_limited_reformulation_falls_back_to_the_question(rate_limited):
     assert asyncio.run(reformulate.reformulate("leave days?", provider=Provider.GEMINI)) == "leave days?"
+
+
+def test_embedding_calls_share_one_gemini_client_until_the_key_changes(test_settings, monkeypatch):
+    first = gemini.gemini_client()
+    assert gemini.gemini_client() is first
+    monkeypatch.setenv("GOOGLE_API_KEY", "another-unused-key")
+    get_settings.cache_clear()
+    assert gemini.gemini_client() is not first

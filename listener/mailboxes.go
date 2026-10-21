@@ -73,6 +73,28 @@ func clearFailure(userID string) {
 	delete(startFailures.last, userID)
 }
 
+// refusedTokens holds, per user, the sealed token Google refused here with invalid_grant. Keyed on
+// the token and not only on needs_reconnect: a send in flight with the old token can set the flag
+// after the user signed in again, and the flag alone would then never start the new one.
+var refusedTokens = struct {
+	sync.Mutex
+	sealed map[string]string
+}{sealed: map[string]string{}}
+
+func rememberRefused(row connectionRow) {
+	refusedTokens.Lock()
+	defer refusedTokens.Unlock()
+	refusedTokens.sealed[row.UserID] = row.Sealed
+}
+
+// isKnownRefused is a connection still waiting on the user to sign in again: retrying it every
+// sync cannot succeed, and only cost a token request to Google each time.
+func isKnownRefused(row connectionRow) bool {
+	refusedTokens.Lock()
+	defer refusedTokens.Unlock()
+	return row.NeedsReconnect && refusedTokens.sealed[row.UserID] == row.Sealed
+}
+
 var registry = struct {
 	sync.RWMutex
 	byEmail map[string]*mailbox
@@ -118,6 +140,8 @@ type connectionRow struct {
 	Email     string  `json:"email"`
 	Sealed    string  `json:"refresh_token_encrypted"`
 	HistoryID *uint64 `json:"history_id"`
+	// Set when Google refused the token; signing in again stores a new token and clears it.
+	NeedsReconnect bool `json:"needs_reconnect"`
 }
 
 var errNotHexBytea = errors.New(`bytea column is not in PostgREST's \x hex form`)
@@ -132,7 +156,7 @@ func decodeBytea(text string) ([]byte, error) {
 
 func loadConnections(ctx context.Context) ([]connectionRow, error) {
 	body, err := supabaseGet(ctx, "mailbox_connection",
-		"select=user_id,email,refresh_token_encrypted,history_id&provider=eq.gmail")
+		"select=user_id,email,refresh_token_encrypted,history_id,needs_reconnect&provider=eq.gmail")
 	if err != nil {
 		return nil, err
 	}
@@ -179,8 +203,8 @@ func connectionService(ctx context.Context, row connectionRow) (*gmail.Service, 
 }
 
 // syncConnections starts ingesting every connection not yet registered. A connection that cannot
-// be used (revoked, unreadable, watch refused) is logged and retried next sync; it never stops the
-// others.
+// be used (unreadable, watch refused) is logged and retried next sync; it never stops the others.
+// One whose token Google refused waits for a new token instead (isKnownRefused).
 func syncConnections(ctx context.Context) {
 	rows, err := loadConnections(ctx)
 	if err != nil {
@@ -189,7 +213,7 @@ func syncConnections(ctx context.Context) {
 	}
 	dropDisconnected(ctx, rows)
 	for _, row := range rows {
-		if isRunning(row) {
+		if isRunning(row) || isKnownRefused(row) {
 			continue
 		}
 		err := startConnection(ctx, row)
@@ -197,8 +221,11 @@ func syncConnections(ctx context.Context) {
 			clearFailure(row.UserID)
 			continue
 		}
+		if isRefusedGrant(err) {
+			rememberRefused(row)
+		}
 		if isNewFailure(row.UserID, err) {
-			log.Printf("mailbox for user %s not started, retrying every sync: %v", row.UserID, err)
+			log.Printf("mailbox for user %s not started: %v", row.UserID, err)
 			writeAuditLog(ctx, row.UserID, actionStartMailbox,
 				auditFields{fieldStage: stageStart, fieldErrorKind: errorKind(err)}, false)
 			noteRefusedGrant(ctx, row.UserID, err)
@@ -313,8 +340,13 @@ func seedInbox(ctx context.Context, mb *mailbox) {
 		log.Printf("could not list the first emails for user %s: %v", mb.ownerID, err)
 		return
 	}
-	for _, m := range list.Messages {
-		if err := ingestMessage(ctx, mb, m.Id); err != nil {
+	ids := make([]string, len(list.Messages))
+	for i, m := range list.Messages {
+		ids[i] = m.Id
+	}
+	fresh, ingest := newMessages(ctx, mb, ids)
+	for _, msgID := range fresh {
+		if err := ingest(ctx, mb, msgID); err != nil {
 			log.Printf("seeding user %s: %v", mb.ownerID, err)
 		}
 	}

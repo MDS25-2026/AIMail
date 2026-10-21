@@ -1,9 +1,11 @@
 """Saved reply templates in the database (specs/features/reply-templates.md). Personal only."""
 
+from contextlib import nullcontext
 from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy import delete, func, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.constants import MAX_TEMPLATES
 from app.core.errors import DomainError, ErrorCode
@@ -16,9 +18,9 @@ from app.templates import matching_template_id
 _ORDER = (ReplyTemplate.last_used_at.desc().nulls_last(), ReplyTemplate.updated_at.desc())
 
 
-async def list_templates(user_id: UUID) -> list[ReplyTemplate]:
-    async with get_sessionmaker()() as session:
-        return list((await session.scalars(
+async def list_templates(user_id: UUID, session: AsyncSession | None = None) -> list[ReplyTemplate]:
+    async with nullcontext(session) if session is not None else get_sessionmaker()() as active:
+        return list((await active.scalars(
             select(ReplyTemplate).where(ReplyTemplate.user_id == user_id).order_by(*_ORDER))).all())
 
 
@@ -64,10 +66,10 @@ async def mark_used(template_id: UUID) -> None:
                               .values(last_used_at=datetime.now(timezone.utc)))
 
 
-async def suggested_template_id(user_id: UUID | None, text: str) -> str | None:
+async def suggested_template_id(user_id: UUID | None, text: str, session: AsyncSession | None = None) -> str | None:
     """The template to offer for an email: same language, a trigger word in it, most recent first."""
     if user_id is None:
         return None
-    templates = await list_templates(user_id)
+    templates = await list_templates(user_id, session)
     candidates = [(str(t.id), t.language, t.trigger_keywords or []) for t in templates]
     return matching_template_id(candidates, detect_language(text), text)

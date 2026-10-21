@@ -38,6 +38,9 @@ const (
 
 	ocrMarker = "\n\n--- text from attachments ---\n"
 
+	// Sent as "false" when the images will not go to Gemini, so the reader skips redacting them.
+	returnImagesField = "return_images"
+
 	pdfMime         = "application/pdf"
 	zipMime         = "application/zip"
 	octetStreamMime = "application/octet-stream"
@@ -49,8 +52,8 @@ const (
 // stuck call cannot hold the Pub/Sub receive callback open (the same failure as #86). The reader
 // runs two local OCR passes per scanned page, up to its 20-page cap.
 var (
-	readerClient = &http.Client{Timeout: 180 * time.Second}
-	ocrClient    = &http.Client{Timeout: 90 * time.Second}
+	readerClient = &http.Client{Timeout: 180 * time.Second, Transport: pooledTransport}
+	ocrClient    = &http.Client{Timeout: 90 * time.Second, Transport: pooledTransport}
 )
 
 // readerResult is the attachment reader's reply: local text, and redacted images that passed both
@@ -169,8 +172,9 @@ type redactedImage struct {
 
 // readLocally sends an attachment to the local reader. An error here must fail the attachment
 // rather than fall through to OCR: sending an unread, unredacted image onward is the one outcome
-// this design exists to prevent. The file name is deliberately not sent; names carry PII.
-func readLocally(ctx context.Context, raw []byte, mimeType string) (readerResult, error) {
+// this design exists to prevent. The file name is deliberately not sent; names carry PII. When
+// cloudRefusal is set the images come back as their text only, which is all transcribeImages uses.
+func readLocally(ctx context.Context, raw []byte, mimeType, cloudRefusal string) (readerResult, error) {
 	url := getEnvOrDefault("ATTACHMENT_READER_URL", "http://localhost:5003/read")
 
 	var body bytes.Buffer
@@ -184,6 +188,11 @@ func readLocally(ctx context.Context, raw []byte, mimeType string) (readerResult
 	}
 	if err := writer.WriteField("mime_type", mimeType); err != nil {
 		return readerResult{}, fmt.Errorf("write field: %w", err)
+	}
+	if cloudRefusal != "" {
+		if err := writer.WriteField(returnImagesField, "false"); err != nil {
+			return readerResult{}, fmt.Errorf("write field: %w", err)
+		}
 	}
 	if err := writer.Close(); err != nil {
 		return readerResult{}, fmt.Errorf("close form: %w", err)
@@ -199,7 +208,7 @@ func readLocally(ctx context.Context, raw []byte, mimeType string) (readerResult
 	if err != nil {
 		return readerResult{}, fmt.Errorf("attachment reader unreachable: %w", err)
 	}
-	defer resp.Body.Close()
+	defer drainAndClose(resp.Body)
 	if resp.StatusCode >= 300 {
 		return readerResult{}, fmt.Errorf("attachment reader returned %d", resp.StatusCode)
 	}
@@ -210,8 +219,9 @@ func readLocally(ctx context.Context, raw []byte, mimeType string) (readerResult
 	return result, nil
 }
 
-// readRedactedImage asks Gemini to transcribe an image that has already been redacted.
-func readRedactedImage(ctx context.Context, redacted []byte, mimeType string) (string, error) {
+// readRedactedImage asks Gemini to transcribe an image that has already been redacted. encoded is
+// standard base64, as the reader returns it and as Gemini takes it, so it is passed through untouched.
+func readRedactedImage(ctx context.Context, encoded, mimeType string) (string, error) {
 	model := getEnvOrDefault("OCR_MODEL", "")
 	key := getEnvOrDefault("GOOGLE_API_KEY", "")
 	if model == "" || key == "" {
@@ -223,7 +233,7 @@ func readRedactedImage(ctx context.Context, redacted []byte, mimeType string) (s
 			map[string]any{"text": ocrPrompt},
 			map[string]any{"inline_data": map[string]string{
 				"mime_type": mimeType,
-				"data":      base64.StdEncoding.EncodeToString(redacted),
+				"data":      encoded,
 			}},
 		}}},
 		"generationConfig": map[string]any{"temperature": 0},
@@ -244,7 +254,7 @@ func readRedactedImage(ctx context.Context, redacted []byte, mimeType string) (s
 	if err != nil {
 		return "", fmt.Errorf("ocr request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer drainAndClose(resp.Body)
 	if resp.StatusCode >= 300 {
 		return "", fmt.Errorf("ocr returned %d", resp.StatusCode)
 	}
@@ -317,7 +327,7 @@ func readAttachment(ctx context.Context, srv *gmail.Service, ref messageRef, par
 		ref.audit(ctx, actionReadAttachment, auditFields{fieldReason: reasonTypeMismatch, fieldMimeType: part.MimeType}, false)
 		return ""
 	}
-	result, err := readLocally(ctx, raw, mimeType)
+	result, err := readLocally(ctx, raw, mimeType, cloudRefusal)
 	if err != nil {
 		// Not falling through to OCR on purpose: see readLocally's comment.
 		logOCRFailure(ctx, ref, stageReadLocally, err)
@@ -375,12 +385,7 @@ func appendText(texts []string, text string) []string {
 
 // transcribe OCRs one image the reader has already redacted and cleared.
 func transcribe(ctx context.Context, ref messageRef, encoded, mimeType string) string {
-	redacted, err := base64.StdEncoding.DecodeString(encoded)
-	if err != nil {
-		logOCRFailure(ctx, ref, stageDecodeRedacted, err)
-		return ""
-	}
-	text, err := readRedactedImage(ctx, redacted, mimeType)
+	text, err := readRedactedImage(ctx, encoded, mimeType)
 	if err != nil {
 		logOCRFailure(ctx, ref, stageOCR, err)
 		return ""

@@ -10,11 +10,12 @@ import EmailListItem from "../EmailListItem";
 
 const { t } = createI18n(Language.English);
 
-const row = (isAnswered: boolean) =>
+const row = (isAnswered: boolean, isRead = true) =>
   renderWithProviders(
     <ul>
       <EmailListItem
-        email={emailFixture({ isAnswered })}
+        email={emailFixture({ isAnswered, isRead: true })}
+        isRead={isRead}
         selected={false}
         onSelect={() => undefined}
       />
@@ -29,4 +30,9 @@ test("an answered conversation says you replied", () => {
 test("one still waiting on you says nothing about replying", () => {
   row(false);
   expect(screen.queryByText(t("inbox.youReplied"))).toBeNull();
+});
+
+test("the conversation's unread state shows, even when its newest email was read", () => {
+  row(false, false);
+  expect(screen.getByText(t("inbox.unread"), { exact: false })).toBeTruthy();
 });

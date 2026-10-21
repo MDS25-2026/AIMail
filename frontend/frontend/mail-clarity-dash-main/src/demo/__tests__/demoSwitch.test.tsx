@@ -7,7 +7,7 @@ import { renderHookWithProviders } from "../../test/render";
 import { leaveDemo } from "../mode";
 import { record, state } from "../state";
 
-test("each start of the demo is a fresh mailbox, whatever the last visitor did (#236 review)", () => {
+test("each start of the demo is a fresh mailbox, whatever the last visitor did (#236 review)", async () => {
   const { result } = renderHookWithProviders(() => useDemoSwitch());
   // The last visitor dismissed an email, pretend-sent one and left a row in the audit trail.
   state.dismissed.set("demo-meeting", new Date().toISOString());
@@ -16,7 +16,7 @@ test("each start of the demo is a fresh mailbox, whatever the last visitor did (
   record("approve_and_send", { message: state.emails[0].id });
 
   act(() => result.current.leave());
-  act(() => result.current.start());
+  await act(() => result.current.start());
 
   expect(state.dismissed.size).toBe(0);
   expect(state.emails[0].sentAt ?? null).toBeNull();
