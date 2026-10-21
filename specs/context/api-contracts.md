@@ -163,6 +163,12 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   /emails/{id}/unread` (`204`, `404` when not the caller's) clears `read_at`. `GET /emails/{id}`
   marks the email read unless `?markRead=false`, which the dashboard sends while the reader keeps
   an email they just marked unread open.
+- **Security review (2026-10-21, `specs/features/security-hardening-2026-10.md`):** `GET /emails/{id}`
+  and `GET /emails/by-thread/{id}` change state, so a cookie caller sends `X-AIMail-Client: 1` there
+  as on a write (`403 client_header_missing` otherwise; bearer callers are unaffected). An approved
+  reply goes to the original's Reply-To only when it names one address, otherwise to the sender.
+  `GET /auth/callback` and `POST /auth/session/refresh` answer `429` past 60 a minute per caller,
+  and the admin password sign-in's limit is per address and account.
 - **Review reasons as codes (2026-10-11):** the agent's `/process-email` and `/refine` add
   `review_codes: [{code, items}]` beside `review_reasons` (codes in `agent_contract.ReviewCode`;
   `pii_found` items are entity types only). The email adds `reviewReasons: [{code, items}]`, read
