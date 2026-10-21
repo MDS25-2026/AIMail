@@ -178,6 +178,111 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/compose": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Route */
+        get: operations["list_route_compose_get"];
+        put?: never;
+        /** Create Route */
+        post: operations["create_route_compose_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/compose/{draft_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Route */
+        get: operations["get_route_compose__draft_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Route */
+        delete: operations["delete_route_compose__draft_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Route */
+        patch: operations["update_route_compose__draft_id__patch"];
+        trace?: never;
+    };
+    "/compose/{draft_id}/outcome": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Outcome Route */
+        post: operations["outcome_route_compose__draft_id__outcome_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/compose/{draft_id}/refine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refine Route */
+        post: operations["refine_route_compose__draft_id__refine_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/compose/{draft_id}/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send Route */
+        post: operations["send_route_compose__draft_id__send_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/compose/{draft_id}/write": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Write Route */
+        post: operations["write_route_compose__draft_id__write_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/documents": {
         parameters: {
             query?: never;
@@ -1055,6 +1160,76 @@ export interface components {
             section: string | null;
         };
         /**
+         * ComposeDraftView
+         * @description One new email, the way the reply editor reads a draft: placeholders plus their values (owner only).
+         */
+        ComposeDraftView: {
+            /** Body */
+            body: string;
+            /** Brief */
+            brief: string;
+            /** Cc */
+            cc: string[];
+            /** Criticconfidence */
+            criticConfidence?: number | null;
+            /** Details */
+            details?: components["schemas"]["Detail"][];
+            /** Egress */
+            egress?: components["schemas"]["EgressRecord"][];
+            /** Generatedat */
+            generatedAt?: string | null;
+            /** Id */
+            id: string;
+            /** Reviewreasons */
+            reviewReasons?: components["schemas"]["ReviewReason"][];
+            /** Sentat */
+            sentAt?: string | null;
+            /** Sources */
+            sources?: components["schemas"]["Source"][];
+            state: components["schemas"]["ComposeState"];
+            /** Subject */
+            subject: string;
+            /** To */
+            to: string[];
+            tone: components["schemas"]["Tone"];
+            /** Updatedat */
+            updatedAt: string;
+        };
+        /** ComposeList */
+        ComposeList: {
+            /** Drafts */
+            drafts: components["schemas"]["ComposeSummary"][];
+            /** Sent */
+            sent: components["schemas"]["ComposeSummary"][];
+        };
+        /**
+         * ComposeState
+         * @description Where a new email is (specs/features/compose.md).
+         * @enum {string}
+         */
+        ComposeState: "draft" | "sending" | "outcome_unknown" | "sent";
+        /**
+         * ComposeSummary
+         * @description One row of the Compose page. Text in placeholder form; `details` fills it in.
+         */
+        ComposeSummary: {
+            /** Details */
+            details?: components["schemas"]["Detail"][];
+            /** Id */
+            id: string;
+            /** Preview */
+            preview: string;
+            /** Sentat */
+            sentAt?: string | null;
+            state: components["schemas"]["ComposeState"];
+            /** Subject */
+            subject: string;
+            /** To */
+            to: string[];
+            /** Updatedat */
+            updatedAt: string;
+        };
+        /**
          * ContextChunk
          * @description Seam 2 — Lane B retrieval -> Lane C generation (in-process).
          *
@@ -1242,6 +1417,23 @@ export interface components {
             title: string;
         };
         /**
+         * DraftBody
+         * @description Any field the user typed; one left out keeps what is stored.
+         */
+        DraftBody: {
+            /** Body */
+            body?: string | null;
+            /** Brief */
+            brief?: string | null;
+            /** Cc */
+            cc?: string[] | null;
+            /** Subject */
+            subject?: string | null;
+            /** To */
+            to?: string[] | null;
+            tone?: components["schemas"]["Tone"] | null;
+        };
+        /**
          * EgressRecord
          * @description One prompt that left for a model, as kept by the backend (model_gateway). No text.
          */
@@ -1422,6 +1614,10 @@ export interface components {
             /** Value */
             value: number;
         };
+        /** OutcomeBody */
+        OutcomeBody: {
+            outcome: components["schemas"]["SettleOutcome"];
+        };
         /**
          * PartState
          * @enum {string}
@@ -1491,6 +1687,22 @@ export interface components {
             timezone: string;
             /** Weekenddays */
             weekendDays: number[];
+        };
+        /** RefineBody */
+        RefineBody: {
+            /** Body */
+            body?: string | null;
+            /** Brief */
+            brief?: string | null;
+            /** Cc */
+            cc?: string[] | null;
+            /** Instruction */
+            instruction: string;
+            /** Subject */
+            subject?: string | null;
+            /** To */
+            to?: string[] | null;
+            tone?: components["schemas"]["Tone"] | null;
         };
         /** RefineRequest */
         RefineRequest: {
@@ -1573,6 +1785,25 @@ export interface components {
             /** Title */
             title: string;
         };
+        /**
+         * SendBody
+         * @description The email exactly as approved: every field is sent, none is read back from storage instead.
+         */
+        SendBody: {
+            /** Body */
+            body: string;
+            /** Cc */
+            cc?: string[];
+            /**
+             * Remindifnoreply
+             * @default false
+             */
+            remindIfNoReply: boolean;
+            /** Subject */
+            subject: string;
+            /** To */
+            to: string[];
+        };
         /** SendRequest */
         SendRequest: {
             /** Draft */
@@ -1652,6 +1883,11 @@ export interface components {
              */
             workStart: string;
         };
+        /**
+         * SettleOutcome
+         * @enum {string}
+         */
+        SettleOutcome: "sent" | "not_sent";
         /** SnoozeRequest */
         SnoozeRequest: {
             /**
@@ -2146,6 +2382,294 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_route_compose_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComposeList"];
+                };
+            };
+        };
+    };
+    create_route_compose_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComposeDraftView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_route_compose__draft_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draft_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComposeDraftView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_route_compose__draft_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draft_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_route_compose__draft_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draft_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComposeDraftView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    outcome_route_compose__draft_id__outcome_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draft_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OutcomeBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComposeDraftView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    refine_route_compose__draft_id__refine_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draft_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefineBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComposeDraftView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_route_compose__draft_id__send_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draft_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComposeDraftView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    write_route_compose__draft_id__write_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draft_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComposeDraftView"];
                 };
             };
             /** @description Validation Error */

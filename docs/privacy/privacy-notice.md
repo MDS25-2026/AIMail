@@ -4,9 +4,9 @@
 > as of 2026-10-11. It has not been reviewed by the university or a legal adviser, and the contact
 > details are placeholders.
 
-AIMail helps you answer work email. It reads the email in the Gmail account you connect, hides
-personal details before any text is sent to an AI model, writes reply drafts, and sends nothing
-until you approve it.
+AIMail helps you answer and write work email. It reads the email in the Gmail account you connect,
+hides personal details before any text is sent to an AI model, writes reply drafts and new emails
+from your brief, and sends nothing until you approve it.
 
 ## What AIMail keeps
 
@@ -32,8 +32,13 @@ is sent. They are never sent to an AI model.
 waiting for an answer. If you switch on "Learn from the replies I send", AIMail also keeps the
 draft it showed you next to what you sent, to learn your style.
 
-**Documents you add.** Policies or other documents you upload as background for replies. They are
-masked before they are stored.
+**New emails you write.** For each email you start in Compose: the recipients' addresses as you
+typed them (needed to send it), the subject, your brief and the email, the documents it was grounded
+on and the checks it passed. Email addresses, phone, IC, passport and card numbers you type are kept
+as placeholders, with their values in an encrypted vault for that email, and filled in when you send.
+
+**Documents you add.** Policies or other documents you upload as background for replies and new
+emails. They are masked before they are stored.
 
 **Audit records.** A log of actions such as drafting, refining, sending, disconnecting and deleting.
 It records what happened and when, with an internal user id; it holds no email content. It cannot
@@ -65,6 +70,9 @@ Exceptions you should know about:
   Datuk). Some names, especially Malay or Chinese names written without those forms, can still be
   missed and sent as you typed them. If the name check cannot run, AIMail refuses the request
   rather than send the text.
+- **New emails.** When AIMail writes or refines a new email, the model receives your brief, subject
+  and draft with typed details as placeholders and names hidden, your recipients' names as
+  placeholders, and matching passages from your documents. Never the recipients' addresses.
 - **Search.** To find matching passages, the masked text of your documents and emails is turned
   into numbers (embeddings) by Gemini, unless you use Private mode.
 - **An English copy of emails in other languages.** For an email in Malay, Chinese or another
@@ -96,6 +104,8 @@ A daily job removes data on these schedules:
 | Masked copies of replies you sent | 90 days |
 | Recipients of automatic holding replies | 60 days |
 | Finished or cancelled "send later" items | 30 days |
+| New emails you sent (Compose) | 30 days after sending; their masked copy for the waiting list follows the sent-replies row |
+| New emails you have not sent | Until you delete them, or the email content limit if one is set |
 | Egress records (including calls that failed after the text was sent) | 365 days |
 | Rate-limit counters | 1 day |
 | Masked email content (body, preview, summary, draft) | Until your organisation sets a limit; by default it is kept |
@@ -109,8 +119,8 @@ removed at that limit too, if it is shorter.
 ## Deleting your data
 
 - **Disconnect Gmail** (Settings > Account): AIMail stops reading your mailbox, revokes its access
-  at Google, and deletes everything it stored from that mailbox: emails, sent replies, holding
-  replies, egress records, and what it learned from your sends.
+  at Google, and deletes everything it stored from that mailbox: emails, sent replies, new emails
+  you wrote, holding replies, egress records, and what it learned from your sends.
 - **Delete your account** (Settings > Account): everything above, plus your documents, writing
   style, saved replies, settings and your sign-in.
 - **Audit records stay** after deletion. They keep an internal id that no longer links to an

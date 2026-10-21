@@ -10,6 +10,8 @@ type RefineInputProps = {
   disabled?: boolean;
   /** Only this shows "Refining…": the box is also disabled on a sent email, which is not refining. */
   isRefining?: boolean;
+  /** The box's prompt; a reply's by default. */
+  placeholder?: string;
 };
 
 // Keys, not text: the suggestion is sent to the model in the reader's language.
@@ -19,8 +21,10 @@ export default function RefineInput({
   onRefine,
   disabled = false,
   isRefining = false,
+  placeholder,
 }: RefineInputProps) {
   const { t } = useTranslation();
+  const prompt = placeholder ?? t("refine.placeholder");
   const [instruction, setInstruction] = useState("");
 
   const handleSubmit = (event: FormEvent) => {
@@ -42,8 +46,8 @@ export default function RefineInput({
           value={instruction}
           disabled={disabled}
           onChange={(event) => setInstruction(event.target.value)}
-          placeholder={t("refine.placeholder")}
-          aria-label={t("refine.placeholder")}
+          placeholder={prompt}
+          aria-label={prompt}
           className={cn(field(), "flex-1")}
         />
         <button type="submit" disabled={disabled} className={button({ size: "md" })}>

@@ -210,6 +210,19 @@ leaves the recipient's client ungrouped. Both mechanisms, or it is not threaded.
   like the original. Retention clears `own_text_en` with the body and `subject_en` with the subject; the worker also fills `deadline_at`.
 - Partial index `messages_language_pending_idx` on `created_at` WHERE `language IS NULL`: the queue.
 
+### Compose drafts (migration 0047, `specs/features/compose.md`)
+
+- `compose_draft`: one new email per row, owned (`user_id`, cascade), row-level security on.
+  `to_addrs`, `cc_addrs` (TEXT[], as typed: needed to send, never sent to a model), `subject`, `brief`,
+  `body` (placeholder form), `pii_vault` (BYTEA, the values of typed details, sealed with the PII vault
+  keyring and bound to the owner and `compose:<id>`), `tone`, `rag_sources`, `critic_confidence`,
+  `critic_attempts`, `critic_checks`, `needs_human_review`, `generated_at`, `send_claimed_at`,
+  `send_outcome_unknown_at` (set with the claim, cleared when the send is recorded), `sent_at`,
+  `sent_gmail_id`, `sent_thread_id`, `created_at`, `updated_at`. Index `(user_id, updated_at DESC)`.
+- `model_egress.compose_draft_id`: the new email's privacy receipt (FK, `ON DELETE SET NULL`).
+- Erased with the mailbox (Disconnect Gmail) and the account. Retention: sent rows after 30 days, unsent
+  ones only when `MESSAGE_CONTENT_RETENTION_DAYS` is set (`app/retention.py`).
+
 ### Personalisation (Lane B, migration 0007)
 
 Applied **after** the classifier predicts, never inside it — see `backend/app/personalisation.py`.

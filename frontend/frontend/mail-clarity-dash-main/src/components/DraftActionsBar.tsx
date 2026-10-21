@@ -4,7 +4,9 @@ import { useTranslation } from "react-i18next";
 import type { DraftWorkflow } from "../lib/useDraftWorkflow";
 import { cn } from "../lib/utils";
 import ApproveSendButton from "./ApproveSendButton";
+import RemindCheckbox from "./RemindCheckbox";
 import SendLaterMenu from "./SendLaterMenu";
+import UndoSendBar from "./UndoSendBar";
 import { button } from "./variants";
 
 type DraftActionsBarProps = { workflow: DraftWorkflow; isSent: boolean };
@@ -23,32 +25,13 @@ export default function DraftActionsBar({ workflow, isSent }: DraftActionsBarPro
 
   return (
     <div className="flex flex-col gap-2">
-      {isCountingDown && (
-        <div
-          role="status"
-          className="flex items-center justify-between rounded-md border border-warning-line bg-warning-soft px-3 py-2 text-sm text-warning"
-        >
-          <span>{t("draft.undoSendingIn", { count: workflow.undoCountdown })}</span>
-          <button
-            type="button"
-            onClick={workflow.undoSend}
-            className="ml-4 rounded border border-warning bg-surface px-3 py-1 text-xs font-semibold text-warning hover:bg-warning-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-          >
-            {t("draft.undo")}
-          </button>
-        </div>
-      )}
+      <UndoSendBar secondsLeft={workflow.undoCountdown} onUndo={workflow.undoSend} />
       {isSent ? null : (
-        <label className="flex min-h-11 items-center justify-end gap-2 text-xs text-fg-muted md:min-h-0">
-          <input
-            type="checkbox"
-            checked={workflow.remindIfNoReply}
-            disabled={workflow.isDraftLocked}
-            onChange={(event) => workflow.setRemindIfNoReply(event.target.checked)}
-            className="size-4 accent-[var(--brand)]"
-          />
-          {t("todo.remindMe")}
-        </label>
+        <RemindCheckbox
+          isChecked={workflow.remindIfNoReply}
+          disabled={workflow.isDraftLocked}
+          onChange={workflow.setRemindIfNoReply}
+        />
       )}
       {blanks.length > 0 ? (
         <p role="status" className="text-right text-xs text-warning">

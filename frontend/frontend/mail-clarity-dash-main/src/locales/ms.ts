@@ -11,6 +11,7 @@ export const ms: Translations = {
   },
   nav: {
     label: "Utama",
+    compose: "Karang",
     inbox: "Peti masuk",
     drafts: "Draf",
     sent: "Dihantar",
@@ -212,6 +213,133 @@ export const ms: Translations = {
     title: "Draf",
     description:
       "Balasan yang disimpan dan sedang ditulis akan berada di sini, supaya anda boleh menyambung draf tanpa membuka semula bebenangnya.",
+  },
+  compose: {
+    tooManyRecipients:
+      "AIMail menghantar kepada paling ramai {{max}} orang dalam Kepada dan Sk. Selebihnya dibiarkan dalam kotak.",
+    addressTooLong:
+      "Alamat tidak boleh melebihi {{max}} aksara. Ia dibiarkan dalam kotak untuk dibetulkan.",
+    hideCc: "Sembunyikan Sk",
+    notSent: "Tidak dihantar",
+    confirm: {
+      replaceEdits: "AIMail akan menulis e-mel baharu menggantikan teks dalam kandungan.",
+      sendTemplates_one:
+        "E-mel ini masih mempunyai {{count}} ruang kosong dalam kurungan, seperti [Your Name]. Penerima akan melihatnya begitu sahaja.",
+      sendTemplates_other:
+        "E-mel ini masih mempunyai {{count}} ruang kosong dalam kurungan, seperti [Your Name]. Penerima akan melihatnya begitu sahaja.",
+      toneWarning: "E-mel anda mungkin mempunyai nada yang tidak profesional. Hantar juga?",
+    },
+    errors: {
+      conflict:
+        "Draf ini berubah semasa AIMail sedang menulis, jadi teks baharu tidak digunakan. Perubahan anda disimpan; cuba lagi.",
+      send_failed:
+        "Gmail tidak menerima e-mel ini, jadi ia tidak dihantar. Teks anda tidak berubah; cuba lagi sebentar lagi.",
+      already_sent: "E-mel ini telah pun dihantar.",
+      send_in_progress:
+        "E-mel ini sedang dihantar. Tunggu sebentar, kemudian semak sama ada ia sudah dihantar.",
+      send_outcome_unknown:
+        "Kami tidak dapat mengesahkan sama ada e-mel ini telah dihantar. Semak folder Dihantar dalam Gmail anda sebelum menghantar semula.",
+      draft_refused:
+        "AI tidak dapat menulis e-mel ini, dan mencuba lagi tidak akan mengubahnya. Teks anda tidak berubah: tulis sendiri, atau ubah ringkasan.",
+      unresolved_placeholders:
+        "E-mel ini mempunyai pemegang tempat yang tidak dapat diisi oleh AIMail, seperti [PERSON_3]. Taip butiran sebenar di tempatnya, kemudian hantar.",
+      redaction_markers:
+        "E-mel ini masih mempunyai butiran tersembunyi seperti [Redacted]. Taip butiran sebenar sebelum menghantar.",
+      google_access_expired:
+        "Google telah menamatkan akses AIMail ke Gmail anda, jadi e-mel ini tidak dihantar. Log masuk semula untuk menyambung semula; teks anda tidak berubah.",
+      send_not_granted:
+        "AIMail tidak dibenarkan menghantar daripada Gmail anda. Log keluar, log masuk semula, dan tandakan kotak yang membenarkan AIMail menghantar e-mel. Teks anda tidak berubah.",
+    },
+    heading: "Karang",
+    description:
+      "E-mel baharu yang ditulis AIMail daripada ringkasan anda dan dokumen syarikat anda.",
+    newEmail: "E-mel baharu",
+    creating: "Mencipta…",
+    draftsTitle: "Draf",
+    sentTitle: "Dihantar",
+    emptyTitle: "Belum ada e-mel baharu",
+    emptyHint:
+      "Beritahu AIMail apa yang patut dikatakan dalam e-mel, dan ia akan mendrafkannya daripada dokumen syarikat anda.",
+    pickHint: "Buka draf, atau mulakan e-mel baharu.",
+    noSubject: "(tiada subjek)",
+    noRecipients: "Belum ada penerima",
+    toList: "Kepada {{recipients}}",
+    state: {
+      sending: "Menghantar",
+      outcomeUnknown: "Mungkin telah dihantar",
+    },
+    newTitle: "E-mel baharu",
+    back: "Kembali ke draf anda",
+    to: "Kepada",
+    cc: "Sk",
+    addCc: "Tambah Sk",
+    removeRecipient: "Buang {{address}}",
+    checkAddress: "Semak alamat ini",
+    checkAddresses:
+      "Alamat berikut tidak kelihatan seperti alamat e-mel: {{addresses}}. Semak sebelum menghantar.",
+    subject: "Subjek",
+    subjectPlaceholder: "Biarkan kosong dan AIMail akan mencadangkannya",
+    brief: "Apakah yang patut dikatakan dalam e-mel ini?",
+    briefHint:
+      "Satu atau dua ayat sudah memadai. AIMail mendrafkannya daripada ringkasan anda dan dokumen dalam Pengetahuan.",
+    briefPlaceholder:
+      "Contohnya: ingatkan pasukan untuk merancang cuti tahun depan sebelum 31 Oktober",
+    write: "Tulis dengan AIMail",
+    rewrite: "Tulis semula",
+    writing: "Menulis…",
+    writingStatus:
+      "Menulis e-mel anda daripada dokumen anda. Ini boleh mengambil masa sehingga 20 saat.",
+    needsBrief: "Nyatakan dahulu apa yang patut dikatakan dalam e-mel.",
+    body: "E-mel",
+    bodyPlaceholder: "Tulis e-mel di sini, atau biarkan AIMail menulisnya daripada ringkasan anda.",
+    refinePlaceholder: "Minta AI memperhalus e-mel (apa-apa bahasa)…",
+    save: {
+      saving: "Menyimpan…",
+      saved: "Disimpan",
+      failed:
+        "Tidak dapat menyimpan. Teks anda masih di sini dan akan disimpan bersama perubahan seterusnya.",
+    },
+    blocked: {
+      redactionMarkers:
+        "E-mel ini masih mempunyai butiran tersembunyi seperti [Redacted]. Taip butiran sebenar sebelum menghantar.",
+      noRecipient: "Tambah sekurang-kurangnya seorang penerima dalam Kepada sebelum menghantar.",
+      noSubject: "Tambah subjek sebelum menghantar.",
+      noBody: "Tulis e-mel sebelum menghantar.",
+      missingDetails:
+        "E-mel ini mempunyai pemegang tempat yang tidak dapat diisi oleh AIMail, seperti [PERSON_3]. Taip butiran sebenar di tempatnya.",
+      unfilledBlanks: "Isi {{blanks}} sebelum menghantar.",
+    },
+    sendingLocked: "Menghantar… E-mel tidak boleh diubah sekarang.",
+    outcome: {
+      title: "E-mel ini mungkin telah dihantar.",
+      body: "Semak folder Dihantar dalam Gmail anda, kemudian beritahu AIMail apa yang anda dapati.",
+      wasSent: "Ia telah dihantar",
+      wasNotSent: "Ia tidak dihantar",
+    },
+    sentAt: "Dihantar {{when}}",
+    delete: "Padam",
+    deleteName: "Padam draf ini",
+    deleteSentName: "Buang e-mel ini daripada senarai",
+    deleteQuestion: "Padam draf ini?",
+    deleteSentQuestion: "Buang daripada senarai ini? Ia kekal dalam Gmail anda.",
+    deleting: "Memadam…",
+    cancel: "Batal",
+    failed: {
+      create: "Tidak dapat memulakan e-mel baharu. Cuba lagi sebentar lagi.",
+      write: "Tidak dapat menulis e-mel. Teks anda tidak berubah, jadi cuba lagi sebentar lagi.",
+      refine:
+        "Tidak dapat memperhalus e-mel. Teks dan arahan anda tidak berubah, jadi cuba lagi sebentar lagi.",
+      send: "E-mel tidak dihantar. Teks anda tidak berubah, jadi cuba lagi sebentar lagi.",
+      settle: "Tidak dapat merekodkannya. Cuba lagi sebentar lagi.",
+      delete: "Tidak dapat memadamnya. Cuba lagi sebentar lagi.",
+    },
+    announce: {
+      written: "E-mel ditulis",
+      refined: "E-mel diperhalus",
+      sent: "E-mel dihantar",
+      settled: "Dicatat",
+      deleted: "Dipadam",
+    },
   },
   sent: {
     heading: "Dihantar",
@@ -956,6 +1084,12 @@ export const ms: Translations = {
       document_deleted: "Dokumen dibuang",
       private_mode: "Mod Peribadi diubah",
       disconnect_gmail: "Gmail diputuskan",
+      compose_written: "E-mel baharu ditulis oleh AIMail",
+      compose_refined: "E-mel baharu diperhalus",
+      compose_sent: "E-mel baharu diluluskan dan dihantar",
+      compose_send_outcome_unknown: "E-mel baharu mungkin tidak dihantar",
+      compose_outcome_settled: "E-mel baharu yang tidak pasti telah disemak",
+      compose_deleted: "E-mel baharu dipadam",
     },
     modal: {
       title: "Semakan rantaian hash",
@@ -1174,6 +1308,12 @@ export const ms: Translations = {
       "Log masuk dengan Google membenarkan AIMail membaca dan menghantar Gmail anda. AIMail ialah projek tahun akhir di Monash University Malaysia.",
   },
   errors: {
+    too_many_drafts:
+      "Anda sudah mempunyai 200 draf yang belum dihantar. Hantar atau padam satu dahulu.",
+    invalid_recipients:
+      "Salah satu alamat bukan alamat e-mel yang sah, atau terdapat lebih daripada 20 penerima. Semak Kepada dan Sk, kemudian hantar.",
+    no_recipients: "Tambah sekurang-kurangnya seorang penerima dalam Kepada, kemudian hantar.",
+    no_subject: "Tambah subjek, kemudian hantar.",
     ai_service_unreachable:
       "Perkhidmatan AI tidak menjawab. Tiada apa-apa yang berubah; cuba lagi sebentar lagi.",
     translation_unfaithful:
@@ -1285,6 +1425,11 @@ export const ms: Translations = {
       title: "AIMail: papan pemuka peti masuk AI",
       description:
         "Peti masuk mengikut keutamaan dengan ringkasan AI, item tindakan dan draf balasan yang dihantar hanya selepas anda meluluskannya.",
+    },
+    compose: {
+      title: "Karang AIMail",
+      description:
+        "E-mel baharu yang didrafkan AIMail daripada ringkasan anda dan dokumen syarikat anda.",
     },
     drafts: { title: "Draf AIMail", description: "Draf balasan yang menunggu semakan anda." },
     sent: {

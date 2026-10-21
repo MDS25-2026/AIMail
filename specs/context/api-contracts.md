@@ -345,7 +345,6 @@ See [`../features/rag-retrieval.md`](../features/rag-retrieval.md).
   bearer token (every user's scope) on Gemini, Private mode users' emails are left out.
 - 401 `signed_out` / `session_invalid` · 404 `not_found` (no mailbox connected) · 422 `invalid_request` · 429 `rate_limited` · 503 `ai_service_unreachable`.
 
-
 ### Dashboard (email view)
 
 **`POST /emails/{id}/translate`** — the masked body in another language, for reading only.
@@ -367,6 +366,51 @@ See [`../features/rag-retrieval.md`](../features/rag-retrieval.md).
   refetch everything. Ids only, never content.
 - 429 `rate_limited` past three open streams per user. Not in the generated dashboard types (the
   body is a stream); the dashboard's `useMailboxEvents` is the only client.
+
+### Compose (2026-10-21, `specs/features/compose.md`, epic #138)
+
+New emails the signed-in user writes; the shared bearer token gets 403 `account_only`. Another user's
+draft id answers 404 on every route. Text fields come back in placeholder form with `details` to fill
+them in, as an email's draft does; the client sends the filled-in text and the backend turns known
+details back into placeholders and numbers any new typed email, phone, IC, passport or card number.
+
+`ComposeDraftView`: `{ id, to: string[], cc: string[], subject, brief, body, tone: "professional" |
+"casual", state: "draft" | "sending" | "outcome_unknown" | "sent", sources: Source[], criticConfidence:
+number | null, reviewReasons: ReviewReason[], details: Detail[], egress: EgressRecord[], generatedAt,
+updatedAt, sentAt }`. `ComposeSummary`: `{ id, to, subject, preview, state, updatedAt, sentAt, details }`.
+
+**`GET /compose`** — `{ drafts: ComposeSummary[], sent: ComposeSummary[] }`, newest first (sent: last 50).
+**`POST /compose`** — 201 `ComposeDraftView`. Body (all optional): `{ to?: string[] (≤20, each ≤320),
+cc?, subject? (≤300), brief? (≤4000), body? (≤20000), tone? }`. 409 `too_many_drafts` past 200 unsent.
+**`GET /compose/{id}`** — `ComposeDraftView` with its privacy receipt.
+**`PATCH /compose/{id}`** — save the given fields (same body). 409 `send_in_progress` / `already_sent`
+once a send has started or finished.
+**`DELETE /compose/{id}`** — 204 (a sent one too: it leaves the list; its masked copy for the waiting list
+stays). 409 `send_in_progress` while a send may still have gone out.
+**`POST /compose/{id}/write`** — save the given fields, then write the body (and a subject when none is
+set) from the brief and the user's documents. 422 `empty` without a brief · 422 `draft_refused` ·
+409 `conflict` when the draft was changed elsewhere (or sent) while it was being written ·
+503 `agent_unavailable` / `masking_unavailable` / `private_model_unavailable`. Generation rate limit.
+**`POST /compose/{id}/refine`** — the same body plus `instruction` (1..2000): revise the body. Same errors.
+**`POST /compose/{id}/send`** — `{ to: string[] (1..20), cc?: string[], subject (1..300), body
+(1..20000), remindIfNoReply?: boolean }`: the approved email, sent once from the user's Gmail as a new
+thread. A draft already sent answers its view (idempotent). 422 `invalid_recipients` / `no_recipients` /
+`no_subject` / `empty` / `unresolved_placeholders` / `redaction_markers` before anything is claimed ·
+403 `send_not_granted` · 409 `send_in_progress` · 502 `send_failed` (released, can be sent again) ·
+`send_outcome_unknown` (kept claimed; the draft is `outcome_unknown` at once, and any other claim after
+10 minutes). Send rate limit.
+**`POST /compose/{id}/outcome`** — `{ outcome: "sent" | "not_sent" }`, only while `outcome_unknown`
+(409 `conflict` otherwise): the user checked Gmail's Sent folder.
+
+### Agent: new emails (internal, backend to agent on :8001)
+
+**`POST /compose`** — `ComposeRequest { brief, subject, recipients: string[] (placeholders), rag_context,
+tone, sign_off, style_hint, style_examples, provider }` → `ComposeResponse { subject, draft, confidence,
+issues, attempts, needs_human_review, grounding_ok, pii_clean, tone_match, completeness, pii_findings,
+unsupported_specifics, unaddressed_requests, review_reasons, review_codes, model_calls, egress,
+prompt_version }`. The reply's critic, PII scan, figures check and repair rounds, judged against the brief.
+**`POST /compose/refine`** — `ComposeRefineRequest` (the above plus `draft`, `instruction`) →
+`ComposeResponse`. Both need `X-AIMail-Agent-Token`; 422/503/504 as `/process-email`.
 
 ### Admin console (`/admin`, ADR 0004)
 

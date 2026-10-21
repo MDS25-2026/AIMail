@@ -23,6 +23,11 @@ export enum ApiErrorCode {
   MaskingUnavailable = "masking_unavailable",
   TooManyExamples = "too_many_examples",
   TooManyTemplates = "too_many_templates",
+  // Compose (backend/app/compose.py).
+  TooManyDrafts = "too_many_drafts",
+  InvalidRecipients = "invalid_recipients",
+  NoRecipients = "no_recipients",
+  NoSubject = "no_subject",
   TimeOutOfRange = "time_out_of_range",
   Empty = "empty",
   TooLong = "too_long",

@@ -20,6 +20,7 @@ import {
 } from "./queries";
 import { quietSuggestion, type QuietSuggestion } from "./quietHours";
 import { checkTone } from "./toneCheck";
+import { UNDO_COUNTDOWN_SECONDS } from "./useUndoCountdown";
 import type { Email, Tone } from "../types/email";
 
 export enum DraftAction {
@@ -42,8 +43,14 @@ export enum ConfirmKind {
   QuietHours = "quietHours",
 }
 
-/** quiet: set for ConfirmKind.QuietHours, with their time now and when their quiet hours end. */
-export type PendingConfirm = { kind: ConfirmKind; markerCount: number; quiet?: QuietSuggestion };
+/** quiet: set for ConfirmKind.QuietHours, with their time now and when their quiet hours end.
+ *  text: the question in other words than a reply's, for a new email. */
+export type PendingConfirm = {
+  kind: ConfirmKind;
+  markerCount: number;
+  quiet?: QuietSuggestion;
+  text?: string;
+};
 
 // What was asked, not a callback: confirming must act on the draft as it is then, including
 // anything typed while the question was on screen.
@@ -144,9 +151,6 @@ function isPendingFor(
 
 // The failure is already on screen through `failure`; nothing is left to handle.
 const shownOnScreen = () => undefined;
-
-/** Duration of the undo window in seconds. */
-const UNDO_COUNTDOWN_SECONDS = 5;
 
 /**
  * Regenerate, refine and send for one email, shared by the inbox and the extension panel.

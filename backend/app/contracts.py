@@ -6,6 +6,7 @@ contract break — flag it to the affected lane (Lane C / Lane D) before merging
 """
 
 from datetime import datetime
+from enum import StrEnum
 from typing import Literal, TypedDict
 from uuid import UUID
 
@@ -175,3 +176,51 @@ _PRIORITY_LABELS: dict[int, Literal["low", "medium", "high"]] = {0: "low", 1: "m
 def priority_label(importance: int | None) -> Literal["low", "medium", "high"]:
     """Map the classifier's importance value (0/1/2) to the dashboard's lowercase priority."""
     return _PRIORITY_LABELS.get(importance, "medium")
+
+
+class ComposeState(StrEnum):
+    """Where a new email is (specs/features/compose.md)."""
+
+    DRAFT = "draft"
+    SENDING = "sending"  # claimed by a send that has not heard back from Gmail
+    OUTCOME_UNKNOWN = "outcome_unknown"  # Gmail may have sent it; the user settles it
+    SENT = "sent"
+
+
+class ComposeSummary(BaseModel):
+    """One row of the Compose page. Text in placeholder form; `details` fills it in."""
+
+    id: str
+    to: list[str]
+    subject: str
+    preview: str
+    state: ComposeState
+    updatedAt: str  # ISO 8601
+    sentAt: str | None = None
+    details: list[Detail] = Field(default_factory=list)
+
+
+class ComposeList(BaseModel):
+    drafts: list[ComposeSummary]
+    sent: list[ComposeSummary]
+
+
+class ComposeDraftView(BaseModel):
+    """One new email, the way the reply editor reads a draft: placeholders plus their values (owner only)."""
+
+    id: str
+    to: list[str]
+    cc: list[str]
+    subject: str
+    brief: str
+    body: str
+    tone: Tone
+    state: ComposeState
+    sources: list[Source] = Field(default_factory=list)
+    criticConfidence: float | None = None
+    reviewReasons: list[ReviewReason] = Field(default_factory=list)
+    details: list[Detail] = Field(default_factory=list)
+    egress: list[EgressRecord] = Field(default_factory=list)
+    generatedAt: str | None = None
+    updatedAt: str
+    sentAt: str | None = None

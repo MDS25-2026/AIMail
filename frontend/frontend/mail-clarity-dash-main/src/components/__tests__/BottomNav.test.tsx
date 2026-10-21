@@ -17,7 +17,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
 const { t } = createI18n(Language.English);
 const emptyTodo = { needsReview: { emails: [], total: 0 }, needsAction: { emails: [], total: 0 } };
 
-test("the phone's navigation has Inbox, To-do with its count, Sent and Settings", async () => {
+test("the phone's navigation has Inbox, To-do with its count, Compose, Sent and Settings", async () => {
   stubFetch({
     "GET /auth/session": { body: { email: "a@b.c", hasMailbox: true, needsReconnect: false } },
     "GET /todo": {
@@ -33,7 +33,7 @@ test("the phone's navigation has Inbox, To-do with its count, Sent and Settings"
   renderWithProviders(<BottomNav />);
   expect(await screen.findByText(t("todo.countLabel", { count: 4 }))).toBeTruthy();
   const links = screen.getAllByRole("link").map((link) => link.getAttribute("href"));
-  expect(links).toEqual(["/", "/todo", "/sent", "/settings"]);
+  expect(links).toEqual(["/", "/todo", "/compose", "/sent", "/settings"]);
 });
 
 test("without a mailbox the navigation asks for no to-do list", async () => {

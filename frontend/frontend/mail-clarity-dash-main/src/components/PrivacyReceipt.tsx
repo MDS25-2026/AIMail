@@ -15,8 +15,11 @@ import {
   DialogTrigger,
 } from "./ui/dialog";
 
+/** The parts of an email the receipt shows; a new email passes its brief as the body. */
+type ReceiptSource = Pick<Email, "subject" | "body" | "details" | "egress">;
+
 /** What left for the AI and what stayed with the reader, for one email (#158). */
-export default function PrivacyReceipt({ email }: { email: Email }) {
+export default function PrivacyReceipt({ email }: { email: ReceiptSource }) {
   const { t } = useTranslation();
   const [isHidden] = useDetailsHidden();
   const counts = hiddenCounts(`${email.subject}\n${email.body}`);

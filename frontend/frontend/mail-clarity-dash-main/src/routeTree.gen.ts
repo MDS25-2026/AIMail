@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AuditRouteImport } from './routes/audit'
+import { Route as ComposeRouteImport } from './routes/compose'
 import { Route as DraftsRouteImport } from './routes/drafts'
 import { Route as ExtensionRouteImport } from './routes/extension'
 import { Route as KnowledgeRouteImport } from './routes/knowledge'
@@ -35,6 +36,11 @@ const AdminRoute = AdminRouteImport.update({
 const AuditRoute = AuditRouteImport.update({
   id: '/audit',
   path: '/audit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ComposeRoute = ComposeRouteImport.update({
+  id: '/compose',
+  path: '/compose',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DraftsRoute = DraftsRouteImport.update({
@@ -87,6 +93,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/audit': typeof AuditRoute
+  '/compose': typeof ComposeRoute
   '/drafts': typeof DraftsRoute
   '/extension': typeof ExtensionRoute
   '/knowledge': typeof KnowledgeRoute
@@ -101,6 +108,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/audit': typeof AuditRoute
+  '/compose': typeof ComposeRoute
   '/drafts': typeof DraftsRoute
   '/extension': typeof ExtensionRoute
   '/knowledge': typeof KnowledgeRoute
@@ -116,6 +124,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/audit': typeof AuditRoute
+  '/compose': typeof ComposeRoute
   '/drafts': typeof DraftsRoute
   '/extension': typeof ExtensionRoute
   '/knowledge': typeof KnowledgeRoute
@@ -132,6 +141,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/audit'
+    | '/compose'
     | '/drafts'
     | '/extension'
     | '/knowledge'
@@ -146,6 +156,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/audit'
+    | '/compose'
     | '/drafts'
     | '/extension'
     | '/knowledge'
@@ -160,6 +171,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/audit'
+    | '/compose'
     | '/drafts'
     | '/extension'
     | '/knowledge'
@@ -175,6 +187,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   AuditRoute: typeof AuditRoute
+  ComposeRoute: typeof ComposeRoute
   DraftsRoute: typeof DraftsRoute
   ExtensionRoute: typeof ExtensionRoute
   KnowledgeRoute: typeof KnowledgeRoute
@@ -207,6 +220,13 @@ declare module '@tanstack/react-router' {
       path: '/audit'
       fullPath: '/audit'
       preLoaderRoute: typeof AuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/compose': {
+      id: '/compose'
+      path: '/compose'
+      fullPath: '/compose'
+      preLoaderRoute: typeof ComposeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/drafts': {
@@ -279,6 +299,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   AuditRoute: AuditRoute,
+  ComposeRoute: ComposeRoute,
   DraftsRoute: DraftsRoute,
   ExtensionRoute: ExtensionRoute,
   KnowledgeRoute: KnowledgeRoute,

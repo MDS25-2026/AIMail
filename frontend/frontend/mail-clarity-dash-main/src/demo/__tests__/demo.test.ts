@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import * as audit from "../../lib/api/audit";
+import * as compose from "../../lib/api/compose";
 import * as documents from "../../lib/api/documents";
 import * as emails from "../../lib/api/emails";
 import { ApiError, ApiErrorCode } from "../../lib/api/errors";
@@ -27,6 +28,7 @@ import { resetDemo } from "../state";
 
 const API_MODULES = {
   audit,
+  compose,
   documents,
   emails,
   profile,

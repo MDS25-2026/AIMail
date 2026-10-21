@@ -66,6 +66,10 @@ class ErrorCode(StrEnum):
     SCAN_CHECK_UNAVAILABLE = "scan_check_unavailable"
     TOO_MANY_EXAMPLES = "too_many_examples"
     TOO_MANY_TEMPLATES = "too_many_templates"
+    TOO_MANY_DRAFTS = "too_many_drafts"
+    INVALID_RECIPIENTS = "invalid_recipients"
+    NO_RECIPIENTS = "no_recipients"
+    NO_SUBJECT = "no_subject"
     TIME_OUT_OF_RANGE = "time_out_of_range"
     ALREADY_SENT_OR_CANCELLED = "already_sent_or_cancelled"
     INVALID_SETTINGS = "invalid_settings"
@@ -126,6 +130,10 @@ _STATUS: dict[ErrorCode, int] = {
     ErrorCode.SCAN_CHECK_UNAVAILABLE: status.HTTP_409_CONFLICT,
     ErrorCode.TOO_MANY_EXAMPLES: status.HTTP_409_CONFLICT,
     ErrorCode.TOO_MANY_TEMPLATES: status.HTTP_409_CONFLICT,
+    ErrorCode.TOO_MANY_DRAFTS: status.HTTP_409_CONFLICT,
+    ErrorCode.INVALID_RECIPIENTS: status.HTTP_422_UNPROCESSABLE_CONTENT,
+    ErrorCode.NO_RECIPIENTS: status.HTTP_422_UNPROCESSABLE_CONTENT,
+    ErrorCode.NO_SUBJECT: status.HTTP_422_UNPROCESSABLE_CONTENT,
     ErrorCode.TIME_OUT_OF_RANGE: status.HTTP_422_UNPROCESSABLE_CONTENT,
     ErrorCode.ALREADY_SENT_OR_CANCELLED: status.HTTP_409_CONFLICT,
     ErrorCode.FORBIDDEN: status.HTTP_403_FORBIDDEN,

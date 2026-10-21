@@ -63,6 +63,12 @@ class AuditAction(StrEnum):
     WRITING_STYLE_HABIT_HIDDEN = "writing_style_hid_habit"
     WRITING_STYLE_DELETED = "writing_style_deleted"
     ADMIN_SIGN_IN = "admin_sign_in"
+    COMPOSE_WRITTEN = "compose_written"
+    COMPOSE_REFINED = "compose_refined"
+    COMPOSE_SENT = "compose_sent"
+    COMPOSE_SEND_OUTCOME_UNKNOWN = "compose_send_outcome_unknown"
+    COMPOSE_OUTCOME_SETTLED = "compose_outcome_settled"
+    COMPOSE_DELETED = "compose_deleted"
 
 
 def audit_detail(fields: dict[str, AuditValue | UUID]) -> str:

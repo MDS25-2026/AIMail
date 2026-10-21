@@ -1,7 +1,10 @@
 import { Link } from "@tanstack/react-router";
+import { SquarePen } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { useSession, useTodo } from "../lib/queries";
+import { cn } from "../lib/utils";
+import { button } from "./variants";
 
 const NAV_ITEMS = [
   { label: "nav.inbox", to: "/" },
@@ -25,6 +28,14 @@ export default function SideNav() {
   const todoCount = todo.data?.count ?? 0;
   return (
     <nav aria-label={t("nav.label")} className="hidden w-44 shrink-0 bg-rail p-3 md:block">
+      {/* Above the list, as in a mail app: starting an email is the one action, not a place. */}
+      <Link
+        to="/compose"
+        className={cn(button({ intent: "primary", size: "sm" }), "mb-3 w-full gap-1.5")}
+      >
+        <SquarePen aria-hidden className="size-4" />
+        {t("nav.compose")}
+      </Link>
       <ul className="space-y-1">
         {NAV_ITEMS.map((item) => (
           <li key={item.to}>

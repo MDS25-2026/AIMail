@@ -15,6 +15,7 @@ from sqlalchemy import Executable, delete, func, or_, update
 
 from app.core.config import get_settings
 from app.db.models import (
+    ComposeDraft,
     DocType,
     Document,
     HoldingReply,
@@ -42,6 +43,8 @@ SENT_MESSAGE_DAYS = 90
 FINISHED_SCHEDULE_DAYS = 30
 # Replies kept for "Learn from the replies I send"; style learning reads the recent ones, so a year is ample.
 PAST_REPLY_DAYS = 365
+# A sent new email stays on the Compose page for a month; its masked copy in sent_message lasts longer.
+SENT_COMPOSE_DAYS = 30
 KEEP_FOREVER = 0
 
 
@@ -100,6 +103,17 @@ def _finished_schedules(days: int) -> Executable:
     return delete(ScheduledSend).where(is_finished, ScheduledSend.created_at < _older_than(days))
 
 
+def _sent_compose_drafts(days: int) -> Executable:
+    return delete(ComposeDraft).where(ComposeDraft.sent_at < _older_than(days))
+
+
+def _unsent_compose_drafts(days: int) -> Executable:
+    # Unsent drafts are the user's own work in progress, so they follow the message content limit only.
+    # Never one whose send was claimed: it may have gone out, and it is the one record of that until settled.
+    return delete(ComposeDraft).where(ComposeDraft.sent_at.is_(None), ComposeDraft.send_claimed_at.is_(None),
+                                      ComposeDraft.updated_at < _older_than(days))
+
+
 def _past_replies(days: int) -> Executable:
     # Its chunks and vectors go with it (ON DELETE CASCADE, migration 0001).
     return delete(Document).where(Document.doc_type == DocType.SENT_REPLY, Document.created_at < _older_than(days))
@@ -119,6 +133,10 @@ POLICIES: tuple[Policy, ...] = (
            _finished_schedules),
     Policy("past_replies", lambda: _capped(PAST_REPLY_DAYS, get_settings().message_content_retention_days),
            _past_replies),
+    Policy("sent_compose_drafts",
+           lambda: _capped(SENT_COMPOSE_DAYS, get_settings().message_content_retention_days),
+           _sent_compose_drafts),
+    Policy("unsent_compose_drafts", lambda: get_settings().message_content_retention_days, _unsent_compose_drafts),
 )
 
 

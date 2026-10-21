@@ -266,3 +266,10 @@ def test_a_setting_pasted_with_spaces_or_a_newline_still_works(client, monkeypat
     response = client.get("/auth/google/start", follow_redirects=False)
     assert parse_qs(urlparse(response.headers["location"]).query)["redirect_to"] == [
         "https://aimail.vercel.app/api/auth/callback"]
+
+
+def test_the_dashboard_origin_may_autosave_a_compose_draft(client):
+    response = client.options("/compose/d1", headers={
+        "Origin": "http://localhost:8090", "Access-Control-Request-Method": "PATCH",
+        "Access-Control-Request-Headers": f"content-type,{CLIENT_HEADER.lower()}"})
+    assert "PATCH" in response.headers.get("access-control-allow-methods", "")

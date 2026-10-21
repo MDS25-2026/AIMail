@@ -6,6 +6,22 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-21 — Compose: new emails, with their own table, agent endpoint and send path
+
+- Decision: new emails live in `compose_draft` (migration 0047), are written by the agent's `/compose`
+  and `/compose/refine`, and are sent by `gmail_send.send_new` as a new thread. Typed fixed-format
+  details become numbered placeholders whose values are sealed in the draft's own vault, so a phone
+  number in a brief can be sent; names are hidden for one request, as Refine does.
+- Why: AIMail could only answer email. Keeping new emails out of `messages` means the inbox, drafting
+  jobs and search never mistake one for received mail.
+- Why not reuse `/process-email`: its router, summary, action extraction and greeting rule all assume a
+  received email. The reply prompts are unchanged (`PROMPT_VERSION` kept); compose has its own
+  (`COMPOSE_PROMPT_VERSION`) and shares the critic machinery through keyword arguments.
+- Why the user settles an unknown send: a new email has no thread for the reconciler to look in.
+- Affects: Lane B (`app/compose.py`, routes, migration), Lane C (`email_agent.py` compose section;
+  Hanif to review), Lane D (`/compose` page, demo mode; Han to review).
+- Status: accepted (spec `specs/features/compose.md`)
+
 ### 2026-10-19 — Live inbox: server-sent events from the backend, fed by a Postgres trigger
 - Decision: the dashboard learns about new mail and finished drafts from `GET /events` (SSE), which
   the backend feeds from one LISTEN connection on the `mailbox_changed` channel; a trigger on

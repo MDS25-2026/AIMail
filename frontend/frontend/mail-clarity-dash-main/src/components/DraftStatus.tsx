@@ -70,7 +70,8 @@ export default function DraftStatus({
           <p className="min-w-0 flex-1 text-sm text-warning">
             {quiet
               ? quietMessage(quiet, t, format.clock)
-              : confirmMessage(pendingConfirm.kind, pendingConfirm.markerCount, t)}
+              : (pendingConfirm.text ??
+                confirmMessage(pendingConfirm.kind, pendingConfirm.markerCount, t))}
           </p>
           <div className="flex gap-2">
             {/* The safe choice takes focus, so Enter never confirms by accident. */}
