@@ -208,7 +208,8 @@ A code audit of every single-mailbox assumption found these, each checked in cod
    topic, routes notifications by address (unknown ones acked and dropped), seeds a first-time
    inbox with its newest 10 emails, saves each baseline and watch expiry on the connection row,
    and picks up new sign-ups every two minutes. A failing mailbox is logged and retried, never
-   fatal. Rows carry `user_id`; duplicates are judged per mailbox (`on_conflict=user_id,gmail_message_id`).
+   fatal, except a token Google refused (`invalid_grant`): it is not retried until signing in again
+   stores a new token, or the listener restarts. Rows carry `user_id`; duplicates are judged per mailbox (`on_conflict=user_id,gmail_message_id`).
    Interim: Pub/Sub still authenticates as the `token.json` account (finding 4).
 5. ~~Disconnect flow and its UI~~ done 2026-10-05 (see "Disconnect and delete account"; checked
    live with throwaway accounts). `app/core/mailbox.py` retired 2026-10-12, once a count showed every

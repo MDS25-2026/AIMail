@@ -54,9 +54,11 @@ unredacted attachment content leaving the machine.
 
 ## API surface
 
-`POST /read` (multipart: `file`, `mime_type`) returns
+`POST /read` (multipart: `file`, `mime_type`, optional `return_images=false`) returns
 `{"text": str, "images": [{"mime_type": "image/png", "data": base64}], "skipped_pages": int,
 "pages": int}`, or 422 `{"error": reason}`. Local only; the file name is never sent.
+The listener sends `return_images=false` when the owner keeps scans off the cloud: the same
+gates apply, but released pages come back with empty `data` and skip the redaction pass.
 
 ## Security & privacy notes
 

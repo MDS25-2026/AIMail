@@ -141,7 +141,8 @@ None. Demo changes live in memory for the tab; the demo flag lives in `sessionSt
 
 ## Implementation notes
 
-- `request()` gains one guard at the top: `if (isDemo()) return demoRequest<T>(path, options);`.
+- `request()` gains one guard at the top that, in demo mode, imports `demo/request` on demand and
+  returns its `demoRequest<T>(path, options)`, so the demo data stays out of the main bundle.
 - Keep demo data in typed `.ts` files under `src/demo/data/`, one file per area (emails, todo,
   audit, templates, documents, settings), so content can be reviewed separately from logic.
 - Route matching: a small table of `{ method, pattern, handler }`, not a chain of `if`s.
