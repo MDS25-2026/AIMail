@@ -21,6 +21,7 @@ from app.core.config import get_settings
 from app.core.errors import DomainError, ErrorCode
 from app.core.health import HEALTH_PATHS, STATUS_PATH
 from app.core.ownership import Scope
+from app.core.roles import is_admin_claims
 
 SESSION_COOKIE = "aimail_session"
 CLIENT_HEADER = "X-AIMail-Client"
@@ -47,6 +48,8 @@ class Principal:
     email: str
     user_id: UUID | None = None
     is_service: bool = False
+    # The admin role in the session's token (app/core/roles.py); takes effect at the next token refresh.
+    is_admin: bool = False
 
 
 SERVICE = Principal(email="", is_service=True)
@@ -77,7 +80,7 @@ async def _user(token: str) -> Principal:
         raise _fail(status.HTTP_503_SERVICE_UNAVAILABLE, ErrorCode.SUPABASE_UNAVAILABLE) from exc
     except supabase_auth.InvalidTokenError as exc:
         raise _fail(status.HTTP_401_UNAUTHORIZED, ErrorCode.SESSION_INVALID) from exc
-    return Principal(email=claims.get("email", ""), user_id=_user_id(claims))
+    return Principal(email=claims.get("email", ""), user_id=_user_id(claims), is_admin=is_admin_claims(claims))
 
 
 async def current_principal(

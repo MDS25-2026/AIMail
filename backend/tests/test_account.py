@@ -52,9 +52,11 @@ def calls(monkeypatch, test_settings):
     return seen
 
 
-def _signed_in() -> TestClient:
+def _signed_in(role: str | None = None) -> TestClient:
     claims = {"sub": str(ALICE), "email": "alice@gmail.com", "aud": "authenticated",
               "iss": f"{SUPABASE}/auth/v1", "exp": int(time.time()) + 600}
+    if role is not None:
+        claims["app_metadata"] = {"role": role}
     client = TestClient(app)
     client.cookies.set(SESSION_COOKIE, jwt.encode(claims, KEY, algorithm="ES256"))
     return client

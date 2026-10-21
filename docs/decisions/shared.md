@@ -6,6 +6,17 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-21 — Admin and Audit Trail for admins only; admins use their normal sign-in
+
+- Decision: the admin role in the Supabase token (`app_metadata.role`) decides who sees Admin and Audit
+  Trail; `GET /auth/session` says `isAdmin`, `GET /audit` answers 404 to anyone else and shows admins
+  everyone's records with person, group and filters, and the admin console also accepts the dashboard's
+  session cookie for an admin. The console's own audit table folds into the Audit Trail page.
+- Why: users had a menu item for a log only admins need, and admins needed a second password.
+- Why not 403: to a non-admin the pages do not exist, as the dashboard shows them.
+- Affects: Lane B (auth, audit route, admin auth), Lane D (navigation, guard, audit page; Han to review).
+- Status: accepted (spec `specs/features/admin-only-pages.md`)
+
 ### 2026-10-21 — Compose: new emails, with their own table, agent endpoint and send path
 
 - Decision: new emails live in `compose_draft` (migration 0047), are written by the agent's `/compose`

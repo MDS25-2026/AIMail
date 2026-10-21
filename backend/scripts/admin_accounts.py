@@ -18,8 +18,8 @@ import httpx
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.admin.auth import ADMIN_ROLE
 from app.core.config import get_settings
+from app.core.roles import ADMIN_ROLE
 
 MIN_PASSWORD_LENGTH = 12
 PAGE_SIZE = 100

@@ -13,6 +13,7 @@ from app.admin import app as admin_routes
 from app.admin import auth, stats
 from app.admin.schemas import MailboxCounts, ModelHealth, Overview, PrivacyCounts
 from app.core import supabase_auth
+from app.core.auth import SESSION_COOKIE
 from app.core.config import get_settings
 from app.db.models import AuditLog
 from app.main import app
@@ -307,3 +308,10 @@ def test_privacy_counts_read_structured_audit_fields():
     ]
     counts = stats.privacy_counts(rows)
     assert (counts.pages_withheld, counts.degraded_before_fix) == (2, 1)
+
+
+def test_the_dashboards_google_sign_in_opens_the_console_for_an_admin_only(client):
+    admin = client.get("/admin/overview", headers={"Cookie": f"{SESSION_COOKIE}={mint()}"})
+    assert admin.status_code == 200
+    other = client.get("/admin/overview", headers={"Cookie": f"{SESSION_COOKIE}={mint(role=None)}"})
+    assert other.status_code == 403 and other.json()["error"]["code"] == "not_an_admin"

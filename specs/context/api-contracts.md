@@ -41,7 +41,13 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   `POST /emails/{id}/confirm-sender` returns the email, now `sender_confirmed` (404 if not the
   caller's). `GET /audit?limit=` (1-100, default 50) returns `{is_chain_intact, total_records,
   verified_records, head_hash, events: [{id, created_at, action, detail, success, prev_hash,
-  current_hash, user_id, is_verified}]}`: the caller's own rows, or every row for the script token.
+  current_hash, user_id, is_verified}]}`. Since 2026-10-21 (`specs/features/admin-only-pages.md`)
+  it is for admins and the script token only (404 `not_found` for anyone else) and shows everyone's
+  rows; it takes `group` (`sending` | `drafting` | `privacy` | `mailbox` | `settings` | `admin` |
+  `other`), `person` (a user id), `failures_only` and `window` (`day` | `week` | `month` | `all`), and
+  adds `failedRecords`, `people: [{id, email}]`, and on each event `group` and `userEmail`.
+  `GET /auth/session` adds `isAdmin`, and the admin console (`/admin/*`) also accepts the dashboard's
+  session cookie when its token carries the admin role.
 - **Reading a document (#195):** `GET /documents/{id}` returns `{document_id, title, source, doc_type,
   chunk_count, content, chunks: [...]}` for a document in the caller's library (`404` otherwise, or
   with no mailbox connected); rate limited like `GET /documents`.

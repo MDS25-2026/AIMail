@@ -1157,3 +1157,31 @@ def test_mail_from_before_the_connection_is_drafted_only_when_someone_opens_it()
     imported, arrived, background, requested = _run(scenario())
     assert arrived in background and imported not in background
     assert imported in requested
+
+
+# ---------- The admin audit trail's filters (specs/features/admin-only-pages.md) ----------
+
+
+def test_the_audit_filters_run_on_postgres_and_name_each_rows_person():
+    async def scenario():
+        owner = uuid4()
+        async with get_sessionmaker()() as session, session.begin():
+            session.add(UserProfile(id=owner, email=f"{owner}@example.com"))
+            await session.flush()
+            session.add(audit_row(AuditAction.GENERATE_DRAFT, user_id=owner, message="m1"))
+            session.add(audit_row(AuditAction.APPROVE_AND_SEND, user_id=owner, success=False, message="m1"))
+        results = {}
+        for name, args in {"drafting": (audit_routes.ActionGroup.DRAFTING, owner, False, audit_routes.AuditWindow.DAY),
+                           "failures": (None, owner, True, audit_routes.AuditWindow.WEEK),
+                           "other": (audit_routes.ActionGroup.OTHER, owner, False, audit_routes.AuditWindow.ALL)}.items():
+            sql, params = audit_routes._events_query(*args)
+            async with get_sessionmaker()() as session:
+                results[name] = (await session.execute(text(sql), {**params, "limit": 50})).all()
+        return owner, results
+
+    owner, results = _run(scenario())
+    assert [row.action for row in results["drafting"]] == ["generate_draft"]
+    assert results["drafting"][0].user_email == f"{owner}@example.com"
+    assert [row.action for row in results["failures"]] == ["approve_and_send"]
+    assert results["failures"][0].failed_count == 1
+    assert results["other"] == []

@@ -57,6 +57,8 @@ class SessionInfo(BaseModel):
     hasMailbox: bool
     # Google refused the stored token (specs/features/per-user-mailboxes.md); sign in again.
     needsReconnect: bool = False
+    # The admin role (app/core/roles.py): the dashboard shows Admin and Audit Trail only then.
+    isAdmin: bool = False
 
 
 def _challenge(verifier: str) -> str:
@@ -156,7 +158,7 @@ async def finish_google_sign_in(
 async def current_session(principal: Annotated[Principal, Depends(current_principal)]) -> SessionInfo:
     needs = principal.user_id is not None and await connections.needs_reconnect(principal.user_id)
     return SessionInfo(email=principal.email, hasMailbox=await scope_of_principal(principal) is not None,
-                       needsReconnect=needs)
+                       needsReconnect=needs, isAdmin=principal.is_admin)
 
 
 @router.post("/session/refresh", dependencies=[Depends(_require_client_header)])
