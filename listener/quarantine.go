@@ -16,6 +16,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -98,11 +99,11 @@ func serviceHealthy(ctx context.Context, target string) bool {
 	return resp.StatusCode < 300
 }
 
-// quarantinedRows lists pending rows, fewest attempts first, so a message that keeps failing
-// sinks behind newer ones instead of holding the head of the queue.
-func quarantinedRows(ctx context.Context) ([]quarantinedRow, error) {
-	query := fmt.Sprintf("select=user_id,gmail_message_id,masking_attempts&masking_status=eq.%s"+
-		"&order=masking_attempts.asc,received_at.asc&limit=%d", maskingPending, remaskBatchSize)
+// quarantinedRows lists pending rows of the mailboxes owners selects, fewest attempts first, so a
+// message that keeps failing sinks behind newer ones instead of holding the head of the queue.
+func quarantinedRows(ctx context.Context, owners string) ([]quarantinedRow, error) {
+	query := fmt.Sprintf("select=user_id,gmail_message_id,masking_attempts&masking_status=eq.%s&%s"+
+		"&order=masking_attempts.asc,received_at.asc&limit=%d", maskingPending, owners, remaskBatchSize)
 	body, err := supabaseGet(ctx, "messages", query)
 	if err != nil {
 		return nil, err
@@ -112,6 +113,31 @@ func quarantinedRows(ctx context.Context) ([]quarantinedRow, error) {
 		return nil, fmt.Errorf("decode quarantined rows: %w", err)
 	}
 	return rows, nil
+}
+
+// connectedOwners filters to the rows of these mailboxes, or is "" when there are none. Rows of a
+// disconnected mailbox are skipped by the pass anyway, so left in they filled its batch for nothing.
+func connectedOwners(mailboxes []*mailbox) string {
+	var ids []string
+	hasUnowned := false
+	for _, mb := range mailboxes {
+		if mb.ownerID == "" {
+			hasUnowned = true
+			continue
+		}
+		ids = append(ids, `"`+mb.ownerID+`"`)
+	}
+	slices.Sort(ids)
+	switch {
+	case len(ids) == 0 && !hasUnowned:
+		return ""
+	case len(ids) == 0:
+		return ownerFilter("")
+	case !hasUnowned:
+		return "user_id=in." + url.QueryEscape("("+strings.Join(ids, ",")+")")
+	}
+	// in.() never matches NULL, which is how the token.json mailbox's rows are stored.
+	return "or=" + url.QueryEscape("(user_id.in.("+strings.Join(ids, ",")+"),user_id.is.null)")
 }
 
 // messageFilter selects one message of one mailbox; Gmail ids are only unique per mailbox.
@@ -168,10 +194,11 @@ func isGmailTrouble(err error) bool {
 // and skipped, so it cannot stall the rows behind it; if Presidio itself has gone down again the
 // pass stops, since every remaining row would fail for the same reason.
 func remaskQuarantined(ctx context.Context) {
-	if !presidioHealthy(ctx) {
+	owners := connectedOwners(allMailboxes())
+	if owners == "" || !presidioHealthy(ctx) {
 		return
 	}
-	rows, err := quarantinedRows(ctx)
+	rows, err := quarantinedRows(ctx, owners)
 	if err != nil {
 		log.Printf("could not list quarantined messages: %v", err)
 		return

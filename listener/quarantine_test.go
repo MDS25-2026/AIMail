@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -37,7 +38,7 @@ func TestQuarantinedRowsComeFewestAttemptsFirst(t *testing.T) {
 	queries := withSupabase(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte(`[{"gmail_message_id":"a","masking_attempts":0},{"gmail_message_id":"b","masking_attempts":3}]`))
 	})
-	rows, err := quarantinedRows(context.Background())
+	rows, err := quarantinedRows(context.Background(), ownerFilter(""))
 	if err != nil || len(rows) != 2 || rows[1].MaskingAttempts != 3 {
 		t.Fatalf("got %v, %v", rows, err)
 	}
@@ -147,5 +148,24 @@ func TestAnUnregisteredMailboxChargesAttempt(t *testing.T) {
 	recordFailure(context.Background(), quarantinedRow{UserID: "unknown", GmailMessageID: "m1", MaskingAttempts: 0}, reasonDisconnected)
 	if len(patches) != 1 || !strings.Contains(patches[0], `"masking_attempts":1`) {
 		t.Fatalf("unregistered mailbox failure must count an attempt: %v", patches)
+	}
+}
+
+func TestTheRemaskBatchIsLimitedToConnectedMailboxes(t *testing.T) {
+	alice, bob, unowned := &mailbox{ownerID: "b-alice"}, &mailbox{ownerID: "a-bob"}, &mailbox{}
+	cases := []struct {
+		mailboxes []*mailbox
+		want      string
+	}{
+		{nil, ""},
+		{[]*mailbox{unowned}, "user_id=is.null"},
+		{[]*mailbox{alice, bob}, `user_id=in.("a-bob","b-alice")`},
+		{[]*mailbox{alice, unowned}, `or=(user_id.in.("b-alice"),user_id.is.null)`},
+	}
+	for _, c := range cases {
+		got, err := url.QueryUnescape(connectedOwners(c.mailboxes))
+		if err != nil || got != c.want {
+			t.Errorf("connectedOwners: got %q, want %q (%v)", got, c.want, err)
+		}
 	}
 }
