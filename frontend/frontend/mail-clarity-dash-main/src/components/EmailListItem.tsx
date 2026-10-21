@@ -1,4 +1,5 @@
 import { Reply, ShieldAlert } from "lucide-react";
+import { memo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { AuthStatus, MaskingStatus, type Email } from "../types/email";
@@ -12,14 +13,20 @@ import WithDetails, { SenderText } from "./WithDetails";
 
 type EmailListItemProps = {
   email: Email;
+  /** The conversation's, not this email's: unread while any message in it is. */
+  isRead: boolean;
   /** Messages in this row's conversation; shown beside the sender when more than one. */
   messageCount?: number;
   selected: boolean;
   onSelect: (emailId: string) => void;
 };
 
-export default function EmailListItem({
+// Memoised: a changed email re-renders its own row, not every row in the list.
+export default memo(EmailListItem);
+
+function EmailListItem({
   email,
+  isRead,
   messageCount = 1,
   selected,
   onSelect,
@@ -41,18 +48,16 @@ export default function EmailListItem({
           {/* First in the row, not after the sender: an sr-only label is absolutely positioned at
             where it would sit in flow, and after a truncated name that is past the list's right
             edge, which widened the list (and, with no positioned ancestor, the page: #96). */}
-          {email.isRead ? null : <span className="sr-only">{t("inbox.unread")} </span>}
+          {isRead ? null : <span className="sr-only">{t("inbox.unread")} </span>}
           <div className="flex items-baseline justify-between gap-2">
             <span
               aria-hidden="true"
               className={`mt-1.5 size-2 shrink-0 rounded-full ${
-                email.isRead ? "bg-transparent" : "bg-brand"
+                isRead ? "bg-transparent" : "bg-brand"
               }`}
             />
             <span
-              className={`flex-1 truncate text-sm text-fg ${
-                email.isRead ? "font-normal" : "font-bold"
-              }`}
+              className={`flex-1 truncate text-sm text-fg ${isRead ? "font-normal" : "font-bold"}`}
             >
               <SenderText sender={email.sender} />
             </span>
@@ -66,7 +71,7 @@ export default function EmailListItem({
           </div>
           <div
             className={`mt-0.5 truncate text-sm text-fg-body ${
-              email.isRead ? "font-normal" : "font-semibold"
+              isRead ? "font-normal" : "font-semibold"
             }`}
           >
             <WithDetails text={email.subject} />
