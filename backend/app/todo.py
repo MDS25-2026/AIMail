@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from sqlalchemy import ColumnElement, and_, case, func, or_, select, update
 from sqlalchemy.dialects.postgresql import distinct_on, insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.contracts import DashboardEmail
 from app.core.ownership import Scope
@@ -127,28 +128,33 @@ async def _latest_inbound(session: AsyncSession, scope: Scope, thread_ids: list[
     return {message.thread_id: message for message in rows}
 
 
+async def _unanswered(session: AsyncSession, scope: Scope) -> list[SentMessage]:
+    """The latest reply in each thread, unless dismissed or answered since (an email arrived after it)."""
+    latest = aliased(SentMessage, (
+        select(SentMessage).where(scope.where(SentMessage.user_id), SentMessage.thread_id.is_not(None))
+        .ext(distinct_on(SentMessage.thread_id)).order_by(SentMessage.thread_id, SentMessage.sent_at.desc())
+        .subquery()))
+    is_answered = select(Message.id).where(scope.where(Message.user_id), Message.thread_id == latest.thread_id,
+                                           Message.created_at > latest.sent_at).exists()
+    # Filtered after DISTINCT ON: a dismissed latest reply takes its thread out, never an older one in.
+    return list((await session.scalars(select(latest).where(latest.dismissed_at.is_(None), ~is_answered)
+                                       .order_by(latest.thread_id))).all())
+
+
 async def _waiting(session: AsyncSession, scope: Scope, waiting_days: int, quiet: QuietHoursView,
                    policy: Policy) -> list[WaitingReply]:
     """The latest reply in each thread that asked something, has had no answer, and is overdue."""
-    latest = (await session.scalars(
-        select(SentMessage).where(scope.where(SentMessage.user_id), SentMessage.thread_id.is_not(None))
-        .ext(distinct_on(SentMessage.thread_id)).order_by(SentMessage.thread_id, SentMessage.sent_at.desc()))).all()
-    inbound = await _latest_inbound(session, scope, [sent.thread_id for sent in latest])
     now = datetime.now(timezone.utc)
-    waiting = []
-    for sent in latest:
-        received = inbound.get(sent.thread_id)
-        is_answered = received is not None and received.created_at > sent.sent_at
-        is_tracked = sent.remind or asks_something(sent.body_masked)
-        if sent.dismissed_at or is_answered or not is_tracked:
-            continue
-        days = working_days_since(sent.sent_at, now, quiet.weekendDays, quiet.timezone)
-        if days < waiting_days:
-            continue
-        waiting.append(WaitingReply(id=str(sent.id), subject=sent.subject, sentAt=sent.sent_at.isoformat(),
-                                    threadId=sent.thread_id, workingDays=days,
-                                    email=inbox_row(received, policy) if received else None,
-                                    canFollowUp=sent.message_id is not None))
+    tracked = [sent for sent in await _unanswered(session, scope) if sent.remind or asks_something(sent.body_masked)]
+    days = {sent.id: working_days_since(sent.sent_at, now, quiet.weekendDays, quiet.timezone) for sent in tracked}
+    overdue = [sent for sent in tracked if days[sent.id] >= waiting_days]
+    # Only the overdue threads' emails are loaded: most replies are answered or not yet due.
+    inbound = await _latest_inbound(session, scope, [sent.thread_id for sent in overdue])
+    waiting = [WaitingReply(id=str(sent.id), subject=sent.subject, sentAt=sent.sent_at.isoformat(),
+                            threadId=sent.thread_id, workingDays=days[sent.id],
+                            email=inbox_row(inbound[sent.thread_id], policy) if sent.thread_id in inbound else None,
+                            canFollowUp=sent.message_id is not None)
+               for sent in overdue]
     return sorted(waiting, key=lambda reply: reply.sentAt)[:SECTION_LIMIT]
 
 

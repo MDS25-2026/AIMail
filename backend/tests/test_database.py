@@ -423,6 +423,30 @@ def test_the_todo_lists_what_needs_the_reader_and_what_is_still_waiting():
     assert after.needsAction.total == 0 and after.waiting == []
 
 
+def test_a_waiting_reply_opens_the_email_it_answered_and_an_answer_after_it_takes_it_off():
+    owner = uuid4()
+    now = datetime.now(timezone.utc)
+
+    def received(thread: str, days_ago: int) -> Message:
+        return Message(id=uuid4(), user_id=owner, gmail_message_id=f"wr-{uuid4()}", subject="s", thread_id=thread,
+                       masking_status=MaskingStatus.COMPLETE, created_at=now - timedelta(days=days_ago))
+
+    async def scenario():
+        async with get_sessionmaker()() as session, session.begin():
+            session.add(UserProfile(id=owner, email=f"{owner}@example.com"))
+        asked = received("E", 10)
+        async with get_sessionmaker()() as session, session.begin():
+            session.add_all([asked, received("F", 10), received("F", 1)])
+        async with get_sessionmaker()() as session, session.begin():
+            session.add_all([SentMessage(user_id=owner, gmail_id=f"g-{uuid4()}", thread_id=thread,
+                                         sent_at=now - timedelta(days=8), body_masked="Thanks.", remind=True)
+                             for thread in ("E", "F")])
+        return str(asked.id), await todo.todo_for(Scope(owner_id=owner), f"{owner}@example.com")
+
+    asked_id, result = _run(scenario())
+    assert [(w.threadId, w.email.id if w.email else None) for w in result.waiting] == [("E", asked_id)]
+
+
 def test_an_email_that_fits_every_todo_list_shows_once_in_the_most_urgent():
     owner = uuid4()
     now = datetime.now(timezone.utc)
