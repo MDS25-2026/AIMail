@@ -33,10 +33,14 @@ from app.core.auth import (
     scope_of_principal,
 )
 from app.core.config import get_settings
+from app.core.constants import SIGN_IN_RATE_LIMIT, SIGN_IN_RATE_WINDOW_SECONDS
 from app.core.errors import DomainError, ErrorCode
+from app.core.middleware import printable
+from app.core.ratelimit import RateLimiter
 from app.core.supabase_auth import Session
 
 router = APIRouter(prefix="/auth")
+rate_limit_sign_in = RateLimiter("sign-in", SIGN_IN_RATE_LIMIT, SIGN_IN_RATE_WINDOW_SECONDS)
 logger = logging.getLogger(__name__)
 
 VERIFIER_COOKIE = "aimail_pkce"
@@ -118,7 +122,7 @@ async def start_google_sign_in() -> RedirectResponse:
     return response
 
 
-@router.get("/callback")
+@router.get("/callback", dependencies=[Depends(rate_limit_sign_in)])
 async def finish_google_sign_in(
     code: str | None = None,
     error: str | None = None,
@@ -127,7 +131,9 @@ async def finish_google_sign_in(
 ) -> RedirectResponse:
     if error:
         description = (error_description or "")[:MAX_LOGGED_DESCRIPTION]
-        logger.warning("Google sign-in refused by Supabase: %s: %s", error, description)
+        # Both arrive in the query of an unauthenticated URL: escaped, so they cannot forge a log line.
+        logger.warning("Google sign-in refused by Supabase: %s: %s",
+                       printable(error[:MAX_LOGGED_DESCRIPTION]), printable(description))
         # Public sign-ups are off in Supabase, so a first-time Google user cannot be created.
         is_sign_up_refused = "signup" in description.lower().replace(" ", "")
         return _back_to_sign_in(SIGN_IN_NOT_ALLOWED if is_sign_up_refused else SIGN_IN_FAILED)
@@ -161,7 +167,7 @@ async def current_session(principal: Annotated[Principal, Depends(current_princi
                        needsReconnect=needs, isAdmin=principal.is_admin)
 
 
-@router.post("/session/refresh", dependencies=[Depends(_require_client_header)])
+@router.post("/session/refresh", dependencies=[Depends(rate_limit_sign_in), Depends(_require_client_header)])
 async def refresh_current_session(
     response: Response,
     refresh_token: Annotated[str | None, Cookie(alias=REFRESH_COOKIE)] = None,
@@ -179,10 +185,22 @@ async def refresh_current_session(
     return response
 
 
+async def _access_from(refresh_token: str | None) -> str | None:
+    """Once the hour-long session cookie has expired only the refresh token is left; it is exchanged
+    for one to revoke with, or clearing the cookies would leave it valid at Supabase for a week."""
+    if not refresh_token:
+        return None
+    try:
+        return (await supabase_auth.refresh_session(refresh_token)).access_token
+    except (supabase_auth.InvalidGrantError, supabase_auth.SupabaseUnavailableError,
+            supabase_auth.SupabaseNotConfiguredError):
+        return None  # already revoked or expired, or Supabase is away: the cookies are cleared anyway
+
+
 @router.delete("/session", status_code=status.HTTP_204_NO_CONTENT,
                dependencies=[Depends(_require_client_header)])
 async def sign_out(request: Request, response: Response) -> Response:
-    token = request.cookies.get(SESSION_COOKIE)
+    token = request.cookies.get(SESSION_COOKIE) or await _access_from(request.cookies.get(REFRESH_COOKIE))
     if token:
         await supabase_auth.revoke(token)
     clear_session(response)

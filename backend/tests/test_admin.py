@@ -176,6 +176,15 @@ def test_password_guessing_is_rate_limited(client, monkeypatch):
     assert response.status_code == 429
 
 
+def test_guessing_one_admins_password_does_not_lock_the_other_admins_out(client, monkeypatch):
+    # Behind the hosting proxy every caller may share one address.
+    supabase(monkeypatch, lambda request: httpx.Response(400))
+    for _ in range(6):
+        client.post("/admin/session", json={"email": "a@b.c", "password": "x"}, headers=CSRF)
+    response = client.post("/admin/session", json={"email": "other@b.c", "password": "x"}, headers=CSRF)
+    assert response.status_code != 429
+
+
 def test_unconfigured_admin_auth_fails_closed(client, monkeypatch):
     monkeypatch.setenv("SUPABASE_ANON_KEY", "")
     get_settings.cache_clear()

@@ -26,7 +26,7 @@ def agent_headers() -> dict[str, str]:
 def _is_allowed(request: Request) -> bool:
     token = get_settings().agent_token
     if token:
-        return hmac.compare_digest(request.headers.get(AGENT_TOKEN_HEADER, ""), token)
+        return hmac.compare_digest(request.headers.get(AGENT_TOKEN_HEADER, "").encode(), token.encode())
     return request.client is not None and request.client.host in LOCAL_HOSTS
 
 

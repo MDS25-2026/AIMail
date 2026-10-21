@@ -133,7 +133,9 @@ def test_another_user_sees_an_empty_inbox(client):
 
 
 def test_another_user_gets_404_for_an_email_id(client):
-    assert _signed_in(client, "someone.else@gmail.com").get("/emails/e1").status_code == 404
+    # The dashboard sends its header on every call; opening an email marks it read.
+    response = _signed_in(client, "someone.else@gmail.com").get("/emails/e1", headers={"X-AIMail-Client": "1"})
+    assert response.status_code == 404
 
 
 def test_a_connected_user_is_recognised_whatever_the_case_of_their_email(client):

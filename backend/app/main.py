@@ -45,6 +45,7 @@ from app.core import http_pool
 from app.core.auth import (
     principal_of,
     require_auth,
+    require_client_marker,
     require_mailbox,
     scope_of,
     scope_of_principal,
@@ -277,7 +278,8 @@ async def emails(request: Request, cursor: str | None = None,
     return await list_dashboard_emails(scope, principal.email or "", limit, after)
 
 
-@app.get("/emails/{message_id}", dependencies=[Depends(rate_limit_detail), Depends(require_mailbox)])
+@app.get("/emails/{message_id}",
+         dependencies=[Depends(require_client_marker), Depends(rate_limit_detail), Depends(require_mailbox)])
 async def email_detail_route(message_id: str, request: Request, markRead: bool = True) -> DashboardEmail:
     # markRead=false: the reader just marked it unread, so refreshing the open view must not undo that.
     scope, viewer = scope_of(request), principal_of(request).user_id
@@ -297,7 +299,8 @@ async def mark_unread_route(message_id: str, request: Request) -> None:
 GMAIL_THREAD_ID = r"^[0-9a-f]{8,24}$"
 
 
-@app.get("/emails/by-thread/{thread_id}", dependencies=[Depends(rate_limit_detail), Depends(require_mailbox)])
+@app.get("/emails/by-thread/{thread_id}",
+         dependencies=[Depends(require_client_marker), Depends(rate_limit_detail), Depends(require_mailbox)])
 async def email_for_thread_route(
     thread_id: Annotated[str, PathParam(pattern=GMAIL_THREAD_ID)], request: Request
 ) -> DashboardEmail:

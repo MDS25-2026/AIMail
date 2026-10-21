@@ -91,7 +91,7 @@ async def current_principal(
     if credentials is not None:
         expected = get_settings().backend_api_token
         # An unset token never matches, so it cannot switch authentication off.
-        if expected and secrets.compare_digest(credentials.credentials, expected):
+        if expected and secrets.compare_digest(credentials.credentials.encode(), expected.encode()):
             return SERVICE
         return await _user(credentials.credentials)
     token = request.cookies.get(SESSION_COOKIE)
@@ -102,6 +102,13 @@ async def current_principal(
     if request.method in _STATE_CHANGING and request.headers.get(CLIENT_HEADER) != "1":
         raise _fail(status.HTTP_403_FORBIDDEN, ErrorCode.CLIENT_HEADER_MISSING)
     return await _user(token)
+
+
+def require_client_marker(request: Request) -> None:
+    """For a GET that changes state (marks read, starts a draft): a cookie caller needs the same header
+    as a write, so another local page cannot trigger it with a plain link."""
+    if request.cookies.get(SESSION_COOKIE) and request.headers.get(CLIENT_HEADER) != "1":
+        raise _fail(status.HTTP_403_FORBIDDEN, ErrorCode.CLIENT_HEADER_MISSING)
 
 
 async def require_auth(
