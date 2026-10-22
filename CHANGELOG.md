@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.9.0](https://github.com/MDS25-2026/AIMail/compare/v1.8.0...v1.9.0) (2026-10-22)
+
+
+### Features
+
+* inbox import, admin RBAC, and security hardening ([#261](https://github.com/MDS25-2026/AIMail/issues/261)) ([84faeba](https://github.com/MDS25-2026/AIMail/commit/84faeba2183e01976ff7bc0880a049ea8a4f3534))
+* **inbox:** the header counts unread conversations ([#249](https://github.com/MDS25-2026/AIMail/issues/249)) ([cc91624](https://github.com/MDS25-2026/AIMail/commit/cc91624f2847b90f98a53313a42201be3bcce960))
+* **landing:** add feedback form QR code and desktop Chrome extension link ([#262](https://github.com/MDS25-2026/AIMail/issues/262)) ([897deb0](https://github.com/MDS25-2026/AIMail/commit/897deb033dbf572161d35f79558b2c8fe8620f15))
+
+
+### Bug Fixes
+
+* **ci:** scope dependabot constraints bypass to pip branches and pin ruff ([#259](https://github.com/MDS25-2026/AIMail/issues/259)) ([0eb3036](https://github.com/MDS25-2026/AIMail/commit/0eb3036a2678fc4c57b6d06c0f6700cccd0a85e2))
+
 ## [1.8.0](https://github.com/MDS25-2026/AIMail/compare/v1.7.0...v1.8.0) (2026-10-21)
 
 
