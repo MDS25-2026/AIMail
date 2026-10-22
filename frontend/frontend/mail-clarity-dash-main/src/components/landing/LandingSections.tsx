@@ -342,7 +342,7 @@ export function ExtensionSection() {
         </div>
 
         <div className="flex flex-col items-center justify-center rounded-xl bg-surface-muted p-6 border border-line text-center">
-          <div className="rounded-xl bg-white p-3 shadow-sm border border-line">
+          <div className="rounded-xl bg-surface p-3 shadow-sm border border-line">
             <img
               src="/feedback-qr.svg"
               alt={t("landing.feedback.qrAlt")}
