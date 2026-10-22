@@ -1196,6 +1196,24 @@ export const en = {
   },
   landing: {
     statusLink: "Service status",
+    extensionLink: "Chrome extension",
+    feedbackLink: "Give feedback",
+    extension: {
+      badge: "Chrome Web Store",
+      title: "Draft replies right inside your Gmail sidebar",
+      body:
+        "Install the AIMail Chrome extension on your desktop browser to see privacy-masked AI summaries, extracted to-do items, and adaptive reply drafts right beside the email you have open, without switching tabs.",
+      button: "Add to Chrome",
+      desktopOnlyBadge: "Desktop only",
+      desktopNote:
+        "Currently available for desktop browsers (Chrome, Edge, Brave). Mobile Gmail does not support browser extensions.",
+    },
+    feedback: {
+      qrAlt: "QR code linking to the AIMail user feedback form",
+      qrTitle: "Share your feedback",
+      qrHint: "Scan with your phone camera to share feedback or report suggestions.",
+      link: "Open form directly",
+    },
     eyebrow: "For teams who handle other people's details",
     tagline: "Private AI replies for Malaysian teams",
     headline: "The AI writes your replies. It never learns who they're for.",

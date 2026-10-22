@@ -1,8 +1,10 @@
 import {
   CalendarClock,
+  ExternalLink,
   FileText,
   ListTodo,
   PanelRight,
+  QrCode,
   Sparkles,
   WandSparkles,
 } from "lucide-react";
@@ -293,6 +295,83 @@ export function FaqSection() {
             </p>
           </details>
         ))}
+      </div>
+    </section>
+  );
+}
+
+
+export const CHROME_STORE_URL =
+  "https://chromewebstore.google.com/detail/aimail/jgheckckapmfmdalmeofdfekdbkiloip?pli=1";
+
+export const FEEDBACK_FORM_URL = "https://tally.so/r/Z9jdd5";
+
+export function ExtensionSection() {
+  const { t } = useTranslation();
+  return (
+    <section
+      aria-labelledby="extension"
+      className="rounded-2xl border border-line bg-surface p-6 sm:p-10"
+    >
+      <div className="grid gap-8 lg:grid-cols-[1.3fr_1fr] lg:items-center">
+        <div className="space-y-4">
+          <div className="inline-flex items-center gap-2 rounded-full border border-line bg-surface-muted px-3 py-1 text-xs font-semibold text-fg-muted">
+            <PanelRight aria-hidden className="size-3.5 text-brand" />
+            <span>{t("landing.extension.badge")}</span>
+          </div>
+          <h2 id="extension" className="text-2xl font-semibold tracking-tight text-fg sm:text-3xl">
+            {t("landing.extension.title")}
+          </h2>
+          <p className="max-w-xl text-fg-muted leading-relaxed">
+            {t("landing.extension.body")}
+          </p>
+          <div className="pt-2 space-y-2">
+            <div className="flex flex-wrap items-center gap-3">
+              <a
+                href={CHROME_STORE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-brand px-5 py-2.5 text-sm font-semibold text-on-brand hover:bg-brand-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+              >
+                <span>{t("landing.extension.button")}</span>
+                <ExternalLink aria-hidden className="size-4" />
+              </a>
+              <span className="inline-flex items-center rounded-md border border-line bg-surface-muted px-2.5 py-1 text-xs font-medium text-fg-muted">
+                {t("landing.extension.desktopOnlyBadge")}
+              </span>
+            </div>
+            <p className="text-xs text-fg-subtle">
+              {t("landing.extension.desktopNote")}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-col items-center justify-center rounded-xl bg-surface-muted p-6 border border-line text-center">
+          <div className="rounded-xl bg-white p-3 shadow-sm border border-line">
+            <img
+              src="/feedback-qr.svg"
+              alt={t("landing.feedback.qrAlt")}
+              width={144}
+              height={144}
+              className="size-36 block"
+            />
+          </div>
+          <div className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-fg">
+            <QrCode aria-hidden className="size-3.5 text-brand" />
+            <span>{t("landing.feedback.qrTitle")}</span>
+          </div>
+          <p className="mt-0.5 text-xs text-fg-muted max-w-[220px]">
+            {t("landing.feedback.qrHint")}
+          </p>
+          <a
+            href={FEEDBACK_FORM_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 text-xs font-medium text-brand underline hover:text-brand-strong"
+          >
+            {t("landing.feedback.link")}
+          </a>
+        </div>
       </div>
     </section>
   );

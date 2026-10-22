@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
+  ExtensionSection,
   FaqSection,
   FeaturesSection,
   LanguageSwitch,
@@ -11,6 +12,8 @@ import {
   PeekSection,
   ReceiptSection,
   RedactionChip,
+  CHROME_STORE_URL,
+  FEEDBACK_FORM_URL,
 } from "../components/landing/LandingSections";
 import LivePreview from "../components/landing/LivePreview";
 import { isDemo } from "../demo/mode";
@@ -140,6 +143,7 @@ function LandingPage() {
         <ReceiptSection />
         <LanguagesSection />
         <FeaturesSection />
+        <ExtensionSection />
         <FaqSection />
 
         <section className="rounded-2xl bg-brand px-6 py-12 text-center text-on-brand sm:px-12">
@@ -160,9 +164,27 @@ function LandingPage() {
       <footer className="border-t border-line">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-6 text-xs text-fg-subtle sm:px-6">
           <p>{t("landing.footer")}</p>
-          <Link to="/status" className="font-medium text-fg-muted underline hover:text-fg">
-            {t("landing.statusLink")}
-          </Link>
+          <div className="flex flex-wrap items-center gap-4">
+            <a
+              href={CHROME_STORE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-fg-muted underline hover:text-fg"
+            >
+              {t("landing.extensionLink")}
+            </a>
+            <a
+              href={FEEDBACK_FORM_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-fg-muted underline hover:text-fg"
+            >
+              {t("landing.feedbackLink")}
+            </a>
+            <Link to="/status" className="font-medium text-fg-muted underline hover:text-fg">
+              {t("landing.statusLink")}
+            </Link>
+          </div>
         </div>
       </footer>
     </div>
