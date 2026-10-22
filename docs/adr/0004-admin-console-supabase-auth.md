@@ -89,3 +89,11 @@ and keeps the tokens in HttpOnly cookies. The rest of the API keeps the shared t
   the shared token retires.
 - Admin actions become writes (for example re-queueing a quarantined message): add an audit row
   per action with the admin's user id before that ships.
+
+## Update (2026-10-21)
+
+The dashboard now signs people in with Supabase too (ADR 0005), so the console also accepts the
+dashboard's session cookie when its token carries the admin role (`specs/features/admin-only-pages.md`).
+An admin signed in with Google no longer needs a second password; password-only admin accounts keep
+the console's own sign-in. The role is still written only by `scripts/admin_accounts.py` with the
+service key, and state-changing console calls still need the admin header.

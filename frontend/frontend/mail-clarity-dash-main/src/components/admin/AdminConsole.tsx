@@ -1,17 +1,17 @@
-import { Ban, FileWarning, ImageOff, LogOut, ShieldAlert } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { ArrowRight, Ban, FileWarning, ImageOff, LogOut, ShieldAlert } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
-  useAdminAudit,
   useAdminFlagged,
   useAdminOverview,
   useAdminSignOut,
+  useHasOwnAdminSession,
   useSignedOutRecovery,
 } from "../../lib/queries";
 import type { AdminIdentity, Overview } from "../../types/admin";
 import { PageError, PageLoading } from "../PageState";
-import AuditTable from "./AuditTable";
 import BarList from "./BarList";
 import CompanyQuietHours from "./CompanyQuietHours";
 import FlaggedTable from "./FlaggedTable";
@@ -25,12 +25,11 @@ const NOT_MEASURED = "–";
 export default function AdminConsole({ admin }: { admin: AdminIdentity }) {
   const { t } = useTranslation();
   const [days, setDays] = useState<number>(7);
-  const [failuresOnly, setFailuresOnly] = useState(false);
   const overview = useAdminOverview(days, true);
   const flagged = useAdminFlagged(true);
-  const audit = useAdminAudit(failuresOnly, true);
   const signOut = useAdminSignOut();
-  useSignedOutRecovery([overview.error, flagged.error, audit.error]);
+  const hasOwnSession = useHasOwnAdminSession();
+  useSignedOutRecovery([overview.error, flagged.error]);
 
   return (
     <div className="space-y-4">
@@ -41,14 +40,17 @@ export default function AdminConsole({ admin }: { admin: AdminIdentity }) {
         </div>
         <div className="flex items-center gap-3 text-sm">
           <span className="text-fg-muted">{t("admin.signedInAs", { email: admin.email })}</span>
-          <button
-            type="button"
-            onClick={() => signOut.mutate()}
-            className="inline-flex items-center gap-1 rounded-md border border-line-strong px-3 py-1.5 text-fg-body hover:bg-surface-muted"
-          >
-            <LogOut aria-hidden className="size-4" />
-            {t("admin.signOut")}
-          </button>
+          {/* On the dashboard's Google session there is nothing of the console's own to end. */}
+          {hasOwnSession ? (
+            <button
+              type="button"
+              onClick={() => signOut.mutate()}
+              className="inline-flex items-center gap-1 rounded-md border border-line-strong px-3 py-1.5 text-fg-body hover:bg-surface-muted"
+            >
+              <LogOut aria-hidden className="size-4" />
+              {t("admin.signOut")}
+            </button>
+          ) : null}
         </div>
       </header>
 
@@ -81,18 +83,16 @@ export default function AdminConsole({ admin }: { admin: AdminIdentity }) {
         {flagged.data ? <FlaggedTable drafts={flagged.data} /> : null}
       </Panel>
 
+      {/* One audit view for admins: the console's activity log is the Audit Trail page. */}
       <Panel title={t("admin.activity")}>
-        <label className="mb-3 inline-flex items-center gap-2 text-sm text-fg-body">
-          <input
-            type="checkbox"
-            checked={failuresOnly}
-            onChange={(event) => setFailuresOnly(event.target.checked)}
-          />
-          {t("admin.failuresOnly")}
-        </label>
-        {audit.isPending ? <PageLoading label={t("admin.activity")} /> : null}
-        {audit.isError ? <PageError label={t("admin.activity")} error={audit.error} /> : null}
-        {audit.data ? <AuditTable events={audit.data} /> : null}
+        <p className="mb-3 text-sm text-fg-muted">{t("admin.activityHint")}</p>
+        <Link
+          to="/audit"
+          className="inline-flex items-center gap-1 text-sm font-medium text-brand hover:text-brand-strong"
+        >
+          {t("admin.openAudit")}
+          <ArrowRight aria-hidden className="size-4" />
+        </Link>
       </Panel>
 
       <Panel title={t("admin.quietHours")}>

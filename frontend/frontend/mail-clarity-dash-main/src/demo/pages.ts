@@ -1,6 +1,12 @@
 import { ApiError, ApiErrorCode } from "../lib/api/errors";
 import { Language } from "../lib/preferences";
-import type { AuditFields, AuditTrail } from "../types/audit";
+import {
+  AuditWindow,
+  type AuditFields,
+  type AuditPerson,
+  type AuditTrail,
+  type AuditTrailEvent,
+} from "../types/audit";
 import { AuthStatus, MaskingStatus, type Email } from "../types/email";
 import type { DocumentDetail, PolicyDocument, SystemInfo } from "../types/knowledge";
 import { ExampleSource, type WritingStyle } from "../types/profile";
@@ -13,7 +19,7 @@ import {
 import type { Template } from "../types/template";
 import type { FollowUpDraft, Todo, TodoSection, WaitingReply } from "../types/todo";
 import { DEMO_FOLLOW_UPS } from "./data/answers";
-import { DEMO_OWNER_NAME } from "./data/emails";
+import { DEMO_ACCOUNT, DEMO_OWNER_NAME } from "./data/emails";
 import { DEMO_COMPANY_QUIET_HOURS, DEMO_PRIVATE_MODE, DEMO_SYSTEM_INFO } from "./data/settings";
 import {
   canHash,
@@ -175,6 +181,30 @@ function markNotWaiting({ params, endpoint }: Call, isDismissed: boolean) {
 }
 
 // ---- Templates (backend/app/templates.py) ----
+
+// GET /audit's default page (backend/app/audit_routes.py DEFAULT_EVENTS).
+const DEFAULT_AUDIT_ROWS = 50;
+// The demo has one person, the visitor; the id is made up, as the account is.
+const DEMO_PERSON: AuditPerson = { id: "demo-person", email: DEMO_ACCOUNT };
+const WINDOW_DAYS: Partial<Record<string, number>> = {
+  [AuditWindow.Day]: 1,
+  [AuditWindow.Week]: 7,
+  [AuditWindow.Month]: 30,
+};
+
+/** The backend's audit filters (group, person, failures_only, window), applied in memory. */
+function auditFilter(query: URLSearchParams, now: Date): (event: AuditTrailEvent) => boolean {
+  const group = query.get("group");
+  const person = query.get("person");
+  const isFailuresOnly = query.get("failures_only") === "true";
+  const days = WINDOW_DAYS[query.get("window") ?? AuditWindow.All];
+  const since = days === undefined ? null : now.getTime() - days * DAY_MS;
+  return (event) =>
+    (!group || event.group === group) &&
+    (!person || person === DEMO_PERSON.id) &&
+    (!isFailuresOnly || event.success === false) &&
+    (since === null || new Date(event.createdAt).getTime() >= since);
+}
 
 const MALAY_MONTHS = [
   "Januari",
@@ -444,16 +474,21 @@ export const PAGE_ROUTES: Route[] = [
   {
     method: "GET",
     pattern: /^\/audit$/,
-    handler: async ({ endpoint }): Promise<AuditTrail> => {
+    handler: async ({ endpoint, query }): Promise<AuditTrail> => {
       // Hashing needs https or localhost; on plain http the page says so rather than crashing.
       if (!canHash()) return notInDemo(endpoint);
-      const events = (await chainedAudit()).reverse();
+      // Chained over the whole trail first, as the database does, then filtered.
+      const chain = await chainedAudit();
+      const matching = [...chain].reverse().filter(auditFilter(query, new Date()));
+      const events = matching.slice(0, Number(query.get("limit")) || DEFAULT_AUDIT_ROWS);
       return {
         events,
         isChainIntact: true,
-        totalRecords: events.length,
+        totalRecords: matching.length,
         verifiedRecords: events.length,
-        headHash: events[0]?.currentHash ?? null,
+        failedRecords: matching.filter((event) => event.success === false).length,
+        headHash: chain.at(-1)?.currentHash ?? null,
+        people: [DEMO_PERSON],
       };
     },
   },

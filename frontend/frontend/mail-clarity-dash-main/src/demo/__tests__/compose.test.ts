@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 
 import * as audit from "../../lib/api/audit";
 import * as compose from "../../lib/api/compose";
@@ -35,6 +35,11 @@ async function refusalCode(call: Promise<unknown>): Promise<ApiErrorCode | strin
 }
 
 let fetchSpy: ReturnType<typeof vi.fn>;
+
+// Loaded before the fake timers: a first import slower than settle's 2 s would strand the call.
+beforeAll(async () => {
+  await import("../request");
+});
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["setTimeout"] });

@@ -11,8 +11,10 @@ from typing import Annotated
 from fastapi import Cookie, Header, HTTPException, Response, status
 
 from app.core import supabase_auth
+from app.core.auth import SESSION_COOKIE
 from app.core.config import get_settings
 from app.core.errors import ErrorCode
+from app.core.roles import is_admin_claims
 from app.core.supabase_auth import Session
 
 ACCESS_COOKIE = "aimail_admin"
@@ -21,7 +23,6 @@ ACCESS_COOKIE_PATH = "/admin"
 REFRESH_COOKIE_PATH = "/admin/session"
 REFRESH_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
 CSRF_HEADER = "X-AIMail-Admin"
-ADMIN_ROLE = "admin"
 
 
 
@@ -54,17 +55,19 @@ async def verify_admin(token: str) -> Admin:
         claims = await supabase_auth.verify_access_token(token)
     except _SUPABASE_FAILURES as exc:
         raise _from_supabase(exc, ErrorCode.ADMIN_SESSION_INVALID) from exc
-    if (claims.get("app_metadata") or {}).get("role") != ADMIN_ROLE:
+    if not is_admin_claims(claims):
         raise _fail(status.HTTP_403_FORBIDDEN, ErrorCode.NOT_AN_ADMIN)
     return Admin(user_id=claims["sub"], email=claims.get("email", ""))
 
 
 async def require_admin(
     token: Annotated[str | None, Cookie(alias=ACCESS_COOKIE)] = None,
+    dashboard_token: Annotated[str | None, Cookie(alias=SESSION_COOKIE)] = None,
 ) -> Admin:
-    if not token:
+    """The console's own session, or the dashboard's Google sign-in when that account has the admin role."""
+    if not (token or dashboard_token):
         raise _fail(status.HTTP_401_UNAUTHORIZED, ErrorCode.ADMIN_SIGNED_OUT)
-    return await verify_admin(token)
+    return await verify_admin(token or dashboard_token)
 
 
 async def require_admin_header(

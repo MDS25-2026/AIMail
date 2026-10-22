@@ -20,9 +20,10 @@ import { Language } from "../../lib/preferences";
 import { en } from "../../locales/en";
 import { ms } from "../../locales/ms";
 import { zh } from "../../locales/zh";
+import { ActionGroup, NO_AUDIT_FILTERS } from "../../types/audit";
 import { DEMO_ANSWERS, DEMO_CONFIRMED_DRAFTS, DEMO_FOLLOW_UPS } from "../data/answers";
 import { DEMO_DOCUMENTS } from "../data/documents";
-import { DEMO_WAITING_EMAIL_ID, demoEmails } from "../data/emails";
+import { DEMO_ACCOUNT, DEMO_WAITING_EMAIL_ID, demoEmails } from "../data/emails";
 import { isDemo, leaveDemo, startDemo } from "../mode";
 import { resetDemo } from "../state";
 
@@ -154,6 +155,32 @@ describe("demo mode (#227)", () => {
     const page = await settle(emails.fetchEmailPage());
     expect(page.emails.map((email) => email.id)).toContain("demo-port-klang");
     expect((await settle(session.fetchSession())).hasMailbox).toBe(true);
+  });
+
+  test("the demo account is an admin, so Admin and the Audit Trail show at the booth", async () => {
+    expect((await settle(session.fetchSession())).isAdmin).toBe(true);
+  });
+
+  test("the demo audit trail names the visitor on each row and applies the filters", async () => {
+    await settle(emails.sendEmail("demo-invois", "Terima kasih."));
+    const all = await settle(audit.fetchAuditTrail());
+    expect(all.people).toEqual([{ id: expect.any(String), email: DEMO_ACCOUNT }]);
+    expect(all.events.every((event) => event.userEmail === DEMO_ACCOUNT)).toBe(true);
+    expect(all.failedRecords).toBe(0);
+    const sending = await settle(
+      audit.fetchAuditTrail({ ...NO_AUDIT_FILTERS, group: ActionGroup.Sending }),
+    );
+    expect(sending.events.map((event) => event.action)).toContain("approve_and_send");
+    expect(sending.events.every((event) => event.group === ActionGroup.Sending)).toBe(true);
+    expect(sending.totalRecords).toBeLessThan(all.totalRecords);
+    const nobody = await settle(
+      audit.fetchAuditTrail({ ...NO_AUDIT_FILTERS, person: "someone-else" }),
+    );
+    expect(nobody.events).toEqual([]);
+    const failures = await settle(
+      audit.fetchAuditTrail({ ...NO_AUDIT_FILTERS, isFailuresOnly: true }),
+    );
+    expect(failures.totalRecords).toBe(0);
   });
 
   test("Send is pretend: the email is marked sent with the approved text", async () => {

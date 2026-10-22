@@ -103,8 +103,12 @@ class RateLimiter:
         return await self.store.hit(f"{self.name}:{key}", window_start) > limit
 
     async def __call__(self, request: Request) -> None:
+        await self.check(caller_key(request))
+
+    async def check(self, key: str) -> None:
+        """Counts one request against key, raising 429 past the limit."""
         window_start = math.floor(time.time() / self.window) * self.window
-        over = await self._over(caller_key(request), self.limit, window_start)
+        over = await self._over(key, self.limit, window_start)
         if not over and self.global_limit is not None:
             over = await self._over(EVERYONE, self.global_limit, window_start)
         if over:

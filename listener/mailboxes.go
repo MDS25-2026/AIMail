@@ -30,8 +30,6 @@ import (
 const (
 	// How often new sign-ups are picked up without a restart.
 	connectionSyncInterval = 2 * time.Minute
-	// A newly connected inbox gets its latest few emails at once, not only mail that arrives later.
-	seedMessageCount = 10
 )
 
 // mailbox is one Gmail account. ownerID "" is the original token.json mailbox, stored unowned.
@@ -311,7 +309,7 @@ func startConnection(ctx context.Context, row connectionRow) error {
 		log.Printf("could not reset masking attempts for user %s: %v", row.UserID, err)
 	}
 	if isFirstStart {
-		go seedInbox(ctx, mb)
+		go importInbox(ctx, mb)
 	}
 	return nil
 }
@@ -331,25 +329,6 @@ func watchMailbox(ctx context.Context, mb *mailbox) error {
 		"watch_expires_at": time.UnixMilli(res.Expiration).UTC(),
 	})
 	return nil
-}
-
-// seedInbox stores the newest few inbox emails of a mailbox seen for the first time.
-func seedInbox(ctx context.Context, mb *mailbox) {
-	list, err := mb.srv.Users.Messages.List("me").LabelIds("INBOX").MaxResults(seedMessageCount).Context(ctx).Do()
-	if err != nil {
-		log.Printf("could not list the first emails for user %s: %v", mb.ownerID, err)
-		return
-	}
-	ids := make([]string, len(list.Messages))
-	for i, m := range list.Messages {
-		ids[i] = m.Id
-	}
-	fresh, ingest := newMessages(ctx, mb, ids)
-	for _, msgID := range fresh {
-		if err := ingest(ctx, mb, msgID); err != nil {
-			log.Printf("seeding user %s: %v", mb.ownerID, err)
-		}
-	}
 }
 
 // saveConnectionState persists a connection's baseline and watch expiry. Best effort: a failure

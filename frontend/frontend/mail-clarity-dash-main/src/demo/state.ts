@@ -2,7 +2,12 @@ import { ApiError, ApiErrorCode } from "../lib/api/errors";
 import { en } from "../locales/en";
 import { ms } from "../locales/ms";
 import { zh } from "../locales/zh";
-import { AuditVerification, type AuditFields, type AuditTrailEvent } from "../types/audit";
+import {
+  ActionGroup,
+  AuditVerification,
+  type AuditFields,
+  type AuditTrailEvent,
+} from "../types/audit";
 import type { ComposeDraft } from "../types/compose";
 import { MaskingStatus, type Email } from "../types/email";
 import type { DocumentDetail } from "../types/knowledge";
@@ -11,7 +16,7 @@ import type { HoldingReplySettings, QuietHours, ScanReading } from "../types/set
 import type { Template } from "../types/template";
 import { demoComposeDrafts } from "./data/compose";
 import { DEMO_DOCUMENTS } from "./data/documents";
-import { DEMO_WAITING_EMAIL_ID, demoEmails } from "./data/emails";
+import { DEMO_ACCOUNT, DEMO_WAITING_EMAIL_ID, demoEmails } from "./data/emails";
 import {
   DEMO_HOLDING_REPLY,
   DEMO_SCAN_READING,
@@ -119,11 +124,61 @@ export function updateEmail(
   return email;
 }
 
-/** One audit row; its hashes are filled in when the trail is read (chainedAudit). */
+// backend/app/audit_groups.py, for the actions the demo records; any other falls to Other there too.
+const DEMO_GROUPS: readonly (readonly [ActionGroup, readonly string[]])[] = [
+  [
+    ActionGroup.Sending,
+    [
+      "approve_and_send",
+      "follow_up_sent",
+      "send_scheduled",
+      "scheduled_send_cancelled",
+      "compose_sent",
+    ],
+  ],
+  [
+    ActionGroup.Drafting,
+    [
+      "generate_draft",
+      "refine_draft",
+      "translate_email",
+      "template_used",
+      "compose_written",
+      "compose_refined",
+      "compose_deleted",
+    ],
+  ],
+  [ActionGroup.Privacy, ["store_message", "confirm_sender", "scan_reading"]],
+  [ActionGroup.Mailbox, ["email_snoozed", "email_dismissed", "waiting_dismissed"]],
+  [
+    ActionGroup.Settings,
+    [
+      "quiet_hours",
+      "todo_settings",
+      "holding_reply_settings",
+      "template_saved",
+      "template_deleted",
+      "document_deleted",
+      "writing_style_description",
+      "writing_style_learning",
+      "writing_style_example_added",
+      "writing_style_deleted_example",
+      "writing_style_hid_habit",
+      "writing_style_deleted",
+    ],
+  ],
+];
+const GROUP_OF: ReadonlyMap<string, ActionGroup> = new Map(
+  DEMO_GROUPS.flatMap(([group, actions]) => actions.map((action) => [action, group] as const)),
+);
+
+/** One audit row, the visitor's own; its hashes are filled in when the trail is read (chainedAudit). */
 export function record(action: string, fields: AuditFields, at = new Date()) {
   state.audit.push({
     id: `demo-audit-${state.audit.length + 1}`,
     action,
+    group: GROUP_OF.get(action) ?? ActionGroup.Other,
+    userEmail: DEMO_ACCOUNT,
     createdAt: at.toISOString(),
     fields,
     success: true,

@@ -36,6 +36,7 @@ const (
 	actionFetchHistory       auditAction = "fetch_history"
 	actionFetchMessage       auditAction = "fetch_message"
 	actionStoreMessage       auditAction = "store_message"
+	actionImportInbox        auditAction = "import_inbox"
 )
 
 // Detail keys. Values are ids, counts and the constants below: nothing that can carry content.
@@ -58,6 +59,9 @@ const (
 	fieldImagesSkipped  = "images_skipped"
 	fieldMaskingStatus  = "masking_status"
 	fieldUnsupported    = "unsupported"
+	fieldListed         = "listed"
+	fieldImported       = "imported"
+	fieldFailed         = "failed"
 )
 
 // Reasons are snake_case codes from this fixed set, so the admin console can count them.

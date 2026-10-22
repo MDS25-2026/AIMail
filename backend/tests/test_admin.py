@@ -13,6 +13,7 @@ from app.admin import app as admin_routes
 from app.admin import auth, stats
 from app.admin.schemas import MailboxCounts, ModelHealth, Overview, PrivacyCounts
 from app.core import supabase_auth
+from app.core.auth import SESSION_COOKIE
 from app.core.config import get_settings
 from app.db.models import AuditLog
 from app.main import app
@@ -175,6 +176,15 @@ def test_password_guessing_is_rate_limited(client, monkeypatch):
     assert response.status_code == 429
 
 
+def test_guessing_one_admins_password_does_not_lock_the_other_admins_out(client, monkeypatch):
+    # Behind the hosting proxy every caller may share one address.
+    supabase(monkeypatch, lambda request: httpx.Response(400))
+    for _ in range(6):
+        client.post("/admin/session", json={"email": "a@b.c", "password": "x"}, headers=CSRF)
+    response = client.post("/admin/session", json={"email": "other@b.c", "password": "x"}, headers=CSRF)
+    assert response.status_code != 429
+
+
 def test_unconfigured_admin_auth_fails_closed(client, monkeypatch):
     monkeypatch.setenv("SUPABASE_ANON_KEY", "")
     get_settings.cache_clear()
@@ -307,3 +317,10 @@ def test_privacy_counts_read_structured_audit_fields():
     ]
     counts = stats.privacy_counts(rows)
     assert (counts.pages_withheld, counts.degraded_before_fix) == (2, 1)
+
+
+def test_the_dashboards_google_sign_in_opens_the_console_for_an_admin_only(client):
+    admin = client.get("/admin/overview", headers={"Cookie": f"{SESSION_COOKIE}={mint()}"})
+    assert admin.status_code == 200
+    other = client.get("/admin/overview", headers={"Cookie": f"{SESSION_COOKIE}={mint(role=None)}"})
+    assert other.status_code == 403 and other.json()["error"]["code"] == "not_an_admin"

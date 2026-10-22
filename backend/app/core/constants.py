@@ -54,6 +54,10 @@ ADMIN_SIGN_IN_WINDOW_SECONDS = 300
 # Refreshing the admin session calls Supabase; a page refreshes it now and then, never in a loop.
 ADMIN_REFRESH_LIMIT = 30
 ADMIN_REFRESH_WINDOW_SECONDS = 300
+# The dashboard's Google callback and session refresh each call Supabase. Generous, because a booth or
+# office shares one address; it only stops a loop hammering Supabase through us.
+SIGN_IN_RATE_LIMIT = 60
+SIGN_IN_RATE_WINDOW_SECONDS = 60
 
 # Admin console (docs/adr/0004). The dashboard as `make web` serves it; set ADMIN_ORIGINS for any
 # other host or port. Only these origins may carry the admin session cross-origin.

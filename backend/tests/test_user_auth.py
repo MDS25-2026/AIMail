@@ -50,9 +50,11 @@ def _user_id(email: str) -> UUID:
     return uuid5(NAMESPACE_URL, email.lower())
 
 
-def _token(email: str) -> str:
+def _token(email: str, role: str | None = None) -> str:
     claims = {"sub": str(_user_id(email)), "email": email, "aud": "authenticated", "iss": AUTH_BASE,
               "exp": int(time.time()) + 600}
+    if role is not None:
+        claims["app_metadata"] = {"role": role}
     return jwt.encode(claims, KEY, algorithm="ES256")
 
 
@@ -131,7 +133,9 @@ def test_another_user_sees_an_empty_inbox(client):
 
 
 def test_another_user_gets_404_for_an_email_id(client):
-    assert _signed_in(client, "someone.else@gmail.com").get("/emails/e1").status_code == 404
+    # The dashboard sends its header on every call; opening an email marks it read.
+    response = _signed_in(client, "someone.else@gmail.com").get("/emails/e1", headers={"X-AIMail-Client": "1"})
+    assert response.status_code == 404
 
 
 def test_a_connected_user_is_recognised_whatever_the_case_of_their_email(client):
@@ -140,9 +144,14 @@ def test_a_connected_user_is_recognised_whatever_the_case_of_their_email(client)
 
 def test_the_session_endpoint_says_whether_a_mailbox_is_connected(client):
     assert _signed_in(client, OWNER).get("/auth/session").json() == {
-        "email": OWNER, "hasMailbox": True, "needsReconnect": False}
+        "email": OWNER, "hasMailbox": True, "needsReconnect": False, "isAdmin": False}
     other = _signed_in(client, "x@gmail.com").get("/auth/session").json()
     assert other["hasMailbox"] is False
+
+
+def test_the_session_says_who_is_an_admin(client):
+    client.cookies.set(SESSION_COOKIE, _token(OWNER, role="admin"))
+    assert client.get("/auth/session").json()["isAdmin"] is True
 
 
 # ---------- Signing in with Google ----------

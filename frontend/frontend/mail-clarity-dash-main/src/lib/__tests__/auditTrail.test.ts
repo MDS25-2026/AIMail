@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, test } from "vitest";
 
-import { AuditVerification, type AuditTrailEvent } from "../../types/audit";
+import { ActionGroup, AuditVerification, type AuditTrailEvent } from "../../types/audit";
 import { actionLabel, fieldEntries, matchesQuery } from "../auditTrail";
 import { createI18n } from "../i18n";
 import { Language } from "../preferences";
@@ -14,6 +14,8 @@ const event: AuditTrailEvent = {
   id: "row-1",
   createdAt: "2026-10-08T09:00:00Z",
   action: "generate_draft",
+  group: ActionGroup.Drafting,
+  userEmail: "aina@company.example",
   fields: { gmail_message_id: "18f", tone: "casual" },
   success: true,
   prevHash: null,
@@ -36,8 +38,9 @@ describe("audit trail helpers", () => {
     expect(actionLabel("brand_new_action", t)).toBe("brand_new_action");
   });
 
-  test("the filter finds a record by action, field value or hash", () => {
+  test("the filter finds a record by action, person, field value or hash", () => {
     expect(matchesQuery(event, "GENERATE")).toBe(true);
+    expect(matchesQuery(event, "aina@")).toBe(true);
     expect(matchesQuery(event, "casual")).toBe(true);
     expect(matchesQuery(event, "abc1")).toBe(true);
     expect(matchesQuery(event, "nothing like it")).toBe(false);
@@ -54,11 +57,21 @@ const BACKEND_ACTIONS = [...AUDIT_SOURCE.matchAll(/^ {4}[A-Z_]+ = "([a-z_]+)"$/g
   (match) => match[1],
 );
 
+// Every grouped action, the listener's included, which audit.py does not list.
+const GROUP_SOURCE = readFileSync(
+  join(__dirname, "../../../../../../backend/app/audit_groups.py"),
+  "utf8",
+);
+const GROUPED_ACTIONS = [...GROUP_SOURCE.matchAll(/"([a-z_]+)"/g)]
+  .map((match) => match[1])
+  .filter((action) => !Object.values<string>(ActionGroup).includes(action));
+
 test("every action the backend records has a name, in all three languages", () => {
   expect(BACKEND_ACTIONS.length).toBeGreaterThan(30);
+  expect(GROUPED_ACTIONS.length).toBeGreaterThan(50);
   for (const language of [Language.English, Language.Malay, Language.Chinese]) {
     const { t } = createI18n(language);
-    for (const action of BACKEND_ACTIONS) {
+    for (const action of [...BACKEND_ACTIONS, ...GROUPED_ACTIONS]) {
       expect(actionLabel(action, t), `${language}: ${action}`).not.toBe(action);
     }
   }

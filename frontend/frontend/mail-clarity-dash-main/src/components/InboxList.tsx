@@ -20,7 +20,7 @@ import { inboxKeyHandler } from "../lib/inboxKeys";
 import { cn } from "../lib/utils";
 import type { Email } from "../types/email";
 import EmailListItem from "./EmailListItem";
-import { field } from "./variants";
+import { button, field } from "./variants";
 
 type InboxListProps = {
   emails: Email[];
@@ -59,7 +59,8 @@ function InboxList({
       ),
     [all, view, priority, category, sort],
   );
-  const unreadUpdates = useMemo(() => unreadCount(filterByView(all, "updates")), [all]);
+  const updates = useMemo(() => filterByView(all, "updates"), [all]);
+  const unreadUpdates = useMemo(() => unreadCount(updates), [updates]);
   // The rows shown, so it matches their unread dots (#171).
   const unreadShown = useMemo(() => unreadCount(conversations), [conversations]);
   const isFiltered = priority !== "all" || category !== "all";
@@ -151,9 +152,11 @@ function InboxList({
         ) : null}
         {/* Not while Load older may still bring some: page 1 can be all newsletters. */}
         {conversations.length === 0 && !isFiltered && !hasOlder ? (
-          <p className="p-6 text-center text-sm text-fg-subtle">
-            {t(view === "updates" ? "inbox.updatesEmpty" : "inbox.primaryEmpty")}
-          </p>
+          <EmptyTab
+            view={view}
+            updatesWaiting={updates.length}
+            onShowUpdates={() => onViewChange("updates")}
+          />
         ) : null}
         <ul
           ref={listRef}
@@ -183,6 +186,37 @@ function InboxList({
           })}
         </ul>
       </div>
+    </div>
+  );
+}
+
+/** An empty Primary points to Updates when that is where a new mailbox's newsletters all went. */
+function EmptyTab({
+  view,
+  updatesWaiting,
+  onShowUpdates,
+}: {
+  view: InboxView;
+  updatesWaiting: number;
+  onShowUpdates: () => void;
+}) {
+  const { t } = useTranslation();
+  if (view === "updates") {
+    return <p className="p-6 text-center text-sm text-fg-subtle">{t("inbox.updatesEmpty")}</p>;
+  }
+  if (updatesWaiting === 0) {
+    return <p className="p-6 text-center text-sm text-fg-subtle">{t("inbox.primaryEmpty")}</p>;
+  }
+  return (
+    <div className="space-y-3 p-6 text-center text-sm text-fg-subtle">
+      <p>{t("inbox.primaryEmptyUpdates", { count: updatesWaiting })}</p>
+      <button
+        type="button"
+        onClick={onShowUpdates}
+        className={button({ intent: "quiet", size: "sm" })}
+      >
+        {t("inbox.showUpdates")}
+      </button>
     </div>
   );
 }

@@ -9,7 +9,7 @@ from uuid import UUID
 
 from sqlalchemy import ColumnElement, func, or_, select, update
 
-from app.db.models import Message
+from app.db.models import MailboxConnection, Message
 from app.db.session import get_sessionmaker
 from app.email_policy import drafting_filter
 
@@ -35,9 +35,20 @@ async def _claim(where: ColumnElement[bool], order: tuple[ColumnElement, ...], l
         return list(claimed)
 
 
+def arrived_since_connecting() -> ColumnElement[bool]:
+    """Mail that came in after its mailbox was connected. What the listener imported from before is
+    drafted only when someone opens it (specs/features/inbox-import.md): up to 20 drafts per new user
+    would otherwise spend the Gemini quota on mail nobody asked about. Reconnecting keeps created_at."""
+    connected = (select(MailboxConnection.created_at).where(MailboxConnection.user_id == Message.user_id)
+                 .scalar_subquery())
+    arrived = func.coalesce(Message.received_at, Message.created_at)
+    return or_(Message.user_id.is_(None), connected.is_(None), arrived >= connected)
+
+
 async def claim_for_drafting(limit: int | None) -> list[UUID]:
     """Fewest attempts first, so a message that keeps failing sinks behind newer ones."""
-    return await _claim(_draftable(), (Message.generation_attempts, Message.created_at.desc()), limit)
+    return await _claim(_draftable() & arrived_since_connecting(),
+                        (Message.generation_attempts, Message.created_at.desc()), limit)
 
 
 def is_requested() -> ColumnElement[bool]:

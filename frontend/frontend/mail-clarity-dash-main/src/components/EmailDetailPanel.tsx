@@ -8,6 +8,7 @@ import { DetailsContext, useDetailValues } from "../lib/detailsContext";
 import { useDetailsHidden } from "../lib/detailsVisibility";
 import { DraftAvailability, draftAvailability } from "../lib/draftAvailability";
 import { gmailThreadUrl } from "../lib/gmailLink";
+import { replyGoesElsewhere } from "../lib/replyTarget";
 import type { DraftWorkflow } from "../lib/useDraftWorkflow";
 import { useFormat } from "../lib/useFormat";
 import { AuthStatus, type Email } from "../types/email";
@@ -245,7 +246,11 @@ function DraftSection({ email, workflow }: { email: Email; workflow: DraftWorkfl
           </p>
           {email.sentAt ? <UseAsExampleButton key={email.id} emailId={email.id} /> : null}
         </div>
-        <DraftActionsBar workflow={workflow} isSent={Boolean(email.sentAt)} />
+        <DraftActionsBar
+          workflow={workflow}
+          isSent={Boolean(email.sentAt)}
+          replyElsewhere={replyGoesElsewhere(email.sender, email.replyTo)}
+        />
       </div>
     </section>
   );

@@ -13,6 +13,7 @@ from fastapi import (
     FastAPI,
     HTTPException,
     Query,
+    Request,
     Response,
     status,
 )
@@ -47,7 +48,7 @@ from app.core.constants import (
     ADMIN_SIGN_IN_WINDOW_SECONDS,
 )
 from app.core.errors import DomainError, ErrorCode, register_error_handlers
-from app.core.ratelimit import RateLimiter
+from app.core.ratelimit import RateLimiter, caller_key
 from app.db.session import get_sessionmaker
 from app.quiet_hours import QuietHoursView, company_default, save
 
@@ -65,8 +66,11 @@ AdminUser = Annotated[Admin, Depends(require_admin)]
 register_error_handlers(admin_app)
 
 
-@admin_app.post("/session", dependencies=[Depends(rate_limit_sign_in), Depends(require_admin_header)])
-async def create_session(body: SignInRequest, response: Response) -> AdminIdentity:
+@admin_app.post("/session", dependencies=[Depends(require_admin_header)])
+async def create_session(body: SignInRequest, request: Request, response: Response) -> AdminIdentity:
+    # Per address and account: behind a proxy every caller may share one address, and a limit on the
+    # address alone would let anyone lock every admin out.
+    await rate_limit_sign_in.check(f"{caller_key(request)}:{body.email.strip().lower()}")
     try:
         session = await sign_in(body.email, body.password)
         admin = await _admin_or_revoke(session)

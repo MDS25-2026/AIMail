@@ -41,7 +41,13 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   `POST /emails/{id}/confirm-sender` returns the email, now `sender_confirmed` (404 if not the
   caller's). `GET /audit?limit=` (1-100, default 50) returns `{is_chain_intact, total_records,
   verified_records, head_hash, events: [{id, created_at, action, detail, success, prev_hash,
-  current_hash, user_id, is_verified}]}`: the caller's own rows, or every row for the script token.
+  current_hash, user_id, is_verified}]}`. Since 2026-10-21 (`specs/features/admin-only-pages.md`)
+  it is for admins and the script token only (404 `not_found` for anyone else) and shows everyone's
+  rows; it takes `group` (`sending` | `drafting` | `privacy` | `mailbox` | `settings` | `admin` |
+  `other`), `person` (a user id), `failures_only` and `window` (`day` | `week` | `month` | `all`), and
+  adds `failedRecords`, `people: [{id, email}]`, and on each event `group` and `userEmail`.
+  `GET /auth/session` adds `isAdmin`, and the admin console (`/admin/*`) also accepts the dashboard's
+  session cookie when its token carries the admin role.
 - **Reading a document (#195):** `GET /documents/{id}` returns `{document_id, title, source, doc_type,
   chunk_count, content, chunks: [...]}` for a document in the caller's library (`404` otherwise, or
   with no mailbox connected); rate limited like `GET /documents`.
@@ -157,6 +163,12 @@ This file is the **contract between frontend and backend**. Every REST endpoint 
   /emails/{id}/unread` (`204`, `404` when not the caller's) clears `read_at`. `GET /emails/{id}`
   marks the email read unless `?markRead=false`, which the dashboard sends while the reader keeps
   an email they just marked unread open.
+- **Security review (2026-10-21, `specs/features/security-hardening-2026-10.md`):** `GET /emails/{id}`
+  and `GET /emails/by-thread/{id}` change state, so a cookie caller sends `X-AIMail-Client: 1` there
+  as on a write (`403 client_header_missing` otherwise; bearer callers are unaffected). An approved
+  reply goes to the original's Reply-To only when it names one address, otherwise to the sender.
+  `GET /auth/callback` and `POST /auth/session/refresh` answer `429` past 60 a minute per caller,
+  and the admin password sign-in's limit is per address and account.
 - **Review reasons as codes (2026-10-11):** the agent's `/process-email` and `/refine` add
   `review_codes: [{code, items}]` beside `review_reasons` (codes in `agent_contract.ReviewCode`;
   `pii_found` items are entity types only). The email adds `reviewReasons: [{code, items}]`, read

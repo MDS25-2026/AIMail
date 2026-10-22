@@ -1,10 +1,12 @@
-"""The audit trail, as the signed-in user sees it (specs/features/sender-verification-and-audit.md).
+"""The audit trail, for admins (specs/features/admin-only-pages.md, sender-verification-and-audit.md).
 
-Each user sees only their own rows; a script holding the shared token sees every row. Whether the
-chain is intact is checked over the whole table first, because a gap or an edit anywhere breaks it.
+An admin, or a script holding the shared token, sees everyone's rows, each with its person and group;
+anyone else is told the page does not exist. Whether the chain is intact is checked over the whole table
+first, because a gap or an edit anywhere breaks it.
 """
 
 import json
+from datetime import datetime, timedelta, timezone
 from enum import StrEnum
 from typing import Annotated
 from uuid import UUID
@@ -13,7 +15,9 @@ from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import Row, text
 
+from app.audit_groups import ActionGroup, actions_in, group_of, known_actions
 from app.core.auth import principal_of
+from app.core.errors import DomainError, ErrorCode
 from app.db.session import get_sessionmaker
 
 router = APIRouter(prefix="/audit")
@@ -44,10 +48,25 @@ FROM chain
 
 _EVENTS = _CHAIN + """
 SELECT a.id, a.created_at, a.action, a.detail, a.success, a.prev_hash, a.current_hash, a.user_id,
-       c.is_valid, count(*) OVER () AS full_count
-FROM audit_log a LEFT JOIN chain c ON c.id = a.id
+       u.email AS user_email, c.is_valid, count(*) OVER () AS full_count,
+       count(*) FILTER (WHERE a.success IS FALSE) OVER () AS failed_count
+FROM audit_log a LEFT JOIN chain c ON c.id = a.id LEFT JOIN user_profile u ON u.id = a.user_id
 """
 _ORDER = " ORDER BY a.created_at DESC, a.id DESC LIMIT :limit"
+# Everyone an admin can filter by; the team is far below this.
+MAX_PEOPLE = 200
+_PEOPLE = text("SELECT id, email FROM user_profile ORDER BY email LIMIT :limit")
+
+
+class AuditWindow(StrEnum):
+    DAY = "day"
+    WEEK = "week"
+    MONTH = "month"
+    ALL = "all"
+
+
+_WINDOW_LENGTH = {AuditWindow.DAY: timedelta(days=1), AuditWindow.WEEK: timedelta(days=7),
+                  AuditWindow.MONTH: timedelta(days=30)}
 
 
 class Verification(StrEnum):
@@ -66,11 +85,19 @@ class AuditEventOut(BaseModel):
     id: str
     createdAt: str
     action: str
+    group: ActionGroup
+    # Whose action, for an admin; None for a system event or a deleted account.
+    userEmail: str | None = None
     fields: dict[str, AuditField]
     success: bool | None
     prevHash: str | None
     currentHash: str | None
     verification: Verification
+
+
+class AuditPerson(BaseModel):
+    id: str
+    email: str
 
 
 class AuditTrailResponse(BaseModel):
@@ -80,6 +107,9 @@ class AuditTrailResponse(BaseModel):
     verifiedRecords: int
     # The latest hash: record it somewhere outside the database to detect a rewrite of the whole chain.
     headHash: str | None
+    # Failures among the records the filters match, so the summary line reads "3 failures".
+    failedRecords: int = 0
+    people: list[AuditPerson] = []
     events: list[AuditEventOut]
 
 
@@ -102,6 +132,8 @@ def _event(row: Row) -> AuditEventOut:
         id=str(row.id),
         createdAt=row.created_at.isoformat() if row.created_at else "",
         action=row.action or "unspecified",
+        group=group_of(row.action or ""),
+        userEmail=row.user_email,
         fields=_fields(row.detail),
         success=row.success,
         prevHash=row.prev_hash,
@@ -110,33 +142,55 @@ def _event(row: Row) -> AuditEventOut:
     )
 
 
-def _events_query(user_id: UUID | None) -> tuple[str, dict[str, object]]:
-    """A person sees their own rows only; rows with no owner are system events, not theirs."""
-    if user_id is None:
-        return _EVENTS + _ORDER, {}
-    return _EVENTS + " WHERE a.user_id = :uid" + _ORDER, {"uid": user_id}
+def _events_query(group: ActionGroup | None, person: UUID | None, is_failures_only: bool,
+                  window: AuditWindow) -> tuple[str, dict[str, object]]:
+    """The filters as SQL conditions with bound values; nothing the caller sends is pasted into the text."""
+    conditions: list[str] = []
+    params: dict[str, object] = {}
+    if group is ActionGroup.OTHER:
+        conditions.append("NOT (a.action = ANY(:known))")
+        params["known"] = known_actions()
+    elif group is not None:
+        conditions.append("a.action = ANY(:actions)")
+        params["actions"] = actions_in(group)
+    if person is not None:
+        conditions.append("a.user_id = :person")
+        params["person"] = person
+    if is_failures_only:
+        conditions.append("a.success IS FALSE")
+    if window is not AuditWindow.ALL:
+        # The cutoff as a time, not now() minus a bound interval, which Postgres cannot type.
+        conditions.append("a.created_at >= :since")
+        params["since"] = datetime.now(timezone.utc) - _WINDOW_LENGTH[window]
+    where = f" WHERE {' AND '.join(conditions)}" if conditions else ""
+    return _EVENTS + where + _ORDER, params
 
 
 @router.get("", response_model=AuditTrailResponse)
 async def get_audit_trail(
     request: Request,
     limit: Annotated[int, Query(ge=1, le=MAX_EVENTS)] = DEFAULT_EVENTS,
+    group: ActionGroup | None = None,
+    person: UUID | None = None,
+    failures_only: bool = False,
+    window: AuditWindow = AuditWindow.ALL,
 ) -> AuditTrailResponse:
     principal = principal_of(request)
-    # Never fall through to "every row": a person with no account yet owns nothing in the log.
-    if not principal.is_service and principal.user_id is None:
-        return AuditTrailResponse(isChainIntact=True, totalRecords=0, verifiedRecords=0,
-                                  headHash=None, events=[])
-    sql, params = _events_query(None if principal.is_service else principal.user_id)
+    # Not "forbidden": to anyone but an admin the page does not exist, as the dashboard shows it.
+    if not (principal.is_service or principal.is_admin):
+        raise DomainError(ErrorCode.NOT_FOUND)
+    sql, params = _events_query(group, person, failures_only, window)
     async with get_sessionmaker()() as session:
         summary = (await session.execute(_SUMMARY)).one()
         rows = (await session.execute(text(sql), {**params, "limit": limit})).all()
+        people = (await session.execute(_PEOPLE, {"limit": MAX_PEOPLE})).all()
     events = [_event(row) for row in rows]
-    total_count = getattr(rows[0], "full_count", len(events)) if rows else (summary.chained if principal.is_service else 0)
     return AuditTrailResponse(
         isChainIntact=summary.is_intact,
-        totalRecords=int(total_count),
+        totalRecords=int(rows[0].full_count) if rows else 0,
         verifiedRecords=sum(1 for event in events if event.verification == Verification.VERIFIED),
         headHash=summary.head,
+        failedRecords=int(rows[0].failed_count) if rows else 0,
+        people=[AuditPerson(id=str(row.id), email=row.email) for row in people],
         events=events,
     )

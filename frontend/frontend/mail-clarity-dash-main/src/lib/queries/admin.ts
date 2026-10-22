@@ -3,7 +3,6 @@ import { useEffect } from "react";
 
 import {
   fetchAdminSession,
-  fetchAudit,
   fetchCompanyQuietHours,
   fetchFlagged,
   fetchOverview,
@@ -24,6 +23,19 @@ export function useAdminSession() {
   return useQuery({ queryKey: keys.session, queryFn: fetchAdminSession, retry: false });
 }
 
+/**
+ * Whether the console signed in with its own form (docs/adr/0004). The cookies are HttpOnly, so only
+ * this tab knows: after a reload the button hides and the console cookie lasts until it expires.
+ */
+export function useHasOwnAdminSession(): boolean {
+  const query = useQuery({
+    queryKey: keys.hasOwnSession,
+    queryFn: () => false,
+    staleTime: Infinity,
+  });
+  return query.data === true;
+}
+
 export function useAdminOverview(days: number, isEnabled: boolean) {
   return useQuery({
     queryKey: keys.overview(days),
@@ -42,15 +54,6 @@ export function useAdminFlagged(isEnabled: boolean) {
   });
 }
 
-export function useAdminAudit(failuresOnly: boolean, isEnabled: boolean) {
-  return useQuery({
-    queryKey: keys.audit(failuresOnly),
-    queryFn: () => fetchAudit(failuresOnly),
-    enabled: isEnabled,
-    retry: retryUnlessAuth,
-  });
-}
-
 export function useAdminSignIn() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -58,10 +61,12 @@ export function useAdminSignIn() {
       signIn(email, password),
     onSuccess: (identity) => {
       queryClient.setQueryData(keys.session, identity);
+      queryClient.setQueryData(keys.hasOwnSession, true);
       // Panels that failed while signed out must fetch again for the new session.
       void queryClient.invalidateQueries({
         queryKey: keys.all,
-        predicate: (query) => query.queryKey[1] !== keys.session[1],
+        predicate: (query) =>
+          query.queryKey[1] !== keys.session[1] && query.queryKey[1] !== keys.hasOwnSession[1],
       });
     },
   });

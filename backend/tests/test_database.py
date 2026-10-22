@@ -48,6 +48,7 @@ from app.db.models import (
     Document,
     Embedding,
     LocalEmbedding,
+    MailboxConnection,
     MaskingStatus,
     Message,
     ModelEgress,
@@ -57,7 +58,12 @@ from app.db.models import (
 from app.db.session import get_engine, get_sessionmaker
 from app.gmail_send import SendError, SendOutcomeUnknownError, SentReply
 from app.inbox_search import search_messages_hybrid
-from app.jobs import claim_requested, request_draft
+from app.jobs import (
+    claim_for_drafting,
+    claim_requested,
+    release_drafting,
+    request_draft,
+)
 from app.ml.categorise import classify_pending
 from app.normalise import pipeline
 from app.private_mode import not_private
@@ -1122,3 +1128,60 @@ def test_a_change_to_an_email_is_announced_and_writing_the_same_value_back_is_no
         return kinds
 
     assert _run(scenario()) == ["new", "state"]
+
+
+# ---------- Imported mail is drafted on request only (specs/features/inbox-import.md) ----------
+
+
+def test_mail_from_before_the_connection_is_drafted_only_when_someone_opens_it():
+    async def scenario():
+        owner = uuid4()
+        now = datetime.now(timezone.utc)
+        async with get_sessionmaker()() as session, session.begin():
+            session.add(UserProfile(id=owner, email=f"{owner}@example.com"))
+            await session.flush()
+            session.add(MailboxConnection(user_id=owner, email=f"{owner}@example.com", refresh_token_encrypted=b"x",
+                                          created_at=now - timedelta(minutes=5)))
+            imported, arrived = (Message(id=uuid4(), user_id=owner, gmail_message_id=f"imp-{uuid4()}",
+                                         masking_status=MaskingStatus.COMPLETE, auth_status=AuthStatus.PASS,
+                                         is_automated=False, received_at=when)
+                                 for when in (now - timedelta(days=3), now))
+            session.add_all([imported, arrived])
+        background = await claim_for_drafting(None)
+        for pk in background:
+            await release_drafting(pk)
+        await request_draft(imported.id)
+        requested = await claim_requested(50)
+        return imported.id, arrived.id, background, requested
+
+    imported, arrived, background, requested = _run(scenario())
+    assert arrived in background and imported not in background
+    assert imported in requested
+
+
+# ---------- The admin audit trail's filters (specs/features/admin-only-pages.md) ----------
+
+
+def test_the_audit_filters_run_on_postgres_and_name_each_rows_person():
+    async def scenario():
+        owner = uuid4()
+        async with get_sessionmaker()() as session, session.begin():
+            session.add(UserProfile(id=owner, email=f"{owner}@example.com"))
+            await session.flush()
+            session.add(audit_row(AuditAction.GENERATE_DRAFT, user_id=owner, message="m1"))
+            session.add(audit_row(AuditAction.APPROVE_AND_SEND, user_id=owner, success=False, message="m1"))
+        results = {}
+        for name, args in {"drafting": (audit_routes.ActionGroup.DRAFTING, owner, False, audit_routes.AuditWindow.DAY),
+                           "failures": (None, owner, True, audit_routes.AuditWindow.WEEK),
+                           "other": (audit_routes.ActionGroup.OTHER, owner, False, audit_routes.AuditWindow.ALL)}.items():
+            sql, params = audit_routes._events_query(*args)
+            async with get_sessionmaker()() as session:
+                results[name] = (await session.execute(text(sql), {**params, "limit": 50})).all()
+        return owner, results
+
+    owner, results = _run(scenario())
+    assert [row.action for row in results["drafting"]] == ["generate_draft"]
+    assert results["drafting"][0].user_email == f"{owner}@example.com"
+    assert [row.action for row in results["failures"]] == ["approve_and_send"]
+    assert results["failures"][0].failed_count == 1
+    assert results["other"] == []

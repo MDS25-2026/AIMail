@@ -129,3 +129,21 @@ describe("the unread count in the header (#171)", () => {
     expect(header()).toBe("2 conversations · 1 unread");
   });
 });
+
+test("an empty Primary points to Updates when that is where the mail went", () => {
+  const onViewChange = vi.fn();
+  renderWithProviders(
+    <InboxList
+      emails={[emails[1]]}
+      selectedEmailId={null}
+      onSelectEmail={vi.fn()}
+      view="primary"
+      onViewChange={onViewChange}
+    />,
+  );
+  expect(
+    screen.getByText(/Your newsletters and notifications \(1\) are under Updates/),
+  ).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Show Updates" }));
+  expect(onViewChange).toHaveBeenCalledWith("updates");
+});

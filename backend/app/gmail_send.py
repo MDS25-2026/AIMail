@@ -12,6 +12,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from email.message import EmailMessage
+from email.utils import getaddresses
 from html import escape
 from uuid import UUID
 
@@ -256,6 +257,15 @@ def _sendable_subject(masked_subject: str) -> str:
     return NEUTRAL_SUBJECT if _MARKER.search(masked_subject) or not masked_subject.strip() else masked_subject
 
 
+def _single_address(header: str | None) -> str | None:
+    """The header when it names exactly one address. A Reply-To listing several would copy an
+    approved reply to each of them unseen; the sender then gets it alone, as a holding reply does."""
+    if not header or "\r" in header or "\n" in header:
+        return None
+    addresses = [address for _name, address in getaddresses([header]) if address]
+    return header if len(addresses) == 1 and "@" in addresses[0] else None
+
+
 async def _reply_target(
     client: httpx.AsyncClient, gmail_id: str | None, fallback_to: str, fallback_subject: str,
     owner_id: UUID | None,
@@ -271,7 +281,7 @@ async def _reply_target(
             return fallback
         raise
     return ReplyTarget(
-        to_addr=headers.get("reply-to") or headers.get("from") or fallback_to,
+        to_addr=_single_address(headers.get("reply-to")) or headers.get("from") or fallback_to,
         subject=headers.get("subject") or fallback_subject,
         thread_id=headers.get("threadid"),
         in_reply_to=headers.get("message-id"),

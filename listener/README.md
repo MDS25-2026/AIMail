@@ -110,6 +110,11 @@ Pub/Sub; no `credentials.json` or `token.json` goes into the image. Probe `GET :
 - `PRESIDIO_ANALYZER_URL` — Presidio Analyzer endpoint; defaults to `http://localhost:5001/analyze`
   (the `docker-compose.yml` service). When unreachable or unconfigured, new emails are quarantined in
   pending state with no content rather than ingested unmasked.
+- `IMPORT_MESSAGE_LIMIT` (20), `IMPORT_DAYS` (30), `IMPORT_CONCURRENCY` (3) — optional. On a mailbox's
+  first start the listener imports its newest inbox emails from the last `IMPORT_DAYS`, up to the limit,
+  with at most `IMPORT_CONCURRENCY` fetched and masked at once across every import
+  (`inbox_import.go`, `specs/features/inbox-import.md`). Reconnecting keeps the baseline, so nothing is
+  imported twice.
 - `credentials.json` — OAuth client downloaded from Google Cloud (gitignored).
 - `token.json` — OAuth token, written on consent (gitignored).
 
@@ -125,6 +130,7 @@ Pub/Sub; no `credentials.json` or `token.json` goes into the image. Probe `GET :
 listener/
 ├── main.go                 # watch, Pub/Sub loop, layered PII masking, Supabase writes
 ├── mailboxes.go            # connected mailboxes: load, watch, route by address, per-mailbox baseline
+├── inbox_import.go         # a new mailbox's recent emails: paged list, bounded pool, back-off on 429
 ├── tokencrypt.go           # AES-GCM shared with the backend: refresh tokens, detail vaults
 ├── authresults.go          # sender verdict from Google's own Authentication-Results header
 ├── sender.go               # sender facts computed once for every messages row
