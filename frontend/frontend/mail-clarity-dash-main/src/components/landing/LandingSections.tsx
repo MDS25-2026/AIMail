@@ -300,7 +300,6 @@ export function FaqSection() {
   );
 }
 
-
 export const CHROME_STORE_URL =
   "https://chromewebstore.google.com/detail/aimail/jgheckckapmfmdalmeofdfekdbkiloip?pli=1";
 
@@ -322,9 +321,7 @@ export function ExtensionSection() {
           <h2 id="extension" className="text-2xl font-semibold tracking-tight text-fg sm:text-3xl">
             {t("landing.extension.title")}
           </h2>
-          <p className="max-w-xl text-fg-muted leading-relaxed">
-            {t("landing.extension.body")}
-          </p>
+          <p className="max-w-xl text-fg-muted leading-relaxed">{t("landing.extension.body")}</p>
           <div className="pt-2 space-y-2">
             <div className="flex flex-wrap items-center gap-3">
               <a
@@ -340,9 +337,7 @@ export function ExtensionSection() {
                 {t("landing.extension.desktopOnlyBadge")}
               </span>
             </div>
-            <p className="text-xs text-fg-subtle">
-              {t("landing.extension.desktopNote")}
-            </p>
+            <p className="text-xs text-fg-subtle">{t("landing.extension.desktopNote")}</p>
           </div>
         </div>
 

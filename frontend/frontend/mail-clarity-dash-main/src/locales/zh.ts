@@ -1159,8 +1159,7 @@ export const zh: Translations = {
     extension: {
       badge: "Chrome 应用商店",
       title: "直接在 Gmail 侧边栏撰写邮件回复",
-      body:
-        "在桌面浏览器安装 AIMail Chrome 扩展程序，无需切换标签页即可在当前邮件旁查看经过隐私脱敏的 AI 摘要、提取的待办事项和自适应回复草稿。",
+      body: "在桌面浏览器安装 AIMail Chrome 扩展程序，无需切换标签页即可在当前邮件旁查看经过隐私脱敏的 AI 摘要、提取的待办事项和自适应回复草稿。",
       button: "添加至 Chrome",
       desktopOnlyBadge: "仅限桌面端",
       desktopNote:

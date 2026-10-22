@@ -1235,8 +1235,7 @@ export const ms: Translations = {
     extension: {
       badge: "Kedai Web Chrome",
       title: "Draf balasan terus dalam bar sisi Gmail anda",
-      body:
-        "Pasang sambungan Chrome AIMail pada pelayar desktop anda untuk melihat ringkasan AI yang dilindungi privasi, senarai tugasan, dan draf balasan adaptif di sebelah e-mel anda tanpa perlu bertukar tab.",
+      body: "Pasang sambungan Chrome AIMail pada pelayar desktop anda untuk melihat ringkasan AI yang dilindungi privasi, senarai tugasan, dan draf balasan adaptif di sebelah e-mel anda tanpa perlu bertukar tab.",
       button: "Tambah ke Chrome",
       desktopOnlyBadge: "Desktop sahaja",
       desktopNote:

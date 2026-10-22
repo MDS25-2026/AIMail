@@ -1201,8 +1201,7 @@ export const en = {
     extension: {
       badge: "Chrome Web Store",
       title: "Draft replies right inside your Gmail sidebar",
-      body:
-        "Install the AIMail Chrome extension on your desktop browser to see privacy-masked AI summaries, extracted to-do items, and adaptive reply drafts right beside the email you have open, without switching tabs.",
+      body: "Install the AIMail Chrome extension on your desktop browser to see privacy-masked AI summaries, extracted to-do items, and adaptive reply drafts right beside the email you have open, without switching tabs.",
       button: "Add to Chrome",
       desktopOnlyBadge: "Desktop only",
       desktopNote:
