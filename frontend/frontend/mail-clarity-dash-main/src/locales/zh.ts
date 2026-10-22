@@ -1154,6 +1154,23 @@ export const zh: Translations = {
   },
   landing: {
     statusLink: "服务状态",
+    extensionLink: "Chrome 扩展程序",
+    feedbackLink: "提供反馈",
+    extension: {
+      badge: "Chrome 应用商店",
+      title: "直接在 Gmail 侧边栏撰写邮件回复",
+      body: "在桌面浏览器安装 AIMail Chrome 扩展程序，无需切换标签页即可在当前邮件旁查看经过隐私脱敏的 AI 摘要、提取的待办事项和自适应回复草稿。",
+      button: "添加至 Chrome",
+      desktopOnlyBadge: "仅限桌面端",
+      desktopNote:
+        "目前仅适用于桌面浏览器（Chrome、Edge、Brave）。Gmail 移动应用不支持浏览器扩展。",
+    },
+    feedback: {
+      qrAlt: "指向 AIMail 用户反馈表单的二维码",
+      qrTitle: "分享您的反馈",
+      qrHint: "使用手机相机扫码即可快速填写用户反馈或提出建议。",
+      link: "直接打开表单",
+    },
     eyebrow: "为经手他人资料的团队而设",
     tagline: "为马来西亚团队打造的私密 AI 回复",
     headline: "AI 为您撰写回复，却永远不知道回复给谁。",

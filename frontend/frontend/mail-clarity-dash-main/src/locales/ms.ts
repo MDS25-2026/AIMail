@@ -1230,6 +1230,23 @@ export const ms: Translations = {
   },
   landing: {
     statusLink: "Status perkhidmatan",
+    extensionLink: "Sambungan Chrome",
+    feedbackLink: "Beri maklum balas",
+    extension: {
+      badge: "Kedai Web Chrome",
+      title: "Draf balasan terus dalam bar sisi Gmail anda",
+      body: "Pasang sambungan Chrome AIMail pada pelayar desktop anda untuk melihat ringkasan AI yang dilindungi privasi, senarai tugasan, dan draf balasan adaptif di sebelah e-mel anda tanpa perlu bertukar tab.",
+      button: "Tambah ke Chrome",
+      desktopOnlyBadge: "Desktop sahaja",
+      desktopNote:
+        "Kini tersedia untuk pelayar desktop (Chrome, Edge, Brave). Aplikasi mudah alih Gmail tidak menyokong sambungan pelayar.",
+    },
+    feedback: {
+      qrAlt: "Kod QR pautan ke borang maklum balas pengguna AIMail",
+      qrTitle: "Kongsi maklum balas anda",
+      qrHint: "Imbas dengan kamera telefon untuk berkongsi maklum balas atau cadangan.",
+      link: "Buka borang terus",
+    },
     eyebrow: "Untuk pasukan yang mengendalikan butiran orang lain",
     tagline: "Balasan AI peribadi untuk pasukan Malaysia",
     headline: "AI menulis balasan anda. Ia tidak pernah tahu untuk siapa.",
