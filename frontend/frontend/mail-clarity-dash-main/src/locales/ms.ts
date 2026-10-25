@@ -1365,6 +1365,13 @@ export const ms: Translations = {
     },
     ctaTitle: "Peti masuk anda, tanpa kerisauan.",
     ctaBody: "Log masuk dengan Google untuk menyambungkan Gmail. Tiada apa dihantar tanpa anda.",
+    offline: {
+      notice:
+        "AIMail ialah projek tahun akhir kami. Projek ini telah tamat dan pelayan berbayarnya telah dimatikan, jadi log masuk tidak tersedia. Anda masih boleh menonton video panduan atau mencuba peti mel demo, yang berjalan sepenuhnya dalam pelayar anda.",
+      watch: "Tonton video panduan",
+      ctaBody:
+        "Log masuk langsung telah dimatikan kerana projek telah tamat. Tonton video panduan, atau cuba demo dengan e-mel rekaan.",
+    },
     footer:
       "Log masuk dengan Google membenarkan AIMail membaca dan menghantar Gmail anda. AIMail ialah projek tahun akhir di Monash University Malaysia.",
   },

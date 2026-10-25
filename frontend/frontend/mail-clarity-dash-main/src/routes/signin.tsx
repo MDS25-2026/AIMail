@@ -14,10 +14,11 @@ import {
   RedactionChip,
   CHROME_STORE_URL,
   FEEDBACK_FORM_URL,
+  WALKTHROUGH_VIDEO_URL,
 } from "../components/landing/LandingSections";
 import LivePreview from "../components/landing/LivePreview";
 import { isDemo } from "../demo/mode";
-import { SIGN_IN_URL } from "../lib/api/config";
+import { SIGN_IN_URL, isBackendLive } from "../lib/api/config";
 import { useDemoSwitch } from "../lib/queries";
 import { Page, pageMeta } from "../lib/pageMeta";
 
@@ -39,15 +40,41 @@ export const Route = createFileRoute("/signin")({
   component: LandingPage,
 });
 
-function SignInButton({ className = "" }: { className?: string }) {
+/** Sign-in while the backend is live; once it is switched off, the recorded walkthrough instead. */
+function SignInLink({ className }: { className: string }) {
   const { t } = useTranslation();
+  if (isBackendLive()) {
+    return (
+      <a href={SIGN_IN_URL} className={className}>
+        {t("signIn.google")}
+      </a>
+    );
+  }
   return (
-    <a
-      href={SIGN_IN_URL}
-      className={`inline-flex items-center justify-center rounded-md bg-brand px-5 py-2.5 text-sm font-semibold text-on-brand hover:bg-brand-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${className}`}
-    >
-      {t("signIn.google")}
+    <a href={WALKTHROUGH_VIDEO_URL} target="_blank" rel="noopener noreferrer" className={className}>
+      {t("landing.offline.watch")}
     </a>
+  );
+}
+
+function SignInButton({ className = "" }: { className?: string }) {
+  return (
+    <SignInLink
+      className={`inline-flex items-center justify-center rounded-md bg-brand px-5 py-2.5 text-sm font-semibold text-on-brand hover:bg-brand-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${className}`}
+    />
+  );
+}
+
+function OfflineNotice() {
+  const { t } = useTranslation();
+  if (isBackendLive()) return null;
+  return (
+    <p
+      role="note"
+      className="max-w-xl rounded-md border border-info-line bg-info-soft p-3 text-sm text-fg"
+    >
+      {t("landing.offline.notice")}
+    </p>
   );
 }
 
@@ -122,6 +149,7 @@ function LandingPage() {
                 {t(`signIn.errors.${asSignInError(error)}`)}
               </p>
             ) : null}
+            <OfflineNotice />
             <RedactionChip />
             <h1 className="text-4xl font-semibold leading-[1.1] tracking-tight text-balance text-fg sm:text-5xl">
               {t("landing.headline")}
@@ -150,13 +178,10 @@ function LandingPage() {
           <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
             {t("landing.ctaTitle")}
           </h2>
-          <p className="mx-auto mt-3 max-w-xl opacity-90">{t("landing.ctaBody")}</p>
-          <a
-            href={SIGN_IN_URL}
-            className="mt-6 inline-flex items-center justify-center rounded-md bg-surface px-6 py-3 text-base font-semibold text-brand hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-surface"
-          >
-            {t("signIn.google")}
-          </a>
+          <p className="mx-auto mt-3 max-w-xl opacity-90">
+            {t(isBackendLive() ? "landing.ctaBody" : "landing.offline.ctaBody")}
+          </p>
+          <SignInLink className="mt-6 inline-flex items-center justify-center rounded-md bg-surface px-6 py-3 text-base font-semibold text-brand hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-surface" />
           <TryDemoButton className={`mt-6 ml-3 px-6 py-3 text-base ${DEMO_ON_BRAND}`} />
         </section>
       </main>

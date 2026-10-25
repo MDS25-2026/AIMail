@@ -1327,6 +1327,13 @@ export const en = {
     },
     ctaTitle: "Your inbox, minus the worry.",
     ctaBody: "Sign in with Google to connect Gmail. Nothing is sent without you.",
+    offline: {
+      notice:
+        "AIMail was our final-year project. The project has ended and its paid servers are switched off, so signing in is unavailable. You can still watch the walkthrough or try the demo mailbox, which runs entirely in your browser.",
+      watch: "Watch the walkthrough",
+      ctaBody:
+        "Live sign-in is off now that the project has ended. Watch the walkthrough, or try the demo with made-up emails.",
+    },
     footer:
       "Signing in with Google lets AIMail read and send your Gmail. AIMail is a final-year project at Monash University Malaysia.",
   },

@@ -1285,6 +1285,12 @@ export const zh: Translations = {
     },
     ctaTitle: "您的收件箱，从此安心。",
     ctaBody: "使用 Google 登录以连接 Gmail。未经您同意，任何邮件都不会发出。",
+    offline: {
+      notice:
+        "AIMail 是我们的毕业项目。项目已结束，付费服务器已关闭，因此目前无法登录。您仍可观看演示视频，或试用完全在浏览器中运行的演示邮箱。",
+      watch: "观看演示视频",
+      ctaBody: "项目已结束，在线登录已关闭。您可以观看演示视频，或使用虚构邮件试用演示。",
+    },
     footer:
       "使用 Google 登录即允许 AIMail 读取和发送您的 Gmail。AIMail 是马来西亚莫纳什大学的毕业项目。",
   },
