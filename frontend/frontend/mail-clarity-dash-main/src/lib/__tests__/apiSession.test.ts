@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 
+import { SERVICE_STATUS_PATH } from "../api/config";
 import { fetchEmail, fetchEmailPage, sendEmail } from "../api/emails";
 import { ApiErrorCode } from "../api/errors";
+import { fetchServiceStatus } from "../api/status";
 
 function recordFetch(status: number, body: unknown = []) {
   const calls: { url: string; init: RequestInit }[] = [];
@@ -15,7 +17,26 @@ function recordFetch(status: number, body: unknown = []) {
   return calls;
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+});
+
+describe("with the backend switched off (backend-offline.md)", () => {
+  test("a call reads as signed out without reaching the network, so visitors land on the landing page", async () => {
+    vi.stubEnv("VITE_BACKEND_OFFLINE", "true");
+    const calls = recordFetch(200);
+    await expect(fetchEmailPage()).rejects.toMatchObject({ code: ApiErrorCode.SignedOut });
+    expect(calls).toHaveLength(0);
+  });
+
+  test("the status page still asks the real backend, so it reports the outage honestly", async () => {
+    vi.stubEnv("VITE_BACKEND_OFFLINE", "true");
+    const calls = recordFetch(200, {});
+    await fetchServiceStatus();
+    expect(calls[0].url).toContain(SERVICE_STATUS_PATH);
+  });
+});
 
 describe("calls to the backend (ADR 0005)", () => {
   test("carry the session cookie and the client header, never a token", async () => {

@@ -50,7 +50,8 @@ Render worker (aimail-listener, Pub/Sub pull) ──► Supabase ◄── Rende
 ## What the owner sets up (no code)
 
 - **Vercel:** import the repo with root `frontend/frontend/mail-clarity-dash-main`; set
-  `VITE_BACKEND_URL=/api` and `AIMAIL_BACKEND_ORIGIN=https://<service>.onrender.com`.
+  `VITE_BACKEND_URL=/api` and `AIMAIL_BACKEND_ORIGIN=https://<service>.onrender.com`. Once Render is
+  switched off, add `VITE_BACKEND_OFFLINE=true` and redeploy (`backend-offline.md`).
 - **Render:** a Blueprint from `render.yaml`; fill each `sync: false` variable in the dashboard.
 - **Supabase:** add `https://<app>.vercel.app/api/auth/callback` to the redirect URLs.
 - **Supabase, live inbox:** the backend holds one extra session-pooler connection (port 5432, the

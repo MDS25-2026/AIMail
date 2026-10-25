@@ -1,6 +1,7 @@
 // Types only: client.ts imports this module, so a value import from it would be circular.
 import type { RequestOptions } from "../lib/api/client";
 import { ApiError, ApiErrorCode } from "../lib/api/errors";
+import { NETWORK_PAUSE_MS, pause } from "../lib/api/pause";
 import { Language } from "../lib/preferences";
 import {
   AuthStatus,
@@ -33,7 +34,6 @@ import {
  */
 
 const NOT_IN_DEMO = 400;
-const ANSWER_DELAY_MS = 150;
 // The AI's prepared answers take a moment longer, so "Refining…" and the like can be read.
 const THINKING_MS = 900;
 const CONFIRMED_CONFIDENCE = 0.91;
@@ -247,8 +247,6 @@ function bodyOf(options: RequestOptions): Json {
   return (options.json ?? {}) as Json;
 }
 
-const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
 /** The demo's answer to a dashboard call; anything it does not cover is refused, never sent. */
 export async function demoRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const method = String(options.method ?? "GET");
@@ -259,7 +257,7 @@ export async function demoRequest<T>(path: string, options: RequestOptions = {})
     if (!match) continue;
     // Answer after a network call's pause: the page shows its loading states, and the
     // server-rendered page hydrates before the answers land, as it does with the backend.
-    await pause(ANSWER_DELAY_MS + (route.thinks ? THINKING_MS : 0));
+    await pause(NETWORK_PAUSE_MS + (route.thinks ? THINKING_MS : 0));
     const answer = await route.handler({
       params: match.slice(1).map(decodeURIComponent),
       json: bodyOf(options),
@@ -269,6 +267,6 @@ export async function demoRequest<T>(path: string, options: RequestOptions = {})
     // A copy, so the page's cache never shares an object the demo goes on changing.
     return (answer === undefined ? undefined : structuredClone(answer)) as T;
   }
-  await pause(ANSWER_DELAY_MS);
+  await pause(NETWORK_PAUSE_MS);
   return notInDemo(endpoint);
 }

@@ -2,7 +2,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import { useIsDemo } from "../demo/mode";
-import { SIGN_IN_URL } from "../lib/api/config";
+import { SIGN_IN_URL, isBackendLive } from "../lib/api/config";
 import { useDemoSwitch } from "../lib/queries";
 import { button } from "./variants";
 
@@ -21,9 +21,15 @@ export default function DemoBanner() {
     >
       <span>{t("demo.banner")}</span>
       <div className="flex flex-wrap items-center gap-2">
-        <a href={SIGN_IN_URL} onClick={leave} className={button({ intent: "primary", size: "sm" })}>
-          {t("demo.signIn")}
-        </a>
+        {isBackendLive() ? (
+          <a
+            href={SIGN_IN_URL}
+            onClick={leave}
+            className={button({ intent: "primary", size: "sm" })}
+          >
+            {t("demo.signIn")}
+          </a>
+        ) : null}
         <button
           type="button"
           onClick={() => {

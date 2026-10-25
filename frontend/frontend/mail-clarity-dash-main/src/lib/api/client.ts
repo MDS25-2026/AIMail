@@ -1,6 +1,7 @@
 import { isDemo } from "../../demo/mode";
-import { BACKEND_URL, SERVICE_STATUS_PATH } from "./config";
+import { BACKEND_URL, SERVICE_STATUS_PATH, isBackendLive } from "./config";
 import { ApiError, ApiErrorCode, apiErrorFrom } from "./errors";
+import { NETWORK_PAUSE_MS, pause } from "./pause";
 
 export enum HttpMethod {
   Get = "GET",
@@ -97,6 +98,11 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     return demoRequest<T>(path, options);
   }
   const endpoint = `${options.method ?? HttpMethod.Get} ${path.split("?")[0]}`;
+  // No backend: signed out after a network pause, so the redirect lands after hydration (React #422).
+  if (!isBackendLive() && path !== SERVICE_STATUS_PATH) {
+    await pause(NETWORK_PAUSE_MS);
+    throw signedOut(endpoint);
+  }
   const res = await sendSignedIn(path, options, endpoint);
   if (!res.ok) throw await apiErrorFrom(res, endpoint);
   return readBody(res);

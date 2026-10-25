@@ -1,8 +1,12 @@
 // Vercel rewrites /api/* to the backend at its edge, so the browser talks to one site and the
 // SameSite=Strict session cookies stay first-party (specs/features/free-hosting.md).
-const backendOrigin = process.env.AIMAIL_BACKEND_ORIGIN?.replace(/\/+$/, "");
+// Offline (backend-offline.md): no proxy, so a released backend name never receives /api or its cookies.
+const isBackendOffline = process.env.VITE_BACKEND_OFFLINE === "true";
+const backendOrigin = isBackendOffline
+  ? undefined
+  : process.env.AIMAIL_BACKEND_ORIGIN?.replace(/\/+$/, "");
 
-if (process.env.VERCEL && !backendOrigin) {
+if (process.env.VERCEL && !isBackendOffline && !backendOrigin) {
   throw new Error("Set AIMAIL_BACKEND_ORIGIN to the backend's https origin (e.g. the Render URL).");
 }
 

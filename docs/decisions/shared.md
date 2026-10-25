@@ -6,6 +6,18 @@ here when their change crosses a lane boundary. Schema and public contracts are 
 
 ## Log
 
+### 2026-10-26 — Backend offline mode for the dashboard after the FYP ends
+
+- Decision: `VITE_BACKEND_OFFLINE=true` makes the dashboard treat every visitor as signed out without
+  calling the backend, and the landing page offers the recorded walkthrough and the demo in place of
+  Google sign-in, with a note that the project has ended and its paid servers are off.
+- Why: Render billing is being turned off; without this, `/` shows "Couldn't reach AIMail" instead of
+  the landing page.
+- Why not host the backend for free: Render's free tier cannot run Presidio or the listener, and the
+  Oracle VM (`oracle-free-hosting.md`) is parked.
+- Affects: Lane D (`src/lib/api/client.ts`, landing page, demo banner, locales; Han to review).
+- Status: accepted (spec `specs/features/backend-offline.md`)
+
 ### 2026-10-21 — Security review fixes: Reply-To, sign-out, token compare, limits
 
 - Decision: an approved reply honours a Reply-To only when it names one address, and the draft bar

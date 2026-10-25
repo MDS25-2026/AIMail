@@ -305,6 +305,8 @@ export const CHROME_STORE_URL =
 
 export const FEEDBACK_FORM_URL = "https://tally.so/r/Z9jdd5";
 
+export const WALKTHROUGH_VIDEO_URL = "https://youtu.be/VgTLe4RZu7A";
+
 export function ExtensionSection() {
   const { t } = useTranslation();
   return (
