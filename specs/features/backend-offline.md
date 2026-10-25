@@ -25,6 +25,8 @@ error screen, so that I can judge the work without the live servers.
 - The landing page shows a notice that the project has ended and its paid servers are off, and every
   "Sign in with Google" becomes "Watch the walkthrough" (YouTube); "Try the demo" stays.
 - The demo banner drops its "Sign in with Google" button.
+- The landing page stops offering the Chrome extension (section and footer link), which needs the backend.
+- The Vercel build drops the `/api/*` proxy to the old backend.
 
 **Out of scope**
 - The Chrome extension, which talks to the backend directly and needs its own build.
@@ -46,8 +48,10 @@ error screen, so that I can judge the work without the live servers.
 
 - A call rejected before hydration finishes lets the sign-in redirect interrupt it (React #422). The
   offline answer waits the same network pause the demo uses (`src/lib/api/pause.ts`).
-- Vercel's build still needs `AIMAIL_BACKEND_ORIGIN` (`nitro.config.ts` refuses to build without
-  it); leaving the old Render URL there is harmless, since nothing calls it.
+- With the switch on, `nitro.config.ts` drops the `/api/*` proxy and no longer needs
+  `AIMAIL_BACKEND_ORIGIN`. Otherwise, once the Render service is deleted and its name released, Vercel
+  would forward `/api` requests, with the session cookies browsers still hold, to whoever takes it.
+- The status page then gets a 404 for `/api/service-status` and shows the backend as not working.
 
 ## Security & privacy notes
 

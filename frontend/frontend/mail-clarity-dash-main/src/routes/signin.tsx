@@ -171,7 +171,8 @@ function LandingPage() {
         <ReceiptSection />
         <LanguagesSection />
         <FeaturesSection />
-        <ExtensionSection />
+        {/* The extension talks to the backend itself, so it is not offered while that is off. */}
+        {isBackendLive() ? <ExtensionSection /> : null}
         <FaqSection />
 
         <section className="rounded-2xl bg-brand px-6 py-12 text-center text-on-brand sm:px-12">
@@ -190,14 +191,16 @@ function LandingPage() {
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-6 text-xs text-fg-subtle sm:px-6">
           <p>{t("landing.footer")}</p>
           <div className="flex flex-wrap items-center gap-4">
-            <a
-              href={CHROME_STORE_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-medium text-fg-muted underline hover:text-fg"
-            >
-              {t("landing.extensionLink")}
-            </a>
+            {isBackendLive() ? (
+              <a
+                href={CHROME_STORE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-fg-muted underline hover:text-fg"
+              >
+                {t("landing.extensionLink")}
+              </a>
+            ) : null}
             <a
               href={FEEDBACK_FORM_URL}
               target="_blank"
