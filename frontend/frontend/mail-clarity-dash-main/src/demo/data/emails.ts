@@ -24,10 +24,10 @@ const MINUTE = 60_000;
 
 /** What the AI saw for one email: each step went to Gemini with the same details hidden. */
 function egress(at: Date, hidden: Record<string, number>, chars: number): EgressRecord[] {
-  const caught = Object.values(hidden).reduce((sum, count) => sum + count, 0);
   return ["route", "summary", "actions", "draft", "critic"].map((purpose) => ({
     at: at.toISOString(),
-    caught,
+    // Masking hid every detail upstream, so the gateway's last net had nothing to catch (#265).
+    caught: 0,
     chars,
     hidden,
     provider: "gemini",
