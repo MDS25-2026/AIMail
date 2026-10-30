@@ -220,6 +220,14 @@ describe("demo mode (#227)", () => {
       }
     }
   });
+
+  test("the privacy receipt shows masking working: nothing reached the last check (#265)", () => {
+    for (const email of demoEmails(new Date())) {
+      for (const record of email.egress ?? []) {
+        expect(record.caught, `${email.id} ${record.purpose}`).toBe(0);
+      }
+    }
+  });
 });
 
 describe("outside demo mode", () => {
