@@ -6,6 +6,10 @@ surfaces them in a dashboard for human approval.
 
 Final-year project (Monash University Malaysia, FIT3163) — Group MDS25, supervised by Dr. Asad Malik.
 
+**Live demo:** https://ai-mail-nu.vercel.app/ (no sign-in needed; runs in the browser with no backend or AI calls).
+
+**Lane D (Han):** the 14-field typed data contract the backend adopted, the review dashboard, the Chrome extension prototype, the no-sign-in demo mailbox, and code review of teammates' pull requests.
+
 ## Architecture
 
 ```mermaid
