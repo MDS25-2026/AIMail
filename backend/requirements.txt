@@ -1,21 +1,21 @@
 # Backend runtime + dev deps. Python 3.11+. See specs/context/tech-stack.md.
 
 # --- runtime ---
-pydantic>=2.13.5
-pydantic-settings>=2.15.0
-SQLAlchemy[asyncio]>=2.0.52
-asyncpg>=0.31.0
-pgvector>=0.5.0
-google-genai>=2.26.0          # Gemini embeddings (Lane B) + query reformulation
+pydantic>=2.14.1
+pydantic-settings>=2.16.2
+SQLAlchemy[asyncio]>=2.1.6
+asyncpg>=0.32.0
+pgvector>=0.5.1
+google-genai>=2.34.0          # Gemini embeddings (Lane B) + query reformulation
 httpx>=0.28.1                # imported directly for embedding-error handling
-pypdf>=6.16.2                 # policy-PDF text extraction
-numpy>=2.5.2                 # L2 normalization of embeddings
+pypdf>=6.21.4                 # policy-PDF text extraction
+numpy>=2.5.4                 # L2 normalization of embeddings
 scikit-learn>=1.9.1          # priority-classifier baseline (TF-IDF + logistic regression)
-pint>=0.26.1                 # unit conversion in the normalisation layer (BSD-3)
+pint>=0.26.2                 # unit conversion in the normalisation layer (BSD-3)
 PyJWT[crypto]>=2.10          # admin console: verifies Supabase ES256 access tokens (MIT)
 
 # API layer (serves the retrieval demo)
-fastapi>=0.142.2
+fastapi>=0.162.0
 uvicorn[standard]>=0.52.4
 python-multipart>=0.0.32    # PDF/file uploads
 
@@ -23,5 +23,5 @@ python-multipart>=0.0.32    # PDF/file uploads
 python-dotenv>=1.2.4
 
 # --- dev ---
-pytest>=9.1.1
-ruff==0.16.10
+pytest>=9.2.0
+ruff==0.17.3
